@@ -8,18 +8,22 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.os.CancellationSignal
 import android.provider.MediaStore
 import android.provider.MediaStore.Files.FileColumns
 import android.util.LruCache
 import android.util.Size
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -42,6 +46,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -53,12 +58,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -205,26 +213,105 @@ val thumbs = object : LruCache<Long, Bitmap>((Runtime.getRuntime().maxMemory() /
     override fun sizeOf(key: Long, value: Bitmap) = value.allocationByteCount
 }
 
+/**
+ * The Photos tab's select mode (mockup "Photos, selecting"): the picked tiles, live so the app can swap
+ * the bottom bar and act on the whole set. Long press starts it, a tap toggles, a drag adds the tiles it
+ * passes, a day's circle picks the whole day, Back or the X leaves. Purely state, so it is unit-testable.
+ */
+@Stable
+class PhotoSelection {
+    var tiles by mutableStateOf<Map<Long, Tile>>(emptyMap())
+        private set
+
+    val ids: Set<Long> get() = tiles.keys
+    val active: Boolean get() = tiles.isNotEmpty()
+    /** True when there is a selection and every picked tile is already a favorite. */
+    val allFavorite: Boolean get() = tiles.isNotEmpty() && tiles.values.all { it.favorite }
+
+    fun start(t: Tile) { tiles = mapOf(t.id to t) }
+    fun toggle(t: Tile) { tiles = if (t.id in tiles) tiles - t.id else tiles + (t.id to t) }
+    fun add(t: Tile) { if (t.id !in tiles) tiles = tiles + (t.id to t) }
+    fun addAll(ts: Collection<Tile>) { tiles = tiles + ts.associateBy { it.id } }
+    fun remove(ids: Collection<Long>) { tiles = tiles - ids.toSet() }
+    fun clear() { tiles = emptyMap() }
+}
+
+/** Total bytes of the given MediaStore ids, for the select top bar's "18.4 MB" (one small query). */
+fun selectedSize(context: Context, ids: Collection<Long>): Long {
+    if (ids.isEmpty()) return 0L
+    var total = 0L
+    val args = Bundle().apply { putString(ContentResolver.QUERY_ARG_SQL_SELECTION, "${FileColumns._ID} IN (${ids.joinToString(",")})") }
+    context.contentResolver.query(MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL), arrayOf(MediaStore.MediaColumns.SIZE), args, null)?.use { c ->
+        while (c.moveToNext()) if (!c.isNull(0)) total += c.getLong(0)
+    }
+    return total
+}
+
+/** "18.4 MB" for the select top bar (mockup). SI units (1000), like Android's own file sizes. One decimal above KB. */
+fun formatBytes(bytes: Long): String {
+    if (bytes < 1000) return "$bytes B"
+    val units = arrayOf("KB", "MB", "GB", "TB")
+    var v = bytes.toDouble()
+    var unit = -1
+    while (v >= 1000 && unit < units.lastIndex) { v /= 1000; unit++ }
+    return "%.1f %s".format(v, units[unit])
+}
+
 @Composable
 fun PhotosScreen(
     favoritesOnly: Boolean = false,
     onBack: (() -> Unit)? = null,
     onOpen: (List<Tile>, Tile) -> Unit,
     grid: LazyGridState = rememberLazyGridState(),
+    selection: PhotoSelection? = null,
+    reload: Int = 0,
 ) {
     val context = LocalContext.current
-    val perms = if (Build.VERSION.SDK_INT >= 33) arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO)
-    else arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+    val perms = arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO)
     var granted by remember { mutableStateOf(perms.all { context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }) }
     val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted = it.values.all { ok -> ok } }
     LaunchedEffect(Unit) { if (!granted) ask.launch(perms) }
-    val items by produceState(if (favoritesOnly) lastFavorites else lastTimeline, granted) {
+    val items by produceState(if (favoritesOnly) lastFavorites else lastTimeline, granted, reload) {
         if (granted) value = withContext(Dispatchers.IO) { timeline(context, favoritesOnly) }
             .also { if (favoritesOnly) lastFavorites = it else lastTimeline = it }
     }
-    val photos = items.orEmpty().filterIsInstance<Tile>()
+    // total bytes of the picked tiles, for the select top bar
+    val pickedSize by produceState(0L, selection?.ids) {
+        value = selection?.ids?.takeIf { it.isNotEmpty() }?.let { withContext(Dispatchers.IO) { selectedSize(context, it) } } ?: 0L
+    }
+    PhotosContent(
+        items = items,
+        granted = granted,
+        favoritesOnly = favoritesOnly,
+        onAsk = { ask.launch(perms) },
+        onBack = onBack,
+        onOpen = onOpen,
+        grid = grid,
+        selection = selection,
+        pickedSize = pickedSize,
+    )
+}
+
+/** Photos layout per docs/design.html: the timeline, the months slider and the select mode. No MediaStore, so previews and tests render it. */
+@Composable
+fun PhotosContent(
+    items: List<Any>?,
+    granted: Boolean = true,
+    favoritesOnly: Boolean = false,
+    onAsk: () -> Unit = {},
+    onBack: (() -> Unit)? = null,
+    onOpen: (List<Tile>, Tile) -> Unit = { _, _ -> },
+    grid: LazyGridState = rememberLazyGridState(),
+    selection: PhotoSelection? = null,
+    pickedSize: Long = 0L,
+) {
+    val list = items.orEmpty()
+    val photos = list.filterIsInstance<Tile>()
+    val tabs = selection != null // the main tab supports select mode; Favorites passes none
+    val selecting = selection?.active == true
+    val selectedIds = selection?.ids.orEmpty()
     // One entry per month header: the grid item a month starts at, and its name for the slider
-    val months = remember(items) { items.orEmpty().mapIndexedNotNull { i, x -> if (x is Header && x.month) i to x.text else null } }
+    val months = remember(items) { list.mapIndexedNotNull { i, x -> if (x is Header && x.month) i to x.text else null } }
     val monthStarts = months.map { it.first }
     val monthNames = months.map { it.second }
     val month by remember(grid, monthStarts) {
@@ -244,23 +331,49 @@ fun PhotosScreen(
     LaunchedEffect(sliderTick) {
         if (sliderTick > 0) { delay(2000); if (dragMonth == null) sliderOn = false }
     }
+    // a day header's key -> its tiles, for the day circle
+    val dayTiles = remember(items) {
+        val map = linkedMapOf<String, MutableList<Tile>>()
+        var current: String? = null
+        for (x in list) when (x) {
+            is Header -> if (!x.month) { current = x.key; map.getOrPut(x.key) { mutableListOf() } }
+            is Tile -> current?.let { map[it]?.add(x) }
+        }
+        map
+    }
+    val tilesById = remember(photos) { photos.associateBy { it.id } }
+    if (selecting) BackHandler { selection.clear() }
     Column {
-        if (onBack != null) Row(Modifier.padding(start = 4.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onBack) { Icon(painterResource(R.drawable.ic_back), "Back") }
-            Text("Favorites", Modifier.padding(start = 4.dp), style = MaterialTheme.typography.titleLarge)
-        } else Row(Modifier.fillMaxWidth().padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(buildAnnotatedString {
-                append("Memoria ")
-                withStyle(SpanStyle(MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)) { append("Photo") }
-            }, Modifier.weight(1f).padding(start = 20.dp, top = 18.dp, bottom = 18.dp), style = MaterialTheme.typography.titleLarge)
-            // search is not designed yet: the mockup's magnifier, like the Library gear
-            IconButton({}) { Icon(painterResource(R.drawable.ic_search), "Search") }
+        // The wordmark and the select top bar share one Box: the select bar is drawn over the wordmark,
+        // so swapping them never changes the height and the grid under it never moves.
+        Box(Modifier.fillMaxWidth()) {
+            if (onBack != null) Row(Modifier.padding(start = 4.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onBack) { Icon(painterResource(R.drawable.ic_back), "Back") }
+                Text("Favorites", Modifier.padding(start = 4.dp), style = MaterialTheme.typography.titleLarge)
+            } else Row(Modifier.fillMaxWidth().padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(buildAnnotatedString {
+                    append("Memoria ")
+                    withStyle(SpanStyle(MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)) { append("Photo") }
+                }, Modifier.weight(1f).padding(start = 20.dp, top = 18.dp, bottom = 18.dp), style = MaterialTheme.typography.titleLarge)
+                // search is not designed yet: the mockup's magnifier, like the Library gear
+                IconButton({}) { Icon(painterResource(R.drawable.ic_search), "Search") }
+            }
+            if (selecting) Row(
+                Modifier.matchParentSize().background(MaterialTheme.colorScheme.surface).padding(start = 4.dp, end = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton({ selection.clear() }) { Icon(painterResource(R.drawable.ic_close), "Cancel") }
+                Column(Modifier.weight(1f)) {
+                    Text("${selectedIds.size} selected", style = MaterialTheme.typography.titleLarge)
+                    Text(formatBytes(pickedSize), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
         }
         if (!granted) {
             // ponytail: after two denials Android stops asking, then the user has to allow it in system settings
             Column(Modifier.padding(horizontal = 20.dp)) {
                 Text("Memoria needs access to your photos and videos.")
-                Button({ ask.launch(perms) }, Modifier.padding(top = 12.dp)) { Text("Allow access") }
+                Button(onAsk, Modifier.padding(top = 12.dp)) { Text("Allow access") }
             }
             return@Column
         }
@@ -285,23 +398,42 @@ fun PhotosScreen(
                 dragMonth = i
                 scope.launch { grid.scrollToItem(monthStarts.getOrElse(i) { 0 }) }
             },
-            enabled = !favoritesOnly, // the mockup's slider belongs to the timeline; the favorites grid has its own scroll
+            // the mockup's slider belongs to the timeline; Favorites has its own scroll, and while selecting a drag picks photos
+            enabled = !favoritesOnly && !selecting,
         ) {
             LazyVerticalGrid(
                 GridCells.Fixed(4), state = grid,
+                modifier = (if (tabs) Modifier.selectDrag(grid, tilesById, selection) else Modifier).testTag("photosGrid"),
                 horizontalArrangement = Arrangement.spacedBy(2.dp), verticalArrangement = Arrangement.spacedBy(2.dp),
+                userScrollEnabled = !selecting,
             ) {
-                for (x in items.orEmpty()) when (x) {
+                for (x in list) when (x) {
                     is Header -> if (x.month) {
                         // pinned while its month is on screen, background so photos scroll under it (mockup "Sticky month header")
                         stickyHeader(key = x.key) {
                             Text(x.text, Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(start = 16.dp, top = 20.dp, bottom = 2.dp), style = MaterialTheme.typography.titleLarge)
                         }
                     } else item(key = x.key, span = { GridItemSpan(maxLineSpan) }, contentType = "header") {
-                        Text(x.text, Modifier.padding(start = 16.dp, top = 12.dp, bottom = 6.dp), style = MaterialTheme.typography.titleSmall)
+                        val day = dayTiles[x.key].orEmpty()
+                        val all = selecting && day.isNotEmpty() && day.all { it.id in selectedIds }
+                        // the circle is an overlay: the header keeps its height, so the photos under it never move
+                        Box(Modifier.fillMaxWidth().testTag("dayHeader")) {
+                            Text(x.text, Modifier.padding(start = 16.dp, top = 12.dp, bottom = 6.dp), style = MaterialTheme.typography.titleSmall)
+                            if (selecting) DayCircle(all, Modifier.align(Alignment.CenterEnd).padding(end = 16.dp)) {
+                                if (all) selection.remove(day.map { it.id }) else selection.addAll(day)
+                            }
+                        }
                     }
                     is Tile -> item(key = x.id, contentType = "tile") {
-                        TileImage(x, Modifier.clickable { onOpen(photos, x) })
+                        TileImage(
+                            x,
+                            if (tabs) Modifier.combinedClickable(
+                                onClick = { if (selecting) selection.toggle(x) else onOpen(photos, x) },
+                                onLongClick = { selection.start(x) },
+                            ) else Modifier.clickable { onOpen(photos, x) },
+                            selecting = selecting,
+                            selected = x.id in selectedIds,
+                        )
                     }
                 }
             }
@@ -309,11 +441,66 @@ fun PhotosScreen(
     }
 }
 
+/** The day's select circle (mockup "Photos, selecting"): an outline, filled with a check when the whole day is picked. */
 @Composable
-fun TileImage(tile: Tile, modifier: Modifier) {
-    Box(modifier.aspectRatio(1f)) {
+private fun DayCircle(on: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(
+        modifier.size(22.dp).clip(CircleShape)
+            .then(
+                if (on) Modifier.background(MaterialTheme.colorScheme.primary)
+                else Modifier.border(2.dp, MaterialTheme.colorScheme.onSurfaceVariant, CircleShape),
+            )
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) { if (on) Icon(painterResource(R.drawable.ic_check), null, Modifier.size(16.dp), tint = Color.White) }
+}
+
+/**
+ * Drag-select for the timeline (mockup "Photos, selecting": drag adds the ones you pass). It reads the
+ * live grid layout to find the tile under the finger, and never consumes while no selection is active,
+ * so normal scrolling is untouched. The grid's own scroll is off while selecting (see PhotosContent).
+ */
+private fun Modifier.selectDrag(grid: LazyGridState, tilesById: Map<Long, Tile>, selection: PhotoSelection): Modifier =
+    pointerInput(tilesById) {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false)
+            var own = false
+            while (true) {
+                val change = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: break
+                if (!change.pressed) break
+                if (!selection.active) continue
+                if (!own) {
+                    if ((change.position - down.position).getDistance() < viewConfiguration.touchSlop) continue
+                    own = true
+                }
+                change.consume()
+                val item = grid.layoutInfo.visibleItemsInfo.firstOrNull { info ->
+                    change.position.x >= info.offset.x && change.position.x < info.offset.x + info.size.width &&
+                        change.position.y >= info.offset.y && change.position.y < info.offset.y + info.size.height
+                }
+                (item?.key as? Long)?.let { id -> tilesById[id]?.let { selection.add(it) } }
+            }
+        }
+    }
+
+@Composable
+fun TileImage(tile: Tile, modifier: Modifier, selecting: Boolean = false, selected: Boolean = false) {
+    Box(
+        modifier.aspectRatio(1f)
+            .then(if (selected) Modifier.border(3.dp, MaterialTheme.colorScheme.primary) else Modifier),
+    ) {
         Thumb(tile, Modifier.fillMaxSize())
-        if (tile.favorite) {
+        if (selecting) {
+            // the circle covers the heart while selecting (mockup "Tile")
+            Box(
+                Modifier.align(Alignment.TopStart).padding(6.dp).size(22.dp).clip(CircleShape)
+                    .then(
+                        if (selected) Modifier.background(MaterialTheme.colorScheme.primary)
+                        else Modifier.border(2.dp, Color.White, CircleShape),
+                    ),
+                contentAlignment = Alignment.Center,
+            ) { if (selected) Icon(painterResource(R.drawable.ic_check), null, Modifier.size(16.dp), tint = Color.White) }
+        } else if (tile.favorite) {
             Box(
                 Modifier.align(Alignment.TopStart).padding(4.dp).size(16.dp).background(Color.Black.copy(alpha = 0.35f), CircleShape),
                 contentAlignment = Alignment.Center,

@@ -14,6 +14,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
@@ -89,6 +90,9 @@ import kotlin.math.roundToInt
 private val onViewer = Color(0xFFF4ECE1)
 private val viewerBg = Color(0xFF120E0A)
 private const val maxZoom = 6f
+
+// Bars fade fast: the tap must feel immediate. Material's default fade is a spring (~400 ms).
+private const val barsFadeMillis = 120
 
 /** Full-screen photos, swipe sideways for the next one. Opens on the tile with id start. */
 @Composable
@@ -226,7 +230,7 @@ fun ViewerChrome(
     onDelete: () -> Unit,
 ) {
     Box(Modifier.fillMaxSize()) {
-        AnimatedVisibility(visible, Modifier.align(Alignment.TopCenter), enter = fadeIn(), exit = fadeOut()) {
+        AnimatedVisibility(visible, Modifier.align(Alignment.TopCenter), enter = fadeIn(tween(barsFadeMillis)), exit = fadeOut(tween(barsFadeMillis))) {
             Row(
                 Modifier.fillMaxWidth()
                     .background(Brush.verticalGradient(listOf(viewerBg.copy(alpha = 0.62f), Color.Transparent)))
@@ -241,7 +245,7 @@ fun ViewerChrome(
                 Spacer(Modifier.size(48.dp)) // same width as Back, keeps the date centered
             }
         }
-        AnimatedVisibility(visible, Modifier.align(Alignment.BottomCenter), enter = fadeIn(), exit = fadeOut()) {
+        AnimatedVisibility(visible, Modifier.align(Alignment.BottomCenter), enter = fadeIn(tween(barsFadeMillis)), exit = fadeOut(tween(barsFadeMillis))) {
             Row(
                 Modifier.fillMaxWidth()
                     .background(Brush.verticalGradient(listOf(Color.Transparent, viewerBg.copy(alpha = 0.62f))))

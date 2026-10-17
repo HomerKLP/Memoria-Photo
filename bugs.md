@@ -242,6 +242,22 @@ Steps:
 Fix ideas:
 - Add the search `IconButton` to the app bar like the Library gear (search itself not designed yet).
 
+## Viewer: system bars stay visible in the tapped state
+
+Steps:
+1. Open a photo, tap the photo to hide the bars.
+
+The two app bars hide, but the Android status and nav bars stay. The caller
+calls `insetsController.hide(WindowInsets.Type.systemBars())` (`Viewer.kt`),
+which the OnePlus 13 (ColorOS) seems to ignore. So the mockup's "Viewer, tapped"
+(nothing but the photo) is not reached on the phone.
+
+Fix ideas:
+- Immersive mode: `WindowCompat.setDecorFitsSystemWindows(window, false)` plus
+  `WindowInsetsControllerCompat.hide(systemBars())` with
+  `BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE`.
+- Check on a stock-Pixel emulator to tell whether it is the OEM.
+
 # Known issues and bad patterns
 
 Found while reading the code, not seen on the phone yet. No steps, just the risk.
