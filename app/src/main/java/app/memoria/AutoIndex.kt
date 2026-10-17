@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.database.ContentObserver
 import android.net.Uri
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore.Images.Media
@@ -105,8 +104,7 @@ fun watchNewPhotos(context: Context, lifecycle: Lifecycle): Closeable {
 }
 
 private fun canReadPhotos(context: Context): Boolean {
-    val permission = if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_IMAGES else Manifest.permission.READ_EXTERNAL_STORAGE
-    return context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
+    return context.checkSelfPermission(Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED
 }
 
 private fun modelsReady(context: Context) = File(File(context.getExternalFilesDir(null), "models"), "detector.onnx").exists()

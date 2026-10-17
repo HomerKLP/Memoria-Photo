@@ -289,6 +289,16 @@ figcaption { color: var(--muted); font-size: 13px; text-align: center; text-wrap
 .empty b { font: 700 20px/1.2 var(--display); color: var(--fg); }
 .empty p { margin: 0; font-size: 13px; }
 
+/* App icon: drawn on Android's 108 canvas, the picture inside the middle circle so any launcher shape keeps it */
+.icons { display: flex; flex-wrap: wrap; align-items: end; gap: 20px; }
+.appicon { display: block; width: 96px; height: 96px; border-radius: 50%; overflow: hidden; }
+.appicon svg { display: block; width: 100%; height: 100%; }
+.appicon.sq { border-radius: 30%; }
+.home { padding: 16px 18px 10px; border-radius: 16px; background: linear-gradient(160deg, #4F8FB0, #CFE6EA); display: grid; justify-items: center; gap: 6px; color: #fff; font-size: 12px; text-shadow: 0 1px 2px rgba(0, 0, 0, .4); }
+.home .appicon { width: 52px; height: 52px; }
+.home.themed { background: #E6E3DA; color: #3B3A33; text-shadow: none; }
+.home.themed .appicon { background: #D3D7C4; color: #3A4630; }
+
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
@@ -950,6 +960,37 @@ figcaption { color: var(--muted); font-size: 13px; text-align: center; text-wrap
       <li>Hide content below the list, never above it. A bar appearing at the bottom does not move the top.</li>
       <li>Every screen with modes gets a mockup per mode (list, selecting, empty) so the jump is easy to see.</li>
     </ul>
+  </article>
+</section>
+
+<section class="parts">
+  <h2>App icon</h2>
+  <p class="lede">Shown as a circle, a rounded square, on a home screen, and as the one-color themed icon (Android 13+).</p>
+
+  <svg style="position:absolute;width:0;height:0" aria-hidden="true">
+    <defs>
+      <linearGradient id="g-honey" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F6C65B"/><stop offset="1" stop-color="#D98E1C"/></linearGradient>
+    </defs>
+    <symbol id="logo-a" viewBox="0 0 108 108">
+      <rect width="108" height="108" fill="url(#g-honey)"/>
+      <circle cx="70" cy="31" r="5.5" fill="#FFF6E2"/>
+      <path d="M33 73 44 45l10 16 10-16 11 28" fill="none" stroke="#3A2410" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="logo-a-mono" viewBox="0 0 108 108">
+      <circle cx="70" cy="31" r="5.5" fill="currentColor"/>
+      <path d="M33 73 44 45l10 16 10-16 11 28" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+  </svg>
+
+  <article class="part">
+    <h3>Sunrise M</h3>
+    <div class="icons">
+      <span class="appicon"><svg><use href="#logo-a"/></svg></span>
+      <span class="appicon sq"><svg><use href="#logo-a"/></svg></span>
+      <div class="home"><span class="appicon"><svg><use href="#logo-a"/></svg></span>Memoria</div>
+      <div class="home themed"><span class="appicon"><svg><use href="#logo-a-mono"/></svg></span>Memoria</div>
+    </div>
+    <p>Two peaks and a sun: an M and a photo at once. Clear at small size and in one color.</p>
   </article>
 </section>
 
