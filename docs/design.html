@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Roboto:wght@400;500;700&display=swap">
 <style>
-/* Layout: phone screens in a wrapping row, one per app screen, in the order you meet them. Honey palette, light only. */
+/* Layout: phone screens grouped by page, each group a wrapping row. Honey palette, light only. */
 :root {
   --page: #EEE4D3;
   --bg: #FBF6EC;
@@ -38,14 +38,18 @@ button { font: inherit; color: inherit; cursor: pointer; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 svg.i { width: 24px; height: 24px; fill: currentColor; flex: none; }
 
-.top { max-width: 816px; margin: 0 auto 32px; }
+.top, .group { max-width: 1400px; margin: 0 auto 48px; }
 h1 { font: 700 28px/1.1 var(--display); margin: 0; text-wrap: balance; }
 .lede { margin: 6px 0 0; color: var(--muted); }
+.toc { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 12px; }
+.toc a { color: var(--accent); font-weight: 500; text-decoration: none; }
+.group > h2 { font: 700 24px/1.2 var(--display); margin: 0 0 16px; }
 
-.phones { display: flex; flex-wrap: wrap; justify-content: center; gap: 40px 48px; }
-figure { margin: 0; width: min(360px, 100%); display: grid; gap: 12px; justify-items: center; align-content: start; }
-figcaption { color: var(--muted); font-size: 13px; text-align: center; text-wrap: balance; }
-.phone { width: 100%; height: 760px; border: 10px solid #1F1A16; border-radius: 42px; background: var(--bg); overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 24px 48px -24px rgba(70, 45, 20, .45); }
+/* --z shrinks the phones so more fit in the browser; the screens inside keep their real 360 x 760 size */
+.phones { --z: .7; display: flex; flex-wrap: wrap; gap: 32px 28px; }
+figure { margin: 0; width: calc(360px * var(--z)); display: grid; gap: 10px; justify-items: center; align-content: start; }
+figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap: balance; }
+.phone { zoom: var(--z); width: 360px; height: 760px; border: 10px solid #1F1A16; border-radius: 42px; background: var(--bg); overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 24px 48px -24px rgba(70, 45, 20, .45); position: relative; }
 .phone.dark { background: var(--viewer); color: var(--on-viewer); }
 
 .status { display: flex; justify-content: space-between; align-items: center; padding: 10px 22px 2px; font-weight: 500; font-size: 13px; }
@@ -63,7 +67,7 @@ figcaption { color: var(--muted); font-size: 13px; text-align: center; text-wrap
 /* Photos tab */
 .month { margin: 0; padding: 20px 16px 2px; font: 700 20px/1.2 var(--display); position: sticky; top: 0; z-index: 2; background: var(--bg); }
 .month-sec { display: block; }
-.day { display: flex; gap: 8px; align-items: baseline; padding: 12px 16px 8px; font-weight: 500; }
+.day { position: relative; display: flex; gap: 8px; align-items: baseline; padding: 12px 16px 8px; font-weight: 500; }
 .day small { color: var(--muted); font-weight: 400; font-size: 13px; }
 .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; }
 .tile { aspect-ratio: 1; max-width: 100%; position: relative; }
@@ -170,6 +174,17 @@ figcaption { color: var(--muted); font-size: 13px; text-align: center; text-wrap
 .stage { flex: 1; min-height: 0; display: grid; place-items: center; }
 .stage div { width: 100%; max-width: 100%; aspect-ratio: 3 / 4; }
 .actions { display: flex; justify-content: space-around; padding: 6px 8px; }
+/* Viewer: the photo fills the whole phone (behind the bars), the bars float on top and are
+   transparent — a soft gradient keeps the white icons readable, no opaque strip hides the photo */
+.phone.viewer { background: var(--viewer); }
+.phone.viewer .viewer-full { position: absolute; inset: 0; z-index: 0; }
+.phone.viewer::before,
+.phone.viewer::after { content: ""; position: absolute; inset: 0 0 auto; height: 168px; background: linear-gradient(rgba(18, 14, 10, .62), transparent); z-index: 1; }
+.phone.viewer::after { inset: auto 0 0; background: linear-gradient(transparent, rgba(18, 14, 10, .62)); }
+.phone.viewer > * { position: relative; z-index: 2; }
+.phone.viewer > .actions { margin-top: auto; }
+/* Viewer, tapped: the bars and the system bars hide, so the whole photo shows with nothing over it */
+.viewer-full { position: absolute; inset: 0; }
 .crop { flex: none; height: 270px; position: relative; }
 .crop .vbar { position: absolute; inset: 0 0 auto; color: #fff; }
 .info { position: relative; margin-top: -24px; padding-bottom: 20px; border-radius: 24px 24px 0 0; background: var(--bg); color: var(--fg); }
@@ -255,10 +270,38 @@ figcaption { color: var(--muted); font-size: 13px; text-align: center; text-wrap
 .left { position: absolute; left: 6px; bottom: 5px; color: #fff; font-weight: 500; font-size: 11px; text-shadow: 0 1px 2px rgba(0, 0, 0, .5); }
 .sel { position: absolute; top: 6px; left: 6px; width: 22px; height: 22px; box-sizing: border-box; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 3px rgba(0, 0, 0, .35); display: grid; place-items: center; }
 .tile.on { outline: 3px solid var(--accent); outline-offset: -3px; }
-.tile.on .sel { border-color: var(--accent); background: var(--accent); }
-.tile.on .sel svg.i { width: 16px; height: 16px; fill: #fff; }
+.tile.on .sel, .day.on .sel { border-color: var(--accent); background: var(--accent); }
+.tile.on .sel svg.i, .day.on .sel svg.i { width: 16px; height: 16px; fill: #fff; }
+.day .sel { top: 50%; left: auto; right: 16px; margin-top: -11px; border-color: var(--muted); box-shadow: none; }
+.picking .tab { color: var(--fg); }
+.picking .pill { padding: 0 8px; }
+.tab.danger { color: var(--danger); }
 .answers.selbar { padding: 12px 16px; border-top: 1px solid var(--line); }
 .answers .no.danger { border-color: var(--danger); color: var(--danger); }
+
+/* Search: the field is the top bar, same height while typing */
+.search-bar { display: flex; align-items: center; gap: 4px; min-height: 60px; padding: 4px 16px 4px 4px; }
+.search-bar .field { flex: 1; margin: 0; }
+.field .clear { margin: 0 -12px 0 auto; color: var(--muted); }
+.head + .chips { padding-top: 0; }
+.pick > svg.i, .pick .icon-btn { color: var(--muted); }
+.pick .icon-btn { margin-right: -12px; }
+.pick mark { background: none; color: var(--accent); }
+/* Keyboard: mockup only, shows how much room is left above it */
+.kbd { flex: none; padding: 10px 4px 6px; background: #E6DCCB; display: grid; gap: 10px; }
+.kbd div { display: flex; justify-content: center; gap: 5px; }
+.kbd i { flex: 0 1 30px; height: 42px; border-radius: 6px; background: var(--bg); box-shadow: 0 1px 0 rgba(43, 33, 24, .15); }
+.kbd i.wide { flex-basis: 170px; }
+.kbd + .gesture { background: #E6DCCB; }
+
+/* Menu: drops from a top bar's More, over the screen, no dim */
+.menu { width: 248px; padding: 8px 0; border-radius: 16px; background: var(--bg); color: var(--fg); box-shadow: 0 12px 32px -8px rgba(43, 33, 24, .5); display: grid; }
+.phone .menu { position: absolute; top: 88px; right: 8px; z-index: 3; }
+.mi { display: flex; align-items: center; gap: 14px; height: 48px; padding: 0 16px; border: 0; background: transparent; font-size: 15px; text-align: left; white-space: nowrap; }
+.mi:hover { background: var(--surface); }
+.mi svg.i { color: var(--muted); }
+.mi svg.i.tick { margin-left: auto; color: var(--accent); }
+.menu hr { width: 100%; margin: 8px 0; border: 0; border-top: 1px solid var(--line); }
 /* Shared parts: check these before building a screen. One place to fix, same look everywhere. */
 .parts { max-width: 816px; margin: 64px auto 0; display: grid; gap: 24px; }
 .parts h2 { font: 700 24px/1.2 var(--display); margin: 0; }
@@ -273,6 +316,16 @@ figcaption { color: var(--muted); font-size: 13px; text-align: center; text-wrap
 .empty svg.i { width: 48px; height: 48px; color: var(--surface); }
 .empty b { font: 700 20px/1.2 var(--display); color: var(--fg); }
 .empty p { margin: 0; font-size: 13px; }
+
+/* App icon: drawn on Android's 108 canvas, the picture inside the middle circle so any launcher shape keeps it */
+.icons { display: flex; flex-wrap: wrap; align-items: end; gap: 20px; }
+.appicon { display: block; width: 96px; height: 96px; border-radius: 50%; overflow: hidden; }
+.appicon svg { display: block; width: 100%; height: 100%; }
+.appicon.sq { border-radius: 30%; }
+.home { padding: 16px 18px 10px; border-radius: 16px; background: linear-gradient(160deg, #4F8FB0, #CFE6EA); display: grid; justify-items: center; gap: 6px; color: #fff; font-size: 12px; text-shadow: 0 1px 2px rgba(0, 0, 0, .4); }
+.home .appicon { width: 52px; height: 52px; }
+.home.themed { background: #E6E3DA; color: #3B3A33; text-shadow: none; }
+.home.themed .appicon { background: #D3D7C4; color: #3A4630; }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
@@ -313,482 +366,620 @@ figcaption { color: var(--muted); font-size: 13px; text-align: center; text-wrap
   <symbol id="i-upload" viewBox="0 0 24 24"><path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></symbol>
   <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M17.65 6.35A7.96 7.96 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></symbol>
   <symbol id="i-restore" viewBox="0 0 24 24"><path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.95 8.95 0 0 0 13 21a9 9 0 0 0 0-18z"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></symbol>
+  <symbol id="i-wallpaper" viewBox="0 0 24 24"><path d="M4 4h7V2H4c-1.1 0-2 .9-2 2v7h2V4zm6 9-4 5h12l-3-4-2.03 2.71L10 13zm7-4.5c0-.83-.67-1.5-1.5-1.5S14 7.67 14 8.5s.67 1.5 1.5 1.5S17 9.33 17 8.5zM20 2h-7v2h7v7h2V4c0-1.1-.9-2-2-2zm0 18h-7v2h7c1.1 0 2-.9 2-2v-7h-2v7zM4 13H2v7c0 1.1.9 2 2 2h7v-2H4v-7z"/></symbol>
+  <symbol id="i-move" viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-6 12v-3h-4v-4h4V8l5 5-5 5z"/></symbol>
+  <symbol id="i-history" viewBox="0 0 24 24"><path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24"><path d="M20 3h-1V1h-2v2H7V1H5v2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 18H4V8h16v13z"/></symbol>
+  <symbol id="i-select" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></symbol>
 </svg>
 
 <header class="top">
   <h1>Memoria Photo</h1>
   <p class="lede">Light theme, Honey palette. Photos and faces are placeholders, names and places are made up.</p>
+  <nav class="toc"><a href="#page-photos">Photos</a><a href="#page-search">Search</a><a href="#page-viewer">Viewer</a><a href="#page-library">Library</a><a href="#page-people">People</a><a href="#page-settings">Settings</a><a href="#parts">Shared parts</a><a href="#app-icon">App icon</a></nav>
 </header>
 
-<main class="phones">
-  <figure>
-    <div class="phone has-slider">
-      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
-      <div class="appbar">
-        <div class="wordmark">Memoria <span>Photo</span></div>
-        <button class="icon-btn" aria-label="Search"><svg class="i"><use href="#i-search"/></svg></button>
+<main>
+<section class="group" id="page-photos">
+  <h2>Photos</h2>
+  <div class="phones">
+    <figure>
+      <div class="phone has-slider">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="appbar">
+          <div class="wordmark">Memoria <span>Photo</span></div>
+          <button class="icon-btn" aria-label="Search"><svg class="i"><use href="#i-search"/></svg></button>
+        </div>
+        <div class="scroll" id="timeline"></div>
+        <div class="slider on" aria-hidden="true">
+          <span class="rail"></span>
+          <i style="top:calc(10px + (100% - 20px) * 0)"></i>
+          <i class="now" style="top:calc(10px + (100% - 20px) * .2)"></i>
+          <i style="top:calc(10px + (100% - 20px) * .4)"></i>
+          <i style="top:calc(10px + (100% - 20px) * .6)"></i>
+          <i style="top:calc(10px + (100% - 20px) * .8)"></i>
+          <i style="top:calc(10px + (100% - 20px) * 1)"></i>
+          <span class="knob" style="top:calc(10px + (100% - 20px) * .2)"></span>
+        </div>
+        <div class="bottom">
+          <nav>
+            <button class="tab on"><span class="pill"><svg class="i"><use href="#i-photo"/></svg>Photos</span></button>
+            <button class="tab"><span class="pill"><svg class="i"><use href="#i-library"/></svg>Library</span></button>
+          </nav>
+          <div class="handle"></div>
+        </div>
       </div>
-      <div class="scroll" id="timeline"></div>
-      <div class="slider on" aria-hidden="true">
-        <span class="rail"></span>
-        <i style="top:calc(10px + (100% - 20px) * 0)"></i>
-        <i class="now" style="top:calc(10px + (100% - 20px) * .2)"></i>
-        <i style="top:calc(10px + (100% - 20px) * .4)"></i>
-        <i style="top:calc(10px + (100% - 20px) * .6)"></i>
-        <i style="top:calc(10px + (100% - 20px) * .8)"></i>
-        <i style="top:calc(10px + (100% - 20px) * 1)"></i>
-        <span class="knob" style="top:calc(10px + (100% - 20px) * .2)"></span>
+      <figcaption>Photos tab, scrolled: the month heading stays pinned while its photos pass under it, and the month slider has faded in (it hides again a moment after you stop). Drag the slider to jump to a month; it never covers the bottom bar</figcaption>
+    </figure>
+    <figure id="photos-select">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Close"><svg class="i"><use href="#i-close"/></svg></button>
+          <div class="title"><b>6 selected</b><span>18.4 MB</span></div>
+        </div>
+        <div class="scroll" id="timeline-select"></div>
+        <div class="bottom picking">
+          <nav>
+            <button class="tab"><span class="pill"><svg class="i"><use href="#i-share"/></svg>Share</span></button>
+            <button class="tab"><span class="pill"><svg class="i"><use href="#i-heart-line"/></svg>Favorite</span></button>
+            <button class="tab danger"><span class="pill"><svg class="i"><use href="#i-trash-line"/></svg>Delete</span></button>
+          </nav>
+          <div class="handle"></div>
+        </div>
       </div>
-      <div class="bottom">
-        <nav>
-          <button class="tab on"><span class="pill"><svg class="i"><use href="#i-photo"/></svg>Photos</span></button>
-          <button class="tab"><span class="pill"><svg class="i"><use href="#i-library"/></svg>Library</span></button>
-        </nav>
-        <div class="handle"></div>
+      <figcaption>Photos, selecting: long press a photo to start, drag to add the ones you pass, tap a day's circle for the whole day. The top bar and the tabs swap in place at the same height, so the grid never moves. Delete sends all to the phone's trash with one Android confirm. Favorite reads Unfavorite when all picked are favorites. The circle covers the heart while selecting. Back or X leaves</figcaption>
+    </figure>
+  </div>
+</section>
+<section class="group" id="page-search">
+  <h2>Search</h2>
+  <div class="phones">
+    <figure id="search">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="search-bar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="field"><svg class="i"><use href="#i-search"/></svg>Search people, places, dates</div>
+        </div>
+        <div class="scroll">
+          <div class="head"><h3>People</h3></div>
+          <div class="row" id="search-people"></div>
+          <div class="head"><h3>Types</h3></div>
+          <div class="chips">
+            <button class="chip"><svg class="i"><use href="#i-video"/></svg>Videos</button>
+            <button class="chip"><svg class="i"><use href="#i-heart"/></svg>Favorites</button>
+            <button class="chip"><svg class="i"><use href="#i-photo"/></svg>Screenshots</button>
+          </div>
+          <div class="head"><h3>Recent</h3><a href="#">Clear</a></div>
+          <div id="search-recent"></div>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
       </div>
-    </div>
-    <figcaption>Photos tab, scrolled: the month heading stays pinned while its photos pass under it, and the month slider has faded in (it hides again a moment after you stop). Drag the slider to jump to a month; it never covers the bottom bar</figcaption>
-  </figure>
-
-  <figure>
-    <div class="phone">
-      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
-      <div class="appbar">
-        <h2>Library</h2>
-        <button class="icon-btn" aria-label="Settings"><svg class="i"><use href="#i-settings"/></svg></button>
+      <figcaption>Search: opens from the Photos search icon and the Library search bar, keyboard down. A screen, not a third tab. Named people, types, recent searches; each opens a screen we already have. Recent keeps what you opened; × removes one, Clear all. Nothing recent: no Recent heading. People's own search bar only filters that screen</figcaption>
+    </figure>
+    <figure id="search-typing">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="search-bar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="field filled">d<span class="caret"></span><button class="icon-btn clear" aria-label="Clear"><svg class="i"><use href="#i-close"/></svg></button></div>
+        </div>
+        <div class="scroll" id="search-hits"></div>
+        <div class="kbd"></div>
+        <div class="gesture"><div class="handle"></div></div>
       </div>
-      <div class="scroll">
-        <div class="search"><svg class="i"><use href="#i-search"/></svg>Search people, places, dates</div>
-
-        <div class="head"><h3>People</h3><a href="#">See all<svg class="i"><use href="#i-chevron"/></svg></a></div>
-        <div class="row">
-          <div class="person wide">
-            <div class="face empty-face"><svg class="i"><use href="#i-person"/></svg></div>
-            <span class="unnamed">No people yet</span>
+      <figcaption>Search, typing: hits change with each letter and match word starts (d finds Downloads, not Andy). People, places, albums, months and years, in that order. A hit opens its screen: Person, Album, Place, or the Photos tab scrolled to that month. Places show up once place names exist. No hits: one muted line, Nothing for "xyz". Later: two people at once and free text ("beach") get a results grid</figcaption>
+    </figure>
+  </div>
+</section>
+<section class="group" id="page-viewer">
+  <h2>Viewer</h2>
+  <div class="phones">
+    <figure id="viewer">
+      <div class="phone dark viewer">
+        <div class="viewer-full" data-shot></div>
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="vbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="when">Sat, 11 Oct<span>14:32</span></div>
+          <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
+        </div>
+        <div class="actions">
+          <button class="icon-btn" aria-label="Share"><svg class="i"><use href="#i-share"/></svg></button>
+          <button class="icon-btn" aria-label="Favorite"><svg class="i"><use href="#i-heart-line"/></svg></button>
+          <button class="icon-btn" aria-label="Info"><svg class="i"><use href="#i-info"/></svg></button>
+          <button class="icon-btn" aria-label="Delete"><svg class="i"><use href="#i-trash-line"/></svg></button>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Viewer: the photo fills the phone; the top and bottom bars float on it, transparent (a soft gradient keeps the icons readable), so they never hide the photo. Swipe sideways for next photo, swipe up for details, tap to hide the bars</figcaption>
+    </figure>
+    <figure id="viewer-more">
+      <div class="phone dark viewer" id="viewer-more-phone">
+        <div class="menu" role="menu">
+          <button class="mi" role="menuitem"><svg class="i"><use href="#i-edit"/></svg>Edit in…</button>
+          <button class="mi" role="menuitem"><svg class="i"><use href="#i-wallpaper"/></svg>Use as…</button>
+          <button class="mi" role="menuitem"><svg class="i"><use href="#i-folder"/></svg>Show in album</button>
+          <hr>
+          <button class="mi" role="menuitem"><svg class="i"><use href="#i-move"/></svg>Move to album</button>
+        </div>
+      </div>
+      <figcaption>Viewer, More: Edit in… and Use as… (wallpaper, contact photo) hand the photo to another app through Android's chooser. Show in album opens the photo's folder, hidden when the viewer came from that album. Move to album picks an album from a sheet (not designed yet); Android asks to confirm. No Copy: albums are phone folders, so a copy is a second file. A video adds Compress video (phase 5). Tap outside or Back closes it</figcaption>
+    </figure>
+    <figure id="viewer-tap">
+      <div class="phone dark">
+        <div class="viewer-full" data-shot></div>
+      </div>
+      <figcaption>Viewer, tapped: the top and bottom bars and the system status / nav bars hide, so the whole photo shows with nothing over it. Tap again to bring them back. A downward drag still closes it and a sideways swipe still changes photo</figcaption>
+    </figure>
+    <figure>
+      <div class="phone dark">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="scroll">
+          <div class="crop" data-shot>
+            <div class="vbar">
+              <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+              <div class="when"></div>
+              <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
+            </div>
+          </div>
+          <div class="info">
+            <div class="grab"></div>
+            <div class="date"><b>Saturday, 11 October 2026</b><span>14:32 · GMT+1</span></div>
+  
+            <div class="head"><h3>People</h3><span class="hint">Tap a face to fix it</span></div>
+            <div class="row" id="viewer-people"></div>
+  
+            <div class="head"><h3>Place</h3></div>
+            <div class="line"><svg class="i"><use href="#i-pin"/></svg><div><b>Riverside Park</b><span>Riverton · 51.50, -0.12</span></div></div>
+  
+            <div class="head"><h3>Details</h3></div>
+            <div class="line"><svg class="i"><use href="#i-camera"/></svg><div><b>Pixel 8</b><span>f/1.6 · 1/120 s · ISO 100 · 23 mm</span></div></div>
+            <div class="line"><svg class="i"><use href="#i-photo"/></svg><div><b>IMG_20261011_143212.jpg</b><span>12.6 MP · 4096 × 3072 · 3.8 MB</span></div></div>
+            <div class="line"><svg class="i"><use href="#i-folder"/></svg><div><b>Camera</b><span>DCIM/Camera</span></div></div>
           </div>
         </div>
-        <div class="progress">
-          <span>Finding faces · 412 of 1,706 photos · 3m left</span>
-          <div class="progress-foot">
-            <div class="track"><div></div></div>
-            <button class="pill-btn">Pause</button>
+        <div class="gesture light"><div class="handle"></div></div>
+      </div>
+      <figcaption>Viewer, swiped up: people (only if the photo has faces, left to right), place (only if the photo has one), details. A named face or a face with no person opens Who is this?; "Add name" on an unnamed person's face opens Name this person (names the whole person)</figcaption>
+    </figure>
+  </div>
+</section>
+<section class="group" id="page-library">
+  <h2>Library</h2>
+  <div class="phones">
+    <figure>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="appbar">
+          <h2>Library</h2>
+          <button class="icon-btn" aria-label="Settings"><svg class="i"><use href="#i-settings"/></svg></button>
+        </div>
+        <div class="scroll">
+          <div class="search"><svg class="i"><use href="#i-search"/></svg>Search people, places, dates</div>
+  
+          <div class="head"><h3>People</h3><a href="#">See all<svg class="i"><use href="#i-chevron"/></svg></a></div>
+          <div class="row">
+            <div class="person wide">
+              <div class="face empty-face"><svg class="i"><use href="#i-person"/></svg></div>
+              <span class="unnamed">No people yet</span>
+            </div>
+          </div>
+          <div class="progress">
+            <span>Finding faces · 412 of 1,706 photos · 3m left</span>
+            <div class="progress-foot">
+              <div class="track"><div></div></div>
+              <button class="pill-btn">Pause</button>
+            </div>
+          </div>
+  
+          <div class="head"><h3>Albums</h3><a href="#">See all<svg class="i"><use href="#i-chevron"/></svg></a></div>
+          <div class="albums" id="albums"></div>
+  
+          <div class="head"><h3>Places</h3><a href="#">See all<svg class="i"><use href="#i-chevron"/></svg></a></div>
+          <div class="places" id="places"></div>
+  
+          <div class="shortcuts">
+            <div class="shortcut"><svg class="i"><use href="#i-heart"/></svg><div><b>Favorites</b><span>38</span></div></div>
+            <div class="shortcut"><svg class="i"><use href="#i-video"/></svg><div><b>Videos</b><span>211</span></div></div>
+            <div class="shortcut"><svg class="i"><use href="#i-lock"/></svg><div><b>Locked folder</b><span>Private</span></div></div>
+            <div class="shortcut"><svg class="i"><use href="#i-trash"/></svg><div><b>Trash</b><span>7</span></div></div>
           </div>
         </div>
-
-        <div class="head"><h3>Albums</h3><a href="#">See all<svg class="i"><use href="#i-chevron"/></svg></a></div>
-        <div class="albums" id="albums"></div>
-
-        <div class="head"><h3>Places</h3><a href="#">See all<svg class="i"><use href="#i-chevron"/></svg></a></div>
-        <div class="places" id="places"></div>
-
-        <div class="shortcuts">
-          <div class="shortcut"><svg class="i"><use href="#i-heart"/></svg><div><b>Favorites</b><span>38</span></div></div>
-          <div class="shortcut"><svg class="i"><use href="#i-video"/></svg><div><b>Videos</b><span>211</span></div></div>
-          <div class="shortcut"><svg class="i"><use href="#i-lock"/></svg><div><b>Locked folder</b><span>Private</span></div></div>
-          <div class="shortcut"><svg class="i"><use href="#i-trash"/></svg><div><b>Trash</b><span>7</span></div></div>
+        <div class="bottom">
+          <nav>
+            <button class="tab"><span class="pill"><svg class="i"><use href="#i-photo"/></svg>Photos</span></button>
+            <button class="tab on"><span class="pill"><svg class="i"><use href="#i-library"/></svg>Library</span></button>
+          </nav>
+          <div class="handle"></div>
         </div>
       </div>
-      <div class="bottom">
-        <nav>
-          <button class="tab"><span class="pill"><svg class="i"><use href="#i-photo"/></svg>Photos</span></button>
-          <button class="tab on"><span class="pill"><svg class="i"><use href="#i-library"/></svg>Library</span></button>
-        </nav>
-        <div class="handle"></div>
-      </div>
-    </div>
-    <figcaption>Library while indexing: no people yet (one muted item at a face's size, see Empty) with the progress row under it. People and the Help recognize card appear only once a run has finished, when the progress row is gone.</figcaption>
-  </figure>
-
-  <figure>
-    <div class="phone">
-      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
-      <div class="subbar">
-        <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
-        <div class="title"><b>People</b><span>7 people · 412 faces</span></div>
-        <button class="icon-btn" aria-label="Search"><svg class="i"><use href="#i-search"/></svg></button>
-      </div>
-      <div class="scroll">
-        <div class="search"><svg class="i"><use href="#i-search"/></svg>Search people</div>
-
-        <div class="review">
-          <div class="stack" id="people-unsure"></div>
-          <div class="review-text"><b>Help recognize</b><span>24 faces to check</span></div>
-          <button class="pill-btn">Review</button>
+      <figcaption>Library while indexing: no people yet (one muted item at a face's size, see Empty) with the progress row under it. People and the Help recognize card appear only once a run has finished, when the progress row is gone.</figcaption>
+    </figure>
+    <figure>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="title"><b>Albums</b><span>12 albums · 3,880 items</span></div>
+          <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
         </div>
-        <div class="progress">
-          <span>Finding faces · 412 of 1,706 photos · 3m left</span>
-          <div class="progress-foot">
-            <div class="track"><div></div></div>
-            <button class="pill-btn">Pause</button>
+        <div class="scroll">
+          <div class="head"><h3>On this device</h3><span class="hint">Device folders</span></div>
+          <div class="album-grid" id="album-grid"></div>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Albums: opens from Library, "See all". Device folders, plus albums you make</figcaption>
+    </figure>
+    <figure id="album">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="title"><b>Camera</b><span>1,412 photos · 61 videos</span></div>
+          <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
+        </div>
+        <div class="scroll">
+          <div class="grid big" id="album-photos"></div>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Album: tap a photo for the viewer, long press to select. Same grid for a person</figcaption>
+    </figure>
+    <figure id="album-more">
+      <div class="phone" id="album-more-phone">
+        <div class="menu" role="menu">
+          <button class="mi" role="menuitem"><svg class="i"><use href="#i-select"/></svg>Select</button>
+          <hr>
+          <button class="mi" role="menuitemcheckbox" aria-checked="false"><svg class="i"><use href="#i-block"/></svg>Ignore faces in this album</button>
+        </div>
+      </div>
+      <figcaption>Album, More: Select starts select mode, same as a long press (album select not designed yet). No sort: albums are always newest first, like the timeline. Ignore faces in this album adds the folder to Settings, Folders to skip: no face search there, and faces already found there leave their people on the next run. A check shows when it is on. No Delete album: one tap would trash a whole folder</figcaption>
+    </figure>
+    <figure id="ignore">
+      <div class="phone modal" id="ignore-phone">
+        <div class="scrim">
+          <div class="dialog" role="alertdialog" aria-labelledby="ignore-title">
+            <svg class="i"><use href="#i-block"/></svg>
+            <b id="ignore-title">Ignore faces in Camera?</b>
+            <p>Faces found in this album will be deleted from the index, and its photos will not be searched for faces. People seen only here go away, names too. The photos stay.</p>
+            <div class="dialog-btns"><button class="text-btn">Cancel</button><button class="text-btn danger">Ignore faces</button></div>
           </div>
         </div>
-
-        <div class="head"><h3>People</h3><span class="hint">Tap to see their photos</span></div>
-        <div class="people-grid" id="people-grid"></div>
       </div>
-      <div class="gesture"><div class="handle"></div></div>
-    </div>
-    <figcaption>People: opens from Library, "See all". Review card, then named people, then unnamed, each by photo count. No name, no label</figcaption>
-  </figure>
-
-  <figure id="person">
-    <div class="phone">
-      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
-      <div class="subbar">
-        <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
-        <span id="person-avatar"></span>
-        <div class="title"><b>Dana</b><span>230 photos · 96 faces</span></div>
-        <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
-      </div>
-      <div class="scroll">
-        <div class="chips">
-          <button class="chip"><svg class="i"><use href="#i-person"/></svg>Rename</button>
-          <button class="chip"><svg class="i"><use href="#i-person-add"/></svg>Merge with</button>
-          <button class="chip"><svg class="i"><use href="#i-photo"/></svg>Change cover</button>
-          <button class="chip"><svg class="i"><use href="#i-block"/></svg>Hide person</button>
+      <figcaption>Ignore faces: asks first, only when turning it on. Turning it off asks nothing; the next run searches the album again</figcaption>
+    </figure>
+    <figure>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="title"><b>Videos</b><span>538 videos · 14.2 GB</span></div>
         </div>
-
-        <div class="head"><h3>Faces</h3><span class="hint">These faces match Dana</span></div>
-        <div class="row" id="person-faces"></div>
-
-        <div class="review">
-          <div class="stack" id="person-unsure"></div>
-          <div class="review-text"><b>Unsure faces</b><span>12 may be Dana</span></div>
-          <button class="pill-btn">Review</button>
+        <div class="scroll vids" id="videos"></div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Videos: opens from the Library card. Every video, newest first, by month; the month stays pinned. Tap opens the viewer. The size is for video compression later</figcaption>
+    </figure>
+    <figure id="trash">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="title"><b>Trash</b><span>7 items</span></div>
+          <button class="text-btn danger">Empty</button>
         </div>
-
-        <div class="head"><h3>Photos</h3><span class="hint">230 · by date</span></div>
-        <div class="grid big" id="person-photos"></div>
+        <div class="scroll">
+          <div class="note"><svg class="i"><use href="#i-info"/></svg>Items are deleted for good after 30 days</div>
+          <div class="grid big" id="trash-grid"></div>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
       </div>
-      <div class="gesture"><div class="handle"></div></div>
-    </div>
-    <figcaption>Person: opens from the People grid. Name, fixes, the faces that match, their photos. Unnamed: the card says "12 to check" (one line). Hidden person: the last chip is "Show person" with the eye icon</figcaption>
-  </figure>
-
-  <figure>
-    <div class="phone">
-      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
-      <div class="subbar">
-        <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
-        <div class="title"><b>Albums</b><span>12 albums · 3,880 items</span></div>
-        <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
+      <figcaption>Trash: opens from Library. The phone's own trash, days left on each item. Long press to select</figcaption>
+    </figure>
+    <figure id="trash-select">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Close"><svg class="i"><use href="#i-close"/></svg></button>
+          <div class="title"><b>2 selected</b><span>7 items</span></div>
+          <button class="text-btn">Select all</button>
+        </div>
+        <div class="scroll">
+          <div class="note"><svg class="i"><use href="#i-info"/></svg>Items are deleted for good after 30 days</div>
+          <div class="grid big" id="trash-picked"></div>
+        </div>
+        <div class="answers selbar">
+          <button class="no danger"><svg class="i"><use href="#i-trash-line"/></svg>Delete</button>
+          <button class="yes"><svg class="i"><use href="#i-restore"/></svg>Restore</button>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
       </div>
-      <div class="scroll">
-        <div class="head"><h3>On this device</h3><span class="hint">Device folders</span></div>
-        <div class="album-grid" id="album-grid"></div>
+      <figcaption>Trash, selecting: header and note stay put, only the bar at the bottom appears, so nothing jumps. Tap more items, then Restore or Delete. Android asks to confirm, so we add no dialog</figcaption>
+    </figure>
+    <figure id="trash-empty">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="title"><b>Trash</b><span>Empty</span></div>
+        </div>
+        <div class="scroll">
+          <div class="empty"><svg class="i"><use href="#i-trash"/></svg><b>Trash is empty</b><p>Deleted photos and videos stay here 30 days, then they are gone for good</p></div>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
       </div>
-      <div class="gesture"><div class="handle"></div></div>
-    </div>
-    <figcaption>Albums: opens from Library, "See all". Device folders, plus albums you make</figcaption>
-  </figure>
-
-  <figure>
-    <div class="phone">
-      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
-      <div class="subbar">
-        <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
-        <div class="title"><b>Camera</b><span>1,412 photos · 61 videos</span></div>
-        <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
+      <figcaption>Trash, empty: no Empty button and no grid, just the hint</figcaption>
+    </figure>
+  </div>
+</section>
+<section class="group" id="page-people">
+  <h2>People</h2>
+  <div class="phones">
+    <figure>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="title"><b>People</b><span>7 people · 412 faces</span></div>
+          <button class="icon-btn" aria-label="Search"><svg class="i"><use href="#i-search"/></svg></button>
+        </div>
+        <div class="scroll">
+          <div class="search"><svg class="i"><use href="#i-search"/></svg>Search people</div>
+  
+          <div class="review">
+            <div class="stack" id="people-unsure"></div>
+            <div class="review-text"><b>Help recognize</b><span>24 faces to check</span></div>
+            <button class="pill-btn">Review</button>
+          </div>
+          <div class="progress">
+            <span>Finding faces · 412 of 1,706 photos · 3m left</span>
+            <div class="progress-foot">
+              <div class="track"><div></div></div>
+              <button class="pill-btn">Pause</button>
+            </div>
+          </div>
+  
+          <div class="head"><h3>People</h3><span class="hint">Tap to see their photos</span></div>
+          <div class="people-grid" id="people-grid"></div>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
       </div>
-      <div class="scroll">
-        <div class="grid big" id="album-photos"></div>
+      <figcaption>People: opens from Library, "See all". Review card, then named people, then unnamed, each by photo count. No name, no label</figcaption>
+    </figure>
+    <figure id="person">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <span id="person-avatar"></span>
+          <div class="title"><b>Dana</b><span>230 photos · 96 faces</span></div>
+          <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
+        </div>
+        <div class="scroll">
+          <div class="chips">
+            <button class="chip"><svg class="i"><use href="#i-person"/></svg>Rename</button>
+            <button class="chip"><svg class="i"><use href="#i-person-add"/></svg>Merge with</button>
+            <button class="chip"><svg class="i"><use href="#i-photo"/></svg>Change cover</button>
+            <button class="chip"><svg class="i"><use href="#i-block"/></svg>Hide person</button>
+          </div>
+  
+          <div class="head"><h3>Faces</h3><span class="hint">These faces match Dana</span></div>
+          <div class="row" id="person-faces"></div>
+  
+          <div class="review">
+            <div class="stack" id="person-unsure"></div>
+            <div class="review-text"><b>Unsure faces</b><span>12 may be Dana</span></div>
+            <button class="pill-btn">Review</button>
+          </div>
+  
+          <div class="head"><h3>Photos</h3><span class="hint">230 · by date</span></div>
+          <div class="grid big" id="person-photos"></div>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
       </div>
-      <div class="gesture"><div class="handle"></div></div>
-    </div>
-    <figcaption>Album: tap a photo for the viewer, long press to select. Same grid for a person</figcaption>
-  </figure>
-
-  <figure>
-    <div class="phone">
-      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
-      <div class="subbar">
-        <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
-        <div class="title"><b>Videos</b><span>538 videos · 14.2 GB</span></div>
-      </div>
-      <div class="scroll vids" id="videos"></div>
-      <div class="gesture"><div class="handle"></div></div>
-    </div>
-    <figcaption>Videos: opens from the Library card. Every video, newest first, by month; the month stays pinned. Tap opens the viewer. The size is for video compression later</figcaption>
-  </figure>
-
-  <figure>
-    <div class="phone dark">
-      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
-      <div class="vbar">
-        <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
-        <div class="when">Sat, 11 Oct<span>14:32</span></div>
-        <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
-      </div>
-      <div class="stage"><div data-shot></div></div>
-      <div class="actions">
-        <button class="icon-btn" aria-label="Share"><svg class="i"><use href="#i-share"/></svg></button>
-        <button class="icon-btn" aria-label="Favorite"><svg class="i"><use href="#i-heart-line"/></svg></button>
-        <button class="icon-btn" aria-label="Info"><svg class="i"><use href="#i-info"/></svg></button>
-        <button class="icon-btn" aria-label="Delete"><svg class="i"><use href="#i-trash-line"/></svg></button>
-      </div>
-      <div class="gesture"><div class="handle"></div></div>
-    </div>
-    <figcaption>Viewer: swipe sideways for next photo, swipe up for details</figcaption>
-  </figure>
-
-  <figure>
-    <div class="phone dark">
-      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
-      <div class="scroll">
-        <div class="crop" data-shot>
-          <div class="vbar">
-            <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
-            <div class="when"></div>
-            <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
+      <figcaption>Person: opens from the People grid. Name, fixes, the faces that match, their photos. Unnamed: the card says "12 to check" (one line). Hidden person: the last chip is "Show person" with the eye icon</figcaption>
+    </figure>
+    <figure>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="title"><b>Help recognize</b><span>3 of 24</span></div>
+          <button class="text-btn">Skip</button>
+        </div>
+        <div class="scroll">
+          <div class="context" data-photo><div class="box"></div></div>
+          <div class="ask"><span id="ask-face"></span><p>Is this <span>Dana</span>?</p></div>
+          <div class="known">Dana's faces<div id="known"></div></div>
+          <div class="answers">
+            <button class="no"><svg class="i"><use href="#i-close"/></svg>No</button>
+            <button class="yes"><svg class="i"><use href="#i-check"/></svg>Yes</button>
+          </div>
+          <div class="other">
+            <button class="text-btn"><svg class="i"><use href="#i-person"/></svg>Someone else</button>
+            <button class="text-btn"><svg class="i"><use href="#i-block"/></svg>Not a face</button>
           </div>
         </div>
-        <div class="info">
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Help recognize: one unsure face at a time, with the whole photo and the person's known faces to compare</figcaption>
+    </figure>
+    <figure id="recognize-done">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="title"><b>Help recognize</b><span>24 of 24</span></div>
+        </div>
+        <div class="scroll">
+          <div class="empty"><svg class="i"><use href="#i-check"/></svg><b>All done</b><p>3 skipped faces come back next time</p></div>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Help recognize, done: no Skip, just the hint. With nothing skipped: "New unsure faces show up after the next index run"</figcaption>
+    </figure>
+    <figure>
+      <div class="phone dark">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="dim" id="dim"></div>
+        <div class="sheet">
           <div class="grab"></div>
-          <div class="date"><b>Saturday, 11 October 2026</b><span>14:32 · GMT+1</span></div>
-
-          <div class="head"><h3>People</h3><span class="hint">Tap a face to fix it</span></div>
-          <div class="row" id="viewer-people"></div>
-
-          <div class="head"><h3>Place</h3></div>
-          <div class="line"><svg class="i"><use href="#i-pin"/></svg><div><b>Riverside Park</b><span>Riverton · 51.50, -0.12</span></div></div>
-
-          <div class="head"><h3>Details</h3></div>
-          <div class="line"><svg class="i"><use href="#i-camera"/></svg><div><b>Pixel 8</b><span>f/1.6 · 1/120 s · ISO 100 · 23 mm</span></div></div>
-          <div class="line"><svg class="i"><use href="#i-photo"/></svg><div><b>IMG_20261011_143212.jpg</b><span>12.6 MP · 4096 × 3072 · 3.8 MB</span></div></div>
-          <div class="line"><svg class="i"><use href="#i-folder"/></svg><div><b>Camera</b><span>DCIM/Camera</span></div></div>
+          <div class="sheet-head"><span id="pick-face"></span><div><b>Who is this?</b><span>Now tagged as Dana</span></div></div>
+          <div class="field"><svg class="i"><use href="#i-search"/></svg>Search or type a new name</div>
+          <div id="pick-list"></div>
+          <div class="pick"><span class="round"><svg class="i"><use href="#i-person-add"/></svg></span><b>New person</b></div>
+          <div class="pick danger"><span class="round"><svg class="i"><use href="#i-close"/></svg></span><b>Remove tag</b></div>
+          <div class="gesture light"><div class="handle"></div></div>
         </div>
       </div>
-      <div class="gesture light"><div class="handle"></div></div>
-    </div>
-    <figcaption>Viewer, swiped up: people (only if the photo has faces, left to right), place (only if the photo has one), details. A named face or a face with no person opens Who is this?; "Add name" on an unnamed person's face opens Name this person (names the whole person)</figcaption>
-  </figure>
-
-  <figure>
-    <div class="phone">
-      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
-      <div class="subbar">
-        <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
-        <div class="title"><b>Help recognize</b><span>3 of 24</span></div>
-        <button class="text-btn">Skip</button>
-      </div>
-      <div class="scroll">
-        <div class="context" data-photo><div class="box"></div></div>
-        <div class="ask"><span id="ask-face"></span><p>Is this <span>Dana</span>?</p></div>
-        <div class="known">Dana's faces<div id="known"></div></div>
-        <div class="answers">
-          <button class="no"><svg class="i"><use href="#i-close"/></svg>No</button>
-          <button class="yes"><svg class="i"><use href="#i-check"/></svg>Yes</button>
-        </div>
-        <div class="other">
-          <button class="text-btn"><svg class="i"><use href="#i-person"/></svg>Someone else</button>
-          <button class="text-btn"><svg class="i"><use href="#i-block"/></svg>Not a face</button>
+      <figcaption>Who is this? Opens from a face in the viewer, or from "Someone else" in Help recognize (there without Remove tag). The list is the named people minus the current one, filtered by the search. New person needs a typed name that is not taken; the name shows on its right. Hidden rows keep their space, so the field never moves while typing</figcaption>
+    </figure>
+    <figure id="name-person">
+      <div class="phone dark">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="dim" id="name-dim"></div>
+        <div class="sheet">
+          <div class="grab"></div>
+          <div class="sheet-head"><span id="name-face"></span><div><b>Name this person</b><span id="name-sub"></span></div></div>
+          <div class="field filled">Dana<span class="caret"></span></div>
+          <div class="answers">
+            <button class="no">Cancel</button>
+            <button class="yes"><svg class="i"><use href="#i-check"/></svg>Save</button>
+          </div>
+          <div class="gesture light"><div class="handle"></div></div>
         </div>
       </div>
-      <div class="gesture"><div class="handle"></div></div>
-    </div>
-    <figcaption>Help recognize: one unsure face at a time, with the whole photo and the person's known faces to compare</figcaption>
-  </figure>
-
-  <figure id="recognize-done">
-    <div class="phone">
-      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
-      <div class="subbar">
-        <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
-        <div class="title"><b>Help recognize</b><span>24 of 24</span></div>
-      </div>
-      <div class="scroll">
-        <div class="empty"><svg class="i"><use href="#i-check"/></svg><b>All done</b><p>3 skipped faces come back next time</p></div>
-      </div>
-      <div class="gesture"><div class="handle"></div></div>
-    </div>
-    <figcaption>Help recognize, done: no Skip, just the hint. With nothing skipped: "New unsure faces show up after the next index run"</figcaption>
-  </figure>
-
-  <figure>
-    <div class="phone dark">
-      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
-      <div class="dim" id="dim"></div>
-      <div class="sheet">
-        <div class="grab"></div>
-        <div class="sheet-head"><span id="pick-face"></span><div><b>Who is this?</b><span>Now tagged as Dana</span></div></div>
-        <div class="field"><svg class="i"><use href="#i-search"/></svg>Search or type a new name</div>
-        <div id="pick-list"></div>
-        <div class="pick"><span class="round"><svg class="i"><use href="#i-person-add"/></svg></span><b>New person</b></div>
-        <div class="pick danger"><span class="round"><svg class="i"><use href="#i-close"/></svg></span><b>Remove tag</b></div>
-        <div class="gesture light"><div class="handle"></div></div>
-      </div>
-    </div>
-    <figcaption>Who is this? Opens from a face in the viewer, or from "Someone else" in Help recognize (there without Remove tag). The list is the named people minus the current one, filtered by the search. New person needs a typed name that is not taken; the name shows on its right. Hidden rows keep their space, so the field never moves while typing</figcaption>
-  </figure>
-
-  <figure id="name-person">
-    <div class="phone dark">
-      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
-      <div class="dim" id="name-dim"></div>
-      <div class="sheet">
-        <div class="grab"></div>
-        <div class="sheet-head"><span id="name-face"></span><div><b>Name this person</b><span id="name-sub"></span></div></div>
-        <div class="field filled">Dana<span class="caret"></span></div>
-        <div class="answers">
-          <button class="no">Cancel</button>
-          <button class="yes"><svg class="i"><use href="#i-check"/></svg>Save</button>
-        </div>
-        <div class="gesture light"><div class="handle"></div></div>
-      </div>
-    </div>
-    <figcaption>Name a person: opens from "Add name" / "Rename" on the person screen (and from a face in the viewer). Type a name; the field alone, no list of existing names (reusing a name is not reusing a person — that is Merge with). Tapping a person in Library or People opens their screen, never this sheet.</figcaption>
-  </figure>
-  <figure id="merge">
-    <div class="phone dark">
-      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
-      <div class="dim"></div>
-      <div class="sheet">
-        <div class="grab"></div>
-        <div class="sheet-head"><span id="merge-face"></span><div><b>Merge with Dana</b><span>Pick the same person, most alike first</span></div></div>
-        <div class="field"><svg class="i"><use href="#i-search"/></svg>Search people</div>
-        <div class="people-grid picker" id="merge-grid"></div>
-        <div class="answers">
-          <button class="no">Cancel</button>
-          <button class="yes"><svg class="i"><use href="#i-check"/></svg>Merge</button>
-        </div>
-        <div class="gesture light"><div class="handle"></div></div>
-      </div>
-    </div>
-    <figcaption>Merge with: opens from the chip on the person screen. Every other person, most alike first, so the other halves of a split person are on top. Tap one to pick it (accent ring), Merge joins it into this person. One at a time: after a merge the order is worked out again, so the next part moves up. This person's name stays; if it has none, the picked one's name is used. Merge is off until something is picked. The grid scrolls, the field and buttons stay</figcaption>
-  </figure>
-  <figure id="hide">
-    <div class="phone modal" id="hide-phone">
-      <div class="scrim">
-        <div class="dialog" role="alertdialog" aria-labelledby="hide-title">
-          <svg class="i calm"><use href="#i-block"/></svg>
-          <b id="hide-title">Hide Dana?</b>
-          <p>Dana leaves People, Library and search. Their faces stay with them, so they never join someone else. Show them again from Settings, Hidden people.</p>
-          <div class="dialog-btns"><button class="text-btn">Cancel</button><button class="text-btn">Hide</button></div>
+      <figcaption>Name a person: opens from "Add name" / "Rename" on the person screen (and from a face in the viewer). Type a name; the field alone, no list of existing names (reusing a name is not reusing a person — that is Merge with). Tapping a person in Library or People opens their screen, never this sheet.</figcaption>
+    </figure>
+    <figure id="merge">
+      <div class="phone dark">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="dim"></div>
+        <div class="sheet">
+          <div class="grab"></div>
+          <div class="sheet-head"><span id="merge-face"></span><div><b>Merge with Dana</b><span>Pick the same person, most alike first</span></div></div>
+          <div class="field"><svg class="i"><use href="#i-search"/></svg>Search people</div>
+          <div class="people-grid picker" id="merge-grid"></div>
+          <div class="answers">
+            <button class="no">Cancel</button>
+            <button class="yes"><svg class="i"><use href="#i-check"/></svg>Merge</button>
+          </div>
+          <div class="gesture light"><div class="handle"></div></div>
         </div>
       </div>
-    </div>
-    <figcaption>Hide person: asks first, from the chip on the person screen. On Hide, back to where the person was opened</figcaption>
-  </figure>
-  <figure id="settings">
-    <div class="phone">
-      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
-      <div class="subbar">
-        <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
-        <div class="title"><b>Settings</b></div>
-      </div>
-      <div class="scroll">
-        <div class="head"><h3>Finding faces</h3></div>
-        <div class="set"><svg class="i"><use href="#i-bolt"/></svg><div><b>Only while charging</b><span>Pause face search on battery</span></div><span class="switch off" role="switch" aria-checked="false"></span></div>
-        <div class="set"><svg class="i"><use href="#i-battery"/></svg><div><b>Background work</b><span>Not allowed. The phone may stop face search</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
-        <div class="set"><svg class="i"><use href="#i-folder"/></svg><div><b>Folders to skip</b><span>None, all photos are searched</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
-        <div class="set"><svg class="i"><use href="#i-refresh"/></svg><div><b>Find faces again</b><span>Deletes faces and names, scans all photos again</span></div></div>
-        <div class="head"><h3>People</h3></div>
-        <div class="set"><svg class="i"><use href="#i-block"/></svg><div><b>Hidden people</b><span>2 people</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
-        <div class="head"><h3>Backup</h3><span class="hint">Names and faces, not photos</span></div>
-        <div class="set"><svg class="i"><use href="#i-download"/></svg><div><b>Export face data</b><span>Save to a file</span></div></div>
-        <div class="set"><svg class="i"><use href="#i-upload"/></svg><div><b>Import face data</b><span>From an export file</span></div></div>
-        <div class="head"><h3>About</h3></div>
-        <div class="set"><svg class="i"><use href="#i-info"/></svg><div><b>Memoria Photo 0.1</b><span>Open source, GPL-3.0 · Licenses</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
-      </div>
-      <div class="gesture"><div class="handle"></div></div>
-    </div>
-    <figcaption>Settings: opens from the gear on Library. Face search, hidden people, face data backup, about. With "Only while charging" on battery, the progress row reads "Waiting for charger · 412 of 1,706 photos" and keeps Pause</figcaption>
-  </figure>
-  <figure id="rescan">
-    <div class="phone modal" id="rescan-phone">
-      <div class="scrim">
-        <div class="dialog" role="alertdialog" aria-labelledby="rescan-title">
-          <svg class="i"><use href="#i-refresh"/></svg>
-          <b id="rescan-title">Find faces again?</b>
-          <p>All faces, people and names will be deleted. Then every photo is scanned again, this takes a while.</p>
-          <div class="dialog-btns"><button class="text-btn">Cancel</button><button class="text-btn danger">Delete and scan</button></div>
+      <figcaption>Merge with: opens from the chip on the person screen. Every other person, most alike first, so the other halves of a split person are on top. Tap one to pick it (accent ring), Merge joins it into this person. One at a time: after a merge the order is worked out again, so the next part moves up. This person's name stays; if it has none, the picked one's name is used. Merge is off until something is picked. The grid scrolls, the field and buttons stay</figcaption>
+    </figure>
+    <figure id="change-cover">
+      <div class="phone dark">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="dim"></div>
+        <div class="sheet">
+          <div class="grab"></div>
+          <div class="sheet-head"><span id="cover-face"></span><div><b>Change cover</b><span>96 faces, clearest first</span></div></div>
+          <div class="people-grid picker" id="cover-grid"></div>
+          <div class="answers">
+            <button class="no">Cancel</button>
+            <button class="yes"><svg class="i"><use href="#i-check"/></svg>Save</button>
+          </div>
+          <div class="gesture light"><div class="handle"></div></div>
         </div>
       </div>
-    </div>
-    <figcaption>Find faces again: asks first, from Settings. Wipes the whole index, names too</figcaption>
-  </figure>
-  <figure id="hidden">
-    <div class="phone">
-      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
-      <div class="subbar">
-        <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
-        <div class="title"><b>Hidden people</b><span>2 people</span></div>
+      <figcaption>Change cover: opens from the chip on the person screen. The current cover first (shown in the header too), then the person's sure faces, clearest first. Tap a face to pick it (accent ring), Save sets it, Cancel keeps the old one. Save is off until another face is picked. The grid scrolls, the buttons stay. The cover is only the picture (People, Library, the top bar), not the face the app matches with, so answers and merges are not touched. If the cover face leaves the person, the app picks one again</figcaption>
+    </figure>
+    <figure id="hide">
+      <div class="phone modal" id="hide-phone">
+        <div class="scrim">
+          <div class="dialog" role="alertdialog" aria-labelledby="hide-title">
+            <svg class="i calm"><use href="#i-block"/></svg>
+            <b id="hide-title">Hide Dana?</b>
+            <p>Dana leaves People, Library and search. Their faces stay with them, so they never join someone else. Show them again from Settings, Hidden people.</p>
+            <div class="dialog-btns"><button class="text-btn">Cancel</button><button class="text-btn">Hide</button></div>
+          </div>
+        </div>
       </div>
-      <div class="scroll">
-        <div class="note"><svg class="i"><use href="#i-info"/></svg>Not in People, Library or search. Tap one, then Show person</div>
-        <div class="people-grid" id="hidden-grid"></div>
+      <figcaption>Hide person: asks first, from the chip on the person screen. On Hide, back to where the person was opened</figcaption>
+    </figure>
+  </div>
+</section>
+<section class="group" id="page-settings">
+  <h2>Settings</h2>
+  <div class="phones">
+    <figure id="settings">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="title"><b>Settings</b></div>
+        </div>
+        <div class="scroll">
+          <div class="head"><h3>Finding faces</h3></div>
+          <div class="set"><svg class="i"><use href="#i-bolt"/></svg><div><b>Only while charging</b><span>Pause face search on battery</span></div><span class="switch off" role="switch" aria-checked="false"></span></div>
+          <div class="set"><svg class="i"><use href="#i-battery"/></svg><div><b>Background work</b><span>Not allowed. The phone may stop face search</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
+          <div class="set"><svg class="i"><use href="#i-folder"/></svg><div><b>Folders to skip</b><span>None, all photos are searched</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
+          <div class="set"><svg class="i"><use href="#i-refresh"/></svg><div><b>Find faces again</b><span>Deletes faces and names, scans all photos again</span></div></div>
+          <div class="head"><h3>People</h3></div>
+          <div class="set"><svg class="i"><use href="#i-block"/></svg><div><b>Hidden people</b><span>2 people</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
+          <div class="head"><h3>Backup</h3><span class="hint">Names and faces, not photos</span></div>
+          <div class="set"><svg class="i"><use href="#i-download"/></svg><div><b>Export face data</b><span>Save to a file</span></div></div>
+          <div class="set"><svg class="i"><use href="#i-upload"/></svg><div><b>Import face data</b><span>From an export file</span></div></div>
+          <div class="head"><h3>About</h3></div>
+          <div class="set"><svg class="i"><use href="#i-info"/></svg><div><b>Memoria Photo 0.1</b><span>Open source, GPL-3.0 · Licenses</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
       </div>
-      <div class="gesture"><div class="handle"></div></div>
-    </div>
-    <figcaption>Hidden people: opens from Settings. Same grid as People. A tap opens the person screen, where the last chip is "Show person"</figcaption>
-  </figure>
-  <figure id="hidden-empty">
-    <div class="phone">
-      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
-      <div class="subbar">
-        <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
-        <div class="title"><b>Hidden people</b><span>No people</span></div>
+      <figcaption>Settings: opens from the gear on Library. Face search, hidden people, face data backup, about. With "Only while charging" on battery, the progress row reads "Waiting for charger · 412 of 1,706 photos" and keeps Pause</figcaption>
+    </figure>
+    <figure id="rescan">
+      <div class="phone modal" id="rescan-phone">
+        <div class="scrim">
+          <div class="dialog" role="alertdialog" aria-labelledby="rescan-title">
+            <svg class="i"><use href="#i-refresh"/></svg>
+            <b id="rescan-title">Find faces again?</b>
+            <p>All faces, people and names will be deleted. Then every photo is scanned again, this takes a while.</p>
+            <div class="dialog-btns"><button class="text-btn">Cancel</button><button class="text-btn danger">Delete and scan</button></div>
+          </div>
+        </div>
       </div>
-      <div class="scroll">
-        <div class="empty"><svg class="i"><use href="#i-eye"/></svg><b>No hidden people</b><p>Hide a person from their screen, they show up here</p></div>
+      <figcaption>Find faces again: asks first, from Settings. Wipes the whole index, names too</figcaption>
+    </figure>
+    <figure id="hidden">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="title"><b>Hidden people</b><span>2 people</span></div>
+        </div>
+        <div class="scroll">
+          <div class="note"><svg class="i"><use href="#i-info"/></svg>Not in People, Library or search. Tap one, then Show person</div>
+          <div class="people-grid" id="hidden-grid"></div>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
       </div>
-      <div class="gesture"><div class="handle"></div></div>
-    </div>
-    <figcaption>Hidden people, empty: no note and no grid, just the hint</figcaption>
-  </figure>
-  <figure id="trash">
-    <div class="phone">
-      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
-      <div class="subbar">
-        <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
-        <div class="title"><b>Trash</b><span>7 items</span></div>
-        <button class="text-btn danger">Empty</button>
+      <figcaption>Hidden people: opens from Settings. Same grid as People. A tap opens the person screen, where the last chip is "Show person"</figcaption>
+    </figure>
+    <figure id="hidden-empty">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="title"><b>Hidden people</b><span>No people</span></div>
+        </div>
+        <div class="scroll">
+          <div class="empty"><svg class="i"><use href="#i-eye"/></svg><b>No hidden people</b><p>Hide a person from their screen, they show up here</p></div>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
       </div>
-      <div class="scroll">
-        <div class="note"><svg class="i"><use href="#i-info"/></svg>Items are deleted for good after 30 days</div>
-        <div class="grid big" id="trash-grid"></div>
-      </div>
-      <div class="gesture"><div class="handle"></div></div>
-    </div>
-    <figcaption>Trash: opens from Library. The phone's own trash, days left on each item. Long press to select</figcaption>
-  </figure>
-  <figure id="trash-select">
-    <div class="phone">
-      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
-      <div class="subbar">
-        <button class="icon-btn" aria-label="Close"><svg class="i"><use href="#i-close"/></svg></button>
-        <div class="title"><b>2 selected</b><span>7 items</span></div>
-        <button class="text-btn">Select all</button>
-      </div>
-      <div class="scroll">
-        <div class="note"><svg class="i"><use href="#i-info"/></svg>Items are deleted for good after 30 days</div>
-        <div class="grid big" id="trash-picked"></div>
-      </div>
-      <div class="answers selbar">
-        <button class="no danger"><svg class="i"><use href="#i-trash-line"/></svg>Delete</button>
-        <button class="yes"><svg class="i"><use href="#i-restore"/></svg>Restore</button>
-      </div>
-      <div class="gesture"><div class="handle"></div></div>
-    </div>
-    <figcaption>Trash, selecting: header and note stay put, only the bar at the bottom appears, so nothing jumps. Tap more items, then Restore or Delete. Android asks to confirm, so we add no dialog</figcaption>
-  </figure>
-  <figure id="trash-empty">
-    <div class="phone">
-      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
-      <div class="subbar">
-        <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
-        <div class="title"><b>Trash</b><span>Empty</span></div>
-      </div>
-      <div class="scroll">
-        <div class="empty"><svg class="i"><use href="#i-trash"/></svg><b>Trash is empty</b><p>Deleted photos and videos stay here 30 days, then they are gone for good</p></div>
-      </div>
-      <div class="gesture"><div class="handle"></div></div>
-    </div>
-    <figcaption>Trash, empty: no Empty button and no grid, just the hint</figcaption>
-  </figure>
+      <figcaption>Hidden people, empty: no note and no grid, just the hint</figcaption>
+    </figure>
+  </div>
+</section>
 </main>
 
-<section class="parts">
+<section class="parts" id="parts">
   <h2>Shared parts</h2>
   <p class="lede">Check these before building a screen, so the same thing looks the same everywhere and there is one place to fix it.</p>
 
@@ -826,6 +1017,28 @@ figcaption { color: var(--muted); font-size: 13px; text-align: center; text-wrap
       <button class="yes"><svg class="i"><use href="#i-restore"/></svg>Restore</button>
     </div>
     <p>Two buttons at the bottom: the danger one outlined, the safe one filled with the accent. Used by Trash, Help recognize and the selection modes. Help recognize's No is not dangerous, so its outline is grey (muted), not red.</p>
+  </article>
+
+  <article class="part">
+    <h3>Select bar</h3>
+    <div class="bottom picking">
+      <nav>
+        <button class="tab"><span class="pill"><svg class="i"><use href="#i-share"/></svg>Share</span></button>
+        <button class="tab"><span class="pill"><svg class="i"><use href="#i-heart-line"/></svg>Favorite</span></button>
+        <button class="tab danger"><span class="pill"><svg class="i"><use href="#i-trash-line"/></svg>Delete</span></button>
+      </nav>
+    </div>
+    <p>Takes the bottom tabs' place while selecting on a tab screen, same height, so the grid keeps its size. Delete goes last, in red. Screens without tabs use the Action bar.</p>
+  </article>
+
+  <article class="part">
+    <h3>Menu</h3>
+    <div class="menu" role="menu">
+      <button class="mi" role="menuitem"><svg class="i"><use href="#i-select"/></svg>Select</button>
+      <hr>
+      <button class="mi" role="menuitemcheckbox" aria-checked="true"><svg class="i"><use href="#i-block"/></svg>Ignore faces in this album<svg class="i tick"><use href="#i-check"/></svg></button>
+    </div>
+    <p>Opens from a top bar's More, under the bar on the right, over the screen with no dim. One line per item with an icon; lines split the groups. An item that is on shows an accent check on the right. Tap outside or Back closes it.</p>
   </article>
 
   <article class="part">
@@ -897,6 +1110,37 @@ figcaption { color: var(--muted); font-size: 13px; text-align: center; text-wrap
       <li>Hide content below the list, never above it. A bar appearing at the bottom does not move the top.</li>
       <li>Every screen with modes gets a mockup per mode (list, selecting, empty) so the jump is easy to see.</li>
     </ul>
+  </article>
+</section>
+
+<section class="parts" id="app-icon">
+  <h2>App icon</h2>
+  <p class="lede">Shown as a circle, a rounded square, on a home screen, and as the one-color themed icon (Android 13+).</p>
+
+  <svg style="position:absolute;width:0;height:0" aria-hidden="true">
+    <defs>
+      <linearGradient id="g-honey" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F6C65B"/><stop offset="1" stop-color="#D98E1C"/></linearGradient>
+    </defs>
+    <symbol id="logo-a" viewBox="0 0 108 108">
+      <rect width="108" height="108" fill="url(#g-honey)"/>
+      <circle cx="70" cy="31" r="5.5" fill="#FFF6E2"/>
+      <path d="M33 73 44 45l10 16 10-16 11 28" fill="none" stroke="#3A2410" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="logo-a-mono" viewBox="0 0 108 108">
+      <circle cx="70" cy="31" r="5.5" fill="currentColor"/>
+      <path d="M33 73 44 45l10 16 10-16 11 28" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+  </svg>
+
+  <article class="part">
+    <h3>Sunrise M</h3>
+    <div class="icons">
+      <span class="appicon"><svg><use href="#logo-a"/></svg></span>
+      <span class="appicon sq"><svg><use href="#logo-a"/></svg></span>
+      <div class="home"><span class="appicon"><svg><use href="#logo-a"/></svg></span>Memoria</div>
+      <div class="home themed"><span class="appicon"><svg><use href="#logo-a-mono"/></svg></span>Memoria</div>
+    </div>
+    <p>Two peaks and a sun: an M and a photo at once. Clear at small size and in one color.</p>
   </article>
 </section>
 
@@ -998,6 +1242,15 @@ fill("merge-face", face(2, 48));
 const pcard = ([i, n, c, on]) => `<div class="pcard${on ? " on" : ""}">${face(i, 60)}${n ? `<b>${n}</b>` : ""}<span>${c}</span></div>`;
 fill("merge-grid", [[4, null, "31", 1], [6, null, "12"], [5, "Aliya", "64"], [1, "Mom", "230"], [3, "Arman", "96"], [0, "Me", "412"], [4, null, "8"], [6, null, "6"]].map(pcard).join(""));
 fill("hidden-grid", [[3, "Arman", "96"], [6, null, "27"]].map(pcard).join(""));
+fill("search-people", order.filter(i => people[i]).map(i => `<div class="person">${face(i, 64)}${people[i]}</div>`).join(""));
+fill("search-recent", ["Dana", "August 2026", "Camera"]
+  .map(t => `<div class="pick"><svg class="i"><use href="#i-history"/></svg><b>${t}</b><button class="icon-btn" aria-label="Remove"><svg class="i"><use href="#i-close"/></svg></button></div>`).join(""));
+const round = icon => `<span class="round"><svg class="i"><use href="#i-${icon}"/></svg></span>`;
+fill("search-hits", [[face(2, 40), "Dana", "230 photos"], [round("folder"), "Downloads", "33 items"], [round("calendar"), "December 2025", "48 photos"]]
+  .map(([lead, t, c]) => `<div class="pick">${lead}<b><mark>${t[0]}</mark>${t.slice(1)}</b><span>${c}</span></div>`).join(""));
+document.querySelectorAll(".kbd").forEach(k => k.innerHTML = [10, 9, 7].map(n => `<div>${"<i></i>".repeat(n)}</div>`).join("") + '<div><i></i><i></i><i class="wide"></i><i></i><i></i></div>');
+fill("cover-face", face(2, 48));
+fill("cover-grid", Array.from({ length: 16 }, (_, i) => `<div class="pcard${i == 5 ? " on" : ""}">${face(2, 68)}</div>`).join(""));
 
 const shot = photo();
 document.querySelectorAll("[data-shot]").forEach(el => el.style.background = shot);
@@ -1006,6 +1259,9 @@ document.getElementById("dim").style.background = `linear-gradient(rgba(0,0,0,.5
 const rescan = document.getElementById("rescan-phone");
 rescan.prepend(...[...document.querySelector("#settings .phone").children].map(n => n.cloneNode(true)));
 document.getElementById("hide-phone").prepend(...[...document.querySelector("#person .phone").children].map(n => n.cloneNode(true)));
+document.getElementById("viewer-more-phone").prepend(...[...document.querySelector("#viewer .phone").children].map(n => n.cloneNode(true)));
+document.getElementById("ignore-phone").prepend(...[...document.querySelector("#album .phone").children].map(n => n.cloneNode(true)));
+document.getElementById("album-more-phone").prepend(...[...document.querySelector("#album .phone").children].map(n => n.cloneNode(true)));
 const trashDays = [29, 27, 27, 18, 12, 5, 2];
 const trashBg = trashDays.map(() => photo());
 const trashTiles = (on = []) => trashDays.map((d, i) => `<div class="tile${on.includes(i) ? " on" : ""}" style="background:${trashBg[i]}">${
@@ -1013,6 +1269,15 @@ const trashTiles = (on = []) => trashDays.map((d, i) => `<div class="tile${on.in
   i == 3 ? `<span class="dur">0:42<svg class="i"><use href="#i-play"/></svg></span>` : ""}<span class="left">${d} days</span></div>`).join("");
 fill("trash-grid", trashTiles());
 fill("trash-picked", trashTiles([1, 4]));
+// Photos, selecting: Today picked whole, plus a few from other days.
+const check = '<svg class="i"><use href="#i-check"/></svg>';
+const picked = { "Today": [0, 1, 2], "Yesterday": [4], "Sat, 11 Oct": [2, 6] };
+fill("timeline-select", `<section class="month-sec"><h3 class="month">October 2026</h3>${days.slice(1, 4).map(x => {
+  const on = picked[x.d] ?? [], all = on.length == x.n;
+  return `<div class="day${all ? " on" : ""}">${x.d}${x.p ? `<small>${x.p}</small>` : ""}<span class="sel">${all ? check : ""}</span></div><div class="grid">${
+    Array.from({ length: x.n }, (_, i) => `<div class="tile${on.includes(i) ? " on" : ""}" style="background:${photo()}"><span class="sel">${on.includes(i) ? check : ""}</span>${
+      x.v?.includes(i) ? `<span class="dur">${durs[i % durs.length]}<svg class="i"><use href="#i-play"/></svg></span>` : ""}</div>`).join("")}</div>`;
+}).join("")}</section>`);
 </script>
 
 </body>

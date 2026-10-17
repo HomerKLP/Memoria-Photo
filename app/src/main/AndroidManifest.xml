@@ -3,12 +3,12 @@
     xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Settings > Background work: Android's own "allow" dialog, the OEM background manager freezes the index without it -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <application
+        android:icon="@mipmap/ic_launcher"
         android:label="Memoria"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <!-- Qualcomm FastRPC, the NPU (QNN HTP) runs through it -->

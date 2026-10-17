@@ -12,6 +12,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -225,6 +226,15 @@ fun MergeSheetPreview() = MemoriaTheme {
 }
 
 @PreviewTest
+@Preview(widthDp = 360, heightDp = 720)
+@Composable
+fun ChangeCoverSheetPreview() = MemoriaTheme {
+    Surface {
+        ChangeCoverContent(fakePerson(1, null), null, {}, {}, {})
+    }
+}
+
+@PreviewTest
 @Preview(widthDp = 360, heightDp = 800)
 @Composable
 fun TrashLoading() = MemoriaTheme { Surface { TrashContent(emptyList(), loading = true) } }
@@ -248,4 +258,43 @@ fun MonthSliderPreview() = MemoriaTheme {
             }
         }
     }
+}
+
+/** Viewer bars (Viewer.kt): they float on the photo, transparent (a soft gradient keeps the icons readable). */
+private val viewerPhoto = Color(0xFF7FA36B)
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 800)
+@Composable
+fun ViewerBars() = MemoriaTheme {
+    Surface {
+        Box(Modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxSize().background(viewerPhoto))
+            ViewerChrome(true, "Sat, 11 Oct", "14:32", favorite = false, {}, {}, {}, {}, {})
+        }
+    }
+}
+
+/** Viewer, tapped: the bars are gone, only the photo is left. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 800)
+@Composable
+fun ViewerTapped() = MemoriaTheme {
+    Surface {
+        Box(Modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxSize().background(viewerPhoto))
+            ViewerChrome(false, "Sat, 11 Oct", "14:32", favorite = false, {}, {}, {}, {}, {})
+        }
+    }
+}
+
+/** Photos, selecting (mockup): the select top bar and the day circle, some tiles picked. Pairs with photos_selecting_keepsGridPut. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 800)
+@Composable
+fun PhotosSelect() = MemoriaTheme {
+    val tiles = (1L..9L).map { Tile(it, android.net.Uri.parse("content://media/external/images/media/$it"), 0L, if (it % 3 == 0L) 42_000L else null, it == 2L) }
+    val items: List<Any> = remember { listOf(Header("m1", "October 2026", true), Header("d1", "Sat, 11 Oct", false)) + tiles }
+    val selection = remember { PhotoSelection().apply { addAll(tiles.take(6)) } }
+    Surface { PhotosContent(items, selection = selection, pickedSize = 18_400_000) }
 }

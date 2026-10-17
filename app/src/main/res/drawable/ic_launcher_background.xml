@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- App icon background, the mockup's "App icon" honey gradient -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <gradient android:angle="270" android:startColor="#F6C65B" android:endColor="#D98E1C" />
+</shape>

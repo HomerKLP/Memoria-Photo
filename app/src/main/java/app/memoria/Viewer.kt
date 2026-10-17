@@ -6,12 +6,17 @@ import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.media.MediaMetadataRetriever
 import android.provider.MediaStore
+import android.view.WindowInsets
 import android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
 import android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.Orientation
@@ -55,6 +60,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -85,6 +91,9 @@ private val onViewer = Color(0xFFF4ECE1)
 private val viewerBg = Color(0xFF120E0A)
 private const val maxZoom = 6f
 
+// Bars fade fast: the tap must feel immediate. Material's default fade is a spring (~400 ms).
+private const val barsFadeMillis = 120
+
 /** Full-screen photos, swipe sideways for the next one. Opens on the tile with id start. */
 @Composable
 fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit) {
@@ -96,11 +105,24 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit) {
     }
     BackHandler(onBack = onBack)
     var details by remember { mutableStateOf(false) }
+    // Tap the photo: the bars and the system bars hide, so only the photo is left. Tap again brings them back.
+    var barsVisible by remember { mutableStateOf(true) }
     // Light bar icons on the dark viewer, dark again when it closes or when the light details sheet is up
     val window = (LocalView.current.context as Activity).window
-    val bars = APPEARANCE_LIGHT_STATUS_BARS or APPEARANCE_LIGHT_NAVIGATION_BARS
-    LaunchedEffect(details) { window.insetsController?.setSystemBarsAppearance(if (details) bars else 0, bars) }
-    DisposableEffect(Unit) { onDispose { window.insetsController?.setSystemBarsAppearance(bars, bars) } }
+    val barIcons = APPEARANCE_LIGHT_STATUS_BARS or APPEARANCE_LIGHT_NAVIGATION_BARS
+    LaunchedEffect(details, barsVisible) {
+        val controller = window.insetsController ?: return@LaunchedEffect
+        controller.setSystemBarsAppearance(if (details) barIcons else 0, barIcons)
+        // the details sheet is light: its system bars never hide
+        if (details || barsVisible) controller.show(WindowInsets.Type.systemBars())
+        else controller.hide(WindowInsets.Type.systemBars())
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            window.insetsController?.setSystemBarsAppearance(barIcons, barIcons)
+            window.insetsController?.show(WindowInsets.Type.systemBars())
+        }
+    }
     val pager = rememberPagerState(tiles.indexOfFirst { it.id == start }.coerceAtLeast(0)) { list.size }
     // coerce: after trashing the last photo the pager is one frame behind the shorter list
     val tile = list[pager.currentPage.coerceAtMost(list.lastIndex)]
@@ -130,7 +152,9 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit) {
             trashing = null
         }
     }
-    // Photo fills the whole screen, bars float on top of it
+    // Photo fills the whole screen, the bars float on it (transparent gradient, see ViewerChrome)
+    val zone = Instant.ofEpochMilli(tile.date).atZone(ZoneId.systemDefault())
+    val dayPattern = if (zone.year == LocalDate.now().year) "EEE, d MMM" else "EEE, d MMM yyyy"
     Box(
         Modifier.fillMaxSize().background(viewerBg)
             // Only a downward drag moves the photo (closing it). On an upward drag the photo stays
@@ -150,28 +174,20 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit) {
             ),
     ) {
         HorizontalPager(pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1, userScrollEnabled = !zoomed, key = { list[it].id }) {
-            ViewerPage(list[it]) { zoomed = it }
+            ViewerPage(list[it], { zoomed = it }, onTap = { barsVisible = !barsVisible })
         }
-        Row(Modifier.align(Alignment.TopCenter).background(viewerBg.copy(alpha = 0.5f)).statusBarsPadding(), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onBack) { Icon(painterResource(R.drawable.ic_back), "Back", tint = onViewer) }
-            val time = Instant.ofEpochMilli(tile.date).atZone(ZoneId.systemDefault())
-            val day = if (time.year == LocalDate.now().year) "EEE, d MMM" else "EEE, d MMM yyyy"
-            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(DateTimeFormatter.ofPattern(day).format(time), color = onViewer, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                Text(DateTimeFormatter.ofPattern("HH:mm").format(time), color = onViewer.copy(alpha = 0.7f), fontSize = 12.sp)
-            }
-            Spacer(Modifier.size(48.dp)) // same width as Back, keeps the date centered
-        }
-        Row(
-            Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(viewerBg.copy(alpha = 0.5f)).navigationBarsPadding().padding(vertical = 6.dp),
-            horizontalArrangement = Arrangement.SpaceAround,
-        ) {
-            IconButton({
+        ViewerChrome(
+            visible = barsVisible,
+            title = DateTimeFormatter.ofPattern(dayPattern).format(zone),
+            subtitle = DateTimeFormatter.ofPattern("HH:mm").format(zone),
+            favorite = favorite,
+            onBack = onBack,
+            onShare = {
                 val send = Intent(Intent.ACTION_SEND).setType(context.contentResolver.getType(tile.uri))
                     .putExtra(Intent.EXTRA_STREAM, tile.uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 context.startActivity(Intent.createChooser(send, null))
-            }) { Icon(painterResource(R.drawable.ic_share), "Share", tint = onViewer) }
-            IconButton({
+            },
+            onFavorite = {
                 val next = !favorite
                 try {
                     setFavorite(context, tile, next) // our own photos need no dialog
@@ -183,22 +199,72 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit) {
                     val ask = MediaStore.createFavoriteRequest(context.contentResolver, listOf(tile.uri), next)
                     consent.launch(IntentSenderRequest.Builder(ask.intentSender).build())
                 }
-            }) {
-                Icon(
-                    painterResource(if (favorite) R.drawable.ic_favorite else R.drawable.ic_favorite_border),
-                    if (favorite) "Remove from favorites" else "Add to favorites",
-                    tint = if (favorite) Color(0xFFE9A23B) else onViewer,
-                )
-            }
-            IconButton({ details = true }) { Icon(painterResource(R.drawable.ic_info), "Details", tint = onViewer) }
-            IconButton({
+            },
+            onInfo = { details = true },
+            onDelete = {
                 trashing = tile.id
                 val ask = MediaStore.createTrashRequest(context.contentResolver, listOf(tile.uri), true)
                 trashAsk.launch(IntentSenderRequest.Builder(ask.intentSender).build())
-            }) { Icon(painterResource(R.drawable.ic_trash_line), "Delete", tint = onViewer) }
-        }
+            },
+        )
     }
     if (details) DetailsSheet(tile, onDismiss = { details = false })
+}
+
+/**
+ * The viewer's top and bottom bars, from docs/design.html "Viewer": they float on the fully visible
+ * photo and are transparent — a soft vertical gradient keeps the white icons readable — so they never
+ * hide the photo. [visible] false is the tapped state: the bars fade out and only the photo is left.
+ * Purely visual, so the layout tests and previews can render it without MediaStore.
+ */
+@Composable
+fun ViewerChrome(
+    visible: Boolean,
+    title: String,
+    subtitle: String,
+    favorite: Boolean,
+    onBack: () -> Unit,
+    onShare: () -> Unit,
+    onFavorite: () -> Unit,
+    onInfo: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    Box(Modifier.fillMaxSize()) {
+        AnimatedVisibility(visible, Modifier.align(Alignment.TopCenter), enter = fadeIn(tween(barsFadeMillis)), exit = fadeOut(tween(barsFadeMillis))) {
+            Row(
+                Modifier.fillMaxWidth()
+                    .background(Brush.verticalGradient(listOf(viewerBg.copy(alpha = 0.62f), Color.Transparent)))
+                    .statusBarsPadding().padding(bottom = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onBack) { Icon(painterResource(R.drawable.ic_back), "Back", tint = onViewer) }
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(title, color = onViewer, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    Text(subtitle, color = onViewer.copy(alpha = 0.7f), fontSize = 12.sp)
+                }
+                Spacer(Modifier.size(48.dp)) // same width as Back, keeps the date centered
+            }
+        }
+        AnimatedVisibility(visible, Modifier.align(Alignment.BottomCenter), enter = fadeIn(tween(barsFadeMillis)), exit = fadeOut(tween(barsFadeMillis))) {
+            Row(
+                Modifier.fillMaxWidth()
+                    .background(Brush.verticalGradient(listOf(Color.Transparent, viewerBg.copy(alpha = 0.62f))))
+                    .navigationBarsPadding().padding(top = 16.dp, bottom = 6.dp),
+                horizontalArrangement = Arrangement.SpaceAround,
+            ) {
+                IconButton(onShare) { Icon(painterResource(R.drawable.ic_share), "Share", tint = onViewer) }
+                IconButton(onFavorite) {
+                    Icon(
+                        painterResource(if (favorite) R.drawable.ic_favorite else R.drawable.ic_favorite_border),
+                        if (favorite) "Remove from favorites" else "Add to favorites",
+                        tint = if (favorite) Color(0xFFE9A23B) else onViewer,
+                    )
+                }
+                IconButton(onInfo) { Icon(painterResource(R.drawable.ic_info), "Details", tint = onViewer) }
+                IconButton(onDelete) { Icon(painterResource(R.drawable.ic_trash_line), "Delete", tint = onViewer) }
+            }
+        }
+    }
 }
 
 /** How big the photo really is on screen with ContentScale.Fit, so panning stops at its edges. */
@@ -209,7 +275,7 @@ private fun fitSize(bitmap: Bitmap?, box: IntSize): Size {
 }
 
 @Composable
-fun ViewerPage(tile: Tile, onZoomed: (Boolean) -> Unit) {
+fun ViewerPage(tile: Tile, onZoomed: (Boolean) -> Unit, onTap: () -> Unit = {}) {
     val context = LocalContext.current
     // Grid thumbnail first, then a screen-size decode
     val image by produceState(thumbs.get(tile.id), tile.id) {
@@ -260,10 +326,13 @@ fun ViewerPage(tile: Tile, onZoomed: (Boolean) -> Unit) {
                     }
                 }
                 .pointerInput(tile.id) {
-                    detectTapGestures(onDoubleTap = {
-                        // 1x -> 2.5x, then back out. Center anchored: good enough, keeps the maths short.
-                        if (zoom.floatValue > 1f) transform(1f / zoom.floatValue, Offset.Zero) else transform(2.5f, Offset.Zero)
-                    })
+                    detectTapGestures(
+                        onTap = { onTap() },
+                        onDoubleTap = {
+                            // 1x -> 2.5x, then back out. Center anchored: good enough, keeps the maths short.
+                            if (zoom.floatValue > 1f) transform(1f / zoom.floatValue, Offset.Zero) else transform(2.5f, Offset.Zero)
+                        },
+                    )
                 }
                 // Deferred read: pan and zoom touch the layer block only, no recomposition, so it stays smooth
                 .graphicsLayer {

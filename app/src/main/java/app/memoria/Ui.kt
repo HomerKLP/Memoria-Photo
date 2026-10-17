@@ -24,6 +24,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationItemIconPosition
+import androidx.compose.material3.ShortNavigationBar
+import androidx.compose.material3.ShortNavigationBarItem
+import androidx.compose.material3.ShortNavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
@@ -144,8 +148,51 @@ fun ActionBar(
     }
 }
 
-/** Icon, one line, one sentence. For a list that is really empty, never for a list that is still loading. */
+/**
+ * Bottom bar while selecting (mockup "Select bar"). It takes the bottom tabs' place and is built from
+ * the same [ShortNavigationBar], so it has exactly the same height and the grid never moves. Share and
+ * Favorite read normally, Delete sits last in red. [favorite] true: everything picked is already a
+ * favorite, so the middle action reads Unfavorite.
+ */
 @Composable
+fun SelectBar(
+    favorite: Boolean,
+    onShare: () -> Unit,
+    onFavorite: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    val error = MaterialTheme.colorScheme.error
+    val normal = ShortNavigationBarItemDefaults.colors(
+        unselectedIconColor = MaterialTheme.colorScheme.onSurface,
+        unselectedTextColor = MaterialTheme.colorScheme.onSurface,
+    )
+    val danger = ShortNavigationBarItemDefaults.colors(unselectedIconColor = error, unselectedTextColor = error)
+    ShortNavigationBar {
+        ShortNavigationBarItem(
+            false, onShare,
+            { Icon(painterResource(R.drawable.ic_share), null) },
+            { Text("Share") },
+            iconPosition = NavigationItemIconPosition.Start,
+            colors = normal,
+        )
+        ShortNavigationBarItem(
+            false, onFavorite,
+            { Icon(painterResource(R.drawable.ic_favorite_border), null) },
+            { Text(if (favorite) "Unfavorite" else "Favorite") },
+            iconPosition = NavigationItemIconPosition.Start,
+            colors = normal,
+        )
+        ShortNavigationBarItem(
+            false, onDelete,
+            { Icon(painterResource(R.drawable.ic_trash_line), null) },
+            { Text("Delete") },
+            iconPosition = NavigationItemIconPosition.Start,
+            colors = danger,
+        )
+    }
+}
+
+/** Icon, one line, one sentence. For a list that is really empty, never for a list that is still loading. */@Composable
 fun EmptyState(icon: Int, title: String, text: String, modifier: Modifier = Modifier) {
     Column(
         modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 72.dp),

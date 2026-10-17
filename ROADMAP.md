@@ -2,7 +2,7 @@
 
 Hardest part first, UI last.
 
-**Next step:** pick from the list below (live people while indexing, Change cover, faster Help recognize, Settings leftovers: Folders to skip, Export / Import, Licenses). Phase 1 leftovers (tuning limits, more Takeout parts) wait until the user asks.
+**Next step:** check live people while indexing on the phone, then pick from the list below (faster Help recognize, Settings leftovers: Folders to skip, Export / Import, Licenses). Phase 1 leftovers (tuning limits, more Takeout parts) wait until the user asks.
 
 ## Phase 1: face pipeline quality (done, leftovers later)
 Pick the best models on real photos before writing app code. Details: `docs/face-pipeline.md`.
@@ -37,13 +37,13 @@ Pick the best models on real photos before writing app code. Details: `docs/face
 - [x] Whole library: drop the folder filter, index new photos. `libraryPhotos()` queries all MediaStore images (videos out for now); scope = all minus an `excludedFolders` list, Immich-style. Progress bar + time left on Library and in the notification.
 - [x] Grouping on the phone (same as the bench, camera faces start people) and a plain People screen.
 - [x] Save people in Room: grouped again from scratch at the end of each index run. Keep people stable once naming comes.
-- [ ] Auto-index when new photos arrive: watch MediaStore (ContentObserver on images) and start an index run for the new photos on its own, no tap. Works while the app is open; background needs the battery exemption (see the OEM freeze item above).
-- [ ] People appear in Library / People while indexing, not only at the end of the run. The end-of-run case is done: both screens key their load on `running` (WorkManager), so saved people show up the moment the run finishes, no tab switch. Live per-batch updates are unblocked: `groupFaces` is O(n²) now (NN-chain), a full regroup (`savePeople`) takes 2.1 s on the phone (debug, 2052 starting faces), was 9.8 s. Next: regroup every N photos and reload.
+- [x] Auto-index when new photos arrive: watch MediaStore (ContentObserver on images), start an index run for the new photos once the change burst settles (3 s). App open only (no background start, so no battery exemption needed): skips when a run is going or queued, when the user paused, when the models are missing, or when nothing is new (e.g. a favorite toggle). Decision is pure, `AutoIndexTest` (11 cases) covers it with no phone.
+- [x] People appear in Library / People while indexing. The run regroups (`savePeople`) at most every 30 s and never closer than 10x the regroup time; Library and People reload on each save (`peopleSaved`). Person ids stay put across regroups. Not checked on the phone yet.
 - [x] Naming: "Name this person" sheet (Add name / Rename), name survives re-index (`savePeople` carries it over on shared faces).
 - [x] People and Person screens built to the mockup: People = top bar + search, Help recognize card, index progress, 4-column grid, one list: named people first, then unnamed (no label), each by photo count. Library row same order. Person = face chips, "Faces" row, "Unsure faces" card, 3-column photo grid; tap a photo opens the viewer. Merge with / Change cover / Hide person are placeholders (no screens yet).
 - [x] Merge with (one person at a time, most alike first) and Hide person, both survive regroups (DB v7). Hidden people opens from Settings. Checked on the phone.
 - [x] Settings from the Library gear: Only while charging, Background work, Find faces again, Hidden people. Folders to skip, Export / Import face data and Licenses are shown but wait for design or decisions. Checked on the phone.
-- [ ] Fixes, per-person tuning. Change cover not designed. A new person starts from a face only ("Who is this?" > New person), never from an empty card. Full stable people: still group all faces without a person (old ones too), so 5 old photos plus 1 new one can form a person.
+- [ ] Fixes, per-person tuning. Change cover built (mockup "Change cover"): the chip on the person screen opens a sheet with the person's sure faces, clearest first, current cover on top; picking one saves it and it survives re-index (DB v8). A new person starts from a face only ("Who is this?" > New person), never from an empty card. Full stable people: still group all faces without a person (old ones too), so 5 old photos plus 1 new one can form a person.
 - [x] Start gate: only camera faces with quality 0.4+ (EDifFIQA-T on the phone) start a person. Junk groups gone.
 - [x] A person needs starting faces from 6+ photos.
 - [x] Sure-only matching: a face in a person is sure only with quality 0.4+. Unsure faces still join, but are faded and not counted.
@@ -66,14 +66,19 @@ Pick the best models on real photos before writing app code. Details: `docs/face
 - [x] Viewer: zoom (pinch 1-6x, double tap), pan while zoomed, favorite. Swipe down and pager are off while zoomed.
 - [x] Viewer details sheet (swipe up or the Info button): date and timezone, place, camera EXIF, file details.
 - [x] Favorites album: MediaStore query with `QUERY_ARG_MATCH_FAVORITE`, heart on grid tiles.
+- [ ] Favorites: fewer dates. It reuses the timeline, so every day gets a header for a few photos; show month headers only (or fewer dates). Mockup first.
+- [ ] Viewer and Album More menus (mockup "Viewer, More", "Album, More"). Move to album needs an album picker sheet, album select needs its mockup.
 - [x] Library tab layout from the mockup: search bar, People row, index progress, "Help recognize" card, Albums/Places placeholders, shortcuts (Favorites, Videos, Locked folder, Trash), Dev tools. Albums, Places, Locked folder, Trash and Help recognize wait for their screens.
 - [ ] Viewer details sheet: People section (waits for naming), place name (waits for offline geocoding).
+- [x] Viewer: the photo fills the whole screen; the top / bottom bars float on it, transparent (a soft gradient under the icons, not the old 50% black strip). Tapping the photo hides the bars and the system status / nav bars, so nothing covers the photo; tapping again brings them back. The bars are `ViewerChrome` (pure UI, so tests and previews render it without MediaStore). Test: `viewerBars_hiding_keepsPhotoPut`; previews: `ViewerBars` / `ViewerTapped`. Checked on the phone: the two bars hide and show on a tap (fade cut to 120 ms, see `decisions.md`), but the system status / nav bars do not hide (see `bugs.md`). Mockup: `docs/design.html` "Viewer" and "Viewer, tapped".
 - [x] Viewer: delete. Trash button (4th in the bar) sends the photo to the phone's trash through Android's own confirm; on OK the next photo slides in.
 - [x] Trash: the phone's own trash (MediaStore `QUERY_ARG_MATCH_TRASHED`), 3-column grid with days left, long press selects, Restore / Delete / Empty go through Android's own requests. Library card shows the real count.
 - [x] Albums: device folders (MediaStore buckets), 6 on Library, Albums screen from See all, album grid opens the viewer.
+- [x] Photos tab: select many (mockup "Photos, selecting"). Long press starts, drag adds, a day's circle picks the whole day. Share, Favorite, Delete (one Android trash confirm for all). Later: the same mode on albums and a person's photos, Move to album.
 - [ ] Albums: New album card, More menu, long press select (no design for the actions yet).
 - [x] Videos screen from the Library card: all videos by month (month pinned), 3-column grid, count and total size on top.
 - [ ] Media3 video player.
+- [ ] Search screen (mockup "Search"): from the Photos icon and the Library bar. Finds people, albums, months and years (places after offline geocoding), each hit opens a screen we have. Later: two people at once, free text, a results grid.
 
 ## Phase 5: video compression
 - [ ] HEVC re-encode with Media3 Transformer, keep metadata, keep original until approved.

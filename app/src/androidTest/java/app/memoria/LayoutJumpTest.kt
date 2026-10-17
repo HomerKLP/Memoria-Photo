@@ -1,12 +1,23 @@
 package app.memoria
 
 import android.net.Uri
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationItemIconPosition
+import androidx.compose.material3.ShortNavigationBar
+import androidx.compose.material3.ShortNavigationBarItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -196,6 +207,19 @@ class LayoutJumpTest {
         assertSame("Merge button", mergeBefore, rule.onNodeWithText("Merge").top())
     }
 
+    /** Change cover: the grid is a fixed height and picking only adds a ring, so the header and Save stay put. */
+    @Test fun changeCover_pickingFace_keepsHeaderAndSavePut() {
+        var picked by mutableStateOf<Long?>(null)
+        val person = face(1).let { Person((1L..8L).map { i -> face(i) }, it, 1, "Dana") }
+        rule.setContent { MemoriaTheme { Surface { ChangeCoverContent(person, picked, { picked = it }, {}, {}) } } }
+
+        val titleBefore = rule.onNodeWithText("Change cover").top()
+        val saveBefore = rule.onNodeWithText("Save").top()
+        rule.runOnIdle { picked = 3L }
+        assertSame("title", titleBefore, rule.onNodeWithText("Change cover").top())
+        assertSame("Save button", saveBefore, rule.onNodeWithText("Save").top())
+    }
+
     /** The month slider fades in over the grid; showing it must not move the content under it. */
     @Test fun monthSlider_appearing_keepsContentPut() {
         var visible by mutableStateOf(false)
@@ -219,5 +243,66 @@ class LayoutJumpTest {
         val before = rule.onNodeWithText("anchor").top()
         rule.runOnIdle { visible = true }
         assertSame("content", before, rule.onNodeWithText("anchor").top())
+    }
+
+    /** Viewer: the bars are an overlay, so hiding them (the tapped state) must not move or resize the photo behind. */
+    @Test fun viewerBars_hiding_keepsPhotoPut() {
+        var visible by mutableStateOf(true)
+        rule.setContent {
+            MemoriaTheme {
+                Surface {
+                    Box(Modifier.fillMaxSize()) {
+                        Box(Modifier.fillMaxSize().testTag("viewerPhoto").background(Color.Black))
+                        ViewerChrome(visible, "Sat, 11 Oct", "14:32", false, {}, {}, {}, {}, {})
+                    }
+                }
+            }
+        }
+
+        val top = rule.onNodeWithTag("viewerPhoto").top()
+        val height = rule.onNodeWithTag("viewerPhoto").height()
+        rule.runOnIdle { visible = false }
+        assertSame("photo top", top, rule.onNodeWithTag("viewerPhoto").top())
+        assertSame("photo height", height, rule.onNodeWithTag("viewerPhoto").height())
+    }
+
+    /** Photos select mode: the top bar swaps for "N selected" and the tiles grow a circle; the grid must not move. */
+    @Test fun photos_selecting_keepsGridPut() {
+        val tiles = (1L..9L).map { tile(it) }
+        val items: List<Any> = listOf(Header("m1", "October 2026", true), Header("d1", "Sat, 11 Oct", false)) + tiles
+        val selection = PhotoSelection()
+        rule.setContent { MemoriaTheme { Surface { PhotosContent(items, selection = selection) } } }
+
+        val gridBefore = rule.onNodeWithTag("photosGrid").top()
+        val dayBefore = rule.onNodeWithText("Sat, 11 Oct").top()
+        val headerBefore = rule.onNodeWithTag("dayHeader").height()
+        rule.runOnIdle { selection.start(tiles.first()) }
+        assertSame("grid top", gridBefore, rule.onNodeWithTag("photosGrid").top())
+        assertSame("day header", dayBefore, rule.onNodeWithText("Sat, 11 Oct").top())
+        assertSame("day header height", headerBefore, rule.onNodeWithTag("dayHeader").height())
+    }
+
+    /** Photos select mode: the Select bar takes the tabs' place and must have exactly the same height. */
+    @Test fun photos_selectBar_keepsBottomBarHeight() {
+        var selecting by mutableStateOf(false)
+        rule.setContent {
+            MemoriaTheme {
+                Surface {
+                    Box(Modifier.testTag("bottomBar")) {
+                        if (selecting) SelectBar(false, {}, {}, {})
+                        else ShortNavigationBar {
+                            ShortNavigationBarItem(
+                                false, {}, { Icon(painterResource(R.drawable.ic_photo), null) }, { Text("Photos") },
+                                iconPosition = NavigationItemIconPosition.Start,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        val before = rule.onNodeWithTag("bottomBar").height()
+        rule.runOnIdle { selecting = true }
+        assertSame("bottom bar height", before, rule.onNodeWithTag("bottomBar").height())
     }
 }

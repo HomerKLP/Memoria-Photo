@@ -236,3 +236,7 @@ YOLOv5m-640 finds the most faces at every size, is faster than RetinaFace, and i
 - Merge sheet order: other people by cosine of their average face to this person's, so split halves come first. On the phone the top picks for Test B were unnamed people; looked sane, not measured.
 - Phone test: Test A (2 faces) merged into Test B (1 face) -> 3 faces, 2 photos. Hid Test B, regrouped (41 people, 15 s): still hidden, still 3 faces, name kept. Show person brought it back. DB v6 -> v7 migration kept all 42 people, 4 names, 35 answers (backup in `testdata/out/db/backup-v6/`).
 - Limit: like answers, a merge holds only while both main faces stay starting faces of some group.
+
+### 2026-10-17: saved NPU builds
+- Every run built all three models for the NPU before the first photo: 10.5 s, while one photo takes ~0.2 s (decode 92 ms, detect 53 ms, embed 27 ms per face).
+- ONNX Runtime's QNN EP context cache saves the built models (`npuSession` in `Faces.kt`). Load 10.5 s -> 0.55 s. 20 photos, 37 faces: boxes, vectors and quality identical to the plain load.

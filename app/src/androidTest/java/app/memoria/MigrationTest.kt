@@ -5,6 +5,7 @@ import androidx.room.testing.MigrationTestHelper
 import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -30,6 +31,7 @@ class MigrationTest {
             val person = dao.people().single()
             assertEquals("Dana", person.name)
             assertTrue(person.hidden)
+            assertNull(person.coverFaceId)
             assertEquals(1L, dao.faceVecs().single().personId)
             assertTrue(dao.answers().single().yes)
             assertEquals(12L, dao.merges().single().face)

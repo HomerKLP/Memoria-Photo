@@ -1,7 +1,6 @@
 package app.memoria
 
 import ai.onnxruntime.OrtEnvironment
-import ai.onnxruntime.OrtSession
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -39,6 +38,7 @@ import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import java.io.File
 import java.nio.ByteBuffer
 import kotlin.math.min
@@ -61,9 +61,12 @@ class FaceRow(
     val notFace: Boolean = false, // the user said "Not a face": left out of everything
 )
 
-/** People saved by the last index run, see savePeople. `name` and `hidden` are the user's; kept across re-index runs. */
+/**
+ * People saved by the last index run, see savePeople. `name`, `hidden` and `coverFaceId` are the user's; kept across re-index runs.
+ * `mainFaceId` is the face the app matches and merges with; `coverFaceId` is only the picture shown for the person (Change cover), null = the main face.
+ */
 @Entity(tableName = "person")
-class PersonRow(@PrimaryKey val id: Long, val mainFaceId: Long, val name: String? = null, val hidden: Boolean = false)
+class PersonRow(@PrimaryKey val id: Long, val mainFaceId: Long, val name: String? = null, val hidden: Boolean = false, val coverFaceId: Long? = null)
 
 /**
  * Help recognize answer: face [faceId] is (yes) or is not (no) the person that [personFace] belongs to.
@@ -85,6 +88,8 @@ class Converters {
 interface IndexDao {
     @Query("SELECT id FROM photo") suspend fun photoIds(): List<Long>
     @Query("DELETE FROM photo") suspend fun clearPhotos()
+    @Query("DELETE FROM face WHERE photoId IN (:ids)") suspend fun deleteFaces(ids: List<Long>)
+    @Query("DELETE FROM photo WHERE id IN (:ids)") suspend fun deletePhotos(ids: List<Long>)
     @Query("DELETE FROM face") suspend fun clearFaces()
     @Query("DELETE FROM answer") suspend fun clearAnswers()
     @Insert suspend fun insert(photo: PhotoRow, faces: List<FaceRow>)
@@ -116,9 +121,10 @@ interface IndexDao {
     @Query("UPDATE face SET personId = :to WHERE personId = :from") suspend fun movePerson(from: Long, to: Long)
     @Query("DELETE FROM person WHERE id = :id") suspend fun deletePerson(id: Long)
     @Query("UPDATE person SET hidden = :hidden WHERE id = :id") suspend fun setHidden(id: Long, hidden: Boolean)
+    @Query("UPDATE person SET coverFaceId = :face WHERE id = :id") suspend fun setCover(id: Long, face: Long?)
 }
 
-@Database(entities = [PhotoRow::class, FaceRow::class, PersonRow::class, AnswerRow::class, MergeRow::class], version = 7)
+@Database(entities = [PhotoRow::class, FaceRow::class, PersonRow::class, AnswerRow::class, MergeRow::class], version = 8)
 @TypeConverters(Converters::class)
 abstract class Db : RoomDatabase() {
     abstract fun index(): IndexDao
@@ -142,7 +148,11 @@ abstract class Db : RoomDatabase() {
                 db.execSQL("CREATE TABLE merged (face INTEGER NOT NULL, personFace INTEGER NOT NULL, PRIMARY KEY(face, personFace))")
             }
         }
-        internal val MIGRATIONS = arrayOf(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+        /** v8: Change cover, the user's pick for a person's picture (null = the main face). */
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) = db.execSQL("ALTER TABLE person ADD COLUMN coverFaceId INTEGER")
+        }
+        internal val MIGRATIONS = arrayOf(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
         private var db: Db? = null
         @Synchronized fun get(context: Context) =
             db ?: // a missing migration crashes instead of wiping names; MigrationTest checks each bump
@@ -226,6 +236,21 @@ object IndexControl {
     fun resume(context: Context) = start(context, IndexProgress.testOnly(context))
 }
 
+/** Goes up after each savePeople, so Library and People reload while a run is going. */
+val peopleSaved = MutableStateFlow(0)
+
+/**
+ * The old person whose faces overlap this new group the most, if it kept at least half of them.
+ * Named or hidden people win, so a name survives two people joining. `taken` keeps one old person from landing on two groups when it split.
+ */
+fun carry(ids: List<Long>, old: List<PersonRow>, oldFaces: Map<Long, Set<Long>>, taken: MutableSet<Long>): PersonRow? {
+    val set = ids.toSet()
+    return old.filter { it.id !in taken }
+        .map { it to set.count { f -> f in oldFaces[it.id].orEmpty() } }
+        .filter { (o, n) -> n * 2 >= (oldFaces[o.id]?.size ?: 1) }
+        .maxWithOrNull(compareBy({ it.first.name != null || it.first.hidden }, { it.second }))?.first?.also { taken += it.id }
+}
+
 /** Rough time left: elapsed per photo times the photos left. Null until at least one photo is done. */
 fun etaMillis(started: Long, done: Int, total: Int): Long? {
     if (started <= 0L || done <= 0 || total <= done) return null
@@ -255,6 +280,8 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         val all = if (testOnly) testPhotos(applicationContext) else libraryPhotos(applicationContext)
         val total = all.size
         val done = dao.photoIds().toHashSet()
+        // photos deleted from the phone: forget them and their faces, so counts and people match the phone
+        if (!testOnly) (done - all.map { it.id }.toSet()).chunked(500).forEach { dao.deleteFaces(it); dao.deletePhotos(it) }
         val todo = all.filter { it.id !in done }
         if (todo.isEmpty()) {
             IndexProgress.finish(applicationContext)
@@ -263,8 +290,7 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         val base = total - todo.size // photos already in the DB, so the bar starts there
         IndexProgress.start(applicationContext, total, base)
         val models = File(applicationContext.getExternalFilesDir(null), "models")
-        val options = OrtSession.SessionOptions()
-        options.addQnn(mapOf("backend_path" to "libQnnHtp.so", "htp_performance_mode" to "burst", "enable_htp_fp16_precision" to "1"))
+        val npuCache = File(models.parentFile, "npu")
         // Foreground, or the system stops the job midway. Not allowed when started from the background (rerun after a stop), then it runs as a plain job.
         val notifications = applicationContext.getSystemService(NotificationManager::class.java)
         notifications.createNotificationChannel(NotificationChannel("index", "Indexing", NotificationManager.IMPORTANCE_LOW))
@@ -277,8 +303,10 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         }
         val start = System.nanoTime()
         var count = 0
+        var nextSave = start + 30_000_000_000L
         try {
-            FacePipeline(OrtEnvironment.getEnvironment(), File(models, "detector.onnx").path, File(models, "recognizer.onnx").path, File(models, "quality.onnx").path, options).use { pipeline ->
+            FacePipeline(OrtEnvironment.getEnvironment(), File(models, "detector.onnx").path, File(models, "recognizer.onnx").path, File(models, "quality.onnx").path) { npuSession(OrtEnvironment.getEnvironment(), File(it), npuCache) }.use { pipeline ->
+                Log.i("Memoria", "models loaded in ${(System.nanoTime() - start) / 1_000_000} ms")
                 for (photo in todo) {
                     if (isStopped) break
                     val uri = ContentUris.withAppendedId(Media.EXTERNAL_CONTENT_URI, photo.id)
@@ -309,6 +337,12 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                     })
                     count++
                     if (foreground && count % 10 == 0) notifications.notify(1, notice(base + count, total))
+                    // people show up while indexing; saves stay 10x their own time apart, so they never take more than ~10% of the run
+                    if (System.nanoTime() > nextSave) {
+                        val t = System.nanoTime()
+                        savePeople()
+                        nextSave = System.nanoTime() + maxOf(30_000_000_000L, 10 * (System.nanoTime() - t))
+                    }
                 }
             }
         } finally {
@@ -319,42 +353,38 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         return if (isStopped) Result.success() else savePeople()
     }
 
-    /** Groups all faces again and replaces the saved people. Names and hidden survive by matching old and new groups on shared faces. */
+    /**
+     * Groups all faces again and replaces the saved people. A new group keeps the id, name and hidden flag of the old person it
+     * matches (see [carry]), so an open Person screen and a name typed mid-run stay on the same person.
+     */
     private suspend fun savePeople(): Result {
         val start = System.nanoTime()
         val db = Db.get(applicationContext)
         val dao = db.index()
-        val faces = dao.faceVecs()
-        val old = dao.people().filter { it.name != null || it.hidden }
-        val oldFaces = faces.filter { it.personId != null }.groupBy { it.personId!! }.mapValues { e -> e.value.map { it.id }.toSet() }
-        val people = groupFaces(faces, dao.answers(), dao.merges())
-        val taken = mutableSetOf<Long>()
-        db.withTransaction {
+        // one transaction: a name or New person saved during the regroup waits for it instead of being lost
+        val (saved, kept) = db.withTransaction {
+            val faces = dao.faceVecs()
+            val old = dao.people()
+            val oldFaces = faces.filter { it.personId != null }.groupBy { it.personId!! }.mapValues { e -> e.value.map { it.id }.toSet() }
+            val people = groupFaces(faces, dao.answers(), dao.merges())
+            val taken = mutableSetOf<Long>()
+            var next = (old.maxOfOrNull { it.id } ?: 0) + 1
             dao.deletePeople()
             dao.clearPersonIds()
-            people.forEachIndexed { i, p ->
+            for (p in people) {
                 val ids = p.faces.map { it.id }
-                if (ids.isEmpty()) return@forEachIndexed // never happens (a person needs faces), keeps IN () off the DB
-                val pid = i + 1L
-                val kept = carry(ids, old, oldFaces, taken)
-                dao.insertPerson(PersonRow(pid, p.main.id, kept?.name, kept?.hidden ?: false))
+                if (ids.isEmpty()) continue // never happens (a person needs faces), keeps IN () off the DB
+                val match = carry(ids, old, oldFaces, taken)
+                val pid = match?.id ?: next++
+                // the cover follows the person only while its face is still with them; else the app picks one again (main face)
+                dao.insertPerson(PersonRow(pid, p.main.id, match?.name, match?.hidden ?: false, match?.coverFaceId?.takeIf { it in ids }))
                 dao.setPerson(ids, pid)
             }
+            people.size to taken.size
         }
-        Log.i("Memoria", "saved ${people.size} people (${taken.size} named or hidden) in ${(System.nanoTime() - start) / 1_000_000} ms")
+        peopleSaved.value++
+        Log.i("Memoria", "saved $saved people ($kept kept their id) in ${(System.nanoTime() - start) / 1_000_000} ms")
         return Result.success()
-    }
-
-    /**
-     * The old named or hidden person whose faces overlap this new group the most, if it kept at least half of them.
-     * `taken` keeps one old person from landing on two groups when it split.
-     */
-    private fun carry(ids: List<Long>, old: List<PersonRow>, oldFaces: Map<Long, Set<Long>>, taken: MutableSet<Long>): PersonRow? {
-        val set = ids.toSet()
-        return old.filter { it.id !in taken }
-            .map { it to set.count { f -> f in oldFaces[it.id].orEmpty() } }
-            .filter { (o, n) -> n * 2 >= (oldFaces[o.id]?.size ?: 1) }
-            .maxByOrNull { it.second }?.first?.also { taken += it.id }
     }
 
     private fun notice(done: Int, total: Int): Notification {

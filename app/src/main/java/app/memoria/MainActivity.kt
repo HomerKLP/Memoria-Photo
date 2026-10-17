@@ -1,18 +1,20 @@
 package app.memoria
 
 import ai.onnxruntime.OrtEnvironment
-import ai.onnxruntime.OrtSession
 import android.Manifest
+import android.app.Activity
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
-import android.os.Build
 import android.os.Bundle
+import android.provider.MediaStore
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -40,6 +42,7 @@ import androidx.compose.material3.ShortNavigationBarItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -63,6 +66,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.work.WorkManager
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -85,6 +89,13 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun App(dir: File) {
     var screen by rememberSaveable { mutableStateOf("photos") }
+    // new photos start an index run on their own while the app is open (see AutoIndex.kt)
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val watcher = watchNewPhotos(context, lifecycleOwner.lifecycle)
+        onDispose { watcher.close() }
+    }
     val tabs = rememberSaveableStateHolder() // keeps each tab's scroll while the other one is open
     val photosGrid = rememberLazyGridState()
     val scope = rememberCoroutineScope()
@@ -96,6 +107,51 @@ fun App(dir: File) {
     var albumFrom by rememberSaveable { mutableStateOf("library") } // back from an album returns here
     var recognizeFor by rememberSaveable { mutableStateOf<Long?>(null) } // Help recognize asks only about this person, if set
     var recognizeFrom by rememberSaveable { mutableStateOf("library") } // back from Help recognize returns here
+    // Photos tab select mode (mockup "Photos, selecting"): the picked tiles, shared so the bottom bar swaps
+    val selection = remember { PhotoSelection() }
+    var photosReload by remember { mutableStateOf(0) } // bumped after a bulk action, so the grid refetches
+    var pendingTrash by remember { mutableStateOf(false) }
+    var pendingFavorite by remember { mutableStateOf<Boolean?>(null) }
+    val selectAsk = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            if (pendingTrash) selection.tiles.values.forEach { forgetTile(it.id) }
+            pendingFavorite?.let { fav -> selection.tiles.values.forEach { updateTile(it.copy(favorite = fav)) } }
+            selection.clear()
+            photosReload++
+        }
+        pendingTrash = false
+        pendingFavorite = null
+    }
+    // Share, Favorite and Delete act on the whole picked set; Delete is one Android trash confirm for all
+    val selectedTiles = { selection.tiles.values.toList() }
+    val shareSelected = {
+        val uris = ArrayList(selectedTiles().map { it.uri })
+        if (uris.isNotEmpty()) {
+            val send = Intent(Intent.ACTION_SEND_MULTIPLE).setType("*/*").putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            context.startActivity(Intent.createChooser(send, null))
+        }
+    }
+    val favoriteSelected = { favorite: Boolean ->
+        val own = mutableListOf<Tile>()
+        val foreign = mutableListOf<Tile>()
+        for (t in selectedTiles()) runCatching { setFavorite(context, t, favorite) }.onSuccess { own += t }.onFailure { foreign += t }
+        own.forEach { updateTile(it.copy(favorite = favorite)) }
+        if (foreign.isEmpty()) { selection.clear(); photosReload++ }
+        else {
+            pendingFavorite = favorite
+            val ask = MediaStore.createFavoriteRequest(context.contentResolver, foreign.map { it.uri }, favorite)
+            selectAsk.launch(IntentSenderRequest.Builder(ask.intentSender).build())
+        }
+    }
+    val deleteSelected = {
+        val uris = selectedTiles().map { it.uri }
+        if (uris.isNotEmpty()) {
+            pendingTrash = true
+            val ask = MediaStore.createTrashRequest(context.contentResolver, uris, true)
+            selectAsk.launch(IntentSenderRequest.Builder(ask.intentSender).build())
+        }
+    }
     viewing?.let { return Viewer(it, viewTiles) { viewing = null } }
     val open: (List<Tile>, Tile) -> Unit = { list, tile -> viewTiles = list; viewing = tile.id }
     when (screen) {
@@ -169,7 +225,13 @@ fun App(dir: File) {
             TrashScreen { screen = "library" }
         }
         else -> Scaffold(bottomBar = {
-            ShortNavigationBar {
+            if (screen == "photos" && selection.active) SelectBar(
+                favorite = selection.allFavorite,
+                onShare = shareSelected,
+                onFavorite = { favoriteSelected(!selection.allFavorite) },
+                onDelete = deleteSelected,
+            )
+            else ShortNavigationBar {
                 ShortNavigationBarItem(
                     screen == "photos", {
                         if (screen == "photos") scope.launch { photosGrid.animateScrollToItem(0) } else screen = "photos"
@@ -184,7 +246,7 @@ fun App(dir: File) {
         }) { padding ->
             Column(Modifier.padding(padding)) {
                 tabs.SaveableStateProvider(screen) {
-                    if (screen == "photos") PhotosScreen(onOpen = open, grid = photosGrid)
+                    if (screen == "photos") PhotosScreen(onOpen = open, grid = photosGrid, selection = selection, reload = photosReload)
                     else LibraryScreen(
                         onOpenPeople = { screen = "people" },
                         onOpenPerson = { openPerson = it; personDirect = true; screen = "people" },
@@ -232,7 +294,7 @@ fun TestScreen(dir: File, onPeople: () -> Unit) {
     val work by remember { WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow("index") }.collectAsState(emptyList())
     var total by remember { mutableStateOf(0) }
     var testOnly by remember { mutableStateOf(true) }
-    val photos = if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_IMAGES else Manifest.permission.READ_EXTERNAL_STORAGE
+    val photos = Manifest.permission.READ_MEDIA_IMAGES
     val index = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
         if (granted[photos] == true) {
             total = if (testOnly) testPhotos(context).size else libraryPhotos(context).size
@@ -292,10 +354,6 @@ fun TestScreen(dir: File, onPeople: () -> Unit) {
 
 fun runTest(dir: File, npu: Boolean, log: (String) -> Unit, show: (Pair<Bitmap, List<Face>>) -> Unit) {
     val mode = if (npu) "npu" else "cpu"
-    val options = OrtSession.SessionOptions()
-    if (npu) {
-        options.addQnn(mapOf("backend_path" to "libQnnHtp.so", "htp_performance_mode" to "burst", "enable_htp_fp16_precision" to "1"))
-    }
     var t = System.nanoTime()
     val ms = { (System.nanoTime() - t) / 1_000_000.0 }
     val pipeline = FacePipeline(
@@ -303,8 +361,7 @@ fun runTest(dir: File, npu: Boolean, log: (String) -> Unit, show: (Pair<Bitmap, 
         File(dir.parentFile, "models/detector.onnx").path,
         File(dir.parentFile, "models/recognizer.onnx").path,
         File(dir.parentFile, "models/quality.onnx").path,
-        options,
-    )
+    ) { if (npu) npuSession(OrtEnvironment.getEnvironment(), File(it), File(dir.parentFile, "npu")) else OrtEnvironment.getEnvironment().createSession(it) }
     log("$mode: models loaded in %.0f ms".format(ms()))
     val photos = dir.walk().filter { it.isFile && it.extension.lowercase() in setOf("jpg", "jpeg", "png", "webp") }.sorted().toList()
     val results = JSONObject()
