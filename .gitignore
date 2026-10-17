@@ -1,0 +1,21 @@
+# Personal test photos and bench output, never commit
+testdata/
+
+# Phone backups, never commit
+backup-*/
+
+# Agent instructions and the decision log, local only
+AGENTS.md
+decisions.md
+
+.venv/
+__pycache__/
+models/
+
+# Android
+.gradle/
+build/
+.idea/
+local.properties
+*.iml
+.kotlin/

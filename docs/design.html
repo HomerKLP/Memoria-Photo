@@ -1,0 +1,1019 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Memoria Photo Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Roboto:wght@400;500;700&display=swap">
+<style>
+/* Layout: phone screens in a wrapping row, one per app screen, in the order you meet them. Honey palette, light only. */
+:root {
+  --page: #EEE4D3;
+  --bg: #FBF6EC;
+  --surface: #F3EADA;
+  --line: #E4D6BF;
+  --fg: #2B2118;
+  --muted: #6F604F;
+  --accent: #9A5A0A;
+  --accent-soft: #F3DCB2;
+  --danger: #B3261E;
+  --viewer: #120E0A;
+  --on-viewer: #F4ECE1;
+  --display: "Bricolage Grotesque", "Roboto", system-ui, sans-serif;
+  --body: "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--fg);
+  font: 14px/1.4 var(--body);
+  padding: 32px 16px 56px;
+}
+img { max-width: 100%; }
+button { font: inherit; color: inherit; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+svg.i { width: 24px; height: 24px; fill: currentColor; flex: none; }
+
+.top { max-width: 816px; margin: 0 auto 32px; }
+h1 { font: 700 28px/1.1 var(--display); margin: 0; text-wrap: balance; }
+.lede { margin: 6px 0 0; color: var(--muted); }
+
+.phones { display: flex; flex-wrap: wrap; justify-content: center; gap: 40px 48px; }
+figure { margin: 0; width: min(360px, 100%); display: grid; gap: 12px; justify-items: center; align-content: start; }
+figcaption { color: var(--muted); font-size: 13px; text-align: center; text-wrap: balance; }
+.phone { width: 100%; height: 760px; border: 10px solid #1F1A16; border-radius: 42px; background: var(--bg); overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 24px 48px -24px rgba(70, 45, 20, .45); }
+.phone.dark { background: var(--viewer); color: var(--on-viewer); }
+
+.status { display: flex; justify-content: space-between; align-items: center; padding: 10px 22px 2px; font-weight: 500; font-size: 13px; }
+.status svg.i { width: 16px; height: 16px; }
+.appbar { display: flex; align-items: center; justify-content: space-between; min-height: 60px; padding: 4px 6px 4px 20px; }
+.wordmark { font: 700 23px/1 var(--display); letter-spacing: -.01em; }
+.wordmark span { color: var(--accent); font-weight: 500; }
+.appbar h2 { margin: 0; font: 700 23px/1 var(--display); }
+.icon-btn { width: 48px; height: 48px; border: 0; border-radius: 50%; background: transparent; display: grid; place-items: center; }
+.icon-btn:hover { background: var(--surface); }
+.dark .icon-btn:hover { background: rgba(255, 255, 255, .12); }
+.scroll { flex: 1; overflow-y: auto; scrollbar-width: none; }
+.scroll::-webkit-scrollbar { display: none; }
+
+/* Photos tab */
+.month { margin: 0; padding: 20px 16px 2px; font: 700 20px/1.2 var(--display); position: sticky; top: 0; z-index: 2; background: var(--bg); }
+.month-sec { display: block; }
+.day { display: flex; gap: 8px; align-items: baseline; padding: 12px 16px 8px; font-weight: 500; }
+.day small { color: var(--muted); font-weight: 400; font-size: 13px; }
+.grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; }
+.tile { aspect-ratio: 1; max-width: 100%; position: relative; }
+.dur { position: absolute; top: 5px; right: 6px; display: flex; align-items: center; gap: 1px; color: #fff; font-weight: 500; font-size: 11px; text-shadow: 0 1px 2px rgba(0, 0, 0, .5); }
+.dur svg.i { width: 14px; height: 14px; }
+.fav { position: absolute; top: 4px; left: 4px; width: 16px; height: 16px; border-radius: 50%; background: rgba(0, 0, 0, .35); display: grid; place-items: center; }
+.fav svg.i { width: 10px; height: 10px; fill: #fff; }
+
+/* Timeline month slider: hidden at the top, fades in while you scroll, drag it to jump to a month */
+.phone.has-slider { position: relative; }
+.slider { position: absolute; top: 104px; bottom: 92px; right: 0; width: 28px; opacity: 0; transition: opacity .25s ease; touch-action: none; }
+.slider.on { opacity: 1; }
+.slider .rail { position: absolute; right: 12px; top: 10px; bottom: 10px; width: 3px; border-radius: 2px; background: var(--line); }
+.slider i { position: absolute; right: 9px; width: 9px; height: 3px; margin-top: -1.5px; border-radius: 2px; background: var(--muted); opacity: .55; }
+.slider i.now { right: 6px; width: 15px; height: 6px; background: var(--accent); opacity: 1; }
+.slider .knob { position: absolute; right: 4px; width: 18px; height: 18px; margin-top: -9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px rgba(255, 255, 255, .85), 0 2px 6px rgba(0, 0, 0, .3); }
+.slider .bubble { position: absolute; right: 30px; transform: translateY(-50%); height: 32px; padding: 0 14px; border-radius: 16px; background: var(--accent); color: #fff; display: flex; align-items: center; white-space: nowrap; font-weight: 500; font-size: 13px; box-shadow: 0 6px 16px -6px rgba(70, 45, 20, .6); }
+
+/* Library tab */
+.search { margin: 2px 16px 4px; height: 52px; padding: 0 18px; border-radius: 26px; background: var(--surface); color: var(--muted); display: flex; align-items: center; gap: 12px; font-size: 15px; }
+.head { display: flex; justify-content: space-between; align-items: center; padding: 22px 16px 12px; }
+.head h3 { margin: 0; font: 700 18px/1.2 var(--display); }
+.head a { color: var(--accent); font-weight: 500; font-size: 13px; text-decoration: none; display: flex; align-items: center; }
+.head a svg.i { width: 18px; height: 18px; }
+.head .hint { color: var(--muted); font-size: 12px; }
+.row { display: flex; gap: 14px; overflow-x: auto; padding: 0 16px 2px; scrollbar-width: none; }
+.row::-webkit-scrollbar { display: none; }
+.person { flex: none; width: 72px; display: grid; justify-items: center; gap: 6px; font-size: 13px; text-align: center; }
+.person.wide { width: auto; min-width: 72px; }
+.unnamed { color: var(--muted); }
+.face { width: var(--s, 72px); height: var(--s, 72px); flex: none; border-radius: 50%; overflow: hidden; display: grid; place-items: end center; }
+.face svg.i { width: 83%; height: 83%; fill: rgba(255, 255, 255, .72); margin-bottom: -14%; }
+.see-all { width: 72px; height: 72px; border-radius: 50%; background: var(--surface); color: var(--accent); display: grid; place-items: center; }
+/* Empty, in a row: the same 72px item as a face, so the row keeps its height and nothing below moves */
+.empty-face { background: var(--surface); place-items: center; }
+.empty-face svg.i { width: 44%; height: 44%; fill: var(--muted); margin: 0; }
+.see-all + span { color: var(--accent); font-weight: 500; }
+.progress { margin: 14px 16px 0; display: grid; gap: 6px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.progress-foot { display: flex; align-items: center; gap: 12px; }
+.track { flex: 1; height: 4px; border-radius: 2px; background: var(--line); }
+.track div { width: 24%; height: 100%; border-radius: 2px; background: var(--accent); }
+.review { margin: 16px 16px 0; padding: 12px; border-radius: 16px; background: var(--accent-soft); display: flex; align-items: center; gap: 12px; }
+.stack { display: flex; flex: none; }
+.stack .face { margin-left: -12px; border: 2px solid var(--accent-soft); }
+.stack .face:first-child { margin-left: 0; }
+.review-text { flex: 1; min-width: 0; display: grid; }
+.review-text span { color: var(--muted); font-size: 12px; }
+.pill-btn { height: 36px; padding: 0 16px; border: 0; border-radius: 18px; background: var(--accent); color: #fff; font-weight: 500; font-size: 13px; }
+.albums, .places { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px 8px; padding: 0 16px; }
+.cover { aspect-ratio: 1; max-width: 100%; border-radius: 12px; }
+.album b { display: block; margin-top: 6px; font-weight: 500; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.album span, .shortcut span { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.place { aspect-ratio: 1; max-width: 100%; border-radius: 12px; padding: 8px; color: #fff; display: flex; flex-direction: column; justify-content: flex-end; }
+.place b { font-weight: 500; font-size: 13px; }
+.place span { font-size: 12px; opacity: .9; }
+.shortcuts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 28px 16px 24px; }
+.shortcut { display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 16px; background: var(--surface); }
+.shortcut svg.i { fill: var(--accent); }
+.shortcut b { display: block; font-weight: 500; }
+/* one line each: a wrapped line makes one card taller than its neighbour */
+.shortcut div { min-width: 0; }
+.shortcut b, .shortcut span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* People screen */
+.people-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px 6px; padding: 4px 16px 24px; }
+.pcard { display: grid; justify-items: center; gap: 8px; text-align: center; }
+.pcard b { max-width: 100%; font-weight: 500; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pcard span { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+/* Person screen */
+.chips { display: flex; gap: 8px; padding: 12px 16px 0; overflow-x: auto; scrollbar-width: none; }
+.chips::-webkit-scrollbar { display: none; }
+.chip { flex: none; height: 36px; padding: 0 14px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.chip svg.i { width: 18px; height: 18px; color: var(--accent); }
+
+/* Albums screen */
+.album-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px 8px; padding: 4px 16px 24px; }
+.album-grid .cover { border-radius: 12px; }
+.album-grid .album b { font-size: 13px; }
+.cover.new { border: 1.5px dashed var(--muted); background: none; display: grid; place-items: center; color: var(--muted); }
+
+/* Grid with fewer, bigger tiles (album, person, videos) */
+.grid.big { grid-template-columns: repeat(3, 1fr); gap: 3px; }
+.vids .month { padding-bottom: 10px; }
+
+/* Bottom nav and gesture bar */
+.bottom { background: var(--surface); padding: 6px 0 4px; }
+.bottom nav { display: flex; }
+.tab { flex: 1; border: 0; background: transparent; display: grid; place-items: center; color: var(--muted); font-weight: 500; font-size: 13px; }
+.pill { height: 36px; padding: 0 16px; border-radius: 18px; display: flex; align-items: center; gap: 8px; }
+.tab.on { color: var(--fg); font-weight: 700; }
+.tab.on .pill { background: var(--accent-soft); }
+.handle { width: 108px; height: 4px; margin: 6px auto 0; border-radius: 2px; background: var(--fg); opacity: .75; }
+.gesture { padding: 4px 0 6px; }
+.gesture .handle { margin: 0 auto; }
+.dark .handle { background: var(--on-viewer); }
+.gesture.light { background: var(--bg); }
+.gesture.light .handle { background: var(--fg); }
+
+/* Viewer */
+.vbar { display: flex; align-items: center; min-height: 56px; padding: 0 4px; }
+.vbar .when { flex: 1; display: grid; text-align: center; font-size: 13px; font-weight: 500; }
+.vbar .when span { font-size: 12px; font-weight: 400; opacity: .7; }
+.stage { flex: 1; min-height: 0; display: grid; place-items: center; }
+.stage div { width: 100%; max-width: 100%; aspect-ratio: 3 / 4; }
+.actions { display: flex; justify-content: space-around; padding: 6px 8px; }
+.crop { flex: none; height: 270px; position: relative; }
+.crop .vbar { position: absolute; inset: 0 0 auto; color: #fff; }
+.info { position: relative; margin-top: -24px; padding-bottom: 20px; border-radius: 24px 24px 0 0; background: var(--bg); color: var(--fg); }
+.grab { width: 32px; height: 4px; margin: 10px auto 0; border-radius: 2px; background: var(--muted); opacity: .4; }
+.date { display: grid; padding: 12px 16px 0; }
+.date b { font: 700 20px/1.25 var(--display); }
+.date span { color: var(--muted); font-size: 13px; }
+.line { display: flex; align-items: flex-start; gap: 16px; padding: 6px 16px; }
+.line svg.i { color: var(--muted); margin-top: 2px; }
+.line div { min-width: 0; display: grid; }
+.line b { font-weight: 500; overflow-wrap: anywhere; }
+.line span { color: var(--muted); font-size: 13px; }
+
+/* Help recognize */
+.subbar { display: flex; align-items: center; gap: 4px; min-height: 60px; padding: 4px 8px 4px 4px; }
+.subbar .title { flex: 1; min-width: 0; display: grid; }
+.subbar .title b { font: 700 20px/1.2 var(--display); }
+.subbar .title span { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.text-btn { border: 0; background: transparent; color: var(--accent); font-weight: 500; padding: 10px 12px; border-radius: 20px; display: flex; align-items: center; gap: 6px; }
+.text-btn svg.i { width: 20px; height: 20px; }
+.text-btn:hover { background: var(--surface); }
+.context { position: relative; margin: 4px 16px 0; aspect-ratio: 4 / 3; max-width: 100%; border-radius: 16px; }
+.box { position: absolute; left: 56%; top: 20%; width: 22%; height: 30%; border: 2px solid #fff; border-radius: 8px; box-shadow: 0 0 0 1px rgba(0, 0, 0, .35); }
+.ask { display: flex; align-items: center; gap: 16px; padding: 20px 16px 0; }
+.ask p { margin: 0; font: 700 28px/1.15 var(--display); text-wrap: balance; }
+.ask p span { color: var(--accent); }
+.known { display: grid; gap: 8px; padding: 16px 16px 0; color: var(--muted); font-size: 12px; }
+.known div { display: flex; gap: 6px; }
+.answers { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 20px 16px 0; }
+.answers button { height: 52px; border-radius: 26px; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 500; font-size: 15px; }
+.answers .no { border: 1px solid var(--muted); background: transparent; }
+.answers .yes { border: 0; background: var(--accent); color: #fff; }
+.other { display: flex; justify-content: center; gap: 4px; padding: 10px 16px 16px; }
+
+/* Who is this? sheet */
+.dim { flex: 1; }
+.sheet { position: relative; margin-top: -28px; border-radius: 28px 28px 0 0; background: var(--bg); color: var(--fg); }
+.sheet-head { display: flex; align-items: center; gap: 14px; padding: 12px 20px; }
+.sheet-head b { display: block; font: 700 20px/1.2 var(--display); }
+.sheet-head span { color: var(--muted); font-size: 13px; }
+.field { margin: 0 16px 6px; height: 48px; padding: 0 16px; border-radius: 24px; background: var(--surface); color: var(--muted); display: flex; align-items: center; gap: 12px; }
+.pick { display: flex; align-items: center; gap: 14px; min-height: 52px; padding: 4px 20px; }
+.pick b { flex: 1; font-weight: 500; }
+.pick span { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.pick .round { width: 40px; height: 40px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; flex: none; }
+.pick.danger { margin-top: 4px; border-top: 1px solid var(--line); color: var(--danger); }
+.pick.danger .round { background: transparent; color: var(--danger); }
+
+/* Name a person sheet */
+.field.filled { color: var(--fg); font-weight: 500; gap: 0; }
+.field .caret { width: 2px; height: 22px; margin-left: 1px; border-radius: 1px; background: var(--accent); animation: blink 1.1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+
+/* Merge with sheet */
+.people-grid.picker { padding: 4px 16px 0; }
+.pcard.on .face { outline: 3px solid var(--accent); outline-offset: 3px; }
+
+/* Settings */
+.set { display: flex; align-items: center; gap: 16px; min-height: 56px; padding: 6px 16px; }
+.set > svg.i { color: var(--muted); }
+.set div { flex: 1; min-width: 0; display: grid; }
+.set b { font-weight: 500; }
+.set div > span { color: var(--muted); font-size: 13px; }
+.set:last-child { margin-bottom: 16px; }
+.switch { width: 52px; height: 32px; flex: none; border-radius: 16px; background: var(--accent); position: relative; }
+.switch::after { content: ""; position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; border-radius: 50%; background: #fff; }
+.switch.off { background: var(--surface); box-shadow: inset 0 0 0 2px var(--muted); }
+.switch.off::after { top: 8px; right: auto; left: 8px; width: 16px; height: 16px; background: var(--muted); }
+
+/* Confirm dialog */
+.phone.modal { position: relative; }
+.scrim { position: absolute; inset: 0; padding: 40px; background: rgba(43, 33, 24, .45); display: grid; place-items: center; }
+.dialog { width: 100%; padding: 24px 24px 16px; border-radius: 28px; background: var(--bg); display: grid; gap: 16px; }
+.dialog > svg.i { justify-self: center; color: var(--danger); }
+.dialog > svg.i.calm { color: var(--accent); }
+.dialog b { font: 700 22px/1.25 var(--display); text-align: center; }
+.dialog p { margin: 0; color: var(--muted); }
+.dialog-btns { display: flex; justify-content: flex-end; gap: 4px; }
+.text-btn.danger { color: var(--danger); }
+
+/* Trash and select mode */
+.note { margin: 4px 16px 12px; padding: 12px 14px; border-radius: 16px; background: var(--surface); color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 12px; }
+.left { position: absolute; left: 6px; bottom: 5px; color: #fff; font-weight: 500; font-size: 11px; text-shadow: 0 1px 2px rgba(0, 0, 0, .5); }
+.sel { position: absolute; top: 6px; left: 6px; width: 22px; height: 22px; box-sizing: border-box; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 3px rgba(0, 0, 0, .35); display: grid; place-items: center; }
+.tile.on { outline: 3px solid var(--accent); outline-offset: -3px; }
+.tile.on .sel { border-color: var(--accent); background: var(--accent); }
+.tile.on .sel svg.i { width: 16px; height: 16px; fill: #fff; }
+.answers.selbar { padding: 12px 16px; border-top: 1px solid var(--line); }
+.answers .no.danger { border-color: var(--danger); color: var(--danger); }
+/* Shared parts: check these before building a screen. One place to fix, same look everywhere. */
+.parts { max-width: 816px; margin: 64px auto 0; display: grid; gap: 24px; }
+.parts h2 { font: 700 24px/1.2 var(--display); margin: 0; }
+.parts .lede { margin: 0; color: var(--muted); }
+.part { border: 1px solid var(--line); border-radius: 20px; background: var(--bg); padding: 20px; display: grid; gap: 14px; }
+.part > h3 { margin: 0; font: 700 17px/1.2 var(--display); }
+.part p { margin: 0; color: var(--muted); font-size: 13px; }
+.part ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 13px; display: grid; gap: 6px; }
+.part .note, .part .answers.selbar { margin: 0; padding: 12px 14px; border-radius: 16px; border-top: 0; }
+
+.empty { padding: 72px 32px; display: grid; justify-items: center; gap: 10px; text-align: center; color: var(--muted); }
+.empty svg.i { width: 48px; height: 48px; color: var(--surface); }
+.empty b { font: 700 20px/1.2 var(--display); color: var(--fg); }
+.empty p { margin: 0; font-size: 13px; }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<svg style="position:absolute;width:0;height:0" aria-hidden="true">
+  <symbol id="i-search" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></symbol>
+  <symbol id="i-photo" viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></symbol>
+  <symbol id="i-library" viewBox="0 0 24 24"><path d="M22 16V4c0-1.1-.9-2-2-2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2zm-11-4 2.03 2.71L16 11l4 5H8l3-4zM2 6v14c0 1.1.9 2 2 2h14v-2H4V6H2z"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></symbol>
+  <symbol id="i-person" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></symbol>
+  <symbol id="i-person-add" viewBox="0 0 24 24"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></symbol>
+  <symbol id="i-heart" viewBox="0 0 24 24"><path d="m12 21.35-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></symbol>
+  <symbol id="i-heart-line" viewBox="0 0 24 24"><path d="M16.5 3c-1.74 0-3.41.81-4.5 2.09C10.91 3.81 9.24 3 7.5 3 4.42 3 2 5.42 2 8.5c0 3.78 3.4 6.86 8.55 11.54L12 21.35l1.45-1.32C18.6 15.36 22 12.28 22 8.5 22 5.42 19.58 3 16.5 3zm-4.4 15.55-.1.1-.1-.1C7.14 14.24 4 11.39 4 8.5 4 6.5 5.5 5 7.5 5c1.54 0 3.04.99 3.57 2.36h1.87C13.46 5.99 14.96 5 16.5 5c2 0 3.5 1.5 3.5 3.5 0 2.89-3.14 5.74-7.9 10.05z"/></symbol>
+  <symbol id="i-video" viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></symbol>
+  <symbol id="i-trash-line" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM8 9h8v10H8V9zm7.5-5-1-1h-5l-1 1H5v2h14V4z"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></symbol>
+  <symbol id="i-share" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11A2.99 2.99 0 0 0 21 5a3 3 0 1 0-5.91.7L8.04 9.81A2.99 2.99 0 0 0 3 12a3 3 0 0 0 5.04 2.19l7.12 4.16c-.05.21-.08.43-.08.65A2.92 2.92 0 1 0 18 16.08z"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 0 1 0-5 2.5 2.5 0 0 1 0 5z"/></symbol>
+  <symbol id="i-camera" viewBox="0 0 24 24"><path d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4zM9 2 7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></symbol>
+  <symbol id="i-add" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/></symbol>
+  <symbol id="i-block" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM4 12c0-4.42 3.58-8 8-8 1.85 0 3.55.63 4.9 1.69L5.69 16.9A7.9 7.9 0 0 1 4 12zm8 8c-1.85 0-3.55-.63-4.9-1.69L18.31 7.1A7.9 7.9 0 0 1 20 12c0 4.42-3.58 8-8 8z"/></symbol>
+  <symbol id="i-wifi" viewBox="0 0 24 24"><path d="m1 9 2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8 3 3 3-3a4.24 4.24 0 0 0-6 0zm-4-4 2 2a7.07 7.07 0 0 1 10 0l2-2C15.14 9.14 8.87 9.14 5 13z"/></symbol>
+  <symbol id="i-battery" viewBox="0 0 24 24"><path d="M15.67 4H14V2h-4v2H8.33C7.6 4 7 4.6 7 5.33v15.33C7 21.4 7.6 22 8.33 22h7.33c.74 0 1.34-.6 1.34-1.33V5.33C17 4.6 16.4 4 15.67 4z"/></symbol>
+  <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M11 21h-1l1-7H7.5c-.88 0-.33-.75-.31-.78C8.48 10.94 10.42 7.54 13 3h1l-1 7h3.5c.49 0 .56.33.47.51C12.96 17.55 11 21 11 21z"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M17.65 6.35A7.96 7.96 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></symbol>
+  <symbol id="i-restore" viewBox="0 0 24 24"><path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.95 8.95 0 0 0 13 21a9 9 0 0 0 0-18z"/></symbol>
+</svg>
+
+<header class="top">
+  <h1>Memoria Photo</h1>
+  <p class="lede">Light theme, Honey palette. Photos and faces are placeholders, names and places are made up.</p>
+</header>
+
+<main class="phones">
+  <figure>
+    <div class="phone has-slider">
+      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+      <div class="appbar">
+        <div class="wordmark">Memoria <span>Photo</span></div>
+        <button class="icon-btn" aria-label="Search"><svg class="i"><use href="#i-search"/></svg></button>
+      </div>
+      <div class="scroll" id="timeline"></div>
+      <div class="slider on" aria-hidden="true">
+        <span class="rail"></span>
+        <i style="top:calc(10px + (100% - 20px) * 0)"></i>
+        <i class="now" style="top:calc(10px + (100% - 20px) * .2)"></i>
+        <i style="top:calc(10px + (100% - 20px) * .4)"></i>
+        <i style="top:calc(10px + (100% - 20px) * .6)"></i>
+        <i style="top:calc(10px + (100% - 20px) * .8)"></i>
+        <i style="top:calc(10px + (100% - 20px) * 1)"></i>
+        <span class="knob" style="top:calc(10px + (100% - 20px) * .2)"></span>
+      </div>
+      <div class="bottom">
+        <nav>
+          <button class="tab on"><span class="pill"><svg class="i"><use href="#i-photo"/></svg>Photos</span></button>
+          <button class="tab"><span class="pill"><svg class="i"><use href="#i-library"/></svg>Library</span></button>
+        </nav>
+        <div class="handle"></div>
+      </div>
+    </div>
+    <figcaption>Photos tab, scrolled: the month heading stays pinned while its photos pass under it, and the month slider has faded in (it hides again a moment after you stop). Drag the slider to jump to a month; it never covers the bottom bar</figcaption>
+  </figure>
+
+  <figure>
+    <div class="phone">
+      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+      <div class="appbar">
+        <h2>Library</h2>
+        <button class="icon-btn" aria-label="Settings"><svg class="i"><use href="#i-settings"/></svg></button>
+      </div>
+      <div class="scroll">
+        <div class="search"><svg class="i"><use href="#i-search"/></svg>Search people, places, dates</div>
+
+        <div class="head"><h3>People</h3><a href="#">See all<svg class="i"><use href="#i-chevron"/></svg></a></div>
+        <div class="row">
+          <div class="person wide">
+            <div class="face empty-face"><svg class="i"><use href="#i-person"/></svg></div>
+            <span class="unnamed">No people yet</span>
+          </div>
+        </div>
+        <div class="progress">
+          <span>Finding faces · 412 of 1,706 photos · 3m left</span>
+          <div class="progress-foot">
+            <div class="track"><div></div></div>
+            <button class="pill-btn">Pause</button>
+          </div>
+        </div>
+
+        <div class="head"><h3>Albums</h3><a href="#">See all<svg class="i"><use href="#i-chevron"/></svg></a></div>
+        <div class="albums" id="albums"></div>
+
+        <div class="head"><h3>Places</h3><a href="#">See all<svg class="i"><use href="#i-chevron"/></svg></a></div>
+        <div class="places" id="places"></div>
+
+        <div class="shortcuts">
+          <div class="shortcut"><svg class="i"><use href="#i-heart"/></svg><div><b>Favorites</b><span>38</span></div></div>
+          <div class="shortcut"><svg class="i"><use href="#i-video"/></svg><div><b>Videos</b><span>211</span></div></div>
+          <div class="shortcut"><svg class="i"><use href="#i-lock"/></svg><div><b>Locked folder</b><span>Private</span></div></div>
+          <div class="shortcut"><svg class="i"><use href="#i-trash"/></svg><div><b>Trash</b><span>7</span></div></div>
+        </div>
+      </div>
+      <div class="bottom">
+        <nav>
+          <button class="tab"><span class="pill"><svg class="i"><use href="#i-photo"/></svg>Photos</span></button>
+          <button class="tab on"><span class="pill"><svg class="i"><use href="#i-library"/></svg>Library</span></button>
+        </nav>
+        <div class="handle"></div>
+      </div>
+    </div>
+    <figcaption>Library while indexing: no people yet (one muted item at a face's size, see Empty) with the progress row under it. People and the Help recognize card appear only once a run has finished, when the progress row is gone.</figcaption>
+  </figure>
+
+  <figure>
+    <div class="phone">
+      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+      <div class="subbar">
+        <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+        <div class="title"><b>People</b><span>7 people · 412 faces</span></div>
+        <button class="icon-btn" aria-label="Search"><svg class="i"><use href="#i-search"/></svg></button>
+      </div>
+      <div class="scroll">
+        <div class="search"><svg class="i"><use href="#i-search"/></svg>Search people</div>
+
+        <div class="review">
+          <div class="stack" id="people-unsure"></div>
+          <div class="review-text"><b>Help recognize</b><span>24 faces to check</span></div>
+          <button class="pill-btn">Review</button>
+        </div>
+        <div class="progress">
+          <span>Finding faces · 412 of 1,706 photos · 3m left</span>
+          <div class="progress-foot">
+            <div class="track"><div></div></div>
+            <button class="pill-btn">Pause</button>
+          </div>
+        </div>
+
+        <div class="head"><h3>People</h3><span class="hint">Tap to see their photos</span></div>
+        <div class="people-grid" id="people-grid"></div>
+      </div>
+      <div class="gesture"><div class="handle"></div></div>
+    </div>
+    <figcaption>People: opens from Library, "See all". Review card, then named people, then unnamed, each by photo count. No name, no label</figcaption>
+  </figure>
+
+  <figure id="person">
+    <div class="phone">
+      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+      <div class="subbar">
+        <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+        <span id="person-avatar"></span>
+        <div class="title"><b>Dana</b><span>230 photos · 96 faces</span></div>
+        <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
+      </div>
+      <div class="scroll">
+        <div class="chips">
+          <button class="chip"><svg class="i"><use href="#i-person"/></svg>Rename</button>
+          <button class="chip"><svg class="i"><use href="#i-person-add"/></svg>Merge with</button>
+          <button class="chip"><svg class="i"><use href="#i-photo"/></svg>Change cover</button>
+          <button class="chip"><svg class="i"><use href="#i-block"/></svg>Hide person</button>
+        </div>
+
+        <div class="head"><h3>Faces</h3><span class="hint">These faces match Dana</span></div>
+        <div class="row" id="person-faces"></div>
+
+        <div class="review">
+          <div class="stack" id="person-unsure"></div>
+          <div class="review-text"><b>Unsure faces</b><span>12 may be Dana</span></div>
+          <button class="pill-btn">Review</button>
+        </div>
+
+        <div class="head"><h3>Photos</h3><span class="hint">230 · by date</span></div>
+        <div class="grid big" id="person-photos"></div>
+      </div>
+      <div class="gesture"><div class="handle"></div></div>
+    </div>
+    <figcaption>Person: opens from the People grid. Name, fixes, the faces that match, their photos. Unnamed: the card says "12 to check" (one line). Hidden person: the last chip is "Show person" with the eye icon</figcaption>
+  </figure>
+
+  <figure>
+    <div class="phone">
+      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+      <div class="subbar">
+        <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+        <div class="title"><b>Albums</b><span>12 albums · 3,880 items</span></div>
+        <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
+      </div>
+      <div class="scroll">
+        <div class="head"><h3>On this device</h3><span class="hint">Device folders</span></div>
+        <div class="album-grid" id="album-grid"></div>
+      </div>
+      <div class="gesture"><div class="handle"></div></div>
+    </div>
+    <figcaption>Albums: opens from Library, "See all". Device folders, plus albums you make</figcaption>
+  </figure>
+
+  <figure>
+    <div class="phone">
+      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+      <div class="subbar">
+        <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+        <div class="title"><b>Camera</b><span>1,412 photos · 61 videos</span></div>
+        <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
+      </div>
+      <div class="scroll">
+        <div class="grid big" id="album-photos"></div>
+      </div>
+      <div class="gesture"><div class="handle"></div></div>
+    </div>
+    <figcaption>Album: tap a photo for the viewer, long press to select. Same grid for a person</figcaption>
+  </figure>
+
+  <figure>
+    <div class="phone">
+      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+      <div class="subbar">
+        <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+        <div class="title"><b>Videos</b><span>538 videos · 14.2 GB</span></div>
+      </div>
+      <div class="scroll vids" id="videos"></div>
+      <div class="gesture"><div class="handle"></div></div>
+    </div>
+    <figcaption>Videos: opens from the Library card. Every video, newest first, by month; the month stays pinned. Tap opens the viewer. The size is for video compression later</figcaption>
+  </figure>
+
+  <figure>
+    <div class="phone dark">
+      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+      <div class="vbar">
+        <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+        <div class="when">Sat, 11 Oct<span>14:32</span></div>
+        <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
+      </div>
+      <div class="stage"><div data-shot></div></div>
+      <div class="actions">
+        <button class="icon-btn" aria-label="Share"><svg class="i"><use href="#i-share"/></svg></button>
+        <button class="icon-btn" aria-label="Favorite"><svg class="i"><use href="#i-heart-line"/></svg></button>
+        <button class="icon-btn" aria-label="Info"><svg class="i"><use href="#i-info"/></svg></button>
+        <button class="icon-btn" aria-label="Delete"><svg class="i"><use href="#i-trash-line"/></svg></button>
+      </div>
+      <div class="gesture"><div class="handle"></div></div>
+    </div>
+    <figcaption>Viewer: swipe sideways for next photo, swipe up for details</figcaption>
+  </figure>
+
+  <figure>
+    <div class="phone dark">
+      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+      <div class="scroll">
+        <div class="crop" data-shot>
+          <div class="vbar">
+            <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+            <div class="when"></div>
+            <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
+          </div>
+        </div>
+        <div class="info">
+          <div class="grab"></div>
+          <div class="date"><b>Saturday, 11 October 2026</b><span>14:32 · GMT+1</span></div>
+
+          <div class="head"><h3>People</h3><span class="hint">Tap a face to fix it</span></div>
+          <div class="row" id="viewer-people"></div>
+
+          <div class="head"><h3>Place</h3></div>
+          <div class="line"><svg class="i"><use href="#i-pin"/></svg><div><b>Riverside Park</b><span>Riverton · 51.50, -0.12</span></div></div>
+
+          <div class="head"><h3>Details</h3></div>
+          <div class="line"><svg class="i"><use href="#i-camera"/></svg><div><b>Pixel 8</b><span>f/1.6 · 1/120 s · ISO 100 · 23 mm</span></div></div>
+          <div class="line"><svg class="i"><use href="#i-photo"/></svg><div><b>IMG_20261011_143212.jpg</b><span>12.6 MP · 4096 × 3072 · 3.8 MB</span></div></div>
+          <div class="line"><svg class="i"><use href="#i-folder"/></svg><div><b>Camera</b><span>DCIM/Camera</span></div></div>
+        </div>
+      </div>
+      <div class="gesture light"><div class="handle"></div></div>
+    </div>
+    <figcaption>Viewer, swiped up: people (only if the photo has faces, left to right), place (only if the photo has one), details. A named face or a face with no person opens Who is this?; "Add name" on an unnamed person's face opens Name this person (names the whole person)</figcaption>
+  </figure>
+
+  <figure>
+    <div class="phone">
+      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+      <div class="subbar">
+        <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+        <div class="title"><b>Help recognize</b><span>3 of 24</span></div>
+        <button class="text-btn">Skip</button>
+      </div>
+      <div class="scroll">
+        <div class="context" data-photo><div class="box"></div></div>
+        <div class="ask"><span id="ask-face"></span><p>Is this <span>Dana</span>?</p></div>
+        <div class="known">Dana's faces<div id="known"></div></div>
+        <div class="answers">
+          <button class="no"><svg class="i"><use href="#i-close"/></svg>No</button>
+          <button class="yes"><svg class="i"><use href="#i-check"/></svg>Yes</button>
+        </div>
+        <div class="other">
+          <button class="text-btn"><svg class="i"><use href="#i-person"/></svg>Someone else</button>
+          <button class="text-btn"><svg class="i"><use href="#i-block"/></svg>Not a face</button>
+        </div>
+      </div>
+      <div class="gesture"><div class="handle"></div></div>
+    </div>
+    <figcaption>Help recognize: one unsure face at a time, with the whole photo and the person's known faces to compare</figcaption>
+  </figure>
+
+  <figure id="recognize-done">
+    <div class="phone">
+      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+      <div class="subbar">
+        <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+        <div class="title"><b>Help recognize</b><span>24 of 24</span></div>
+      </div>
+      <div class="scroll">
+        <div class="empty"><svg class="i"><use href="#i-check"/></svg><b>All done</b><p>3 skipped faces come back next time</p></div>
+      </div>
+      <div class="gesture"><div class="handle"></div></div>
+    </div>
+    <figcaption>Help recognize, done: no Skip, just the hint. With nothing skipped: "New unsure faces show up after the next index run"</figcaption>
+  </figure>
+
+  <figure>
+    <div class="phone dark">
+      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+      <div class="dim" id="dim"></div>
+      <div class="sheet">
+        <div class="grab"></div>
+        <div class="sheet-head"><span id="pick-face"></span><div><b>Who is this?</b><span>Now tagged as Dana</span></div></div>
+        <div class="field"><svg class="i"><use href="#i-search"/></svg>Search or type a new name</div>
+        <div id="pick-list"></div>
+        <div class="pick"><span class="round"><svg class="i"><use href="#i-person-add"/></svg></span><b>New person</b></div>
+        <div class="pick danger"><span class="round"><svg class="i"><use href="#i-close"/></svg></span><b>Remove tag</b></div>
+        <div class="gesture light"><div class="handle"></div></div>
+      </div>
+    </div>
+    <figcaption>Who is this? Opens from a face in the viewer, or from "Someone else" in Help recognize (there without Remove tag). The list is the named people minus the current one, filtered by the search. New person needs a typed name that is not taken; the name shows on its right. Hidden rows keep their space, so the field never moves while typing</figcaption>
+  </figure>
+
+  <figure id="name-person">
+    <div class="phone dark">
+      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+      <div class="dim" id="name-dim"></div>
+      <div class="sheet">
+        <div class="grab"></div>
+        <div class="sheet-head"><span id="name-face"></span><div><b>Name this person</b><span id="name-sub"></span></div></div>
+        <div class="field filled">Dana<span class="caret"></span></div>
+        <div class="answers">
+          <button class="no">Cancel</button>
+          <button class="yes"><svg class="i"><use href="#i-check"/></svg>Save</button>
+        </div>
+        <div class="gesture light"><div class="handle"></div></div>
+      </div>
+    </div>
+    <figcaption>Name a person: opens from "Add name" / "Rename" on the person screen (and from a face in the viewer). Type a name; the field alone, no list of existing names (reusing a name is not reusing a person — that is Merge with). Tapping a person in Library or People opens their screen, never this sheet.</figcaption>
+  </figure>
+  <figure id="merge">
+    <div class="phone dark">
+      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+      <div class="dim"></div>
+      <div class="sheet">
+        <div class="grab"></div>
+        <div class="sheet-head"><span id="merge-face"></span><div><b>Merge with Dana</b><span>Pick the same person, most alike first</span></div></div>
+        <div class="field"><svg class="i"><use href="#i-search"/></svg>Search people</div>
+        <div class="people-grid picker" id="merge-grid"></div>
+        <div class="answers">
+          <button class="no">Cancel</button>
+          <button class="yes"><svg class="i"><use href="#i-check"/></svg>Merge</button>
+        </div>
+        <div class="gesture light"><div class="handle"></div></div>
+      </div>
+    </div>
+    <figcaption>Merge with: opens from the chip on the person screen. Every other person, most alike first, so the other halves of a split person are on top. Tap one to pick it (accent ring), Merge joins it into this person. One at a time: after a merge the order is worked out again, so the next part moves up. This person's name stays; if it has none, the picked one's name is used. Merge is off until something is picked. The grid scrolls, the field and buttons stay</figcaption>
+  </figure>
+  <figure id="hide">
+    <div class="phone modal" id="hide-phone">
+      <div class="scrim">
+        <div class="dialog" role="alertdialog" aria-labelledby="hide-title">
+          <svg class="i calm"><use href="#i-block"/></svg>
+          <b id="hide-title">Hide Dana?</b>
+          <p>Dana leaves People, Library and search. Their faces stay with them, so they never join someone else. Show them again from Settings, Hidden people.</p>
+          <div class="dialog-btns"><button class="text-btn">Cancel</button><button class="text-btn">Hide</button></div>
+        </div>
+      </div>
+    </div>
+    <figcaption>Hide person: asks first, from the chip on the person screen. On Hide, back to where the person was opened</figcaption>
+  </figure>
+  <figure id="settings">
+    <div class="phone">
+      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+      <div class="subbar">
+        <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+        <div class="title"><b>Settings</b></div>
+      </div>
+      <div class="scroll">
+        <div class="head"><h3>Finding faces</h3></div>
+        <div class="set"><svg class="i"><use href="#i-bolt"/></svg><div><b>Only while charging</b><span>Pause face search on battery</span></div><span class="switch off" role="switch" aria-checked="false"></span></div>
+        <div class="set"><svg class="i"><use href="#i-battery"/></svg><div><b>Background work</b><span>Not allowed. The phone may stop face search</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
+        <div class="set"><svg class="i"><use href="#i-folder"/></svg><div><b>Folders to skip</b><span>None, all photos are searched</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
+        <div class="set"><svg class="i"><use href="#i-refresh"/></svg><div><b>Find faces again</b><span>Deletes faces and names, scans all photos again</span></div></div>
+        <div class="head"><h3>People</h3></div>
+        <div class="set"><svg class="i"><use href="#i-block"/></svg><div><b>Hidden people</b><span>2 people</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
+        <div class="head"><h3>Backup</h3><span class="hint">Names and faces, not photos</span></div>
+        <div class="set"><svg class="i"><use href="#i-download"/></svg><div><b>Export face data</b><span>Save to a file</span></div></div>
+        <div class="set"><svg class="i"><use href="#i-upload"/></svg><div><b>Import face data</b><span>From an export file</span></div></div>
+        <div class="head"><h3>About</h3></div>
+        <div class="set"><svg class="i"><use href="#i-info"/></svg><div><b>Memoria Photo 0.1</b><span>Open source, GPL-3.0 · Licenses</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
+      </div>
+      <div class="gesture"><div class="handle"></div></div>
+    </div>
+    <figcaption>Settings: opens from the gear on Library. Face search, hidden people, face data backup, about. With "Only while charging" on battery, the progress row reads "Waiting for charger · 412 of 1,706 photos" and keeps Pause</figcaption>
+  </figure>
+  <figure id="rescan">
+    <div class="phone modal" id="rescan-phone">
+      <div class="scrim">
+        <div class="dialog" role="alertdialog" aria-labelledby="rescan-title">
+          <svg class="i"><use href="#i-refresh"/></svg>
+          <b id="rescan-title">Find faces again?</b>
+          <p>All faces, people and names will be deleted. Then every photo is scanned again, this takes a while.</p>
+          <div class="dialog-btns"><button class="text-btn">Cancel</button><button class="text-btn danger">Delete and scan</button></div>
+        </div>
+      </div>
+    </div>
+    <figcaption>Find faces again: asks first, from Settings. Wipes the whole index, names too</figcaption>
+  </figure>
+  <figure id="hidden">
+    <div class="phone">
+      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+      <div class="subbar">
+        <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+        <div class="title"><b>Hidden people</b><span>2 people</span></div>
+      </div>
+      <div class="scroll">
+        <div class="note"><svg class="i"><use href="#i-info"/></svg>Not in People, Library or search. Tap one, then Show person</div>
+        <div class="people-grid" id="hidden-grid"></div>
+      </div>
+      <div class="gesture"><div class="handle"></div></div>
+    </div>
+    <figcaption>Hidden people: opens from Settings. Same grid as People. A tap opens the person screen, where the last chip is "Show person"</figcaption>
+  </figure>
+  <figure id="hidden-empty">
+    <div class="phone">
+      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+      <div class="subbar">
+        <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+        <div class="title"><b>Hidden people</b><span>No people</span></div>
+      </div>
+      <div class="scroll">
+        <div class="empty"><svg class="i"><use href="#i-eye"/></svg><b>No hidden people</b><p>Hide a person from their screen, they show up here</p></div>
+      </div>
+      <div class="gesture"><div class="handle"></div></div>
+    </div>
+    <figcaption>Hidden people, empty: no note and no grid, just the hint</figcaption>
+  </figure>
+  <figure id="trash">
+    <div class="phone">
+      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+      <div class="subbar">
+        <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+        <div class="title"><b>Trash</b><span>7 items</span></div>
+        <button class="text-btn danger">Empty</button>
+      </div>
+      <div class="scroll">
+        <div class="note"><svg class="i"><use href="#i-info"/></svg>Items are deleted for good after 30 days</div>
+        <div class="grid big" id="trash-grid"></div>
+      </div>
+      <div class="gesture"><div class="handle"></div></div>
+    </div>
+    <figcaption>Trash: opens from Library. The phone's own trash, days left on each item. Long press to select</figcaption>
+  </figure>
+  <figure id="trash-select">
+    <div class="phone">
+      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+      <div class="subbar">
+        <button class="icon-btn" aria-label="Close"><svg class="i"><use href="#i-close"/></svg></button>
+        <div class="title"><b>2 selected</b><span>7 items</span></div>
+        <button class="text-btn">Select all</button>
+      </div>
+      <div class="scroll">
+        <div class="note"><svg class="i"><use href="#i-info"/></svg>Items are deleted for good after 30 days</div>
+        <div class="grid big" id="trash-picked"></div>
+      </div>
+      <div class="answers selbar">
+        <button class="no danger"><svg class="i"><use href="#i-trash-line"/></svg>Delete</button>
+        <button class="yes"><svg class="i"><use href="#i-restore"/></svg>Restore</button>
+      </div>
+      <div class="gesture"><div class="handle"></div></div>
+    </div>
+    <figcaption>Trash, selecting: header and note stay put, only the bar at the bottom appears, so nothing jumps. Tap more items, then Restore or Delete. Android asks to confirm, so we add no dialog</figcaption>
+  </figure>
+  <figure id="trash-empty">
+    <div class="phone">
+      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+      <div class="subbar">
+        <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+        <div class="title"><b>Trash</b><span>Empty</span></div>
+      </div>
+      <div class="scroll">
+        <div class="empty"><svg class="i"><use href="#i-trash"/></svg><b>Trash is empty</b><p>Deleted photos and videos stay here 30 days, then they are gone for good</p></div>
+      </div>
+      <div class="gesture"><div class="handle"></div></div>
+    </div>
+    <figcaption>Trash, empty: no Empty button and no grid, just the hint</figcaption>
+  </figure>
+</main>
+
+<section class="parts">
+  <h2>Shared parts</h2>
+  <p class="lede">Check these before building a screen, so the same thing looks the same everywhere and there is one place to fix it.</p>
+
+  <article class="part">
+    <h3>Top bar</h3>
+    <div class="subbar">
+      <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+      <div class="title"><b>Trash</b><span>7 items</span></div>
+      <button class="text-btn danger">Empty</button>
+    </div>
+    <div class="subbar">
+      <button class="icon-btn" aria-label="Close"><svg class="i"><use href="#i-close"/></svg></button>
+      <div class="title"><b>2 selected</b><span>7 items</span></div>
+      <button class="text-btn">Select all</button>
+    </div>
+    <div class="subbar">
+      <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+      <div class="face" style="--s:40px;background:linear-gradient(160deg,#D9A27F,#B9876F)"></div>
+      <div class="title" style="margin-left:12px"><b>Dana</b><span>230 photos · 96 faces</span></div>
+      <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
+    </div>
+    <p>One title, one subtitle line, one trailing button. The subtitle is always there, empty or not, so the bar keeps the same height in every mode. Take it away and everything under it jumps up. An optional leading slot sits between Back and the title (the person's picture on the Person screen).</p>
+  </article>
+
+  <article class="part">
+    <h3>Note</h3>
+    <div class="note"><svg class="i"><use href="#i-info"/></svg>Items are deleted for good after 30 days</div>
+    <p>A quiet hint above a list. It stays in every mode of the screen, even when the mockup hides it, or the list below moves when the mode changes.</p>
+  </article>
+
+  <article class="part">
+    <h3>Action bar</h3>
+    <div class="answers selbar">
+      <button class="no danger"><svg class="i"><use href="#i-trash-line"/></svg>Delete</button>
+      <button class="yes"><svg class="i"><use href="#i-restore"/></svg>Restore</button>
+    </div>
+    <p>Two buttons at the bottom: the danger one outlined, the safe one filled with the accent. Used by Trash, Help recognize and the selection modes. Help recognize's No is not dangerous, so its outline is grey (muted), not red.</p>
+  </article>
+
+  <article class="part">
+    <h3>Tile</h3>
+    <div class="grid big">
+      <div class="tile" data-photo><span class="sel"></span><span class="left">12 days</span></div>
+      <div class="tile on" data-photo><span class="sel"><svg class="i"><use href="#i-check"/></svg></span><span class="dur">0:42<svg class="i"><use href="#i-play"/></svg></span><span class="left">12 days</span></div>
+      <div class="tile" data-photo><span class="fav"><svg class="i"><use href="#i-heart"/></svg></span><span class="dur">2:31<svg class="i"><use href="#i-play"/></svg></span></div>
+    </div>
+    <p>Square, thumbnail cropped to fill. Top left the select circle, top right the length for videos, bottom left the days left, the heart dot when it is a favorite. Selecting adds the accent outline.</p>
+  </article>
+
+  <article class="part">
+    <h3>Sticky month header</h3>
+    <div style="border:1px solid var(--line); border-radius:12px; background:linear-gradient(160deg,#9CC3E6,#E9D8B8); padding-top:1px">
+      <h3 class="month">September 2026</h3>
+      <div class="day" style="margin:0 16px">Sun, 28 Sep<small>Northport</small></div>
+    </div>
+    <p>The month heading sticks to the top of the timeline for as long as any photo of that month is on screen, then the next month pushes it up. Same text and style as the heading in place. It keeps its own background, so photos scroll under it and nothing jumps.</p>
+  </article>
+
+  <article class="part">
+    <h3>Timeline month slider</h3>
+    <div style="position:relative; height:230px; border-radius:12px; overflow:hidden; background:linear-gradient(160deg,#9CC3E6,#E9D8B8)">
+      <div class="slider on" style="top:0; bottom:0">
+        <span class="rail"></span>
+        <i style="top:calc(10px + (100% - 20px) * 0)"></i>
+        <i class="now" style="top:calc(10px + (100% - 20px) * .2)"></i>
+        <i style="top:calc(10px + (100% - 20px) * .4)"></i>
+        <i style="top:calc(10px + (100% - 20px) * .6)"></i>
+        <i style="top:calc(10px + (100% - 20px) * .8)"></i>
+        <i style="top:calc(10px + (100% - 20px) * 1)"></i>
+        <span class="knob" style="top:calc(10px + (100% - 20px) * .2)"></span>
+        <span class="bubble" style="top:calc(10px + (100% - 20px) * .2)">September 2026</span>
+      </div>
+    </div>
+    <p>A thin rail on the right edge of the timeline, one tick per month, the month on screen in the accent. Hidden at the top, it fades in once you scroll and fades out about two seconds after you stop. Drag anywhere on the strip to jump to a month: a short buzz per month and a bubble with the month name while you drag. It sits over the grid, so only drags are caught there, plain taps still reach the tile.</p>
+
+    <h3 style="margin-top:18px">Timeline month slider, many months</h3>
+    <div style="position:relative; height:230px; border-radius:12px; overflow:hidden; background:linear-gradient(160deg,#9CC3E6,#E9D8B8)">
+      <div class="slider on" style="top:0; bottom:0">
+        <span class="rail"></span>
+        <i class="now" style="top:calc(10px + (100% - 20px) * .42)"></i>
+        <span class="knob" style="top:calc(10px + (100% - 20px) * .42)"></span>
+      </div>
+    </div>
+    <p>One tick per month only works while the months fit the rail: 6 months are 40 px apart, a real library has over a hundred of them and they would sit 4 px apart, a dotted chain down the whole edge that covers the photos. So the ticks are drawn only while they are at least 8 px apart. Below that the rail keeps the knob and the month on screen in the accent, and nothing else. The drag behaves the same; only the ticks go.</p>
+  </article>
+
+  <article class="part">
+    <h3>Empty</h3>
+    <p>Two sizes. The full one fills a screen or a whole section: icon, one line, one sentence.</p>
+    <div class="empty"><svg class="i"><use href="#i-trash"/></svg><b>Trash is empty</b><p>Deleted photos and videos stay here 30 days, then they are gone for good</p></div>
+    <p>In a row, keep the row's item size so nothing below moves when the data arrives: the same 72px circle, a muted person icon, one muted line under it.</p>
+    <div class="row">
+      <div class="person wide">
+        <div class="face empty-face"><svg class="i"><use href="#i-person"/></svg></div>
+        <span class="unnamed">No people yet</span>
+      </div>
+    </div>
+    <p>Used when a list has nothing to show, and for the same reason it should never appear for a moment while loading.</p>
+  </article>
+
+  <article class="part">
+    <h3>Rules that keep the layout still</h3>
+    <ul>
+      <li>Nothing above a scrollable list may change height between modes. Keep the space, or keep the part visible.</li>
+      <li>A screen shows its last data at once, then reloads. Empty first means the content is short, the scroll clamps, and it never comes back.</li>
+      <li>Hide content below the list, never above it. A bar appearing at the bottom does not move the top.</li>
+      <li>Every screen with modes gets a mockup per mode (list, selecting, empty) so the jump is easy to see.</li>
+    </ul>
+  </article>
+</section>
+
+<script>
+// Placeholder "photos": two-color scenes with a soft light spot.
+const scenes = [["#9CC3E6","#E9D8B8"],["#7FA36B","#D6DC9E"],["#F2A65A","#7B4B7A"],["#C8A27E","#5E4636"],["#2D3550","#7A6488"],["#4F8FB0","#CFE6EA"],["#E3E9EF","#A3B1C0"],["#E7B35F","#9C4F2C"],["#D9A7A0","#6E4A52"],["#A9C49A","#4F6B45"]];
+let seed = 11;
+const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+const photo = () => {
+  const [a, b] = scenes[Math.floor(rnd() * scenes.length)];
+  return `radial-gradient(circle at ${20 + rnd() * 60}% ${15 + rnd() * 40}%, rgba(255,255,255,.35), transparent 45%), linear-gradient(${120 + rnd() * 80}deg, ${a}, ${b})`;
+};
+
+const days = [
+  { m: "October 2026" },
+  { d: "Today", p: "Riverton", n: 3, v: [1], f: [0] },
+  { d: "Yesterday", n: 6, v: [4] },
+  { d: "Sat, 11 Oct", p: "Riverside Park", n: 9, f: [2, 6] },
+  { m: "September 2026" },
+  { d: "Sun, 28 Sep", p: "Northport", n: 7, v: [2] },
+  { d: "Sat, 13 Sep", n: 12, v: [5, 9] },
+  { m: "August 2026" },
+  { d: "Fri, 22 Aug", p: "Harborview", n: 10, v: [0] },
+  { d: "Tue, 5 Aug", n: 5 },
+  { m: "July 2026" },
+  { d: "Sat, 18 Jul", p: "Riverton", n: 8, v: [3] },
+  { m: "June 2026" },
+  { d: "Sun, 1 Jun", n: 6, f: [1] },
+  { m: "May 2026" },
+  { d: "Fri, 9 May", p: "Northport", n: 11, v: [7] },
+];
+const durs = ["0:12", "0:42", "1:05", "2:31", "0:08"];
+// One section per month, so the month heading can stick to the top while its photos pass under it.
+const timeline = document.getElementById("timeline");
+let sec = null;
+for (const x of days) {
+  if (x.m) {
+    sec = document.createElement("section");
+    sec.className = "month-sec";
+    timeline.appendChild(sec);
+    sec.insertAdjacentHTML("beforeend", `<h3 class="month">${x.m}</h3>`);
+  } else sec.insertAdjacentHTML("beforeend", `<div class="day">${x.d}${x.p ? `<small>${x.p}</small>` : ""}</div><div class="grid">${
+    Array.from({ length: x.n }, (_, i) => `<div class="tile" style="background:${photo()}">${
+      x.f?.includes(i) ? `<span class="fav"><svg class="i"><use href="#i-heart"/></svg></span>` : ""}${
+      x.v?.includes(i) ? `<span class="dur">${durs[i % durs.length]}<svg class="i"><use href="#i-play"/></svg></span>` : ""
+    }</div>`).join("")}</div>`);
+}
+// The Photos tab is shown scrolled: September is pinned at the top and the slider has faded in.
+const secs = timeline.querySelectorAll(".month-sec");
+if (secs[1]) timeline.scrollTop = secs[1].offsetTop + 150;
+
+const faces = ["#D9A27F", "#B9876B", "#E0B48A", "#A88C7A", "#C99A86", "#BFA27E", "#D4A99A"];
+const face = (i, s = 72) => `<div class="face" style="--s:${s}px;background:linear-gradient(160deg, ${faces[i]}, ${faces[(i + 3) % faces.length]})"><svg class="i"><use href="#i-person"/></svg></div>`;
+const people = ["Me", "Mom", "Dana", "Arman", null, "Aliya", null];
+const order = [0, 1, 2, 3, 5, 4, 6]; // named first, then unnamed
+const fill = (id, html) => document.getElementById(id).innerHTML = html;
+
+// People screen: the Help recognize card's stack of unsure faces
+fill("people-unsure", [2, 5, 0].map(i => face(i, 36)).join(""));
+
+const pcounts = [412, 230, 96, 64, 58, 51, 27];
+fill("people-grid", order.map(i => `<div class="pcard">${face(i, 68)}${people[i] ? `<b>${people[i]}</b>` : ""}<span>${pcounts[i]}</span></div>`).join("")
+);
+
+const tiles = (n, vids = [], favs = []) => Array.from({ length: n }, (_, i) =>
+  `<div class="tile" style="background:${photo()}">${
+    favs.includes(i) ? `<span class="fav"><svg class="i"><use href="#i-heart"/></svg></span>` : ""
+  }${vids.includes(i) ? `<span class="dur">${durs[i % durs.length]}<svg class="i"><use href="#i-play"/></svg></span>` : ""}</div>`).join("");
+
+fill("person-avatar", face(2, 40));
+fill("person-faces", [2, 2, 2, 2, 2, 2].map(i => face(i, 44)).join(""));
+fill("person-unsure", [6, 4].map(i => face(i, 36)).join(""));
+fill("person-photos", tiles(12, [3, 7], [1]));
+
+fill("album-grid", [["Camera", "1,412"], ["Screenshots", "214"], ["Telegram", "96"], ["WhatsApp", "58"], ["Downloads", "33"], ["Instagram", "21"]]
+  .map(([n, c]) => `<div class="album"><div class="cover" style="background:${photo()}"></div><b>${n}</b><span>${c}</span></div>`).join("")
+  + `<div class="album"><div class="cover new"><svg class="i"><use href="#i-add"/></svg></div><b>New album</b><span>Pick photos</span></div>`);
+fill("album-photos", tiles(15, [4, 11], [0, 9]));
+fill("videos", [["October 2026", 5], ["September 2026", 7], ["August 2026", 6]]
+  .map(([m, n]) => `<section class="month-sec"><h3 class="month">${m}</h3><div class="grid big">${tiles(n, [...Array(n).keys()], [1])}</div></section>`).join(""));
+fill("albums", [["Camera", "1,412"], ["Screenshots", "214"], ["Telegram", "96"], ["WhatsApp", "58"], ["Downloads", "33"], ["Instagram", "21"]]
+  .map(([n, c]) => `<div class="album"><div class="cover" style="background:${photo()}"></div><b>${n}</b><span>${c}</span></div>`).join(""));
+fill("places", [["Riverton", "642"], ["Northport", "118"], ["Harborview", "87"]]
+  .map(([n, c]) => `<div class="place" style="background:linear-gradient(transparent 45%, rgba(0,0,0,.45)), ${photo()}"><b>${n}</b><span>${c}</span></div>`).join(""));
+
+fill("viewer-people", [[0, "Me"], [2, "Dana"], [4, null]]
+  .map(([i, n]) => `<div class="person">${face(i, 56)}${n ?? '<span class="unnamed">Add name</span>'}</div>`).join(""));
+
+fill("ask-face", face(5, 88));
+fill("known", [2, 2, 2, 2, 2].map(i => face(i, 40)).join(""));
+fill("pick-face", face(2, 48));
+fill("pick-list", [[0, "Me", "412"], [1, "Mom", "230"], [3, "Arman", "96"], [5, "Aliya", "64"]]
+  .map(([i, n, c]) => `<div class="pick">${face(i, 40)}<b>${n}</b><span>${c} photos</span></div>`).join(""));
+
+fill("name-face", face(0, 48));
+fill("name-sub", "24 photos · 31 faces");
+
+fill("merge-face", face(2, 48));
+const pcard = ([i, n, c, on]) => `<div class="pcard${on ? " on" : ""}">${face(i, 60)}${n ? `<b>${n}</b>` : ""}<span>${c}</span></div>`;
+fill("merge-grid", [[4, null, "31", 1], [6, null, "12"], [5, "Aliya", "64"], [1, "Mom", "230"], [3, "Arman", "96"], [0, "Me", "412"], [4, null, "8"], [6, null, "6"]].map(pcard).join(""));
+fill("hidden-grid", [[3, "Arman", "96"], [6, null, "27"]].map(pcard).join(""));
+
+const shot = photo();
+document.querySelectorAll("[data-shot]").forEach(el => el.style.background = shot);
+document.querySelectorAll("[data-photo]").forEach(el => el.style.background = photo());
+document.getElementById("dim").style.background = `linear-gradient(rgba(0,0,0,.55), rgba(0,0,0,.55)), ${shot}`;
+const rescan = document.getElementById("rescan-phone");
+rescan.prepend(...[...document.querySelector("#settings .phone").children].map(n => n.cloneNode(true)));
+document.getElementById("hide-phone").prepend(...[...document.querySelector("#person .phone").children].map(n => n.cloneNode(true)));
+const trashDays = [29, 27, 27, 18, 12, 5, 2];
+const trashBg = trashDays.map(() => photo());
+const trashTiles = (on = []) => trashDays.map((d, i) => `<div class="tile${on.includes(i) ? " on" : ""}" style="background:${trashBg[i]}">${
+  on.length ? `<span class="sel">${on.includes(i) ? '<svg class="i"><use href="#i-check"/></svg>' : ""}</span>` : ""}${
+  i == 3 ? `<span class="dur">0:42<svg class="i"><use href="#i-play"/></svg></span>` : ""}<span class="left">${d} days</span></div>`).join("");
+fill("trash-grid", trashTiles());
+fill("trash-picked", trashTiles([1, 4]));
+</script>
+
+</body>
+</html>

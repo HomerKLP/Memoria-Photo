@@ -1,0 +1,352 @@
+package app.memoria
+
+import android.Manifest
+import android.content.ContentUris
+import android.content.ContentValues
+import android.content.ContentResolver
+import android.content.Context
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.net.Uri
+import android.os.Build
+import android.os.Bundle
+import android.os.CancellationSignal
+import android.provider.MediaStore
+import android.provider.MediaStore.Files.FileColumns
+import android.util.LruCache
+import android.util.Size
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.YearMonth
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import kotlin.math.min
+
+/** A photo or video in the timeline. duration is set for videos only. favorite is MediaStore's own flag. */
+data class Tile(val id: Long, val uri: Uri, val date: Long, val duration: Long?, val favorite: Boolean = false)
+
+class Header(val key: String, val text: String, val month: Boolean)
+
+private val nameDate = Regex("(?<!\\d)((?:19|20)\\d{6})(?:[_-](\\d{6}))?(?!\\d)")
+private val nameFormat = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
+
+/** No EXIF date: the date in the file name (IMG_20250901_003222, IMG-20250308-WA0005), else the older of added and modified. */
+fun fallbackDate(name: String, added: Long, modified: Long, zone: ZoneId): Long {
+    val file = min(added, modified) * 1000
+    val m = nameDate.find(name) ?: return file
+    return runCatching { LocalDateTime.parse(m.groupValues[1] + m.groupValues[2].ifEmpty { "000000" }, nameFormat).atZone(zone).toInstant().toEpochMilli() }
+        .getOrDefault(file)
+}
+
+/**
+ * All photos and videos, newest first, with month and day headers between them.
+ * favoritesOnly keeps MediaStore's own favorite flag (`QUERY_ARG_MATCH_FAVORITE`), so nothing is copied.
+ */
+fun timeline(context: Context, favoritesOnly: Boolean = false): List<Any> {
+    val zone = ZoneId.systemDefault()
+    val tiles = mutableListOf<Tile>()
+    val cols = arrayOf(FileColumns._ID, FileColumns.MEDIA_TYPE, FileColumns.DATE_TAKEN, FileColumns.DATE_ADDED, FileColumns.DURATION, FileColumns.DATE_MODIFIED, FileColumns.DISPLAY_NAME, FileColumns.IS_FAVORITE)
+    val where = "${FileColumns.MEDIA_TYPE} IN (${FileColumns.MEDIA_TYPE_IMAGE}, ${FileColumns.MEDIA_TYPE_VIDEO})"
+    val args = Bundle().apply {
+        putString(ContentResolver.QUERY_ARG_SQL_SELECTION, where)
+        if (favoritesOnly) putInt(MediaStore.QUERY_ARG_MATCH_FAVORITE, MediaStore.MATCH_ONLY)
+    }
+    context.contentResolver.query(MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL), cols, args, null)?.use { c ->
+        while (c.moveToNext()) {
+            val video = c.getInt(1) == FileColumns.MEDIA_TYPE_VIDEO
+            val base = if (video) MediaStore.Video.Media.EXTERNAL_CONTENT_URI else MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+            val date = if (c.isNull(2)) fallbackDate(c.getString(6), c.getLong(3), c.getLong(5), zone) else c.getLong(2)
+            tiles += Tile(c.getLong(0), ContentUris.withAppendedId(base, c.getLong(0)), date, if (video) c.getLong(4) else null, c.getInt(7) != 0)
+        }
+    }
+    val today = LocalDate.now()
+    val monthName = DateTimeFormatter.ofPattern("LLLL yyyy")
+    val dayName = DateTimeFormatter.ofPattern("EEE, d MMM")
+    val out = mutableListOf<Any>()
+    var month: YearMonth? = null
+    var day: LocalDate? = null
+    for (t in tiles.sortedByDescending { it.date }) {
+        val d = Instant.ofEpochMilli(t.date).atZone(zone).toLocalDate()
+        if (YearMonth.from(d) != month) {
+            month = YearMonth.from(d)
+            out += Header("m$month", monthName.format(d), true)
+        }
+        if (d != day) {
+            day = d
+            out += Header("d$d", if (d == today) "Today" else if (d == today.minusDays(1)) "Yesterday" else dayName.format(d), false)
+        }
+        out += t
+    }
+    return out
+}
+
+/** A trashed photo or video, and the days it has left before Android deletes it for good. */
+class Trashed(val tile: Tile, val daysLeft: Int)
+
+/** Everything in the phone's own trash, the fewest days left last. Our app never keeps its own trash. */
+fun trash(context: Context): List<Trashed> {
+    val cols = arrayOf(FileColumns._ID, FileColumns.MEDIA_TYPE, FileColumns.DURATION, FileColumns.DATE_TAKEN, MediaStore.MediaColumns.DATE_EXPIRES)
+    val args = Bundle().apply { putInt(MediaStore.QUERY_ARG_MATCH_TRASHED, MediaStore.MATCH_ONLY) }
+    val out = mutableListOf<Trashed>()
+    val now = System.currentTimeMillis()
+    context.contentResolver.query(MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL), cols, args, null)?.use { c ->
+        while (c.moveToNext()) {
+            val video = c.getInt(1) == FileColumns.MEDIA_TYPE_VIDEO
+            val base = if (video) MediaStore.Video.Media.EXTERNAL_CONTENT_URI else MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+            val id = c.getLong(0)
+            // DATE_EXPIRES is in seconds, every other MediaStore date is in milliseconds
+            val daysLeft = if (c.isNull(4)) 0 else ((c.getLong(4) * 1000 - now).coerceAtLeast(0) / 86_400_000L).toInt()
+            out += Trashed(Tile(id, ContentUris.withAppendedId(base, id), c.getLong(3), if (video) c.getLong(2) else null), daysLeft)
+        }
+    }
+    return out.sortedByDescending { it.daysLeft }
+}
+
+/** The given MediaStore ids as photos, newest first, with the same date rules as the timeline. Ids MediaStore no longer has are dropped. */
+fun photosByIds(context: Context, ids: List<Long>): List<Tile> {
+    if (ids.isEmpty()) return emptyList()
+    val zone = ZoneId.systemDefault()
+    val out = mutableListOf<Tile>()
+    val cols = arrayOf(FileColumns._ID, FileColumns.DATE_TAKEN, FileColumns.DATE_ADDED, FileColumns.DURATION, FileColumns.DATE_MODIFIED, FileColumns.DISPLAY_NAME, FileColumns.IS_FAVORITE)
+    val where = "${FileColumns._ID} IN (${ids.joinToString(",")}) AND ${FileColumns.MEDIA_TYPE} = ${FileColumns.MEDIA_TYPE_IMAGE}"
+    val args = Bundle().apply { putString(ContentResolver.QUERY_ARG_SQL_SELECTION, where) }
+    context.contentResolver.query(MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL), cols, args, null)?.use { c ->
+        while (c.moveToNext()) {
+            val id = c.getLong(0)
+            val date = if (c.isNull(1)) fallbackDate(c.getString(5), c.getLong(2), c.getLong(4), zone) else c.getLong(1)
+            out += Tile(id, ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id), date, if (c.isNull(3)) null else c.getLong(3), c.getInt(6) != 0)
+        }
+    }
+    return out.sortedByDescending { it.date }
+}
+
+// Shown at once when the tab opens again, then replaced by a fresh query
+var lastTimeline: List<Any>? = null
+var lastFavorites: List<Any>? = null
+
+/** Replaces one tile in the cached timelines after a change, so the grid and viewer see it on the next open. */
+fun updateTile(tile: Tile) {
+    lastTimeline = lastTimeline?.map { if (it is Tile && it.id == tile.id) tile else it }
+    lastFavorites = lastFavorites?.map { if (it is Tile && it.id == tile.id) tile else it }
+}
+
+/** Drops a trashed tile from the cached timelines, so the grid does not flash it before the reload. */
+fun forgetTile(id: Long) {
+    lastTimeline = lastTimeline?.filterNot { it is Tile && it.id == id }
+    lastFavorites = lastFavorites?.filterNot { it is Tile && it.id == id }
+}
+
+/**
+ * Writes MediaStore's own favorite flag. Throws SecurityException for photos the app does not own:
+ * the caller then asks the user once through MediaStore.createFavoriteRequest.
+ */
+fun setFavorite(context: Context, tile: Tile, favorite: Boolean) {
+    context.contentResolver.update(tile.uri, ContentValues().apply { put(MediaStore.MediaColumns.IS_FAVORITE, if (favorite) 1 else 0) }, null, null)
+}
+
+val thumbs = object : LruCache<Long, Bitmap>((Runtime.getRuntime().maxMemory() / 8).toInt()) {
+    override fun sizeOf(key: Long, value: Bitmap) = value.allocationByteCount
+}
+
+@Composable
+fun PhotosScreen(
+    favoritesOnly: Boolean = false,
+    onBack: (() -> Unit)? = null,
+    onOpen: (List<Tile>, Tile) -> Unit,
+    grid: LazyGridState = rememberLazyGridState(),
+) {
+    val context = LocalContext.current
+    val perms = if (Build.VERSION.SDK_INT >= 33) arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO)
+    else arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+    var granted by remember { mutableStateOf(perms.all { context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }) }
+    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted = it.values.all { ok -> ok } }
+    LaunchedEffect(Unit) { if (!granted) ask.launch(perms) }
+    val items by produceState(if (favoritesOnly) lastFavorites else lastTimeline, granted) {
+        if (granted) value = withContext(Dispatchers.IO) { timeline(context, favoritesOnly) }
+            .also { if (favoritesOnly) lastFavorites = it else lastTimeline = it }
+    }
+    val photos = items.orEmpty().filterIsInstance<Tile>()
+    // One entry per month header: the grid item a month starts at, and its name for the slider
+    val months = remember(items) { items.orEmpty().mapIndexedNotNull { i, x -> if (x is Header && x.month) i to x.text else null } }
+    val monthStarts = months.map { it.first }
+    val monthNames = months.map { it.second }
+    val month by remember(grid, monthStarts) {
+        derivedStateOf { monthStarts.indexOfLast { it <= grid.firstVisibleItemIndex }.coerceAtLeast(0) }
+    }
+    val scope = rememberCoroutineScope()
+    var sliderOn by remember { mutableStateOf(false) } // fades in while scrolling, out two seconds later
+    var sliderTick by remember { mutableIntStateOf(0) } // bumped on scroll activity, restarts the hide timer
+    var dragMonth by remember { mutableStateOf<Int?>(null) }
+    LaunchedEffect(grid) {
+        snapshotFlow { grid.firstVisibleItemIndex to grid.isScrollInProgress }.collect { (index, scrolling) ->
+            if (dragMonth != null) return@collect
+            if (index == 0 && !scrolling) sliderOn = false // hidden at the top, where there is nothing to jump to
+            else if (scrolling || index > 0) { sliderOn = true; sliderTick++ }
+        }
+    }
+    LaunchedEffect(sliderTick) {
+        if (sliderTick > 0) { delay(2000); if (dragMonth == null) sliderOn = false }
+    }
+    Column {
+        if (onBack != null) Row(Modifier.padding(start = 4.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onBack) { Icon(painterResource(R.drawable.ic_back), "Back") }
+            Text("Favorites", Modifier.padding(start = 4.dp), style = MaterialTheme.typography.titleLarge)
+        } else Row(Modifier.fillMaxWidth().padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(buildAnnotatedString {
+                append("Memoria ")
+                withStyle(SpanStyle(MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)) { append("Photo") }
+            }, Modifier.weight(1f).padding(start = 20.dp, top = 18.dp, bottom = 18.dp), style = MaterialTheme.typography.titleLarge)
+            // search is not designed yet: the mockup's magnifier, like the Library gear
+            IconButton({}) { Icon(painterResource(R.drawable.ic_search), "Search") }
+        }
+        if (!granted) {
+            // ponytail: after two denials Android stops asking, then the user has to allow it in system settings
+            Column(Modifier.padding(horizontal = 20.dp)) {
+                Text("Memoria needs access to your photos and videos.")
+                Button({ ask.launch(perms) }, Modifier.padding(top = 12.dp)) { Text("Allow access") }
+            }
+            return@Column
+        }
+        if (favoritesOnly && items != null && photos.isEmpty()) {
+            Text("No favorites yet. Open a photo and tap the heart.", Modifier.padding(horizontal = 20.dp))
+            return@Column
+        }
+        MonthSlider(
+            months = monthNames,
+            current = month,
+            dragging = dragMonth,
+            visible = sliderOn,
+            onDragging = { dragging ->
+                if (dragging) sliderOn = true
+                else {
+                    dragMonth = null
+                    // a drag that ended at the first month hides it, like a scroll that reached the top
+                    if (grid.firstVisibleItemIndex > 0) { sliderOn = true; sliderTick++ } else sliderOn = false
+                }
+            },
+            onJump = { i ->
+                dragMonth = i
+                scope.launch { grid.scrollToItem(monthStarts.getOrElse(i) { 0 }) }
+            },
+            enabled = !favoritesOnly, // the mockup's slider belongs to the timeline; the favorites grid has its own scroll
+        ) {
+            LazyVerticalGrid(
+                GridCells.Fixed(4), state = grid,
+                horizontalArrangement = Arrangement.spacedBy(2.dp), verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                for (x in items.orEmpty()) when (x) {
+                    is Header -> if (x.month) {
+                        // pinned while its month is on screen, background so photos scroll under it (mockup "Sticky month header")
+                        stickyHeader(key = x.key) {
+                            Text(x.text, Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(start = 16.dp, top = 20.dp, bottom = 2.dp), style = MaterialTheme.typography.titleLarge)
+                        }
+                    } else item(key = x.key, span = { GridItemSpan(maxLineSpan) }, contentType = "header") {
+                        Text(x.text, Modifier.padding(start = 16.dp, top = 12.dp, bottom = 6.dp), style = MaterialTheme.typography.titleSmall)
+                    }
+                    is Tile -> item(key = x.id, contentType = "tile") {
+                        TileImage(x, Modifier.clickable { onOpen(photos, x) })
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun TileImage(tile: Tile, modifier: Modifier) {
+    Box(modifier.aspectRatio(1f)) {
+        Thumb(tile, Modifier.fillMaxSize())
+        if (tile.favorite) {
+            Box(
+                Modifier.align(Alignment.TopStart).padding(4.dp).size(16.dp).background(Color.Black.copy(alpha = 0.35f), CircleShape),
+                contentAlignment = Alignment.Center,
+            ) { Icon(painterResource(R.drawable.ic_favorite), "Favorite", Modifier.size(10.dp), tint = Color.White) }
+        }
+    }
+}
+
+// At most 4 thumbnail loads at once, so a fling can't bury the tiles on screen.
+private val thumbLoads = Dispatchers.IO.limitedParallelism(4)
+
+/** Thumbnail picture with the video length badge. Callers stack their own overlay on top. */
+@Composable
+fun Thumb(tile: Tile, modifier: Modifier) {
+    val context = LocalContext.current
+    val image by produceState(thumbs.get(tile.id), tile.id) {
+        if (value != null) return@produceState
+        val signal = CancellationSignal()
+        launch(thumbLoads) {
+            value = runCatching { context.contentResolver.loadThumbnail(tile.uri, Size(300, 300), signal) }.getOrNull()?.also { thumbs.put(tile.id, it) }
+        }
+        // The tile left the screen: stop its load
+        awaitDispose { signal.cancel() }
+    }
+    Box(modifier.background(MaterialTheme.colorScheme.surfaceVariant)) {
+        image?.let { Image(it.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
+        tile.duration?.let { ms ->
+            val s = ms / 1000
+            val shadow = TextStyle(color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium, shadow = Shadow(Color.Black.copy(alpha = 0.5f), Offset(0f, 1f), 2f))
+            Row(Modifier.align(Alignment.TopEnd).padding(top = 4.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("%d:%02d".format(s / 60, s % 60), style = shadow)
+                Icon(painterResource(R.drawable.ic_play), null, Modifier.size(14.dp), tint = Color.White)
+            }
+        }
+    }
+}
