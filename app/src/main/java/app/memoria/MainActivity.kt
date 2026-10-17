@@ -1,7 +1,6 @@
 package app.memoria
 
 import ai.onnxruntime.OrtEnvironment
-import ai.onnxruntime.OrtSession
 import android.Manifest
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
@@ -301,10 +300,6 @@ fun TestScreen(dir: File, onPeople: () -> Unit) {
 
 fun runTest(dir: File, npu: Boolean, log: (String) -> Unit, show: (Pair<Bitmap, List<Face>>) -> Unit) {
     val mode = if (npu) "npu" else "cpu"
-    val options = OrtSession.SessionOptions()
-    if (npu) {
-        options.addQnn(mapOf("backend_path" to "libQnnHtp.so", "htp_performance_mode" to "burst", "enable_htp_fp16_precision" to "1"))
-    }
     var t = System.nanoTime()
     val ms = { (System.nanoTime() - t) / 1_000_000.0 }
     val pipeline = FacePipeline(
@@ -312,8 +307,7 @@ fun runTest(dir: File, npu: Boolean, log: (String) -> Unit, show: (Pair<Bitmap, 
         File(dir.parentFile, "models/detector.onnx").path,
         File(dir.parentFile, "models/recognizer.onnx").path,
         File(dir.parentFile, "models/quality.onnx").path,
-        options,
-    )
+    ) { if (npu) npuSession(OrtEnvironment.getEnvironment(), File(it), File(dir.parentFile, "npu")) else OrtEnvironment.getEnvironment().createSession(it) }
     log("$mode: models loaded in %.0f ms".format(ms()))
     val photos = dir.walk().filter { it.isFile && it.extension.lowercase() in setOf("jpg", "jpeg", "png", "webp") }.sorted().toList()
     val results = JSONObject()

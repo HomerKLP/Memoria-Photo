@@ -1,7 +1,6 @@
 package app.memoria
 
 import ai.onnxruntime.OrtEnvironment
-import ai.onnxruntime.OrtSession
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -283,8 +282,7 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         val base = total - todo.size // photos already in the DB, so the bar starts there
         IndexProgress.start(applicationContext, total, base)
         val models = File(applicationContext.getExternalFilesDir(null), "models")
-        val options = OrtSession.SessionOptions()
-        options.addQnn(mapOf("backend_path" to "libQnnHtp.so", "htp_performance_mode" to "burst", "enable_htp_fp16_precision" to "1"))
+        val npuCache = File(models.parentFile, "npu")
         // Foreground, or the system stops the job midway. Not allowed when started from the background (rerun after a stop), then it runs as a plain job.
         val notifications = applicationContext.getSystemService(NotificationManager::class.java)
         notifications.createNotificationChannel(NotificationChannel("index", "Indexing", NotificationManager.IMPORTANCE_LOW))
@@ -299,7 +297,8 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         var count = 0
         var nextSave = start + 30_000_000_000L
         try {
-            FacePipeline(OrtEnvironment.getEnvironment(), File(models, "detector.onnx").path, File(models, "recognizer.onnx").path, File(models, "quality.onnx").path, options).use { pipeline ->
+            FacePipeline(OrtEnvironment.getEnvironment(), File(models, "detector.onnx").path, File(models, "recognizer.onnx").path, File(models, "quality.onnx").path) { npuSession(OrtEnvironment.getEnvironment(), File(it), npuCache) }.use { pipeline ->
+                Log.i("Memoria", "models loaded in ${(System.nanoTime() - start) / 1_000_000} ms")
                 for (photo in todo) {
                     if (isStopped) break
                     val uri = ContentUris.withAppendedId(Media.EXTERNAL_CONTENT_URI, photo.id)

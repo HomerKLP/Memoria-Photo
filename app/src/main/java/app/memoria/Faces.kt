@@ -2,11 +2,14 @@ package app.memoria
 
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
+import ai.onnxruntime.OrtException
 import ai.onnxruntime.OrtSession
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.ImageDecoder
+import android.util.Log
+import java.io.File
 import java.nio.FloatBuffer
 import kotlin.math.floor
 import kotlin.math.max
@@ -28,17 +31,51 @@ fun loadPhoto(source: ImageDecoder.Source, side: Int = 4096): Bitmap = ImageDeco
     decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE // getPixels needs a CPU bitmap
 }
 
+/** Snapdragon NPU (QNN HTP) in fp16. */
+fun npuOptions() = OrtSession.SessionOptions().apply {
+    addQnn(mapOf("backend_path" to "libQnnHtp.so", "htp_performance_mode" to "burst", "enable_htp_fp16_precision" to "1"))
+}
+
+/**
+ * Opens [model] on the NPU, but builds it for the NPU only once: the first load saves the built model in [cache], later loads read it.
+ * The saved name holds the model's size and date, so a new model is built again. A saved file that fails to load is built again.
+ */
+fun npuSession(env: OrtEnvironment, model: File, cache: File): OrtSession {
+    val saved = File(cache, "${model.nameWithoutExtension}-${model.length()}-${model.lastModified()}_ctx.onnx")
+    if (saved.exists()) try {
+        return env.createSession(saved.path, npuOptions())
+    } catch (e: OrtException) {
+        Log.w("Memoria", "saved ${saved.name} failed to load, building again", e)
+        saved.delete()
+    }
+    cache.mkdirs()
+    cache.listFiles { f -> f.name.startsWith("${model.nameWithoutExtension}-") }?.forEach { it.delete() } // an older model's build
+    // a temp name, renamed once whole, so a run killed mid-write never leaves half a file
+    val tmp = File.createTempFile("build", "_ctx.onnx", cache).apply { delete() }
+    return try {
+        env.createSession(model.path, npuOptions().apply {
+            addConfigEntry("ep.context_enable", "1")
+            addConfigEntry("ep.context_file_path", tmp.path)
+            addConfigEntry("ep.context_embed_mode", "1") // one file, not a separate .bin the rename would miss
+        }).also { tmp.renameTo(saved) }
+    } catch (e: OrtException) {
+        Log.w("Memoria", "saving the NPU build of ${model.name} failed, opening it plain", e)
+        tmp.delete()
+        env.createSession(model.path, npuOptions())
+    }
+}
+
 /** YOLOv5m-face + AdaFace IR101 + EDifFIQA-T quality, same steps as uniface 4.0 so results match bench/bench.py. */
 class FacePipeline(
     private val env: OrtEnvironment,
     detectorModel: String,
     recognizerModel: String,
     qualityModel: String,
-    options: OrtSession.SessionOptions,
+    open: (String) -> OrtSession,
 ) : AutoCloseable {
-    private val detector = env.createSession(detectorModel, options)
-    private val recognizer = env.createSession(recognizerModel, options)
-    private val quality = env.createSession(qualityModel, options)
+    private val detector = open(detectorModel)
+    private val recognizer = open(recognizerModel)
+    private val quality = open(qualityModel)
 
     fun detect(image: Bitmap): List<Face> {
         // Letterbox to 640x640, gray 114 padding, RGB, 0..1
