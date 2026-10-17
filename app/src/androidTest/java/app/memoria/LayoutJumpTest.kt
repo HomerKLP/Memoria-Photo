@@ -1,12 +1,18 @@
 package app.memoria
 
 import android.net.Uri
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -219,5 +225,26 @@ class LayoutJumpTest {
         val before = rule.onNodeWithText("anchor").top()
         rule.runOnIdle { visible = true }
         assertSame("content", before, rule.onNodeWithText("anchor").top())
+    }
+
+    /** Viewer: the bars are an overlay, so hiding them (the tapped state) must not move or resize the photo behind. */
+    @Test fun viewerBars_hiding_keepsPhotoPut() {
+        var visible by mutableStateOf(true)
+        rule.setContent {
+            MemoriaTheme {
+                Surface {
+                    Box(Modifier.fillMaxSize()) {
+                        Box(Modifier.fillMaxSize().testTag("viewerPhoto").background(Color.Black))
+                        ViewerChrome(visible, "Sat, 11 Oct", "14:32", false, {}, {}, {}, {}, {})
+                    }
+                }
+            }
+        }
+
+        val top = rule.onNodeWithTag("viewerPhoto").top()
+        val height = rule.onNodeWithTag("viewerPhoto").height()
+        rule.runOnIdle { visible = false }
+        assertSame("photo top", top, rule.onNodeWithTag("viewerPhoto").top())
+        assertSame("photo height", height, rule.onNodeWithTag("viewerPhoto").height())
     }
 }
