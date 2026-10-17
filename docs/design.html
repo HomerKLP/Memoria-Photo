@@ -44,6 +44,7 @@ h1 { font: 700 28px/1.1 var(--display); margin: 0; text-wrap: balance; }
 .toc { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 12px; }
 .toc a { color: var(--accent); font-weight: 500; text-decoration: none; }
 .group > h2 { font: 700 24px/1.2 var(--display); margin: 0 0 16px; }
+.group > h3 { font: 700 18px/1.2 var(--display); margin: 40px 0 16px; }
 
 /* --z shrinks the phones so more fit in the browser; the screens inside keep their real 360 x 760 size */
 .phones { --z: .7; display: flex; flex-wrap: wrap; gap: 32px 28px; }
@@ -123,6 +124,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .place { aspect-ratio: 1; max-width: 100%; border-radius: 12px; padding: 8px; color: #fff; display: flex; flex-direction: column; justify-content: flex-end; }
 .place b { font-weight: 500; font-size: 13px; }
 .place span { font-size: 12px; opacity: .9; }
+.places.all { gap: 8px; padding: 8px 16px 24px; }
 .shortcuts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 28px 16px 24px; }
 .shortcut { display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 16px; background: var(--surface); }
 .shortcut svg.i { fill: var(--accent); }
@@ -377,7 +379,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 <header class="top">
   <h1>Memoria Photo</h1>
   <p class="lede">Light theme, Honey palette. Photos and faces are placeholders, names and places are made up.</p>
-  <nav class="toc"><a href="#page-photos">Photos</a><a href="#page-search">Search</a><a href="#page-viewer">Viewer</a><a href="#page-library">Library</a><a href="#page-people">People</a><a href="#page-settings">Settings</a><a href="#parts">Shared parts</a><a href="#app-icon">App icon</a></nav>
+  <nav class="toc"><a href="#page-photos">Photos</a><a href="#page-search">Search</a><a href="#page-viewer">Viewer</a><a href="#page-library">Library</a><a href="#page-albums">Albums</a><a href="#page-places">Places</a><a href="#page-people">People</a><a href="#page-settings">Settings</a><a href="#parts">Shared parts</a><a href="#app-icon">App icon</a></nav>
 </header>
 
 <main>
@@ -603,60 +605,6 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
         <div class="subbar">
           <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
-          <div class="title"><b>Albums</b><span>12 albums · 3,880 items</span></div>
-          <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
-        </div>
-        <div class="scroll">
-          <div class="head"><h3>On this device</h3><span class="hint">Device folders</span></div>
-          <div class="album-grid" id="album-grid"></div>
-        </div>
-        <div class="gesture"><div class="handle"></div></div>
-      </div>
-      <figcaption>Albums: opens from Library, "See all". Device folders, plus albums you make</figcaption>
-    </figure>
-    <figure id="album">
-      <div class="phone">
-        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
-        <div class="subbar">
-          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
-          <div class="title"><b>Camera</b><span>1,412 photos · 61 videos</span></div>
-          <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
-        </div>
-        <div class="scroll">
-          <div class="grid big" id="album-photos"></div>
-        </div>
-        <div class="gesture"><div class="handle"></div></div>
-      </div>
-      <figcaption>Album: tap a photo for the viewer, long press to select. Same grid for a person</figcaption>
-    </figure>
-    <figure id="album-more">
-      <div class="phone" id="album-more-phone">
-        <div class="menu" role="menu">
-          <button class="mi" role="menuitem"><svg class="i"><use href="#i-select"/></svg>Select</button>
-          <hr>
-          <button class="mi" role="menuitemcheckbox" aria-checked="false"><svg class="i"><use href="#i-block"/></svg>Ignore faces in this album</button>
-        </div>
-      </div>
-      <figcaption>Album, More: Select starts select mode, same as a long press (album select not designed yet). No sort: albums are always newest first, like the timeline. Ignore faces in this album adds the folder to Settings, Folders to skip: no face search there, and faces already found there leave their people on the next run. A check shows when it is on. No Delete album: one tap would trash a whole folder</figcaption>
-    </figure>
-    <figure id="ignore">
-      <div class="phone modal" id="ignore-phone">
-        <div class="scrim">
-          <div class="dialog" role="alertdialog" aria-labelledby="ignore-title">
-            <svg class="i"><use href="#i-block"/></svg>
-            <b id="ignore-title">Ignore faces in Camera?</b>
-            <p>Faces found in this album will be deleted from the index, and its photos will not be searched for faces. People seen only here go away, names too. The photos stay.</p>
-            <div class="dialog-btns"><button class="text-btn">Cancel</button><button class="text-btn danger">Ignore faces</button></div>
-          </div>
-        </div>
-      </div>
-      <figcaption>Ignore faces: asks first, only when turning it on. Turning it off asks nothing; the next run searches the album again</figcaption>
-    </figure>
-    <figure>
-      <div class="phone">
-        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
-        <div class="subbar">
-          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
           <div class="title"><b>Videos</b><span>538 videos · 14.2 GB</span></div>
         </div>
         <div class="scroll vids" id="videos"></div>
@@ -713,6 +661,92 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <div class="gesture"><div class="handle"></div></div>
       </div>
       <figcaption>Trash, empty: no Empty button and no grid, just the hint</figcaption>
+    </figure>
+  </div>
+  <h3 id="page-albums">Albums</h3>
+  <div class="phones">
+    <figure>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="title"><b>Albums</b><span>12 albums · 3,880 items</span></div>
+          <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
+        </div>
+        <div class="scroll">
+          <div class="head"><h3>On this device</h3><span class="hint">Device folders</span></div>
+          <div class="album-grid" id="album-grid"></div>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Albums: opens from Library, "See all". Device folders, plus albums you make</figcaption>
+    </figure>
+    <figure id="album">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="title"><b>Camera</b><span>1,412 photos · 61 videos</span></div>
+          <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
+        </div>
+        <div class="scroll">
+          <div class="grid big" id="album-photos"></div>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Album: tap a photo for the viewer, long press to select. Same grid for a person</figcaption>
+    </figure>
+    <figure id="album-more">
+      <div class="phone" id="album-more-phone">
+        <div class="menu" role="menu">
+          <button class="mi" role="menuitem"><svg class="i"><use href="#i-select"/></svg>Select</button>
+          <hr>
+          <button class="mi" role="menuitemcheckbox" aria-checked="false"><svg class="i"><use href="#i-block"/></svg>Ignore faces in this album</button>
+        </div>
+      </div>
+      <figcaption>Album, More: Select starts select mode, same as a long press (album select not designed yet). No sort: albums are always newest first, like the timeline. Ignore faces in this album adds the folder to Settings, Folders to skip: no face search there, and faces already found there leave their people on the next run. A check shows when it is on. No Delete album: one tap would trash a whole folder</figcaption>
+    </figure>
+    <figure id="ignore">
+      <div class="phone modal" id="ignore-phone">
+        <div class="scrim">
+          <div class="dialog" role="alertdialog" aria-labelledby="ignore-title">
+            <svg class="i"><use href="#i-block"/></svg>
+            <b id="ignore-title">Ignore faces in Camera?</b>
+            <p>Faces found in this album will be deleted from the index, and its photos will not be searched for faces. People seen only here go away, names too. The photos stay.</p>
+            <div class="dialog-btns"><button class="text-btn">Cancel</button><button class="text-btn danger">Ignore faces</button></div>
+          </div>
+        </div>
+      </div>
+      <figcaption>Ignore faces: asks first, only when turning it on. Turning it off asks nothing; the next run searches the album again</figcaption>
+    </figure>
+  </div>
+  <h3 id="page-places">Places</h3>
+  <div class="phones">
+    <figure id="places-all">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="title"><b>Places</b><span>12 places · 1,108 photos</span></div>
+        </div>
+        <div class="scroll">
+          <div class="places all" id="place-grid"></div>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Places: opens from Library, "See all". One tile per town, most photos first. Town names come from the photo's GPS and a town list inside the app, no internet. Photos with no location are not here. Tap a tile for the Place</figcaption>
+    </figure>
+    <figure id="place">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="title"><b>Riverton</b><span>619 photos · 23 videos</span></div>
+        </div>
+        <div class="scroll vids" id="place-photos"></div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Place: every photo and video taken in that town, newest first, by month; the month stays pinned. Tap opens the viewer, long press selects. No map: map tiles need the internet</figcaption>
     </figure>
   </div>
 </section>
@@ -1278,6 +1312,12 @@ fill("timeline-select", `<section class="month-sec"><h3 class="month">October 20
     Array.from({ length: x.n }, (_, i) => `<div class="tile${on.includes(i) ? " on" : ""}" style="background:${photo()}"><span class="sel">${on.includes(i) ? check : ""}</span>${
       x.v?.includes(i) ? `<span class="dur">${durs[i % durs.length]}<svg class="i"><use href="#i-play"/></svg></span>` : ""}</div>`).join("")}</div>`;
 }).join("")}</section>`);
+// Places and Place: filled last so the photos above keep their colors.
+fill("place-grid", [["Riverton", "642"], ["Northport", "118"], ["Harborview", "87"], ["Eastfield", "64"], ["Lakemoor", "52"], ["Westbrook", "41"],
+  ["Pinecrest", "33"], ["Stonebridge", "27"], ["Ashford", "19"], ["Oakvale", "12"], ["Millbrook", "8"], ["Fairhaven", "5"]]
+  .map(([n, c]) => `<div class="place" style="background:linear-gradient(transparent 45%, rgba(0,0,0,.45)), ${photo()}"><b>${n}</b><span>${c}</span></div>`).join(""));
+fill("place-photos", [["October 2026", 5], ["September 2026", 8], ["July 2026", 6]]
+  .map(([m, n]) => `<section class="month-sec"><h3 class="month">${m}</h3><div class="grid big">${tiles(n, [2], [0])}</div></section>`).join(""));
 </script>
 
 </body>

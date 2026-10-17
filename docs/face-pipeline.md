@@ -57,7 +57,7 @@ IJB-C TAR at FAR=1e-4 (higher is better).
 - New models ship with app updates. A new detector only needs new detection on new photos.
 - A new recognizer needs all face vectors recomputed (background, minutes). Vectors from two models do not mix.
 - So store person names and user fixes per face (photo + box), not only as vectors. Then a model swap keeps them.
-- No retraining on the phone. Learning from user fixes = per-person vector sets (see `features.md`).
+- No retraining on the phone. Learning from user fixes = per-person vector sets: confirmed faces join the set, rejected ones become "not this person" examples, each person can get their own threshold. Fast and easy to undo.
 - How often they change: YOLO gets new versions yearly, but face versions are community ports that lag. RetinaFace (2019), SCRFD (2021), AdaFace (2022) weights do not change. New recognizer papers come yearly, few release weights.
 
 ### Tools

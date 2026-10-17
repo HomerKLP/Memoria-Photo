@@ -1,6 +1,8 @@
 # Roadmap
 
-Hardest part first, UI last.
+Open-source Android gallery. All AI runs on the phone, nothing leaves it: no INTERNET permission, models ship inside the app, no accounts, ads, trackers or analytics. Face data stays in a local DB, with export and import for backup.
+
+Hardest part first, UI last. Phases are the order of work; Later and Ideas at the bottom have no phase yet.
 
 **Next step:** check live people while indexing on the phone, then pick from the list below (faster Help recognize, Settings leftovers: Folders to skip, Export / Import, Licenses). Phase 1 leftovers (tuning limits, more Takeout parts) wait until the user asks.
 
@@ -54,12 +56,15 @@ Pick the best models on real photos before writing app code. Details: `docs/face
 - [ ] Main face: pick by quality score once a quality model runs on the phone (now: closest to the person's average face).
 
 ## Phase 3: photo type filter
-- [ ] Metadata filter (screenshots, messengers, no camera EXIF).
-- [ ] Classifier for selfie, group, meme, screenshot, document.
+Goal: keep screenshots, memes and documents out of face search.
+- [x] Metadata filter (screenshots, messengers, no camera EXIF): done in Phase 2. Only camera faces start a person; messenger faces can join one.
+- [ ] Classifier for selfie, group, meme, screenshot, document. Main gain is clean people (no celebrity faces from memes), not speed.
+- [ ] Save the labels so the user can browse Selfies, Group photos, Screenshots.
 
 ## Phase 4: gallery basics (paused, basics done)
 - [x] Honey theme (`Theme.kt`, Bricolage Grotesque font in the APK) and two bottom tabs. Test screen moved to Library > Dev tools.
 - [x] Photos tab: timeline from MediaStore, month and day headers, 4-column grid, video length. Thumbnails from MediaStore `loadThumbnail`.
+- [ ] Photos tab: pinch to resize the grid.
 - [ ] Photos tab: refresh when new photos arrive (now only when the tab opens). Place names in day headers (needs offline geocoding).
 - [ ] Test photos with no EXIF date and no date in the name land on the push day. Set their file time from the sidecar `photoTakenTime` before pushing, if it gets in the way. (Full plan and decisions: `docs/library-unification.md`.)
 - [x] Viewer: swipe between photos, date on top, share. Videos show a sharp frame and open in the phone's own player.
@@ -76,12 +81,18 @@ Pick the best models on real photos before writing app code. Details: `docs/face
 - [x] Albums: device folders (MediaStore buckets), 6 on Library, Albums screen from See all, album grid opens the viewer.
 - [x] Photos tab: select many (mockup "Photos, selecting"). Long press starts, drag adds, a day's circle picks the whole day. Share, Favorite, Delete (one Android trash confirm for all). Later: the same mode on albums and a person's photos, Move to album.
 - [ ] Albums: New album card, More menu, long press select (no design for the actions yet).
+- [ ] Places screen and Place screen (mockup "Places", "Place"): towns from GPS through offline geocoding, Place = photos by month like Videos. Waits for offline geocoding.
+- [ ] Later: spots inside a place (a lake or park near a town shows inside that town's Place). Not designed; see Open questions.
 - [x] Videos screen from the Library card: all videos by month (month pinned), 3-column grid, count and total size on top.
 - [ ] Media3 video player.
 - [ ] Search screen (mockup "Search"): from the Photos icon and the Library bar. Finds people, albums, months and years (places after offline geocoding), each hit opens a screen we have. Later: two people at once, free text, a results grid.
 
 ## Phase 5: video compression
-- [ ] HEVC re-encode with Media3 Transformer, keep metadata, keep original until approved.
+Goal: no visible loss, not lossless (re-encoding always loses some).
+- [ ] HEVC re-encode with Media3 Transformer and the hardware encoder. Keep resolution and frame rate, lower the bitrate within a safe range.
+- [ ] Keep date, GPS and rotation. Keep the original until the user approves the result (preview, size saved).
+- [ ] Skip videos that are already small.
+- [ ] Later: auto mode, compress new videos at night while charging (opt-in). AV1 where a hardware encoder exists.
 
 ## Phase 6: design and UI polish
 - [x] Mockup, Honey palette: Photos, Library, viewer, Help recognize (link in `decisions.md`).
@@ -100,3 +111,32 @@ Pick the best models on real photos before writing app code. Details: `docs/face
 - [ ] `LayoutJumpTest` case for the People screen (loading -> loaded, rows of 4). It has none yet.
 - [x] Screenshot tests (the built-in `com.android.compose.screenshot`, JVM, no phone): `./gradlew :app:updateDebugScreenshotTest` records, `:app:validateDebugScreenshotTest` compares. One preview per state (loading / indexing / paused / empty), paired with `LayoutJumpTest`.
 - [ ] Keep phone checks for the rest: stutter, blurry viewer, NPU, foreground worker. Tests can't cover these.
+
+## Phase 9: smart search (later)
+- [ ] AI labels on every photo (document, ID card, receipt, meme, food, pet...): type "documents" or "id", see all of them. Builds on the Phase 3 classifier.
+- [ ] Free text search ("beach at sunset") with an on-device CLIP-style model.
+
+## Later
+- Google Takeout import: copy photos not already on the phone, dates from the JSON, skip duplicates. Plan: `docs/library-unification.md`.
+- Names from Takeout: match Google's people tags to our people (photos with one tag and one face, then a majority vote per person, like `bench.py eval`).
+- Split a person. Ignore a face (strangers in the back).
+- Locked folder behind PIN or fingerprint (Library card in the mockup, no screen yet).
+- Simple edit: crop, rotate. Other edits open in another app (Viewer, More > Edit in…).
+- Rename an album.
+- "On this day" memories.
+- Duplicates finder: exact copies, burst shots, very similar shots. Keep the best one (sharpest, open eyes, best faces); deleting the rest needs the user's OK.
+- Blurry and bad photo cleanup.
+
+## Ideas
+- Map of photos by GPS (offline map tiles, no internet).
+- Pets.
+- Search text inside photos (OCR).
+
+## Not planned
+- Cloud sync or backup server.
+- Direct Google Photos sync: Google closed library read access for other apps in 2025, and we have no INTERNET permission.
+- iOS.
+- Full photo editor.
+
+## Open questions
+- Spots inside places: what to call them, where offline names come from (GeoNames lakes, parks, peaks; OpenStreetMap; or the user names a cluster of photos), and which town a spot outside town limits joins (the nearest big town, not the nearest village).
