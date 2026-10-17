@@ -40,6 +40,7 @@ import androidx.compose.material3.ShortNavigationBarItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -63,6 +64,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.work.WorkManager
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -85,6 +87,13 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun App(dir: File) {
     var screen by rememberSaveable { mutableStateOf("photos") }
+    // new photos start an index run on their own while the app is open (see AutoIndex.kt)
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val watcher = watchNewPhotos(context, lifecycleOwner.lifecycle)
+        onDispose { watcher.close() }
+    }
     val tabs = rememberSaveableStateHolder() // keeps each tab's scroll while the other one is open
     val photosGrid = rememberLazyGridState()
     val scope = rememberCoroutineScope()
