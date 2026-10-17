@@ -12,6 +12,8 @@ decisions.md
 __pycache__/
 models/
 
+.DS_Store
+
 # Android
 .gradle/
 build/

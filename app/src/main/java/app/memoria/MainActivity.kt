@@ -105,6 +105,8 @@ fun App(dir: File) {
     var personDirect by rememberSaveable { mutableStateOf(false) } // person was opened from Library, so back returns there
     var openAlbum by rememberSaveable { mutableStateOf(0L) }
     var albumFrom by rememberSaveable { mutableStateOf("library") } // back from an album returns here
+    var openPlace by rememberSaveable { mutableStateOf(0) }
+    var placeFrom by rememberSaveable { mutableStateOf("library") } // back from a place returns here
     var recognizeFor by rememberSaveable { mutableStateOf<Long?>(null) } // Help recognize asks only about this person, if set
     var recognizeFrom by rememberSaveable { mutableStateOf("library") } // back from Help recognize returns here
     // Photos tab select mode (mockup "Photos, selecting"): the picked tiles, shared so the bottom bar swaps
@@ -215,6 +217,18 @@ fun App(dir: File) {
             BackHandler(onBack = close)
             tabs.SaveableStateProvider("album") { AlbumScreen(openAlbum, onBack = close, onOpen = open) }
         }
+        "places" -> {
+            val close = { tabs.removeState("places"); screen = "library" } // next visit starts at the top
+            BackHandler(onBack = close)
+            tabs.SaveableStateProvider("places") { // keeps the scroll while a place is open
+                PlacesScreen(onBack = close, onOpenPlace = { openPlace = it; placeFrom = "places"; screen = "place" })
+            }
+        }
+        "place" -> {
+            val close = { tabs.removeState("place"); screen = placeFrom }
+            BackHandler(onBack = close)
+            tabs.SaveableStateProvider("place") { PlaceScreen(openPlace, onBack = close, onOpen = open) }
+        }
         "videos" -> {
             val close = { tabs.removeState("videos"); screen = "library" } // next visit starts at the top
             BackHandler(onBack = close)
@@ -252,6 +266,8 @@ fun App(dir: File) {
                         onOpenPerson = { openPerson = it; personDirect = true; screen = "people" },
                         onOpenAlbums = { screen = "albums" },
                         onOpenAlbum = { openAlbum = it; albumFrom = "library"; screen = "album" },
+                        onOpenPlaces = { screen = "places" },
+                        onOpenPlace = { openPlace = it; placeFrom = "library"; screen = "place" },
                         onOpenFavorites = { screen = "favorites" },
                         onOpenVideos = { screen = "videos" },
                         onOpenTrash = { screen = "trash" },

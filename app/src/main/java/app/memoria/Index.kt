@@ -129,6 +129,7 @@ interface IndexDao {
     @Query("UPDATE person SET hidden = :hidden WHERE id = :id") suspend fun setHidden(id: Long, hidden: Boolean)
     @Query("UPDATE person SET coverFaceId = :face WHERE id = :id") suspend fun setCover(id: Long, face: Long?)
     @Query("SELECT id FROM photo WHERE townId IS NULL") suspend fun unplaced(): List<Long>
+    @Query("SELECT * FROM photo WHERE townId > 0") suspend fun placed(): List<PhotoRow>
     @Query("UPDATE photo SET lat = :lat, lon = :lon, townId = :townId, town = :town WHERE id = :id")
     suspend fun setPlace(id: Long, lat: Double?, lon: Double?, townId: Int, town: String?)
 }

@@ -55,7 +55,7 @@ class LayoutJumpTest {
     private fun tile(id: Long) = Tile(id, Uri.parse("content://media/external/images/media/$id"), 0L, null)
 
     /** [named] false: every person has no name, the case that used to shrink the row. [people] overrides the row (empty = the "No people yet" case). */
-    private fun library(named: Boolean = true, people: List<Person>? = null): LibraryData {
+    private fun library(named: Boolean = true, people: List<Person>? = null, places: List<Place> = emptyList()): LibraryData {
         val faces = (1L..4L).map { i ->
             val f = face(i)
             Person(listOf(f), f, i, if (named) "Person $i" else null)
@@ -68,6 +68,7 @@ class LayoutJumpTest {
             videos = 211,
             trash = 7,
             total = 1706,
+            places = places,
         )
     }
 
@@ -126,6 +127,16 @@ class LayoutJumpTest {
         val before = rule.onNodeWithTag("peopleRow").height()
         rule.runOnIdle { data = library() }
         assertSame("People row height", before, rule.onNodeWithTag("peopleRow").height())
+    }
+
+    @Test fun library_placesArriving_shortcutsStayPut() {
+        var data by mutableStateOf(library())
+        rule.setContent { MemoriaTheme { Surface { LibraryContent(data) } } }
+
+        // one town: the row keeps its height with fewer than 3 tiles
+        val before = rule.onNodeWithText("Favorites").top()
+        rule.runOnIdle { data = library(places = listOf(Place(1, "Riverton", listOf(tile(1))))) }
+        assertSame("Favorites", before, rule.onNodeWithText("Favorites").top())
     }
 
     @Test fun library_loadingToEmpty_peopleRowStaysSameHeight() {

@@ -119,9 +119,8 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .pill-btn { height: 36px; padding: 0 16px; border: 0; border-radius: 18px; background: var(--accent); color: #fff; font-weight: 500; font-size: 13px; }
 .albums, .places { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px 8px; padding: 0 16px; }
 .cover { aspect-ratio: 1; max-width: 100%; border-radius: 12px; }
-.album b { display: block; margin-top: 6px; font-weight: 500; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.album span, .shortcut span { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
-.place { aspect-ratio: 1; max-width: 100%; border-radius: 12px; padding: 8px; color: #fff; display: flex; flex-direction: column; justify-content: flex-end; }
+.shortcut span { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.place { aspect-ratio: 1; min-width: 0; border-radius: 12px; padding: 8px; color: #fff; display: flex; flex-direction: column; justify-content: flex-end; text-shadow: 0 1px 2px rgba(0, 0, 0, .5); }
 .place b { font-weight: 500; font-size: 13px; }
 .place span { font-size: 12px; opacity: .9; }
 .places.all { gap: 8px; padding: 8px 16px 24px; }
@@ -146,10 +145,11 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .chip svg.i { width: 18px; height: 18px; color: var(--accent); }
 
 /* Albums screen */
-.album-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px 8px; padding: 4px 16px 24px; }
-.album-grid .cover { border-radius: 12px; }
-.album-grid .album b { font-size: 13px; }
 .cover.new { border: 1.5px dashed var(--muted); background: none; display: grid; place-items: center; color: var(--muted); }
+/* Cover tile (albums and places): name and count on the photo, one line each, cut with … */
+.place b, .place span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.place.new { border: 1.5px dashed var(--muted); background: none; color: var(--muted); text-shadow: none; }
+.place.new svg.i { margin: auto; }
 
 /* Grid with fewer, bigger tiles (album, person, videos) */
 .grid.big { grid-template-columns: repeat(3, 1fr); gap: 3px; }
@@ -578,7 +578,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           </div>
   
           <div class="head"><h3>Albums</h3><a href="#">See all<svg class="i"><use href="#i-chevron"/></svg></a></div>
-          <div class="albums" id="albums"></div>
+          <div class="places" id="albums"></div>
   
           <div class="head"><h3>Places</h3><a href="#">See all<svg class="i"><use href="#i-chevron"/></svg></a></div>
           <div class="places" id="places"></div>
@@ -675,11 +675,11 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         </div>
         <div class="scroll">
           <div class="head"><h3>On this device</h3><span class="hint">Device folders</span></div>
-          <div class="album-grid" id="album-grid"></div>
+          <div class="places all" id="album-grid"></div>
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Albums: opens from Library, "See all". Device folders, plus albums you make</figcaption>
+      <figcaption>Albums: opens from Library, "See all". Device folders, plus albums you make. Same cover tile as Places: name and count on the photo (fade + shadow, readable on white and bright covers). A long name stays on one line and ends with …</figcaption>
     </figure>
     <figure id="album">
       <div class="phone">
@@ -1249,16 +1249,20 @@ fill("person-faces", [2, 2, 2, 2, 2, 2].map(i => face(i, 44)).join(""));
 fill("person-unsure", [6, 4].map(i => face(i, 36)).join(""));
 fill("person-photos", tiles(12, [3, 7], [1]));
 
-fill("album-grid", [["Camera", "1,412"], ["Screenshots", "214"], ["Telegram", "96"], ["WhatsApp", "58"], ["Downloads", "33"], ["Instagram", "21"]]
-  .map(([n, c]) => `<div class="album"><div class="cover" style="background:${photo()}"></div><b>${n}</b><span>${c}</span></div>`).join("")
-  + `<div class="album"><div class="cover new"><svg class="i"><use href="#i-add"/></svg></div><b>New album</b><span>Pick photos</span></div>`);
+// Cover tile, shared by albums and places. [bg] defaults to a made-up photo.
+const cover = (n, c, bg = photo()) => `<div class="place" style="background:linear-gradient(transparent 30%, rgba(0,0,0,.7)), ${bg}"><b>${n}</b><span>${c}</span></div>`;
+const bright = (a, b) => `radial-gradient(circle at 70% 25%, rgba(255,255,255,.5), transparent 45%), linear-gradient(160deg, ${a}, ${b})`;
+// Long folder names (spaces, one long word, Cyrillic) on bright covers, the worst case
+fill("album-grid", [cover("Camera", "1,412"), cover("Screenshots", "214", bright("#FFFFFF", "#EDEDED")), cover("Telegram", "96"),
+  cover("Holiday photos from the trip with friends 2024", "47", bright("#FFE14D", "#FFF6B8")), cover("IMG_EXPORT_BACKUP_FINAL_FINAL_v2", "33", bright("#9FD8FF", "#E3F4FF")),
+  cover("Ремонт квартиры для дизайнера", "21", bright("#FF9EC7", "#FFE0EE")), cover("WhatsApp Images", "58", bright("#C8F560", "#F0FFD0")), cover("Downloads", "12")].join("")
+  + `<div class="place new"><svg class="i"><use href="#i-add"/></svg><b>New album</b><span>Pick photos</span></div>`);
 fill("album-photos", tiles(15, [4, 11], [0, 9]));
 fill("videos", [["October 2026", 5], ["September 2026", 7], ["August 2026", 6]]
   .map(([m, n]) => `<section class="month-sec"><h3 class="month">${m}</h3><div class="grid big">${tiles(n, [...Array(n).keys()], [1])}</div></section>`).join(""));
-fill("albums", [["Camera", "1,412"], ["Screenshots", "214"], ["Telegram", "96"], ["WhatsApp", "58"], ["Downloads", "33"], ["Instagram", "21"]]
-  .map(([n, c]) => `<div class="album"><div class="cover" style="background:${photo()}"></div><b>${n}</b><span>${c}</span></div>`).join(""));
-fill("places", [["Riverton", "642"], ["Northport", "118"], ["Harborview", "87"]]
-  .map(([n, c]) => `<div class="place" style="background:linear-gradient(transparent 45%, rgba(0,0,0,.45)), ${photo()}"><b>${n}</b><span>${c}</span></div>`).join(""));
+fill("albums", [["Camera", "1,412"], ["Screenshots", "214"], ["Telegram", "96"], ["WhatsApp Images", "58"], ["Downloads", "33"], ["Instagram", "21"]]
+  .map(([n, c]) => cover(n, c)).join(""));
+fill("places", [["Riverton", "642"], ["Northport", "118"], ["Harborview", "87"]].map(([n, c]) => cover(n, c)).join(""));
 
 fill("viewer-people", [[0, "Me"], [2, "Dana"], [4, null]]
   .map(([i, n]) => `<div class="person">${face(i, 56)}${n ?? '<span class="unnamed">Add name</span>'}</div>`).join(""));
@@ -1315,7 +1319,7 @@ fill("timeline-select", `<section class="month-sec"><h3 class="month">October 20
 // Places and Place: filled last so the photos above keep their colors.
 fill("place-grid", [["Riverton", "642"], ["Northport", "118"], ["Harborview", "87"], ["Eastfield", "64"], ["Lakemoor", "52"], ["Westbrook", "41"],
   ["Pinecrest", "33"], ["Stonebridge", "27"], ["Ashford", "19"], ["Oakvale", "12"], ["Millbrook", "8"], ["Fairhaven", "5"]]
-  .map(([n, c]) => `<div class="place" style="background:linear-gradient(transparent 45%, rgba(0,0,0,.45)), ${photo()}"><b>${n}</b><span>${c}</span></div>`).join(""));
+  .map(([n, c]) => cover(n, c)).join(""));
 fill("place-photos", [["October 2026", 5], ["September 2026", 8], ["July 2026", 6]]
   .map(([m, n]) => `<section class="month-sec"><h3 class="month">${m}</h3><div class="grid big">${tiles(n, [2], [0])}</div></section>`).join(""));
 </script>

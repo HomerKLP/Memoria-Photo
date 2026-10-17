@@ -16,7 +16,7 @@ DENSITY ?= 480
 help:
 	@echo "make install     build debug, install on the phone over USB, open the app (stops if the build fails)"
 	@echo "make release     build release, sign with the debug key, install, open (for speed checks, keeps the data)"
-	@echo "make pull-db     copy the debug app's DB (+ -wal, -shm) to testdata/out/db/"
+	@echo "make pull-db     copy the debug app's DB (+ -wal, -shm) to testdata/out/db/; the last copy moves to db/prev-<time>/"
 	@echo "make test        unit tests (pure logic, no device); one class: make test T=DetailsGpsTest"
 	@echo "make screenshots refresh screenshot baselines (no device)"
 	@echo "make shot-check  validate screenshots against the baselines (no device)"
@@ -40,9 +40,11 @@ release:
 	$(ADB) -d shell am start -n app.memoria/.MainActivity
 
 # run-as only works on a debug build; checked first so a failed read never overwrites the local copy.
+# The last copy moves to db/prev-<time>/ first: pulling a wiped phone must not replace the only backup.
 pull-db:
 	$(ADB) -d shell run-as app.memoria true
 	mkdir -p testdata/out/db
+	if [ -f testdata/out/db/memoria.db ]; then d=testdata/out/db/prev-$$(date +%Y%m%d-%H%M%S); mkdir $$d && mv testdata/out/db/memoria.db* $$d/; fi
 	for f in memoria.db memoria.db-wal memoria.db-shm; do $(ADB) -d exec-out run-as app.memoria cat databases/$$f > testdata/out/db/$$f || exit 1; done
 
 test:

@@ -150,7 +150,22 @@ private fun fakeLibrary(people: List<Person>? = null, unsure: List<FaceVec>? = n
     videos = 211,
     trash = 7,
     total = 1706,
+    places = fakePlaces,
 )
+
+private val fakePlaces = listOf("Riverton" to 642, "Northport" to 118, "Harborview" to 87, "Eastfield" to 64, "Lakemoor" to 52).mapIndexed { i, (n, c) ->
+    Place(i, n, List(c) { Tile(i * 1000L + it, android.net.Uri.parse("content://media/external/images/media/$it"), 0L, null) })
+}
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 760)
+@Composable
+fun PlacesGrid() = MemoriaTheme { Surface { PlacesContent(fakePlaces) } }
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 760)
+@Composable
+fun PlacesLoading() = MemoriaTheme { Surface { PlacesContent(null) } }
 
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 1000)

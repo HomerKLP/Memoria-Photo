@@ -68,10 +68,10 @@ fun AlbumsScreen(onBack: () -> Unit, onOpenAlbum: (Long) -> Unit) {
         TopBar("Albums", albums?.let { a -> "${a.size} albums · ${a.sumOf { it.tiles.size }} items" }, onBack = onBack)
         SectionHead("On this device", hint = "Device folders")
         LazyVerticalGrid(
-            GridCells.Fixed(3), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(16.dp),
+            GridCells.Fixed(3), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            items(albums.orEmpty(), key = { it.id }) { CoverItem(it.tiles.first(), it.name, "${it.tiles.size}", Modifier.clickable { onOpenAlbum(it.id) }) }
+            items(albums.orEmpty(), key = { it.id }) { CoverTile(it.tiles.first(), it.name, "${it.tiles.size}", Modifier.clickable { onOpenAlbum(it.id) }) }
         }
     }
 }
