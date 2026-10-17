@@ -19,3 +19,6 @@ build/
 local.properties
 *.iml
 .kotlin/
+
+# Generated baseline profile (the committed one is app/src/main/baseline-prof.txt)
+app/src/*/generated/

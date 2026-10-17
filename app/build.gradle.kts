@@ -3,6 +3,7 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
     id("com.google.devtools.ksp")
     id("com.android.compose.screenshot")
+    id("androidx.baselineprofile")
 }
 
 android {
@@ -45,6 +46,10 @@ dependencies {
     implementation("androidx.room:room-ktx:2.8.5")
     ksp("androidx.room:room-compiler:2.8.5")
     implementation("androidx.work:work-runtime:2.12.0")
+    // Installs baseline profiles (ours and the ones Compose/AndroidX ship) on first run
+    implementation("androidx.profileinstaller:profileinstaller:1.4.1")
+    // the Macrobenchmark module (:baselineprofile) generates our profile
+    baselineProfile(project(":baselineprofile"))
     screenshotTestImplementation("com.android.tools.screenshot:screenshot-validation-api:0.0.1-alpha16")
     screenshotTestImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-tooling") // Android Studio's preview pane needs it
@@ -61,4 +66,9 @@ dependencies {
     // room-testing needs serialization 1.8.1+, and the test APK must use the app's version (1.7.3 from Room)
     constraints { implementation("org.jetbrains.kotlinx:kotlinx-serialization-core:1.8.1") }
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+}
+
+// Write the generated profile into app/src/main/baseline-prof.txt, so it ships in the APK.
+baselineProfile {
+    saveInSrc = true
 }

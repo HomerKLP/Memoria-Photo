@@ -83,7 +83,8 @@ Goal: keep screenshots, memes and documents out of face search.
 - [x] Photos tab: select many (mockup "Photos, selecting"). Long press starts, drag adds, a day's circle picks the whole day. Share, Favorite, Delete (one Android trash confirm for all). Later: the same mode on albums and a person's photos, Move to album.
 - [ ] Albums: New album card, More menu, long press select (no design for the actions yet).
 - [x] Offline town names at index time: `assets/towns.tsv` (GeoNames, 1000+ people, no districts), each photo's GPS and nearest town saved on its photo row (DB v9). Photos only, not videos yet.
-- [ ] Places screen and Place screen (mockup "Places", "Place"): tiles from `photo.townId`, Place = photos by month like Videos.
+- [x] Places screen and Place screen (mockup "Places", "Place"): Library row (3 biggest towns) and See all grid from `photo.townId`, Place = photos by month like Videos, tap opens the viewer. Checked on the phone.
+- [ ] Places leftovers: videos (no town yet), long press select on Place, an empty state when no photo has a place (not designed; grey tiles hold the row for now).
 - [ ] Later: spots inside a place (a lake or park near a town shows inside that town's Place). Not designed; see Open questions.
 - [x] Videos screen from the Library card: all videos by month (month pinned), 3-column grid, count and total size on top.
 - [ ] Media3 video player.
@@ -117,6 +118,13 @@ Goal: no visible loss, not lossless (re-encoding always loses some).
 ## Phase 9: smart search (later)
 - [ ] AI labels on every photo (document, ID card, receipt, meme, food, pet...): type "documents" or "id", see all of them. Builds on the Phase 3 classifier.
 - [ ] Free text search ("beach at sunset") with an on-device CLIP-style model.
+
+## Phase 10: performance (feels slow; measure first)
+Today perf is found only after someone feels it (`bugs.md` holds the numbers). No repeatable measurement, no gate. Goal: a number per screen, then fix the load costs, then keep them from coming back.
+- [x] Baseline profiles: `androidx.profileinstaller` + `app/src/main/baseline-prof.txt` (generated, 1376 app classes merged into the APK). `<profileable android:shell="true"/>` so release can be traced. A release build no longer runs cold/JIT.
+- [x] `:baselineprofile` module (Macrobenchmark): startup (cold/warm) and scroll (Photos) scenarios; the tests grant the app's permissions themselves, so no dialogs. `make perf` (SERIAL= the phone or an emulator). Left: run it and record the numbers in `bugs.md`.
+- [ ] Fix the known load costs, by measured impact: Details loads every face vector for one photo (`Details.kt`); Library/People load faces with vectors and scan all of MediaStore just to count (`libraryPhotos(...).size`); thumbnails start only when a screen opens (warm the visible ones after `timeline()`); the viewer decodes full size then sharpens (`Viewer.kt`).
+- [ ] A short Perf section in `AGENTS.md`: measure on a release build, one number per screen. (`make perf` is in the Makefile.)
 
 ## Later
 - Google Takeout import: copy photos not already on the phone, dates from the JSON, skip duplicates. Plan: `docs/library-unification.md`.
