@@ -1,6 +1,7 @@
 """Town names for photo GPS: which GeoNames cut gives sane Places tiles.
 
 uv run bench/places.py  -> testdata/out/places.html
+uv run bench/places.py towns  -> app/src/main/assets/towns.tsv, the app's town list (id, name, lat, lon; 1000+ people)
 Reads GPS from the phone's JPEGs (first 64 KB only, nothing saved but coordinates) into testdata/out/gps.tsv,
 downloads GeoNames cities500 into testdata/geonames/. Delete gps.tsv to read the phone again.
 """
@@ -103,6 +104,7 @@ def load_towns():
         c = line.split("\t")
         if c[7] == "PPLX":  # a district of a city (GeoNames lists them as places), not a town
             continue
+        t["id"].append(int(c[0]))
         t["name"].append(c[1])
         t["lat"].append(float(c[4]))
         t["lon"].append(float(c[5]))
@@ -118,7 +120,19 @@ def km(lat, lon, lats, lons):
     return 6371 * 2 * np.arcsin(np.sqrt(a))
 
 
+def write_towns():
+    towns = load_towns()
+    keep = towns["pop"] >= 1000
+    out = Path("app/src/main/assets/towns.tsv")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text("".join(f"{i}\t{n}\t{a:.4f}\t{b:.4f}\n" for i, n, a, b in
+                           zip(towns["id"][keep], towns["name"][keep], towns["lat"][keep], towns["lon"][keep])))
+    print(f"wrote {keep.sum()} towns to {out}", file=sys.stderr)
+
+
 def main():
+    if sys.argv[1:] == ["towns"]:
+        return write_towns()
     OUT.mkdir(parents=True, exist_ok=True)
     if not (OUT / "gps.tsv").exists():
         read_phone()

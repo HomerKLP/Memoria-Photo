@@ -45,6 +45,7 @@ Pick the best models on real photos before writing app code. Details: `docs/face
 - [x] People and Person screens built to the mockup: People = top bar + search, Help recognize card, index progress, 4-column grid, one list: named people first, then unnamed (no label), each by photo count. Library row same order. Person = face chips, "Faces" row, "Unsure faces" card, 3-column photo grid; tap a photo opens the viewer. Merge with / Change cover / Hide person are placeholders (no screens yet).
 - [x] Merge with (one person at a time, most alike first) and Hide person, both survive regroups (DB v7). Hidden people opens from Settings. Checked on the phone.
 - [x] Settings from the Library gear: Only while charging, Background work, Find faces again, Hidden people. Folders to skip, Export / Import face data and Licenses are shown but wait for design or decisions. Checked on the phone.
+- [ ] Licenses screen (Settings > About, mockup first). Must credit GeoNames (CC BY 4.0: credit, the license, and what we changed: towns of 1000+ only, no districts), and list the fonts (OFL 1.1), ONNX Runtime (MIT), Qualcomm QNN libs, AndroidX / Compose / Kotlin / Material icons (Apache 2.0), and the face models once the app ships them. License texts live inside the app (no internet).
 - [ ] Fixes, per-person tuning. Change cover built (mockup "Change cover"): the chip on the person screen opens a sheet with the person's sure faces, clearest first, current cover on top; picking one saves it and it survives re-index (DB v8). A new person starts from a face only ("Who is this?" > New person), never from an empty card. Full stable people: still group all faces without a person (old ones too), so 5 old photos plus 1 new one can form a person.
 - [x] Start gate: only camera faces with quality 0.4+ (EDifFIQA-T on the phone) start a person. Junk groups gone.
 - [x] A person needs starting faces from 6+ photos.
@@ -81,7 +82,8 @@ Goal: keep screenshots, memes and documents out of face search.
 - [x] Albums: device folders (MediaStore buckets), 6 on Library, Albums screen from See all, album grid opens the viewer.
 - [x] Photos tab: select many (mockup "Photos, selecting"). Long press starts, drag adds, a day's circle picks the whole day. Share, Favorite, Delete (one Android trash confirm for all). Later: the same mode on albums and a person's photos, Move to album.
 - [ ] Albums: New album card, More menu, long press select (no design for the actions yet).
-- [ ] Places screen and Place screen (mockup "Places", "Place"): towns from GPS through offline geocoding, Place = photos by month like Videos. Waits for offline geocoding.
+- [x] Offline town names at index time: `assets/towns.tsv` (GeoNames, 1000+ people, no districts), each photo's GPS and nearest town saved on its photo row (DB v9). Photos only, not videos yet.
+- [ ] Places screen and Place screen (mockup "Places", "Place"): tiles from `photo.townId`, Place = photos by month like Videos.
 - [ ] Later: spots inside a place (a lake or park near a town shows inside that town's Place). Not designed; see Open questions.
 - [x] Videos screen from the Library card: all videos by month (month pinned), 3-column grid, count and total size on top.
 - [ ] Media3 video player.
