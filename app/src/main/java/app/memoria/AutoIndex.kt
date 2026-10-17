@@ -55,10 +55,10 @@ object AutoIndex {
 
     /**
      * Should a settled change start a run? No when the user cannot see photos, the models are not on
-     * the phone, a run is going or queued, the user paused, or nothing is new (a run would do nothing).
+     * the phone, a run is going or queued, the user paused, or no photo was added or deleted (a run would do nothing).
      */
-    fun shouldStart(hasPermission: Boolean, modelsReady: Boolean, indexBusy: Boolean, paused: Boolean, newPhotos: Int): Boolean =
-        hasPermission && modelsReady && !indexBusy && !paused && newPhotos > 0
+    fun shouldStart(hasPermission: Boolean, modelsReady: Boolean, indexBusy: Boolean, paused: Boolean, changedPhotos: Int): Boolean =
+        hasPermission && modelsReady && !indexBusy && !paused && changedPhotos > 0
 }
 
 /**
@@ -93,7 +93,7 @@ fun watchNewPhotos(context: Context, lifecycle: Lifecycle): Closeable {
                 modelsReady = modelsReady(context),
                 indexBusy = busy,
                 paused = IndexProgress.paused(context),
-                newPhotos = newPhotos(context),
+                changedPhotos = changedPhotos(context),
             )
             if (start) IndexControl.start(context, testOnly = false)
         }
@@ -117,8 +117,9 @@ private fun indexBusy(context: Context): Boolean = runCatching {
         .any { it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.BLOCKED }
 }.getOrDefault(true)
 
-/** Photos MediaStore knows about that the index has not seen yet. */
-private fun newPhotos(context: Context): Int {
+/** Photos the index has not seen yet, plus indexed photos deleted from the phone (a run forgets them). */
+private fun changedPhotos(context: Context): Int {
     val indexed = kotlinx.coroutines.runBlocking { Db.get(context).index().photoIds() }.toHashSet()
-    return libraryPhotos(context).count { it.id !in indexed }
+    val phone = libraryPhotos(context).map { it.id }.toHashSet()
+    return phone.count { it !in indexed } + indexed.count { it !in phone }
 }

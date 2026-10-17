@@ -86,6 +86,8 @@ class Converters {
 interface IndexDao {
     @Query("SELECT id FROM photo") suspend fun photoIds(): List<Long>
     @Query("DELETE FROM photo") suspend fun clearPhotos()
+    @Query("DELETE FROM face WHERE photoId IN (:ids)") suspend fun deleteFaces(ids: List<Long>)
+    @Query("DELETE FROM photo WHERE id IN (:ids)") suspend fun deletePhotos(ids: List<Long>)
     @Query("DELETE FROM face") suspend fun clearFaces()
     @Query("DELETE FROM answer") suspend fun clearAnswers()
     @Insert suspend fun insert(photo: PhotoRow, faces: List<FaceRow>)
@@ -271,6 +273,8 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         val all = if (testOnly) testPhotos(applicationContext) else libraryPhotos(applicationContext)
         val total = all.size
         val done = dao.photoIds().toHashSet()
+        // photos deleted from the phone: forget them and their faces, so counts and people match the phone
+        if (!testOnly) (done - all.map { it.id }.toSet()).chunked(500).forEach { dao.deleteFaces(it); dao.deletePhotos(it) }
         val todo = all.filter { it.id !in done }
         if (todo.isEmpty()) {
             IndexProgress.finish(applicationContext)

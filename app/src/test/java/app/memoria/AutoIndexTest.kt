@@ -46,27 +46,27 @@ class AutoIndexTest {
     }
 
     @Test fun shouldStartOnlyWhenEverythingLinesUp() {
-        assertTrue(AutoIndex.shouldStart(hasPermission = true, modelsReady = true, indexBusy = false, paused = false, newPhotos = 1))
+        assertTrue(AutoIndex.shouldStart(hasPermission = true, modelsReady = true, indexBusy = false, paused = false, changedPhotos = 1))
     }
 
     @Test fun shouldNotStartWithoutPhotoPermission() {
-        assertFalse(AutoIndex.shouldStart(hasPermission = false, modelsReady = true, indexBusy = false, paused = false, newPhotos = 5))
+        assertFalse(AutoIndex.shouldStart(hasPermission = false, modelsReady = true, indexBusy = false, paused = false, changedPhotos = 5))
     }
 
     @Test fun shouldNotStartWithoutModels() {
-        assertFalse(AutoIndex.shouldStart(hasPermission = true, modelsReady = false, indexBusy = false, paused = false, newPhotos = 5))
+        assertFalse(AutoIndex.shouldStart(hasPermission = true, modelsReady = false, indexBusy = false, paused = false, changedPhotos = 5))
     }
 
     @Test fun shouldNotStartWhileARunIsGoingOrQueued() {
-        assertFalse(AutoIndex.shouldStart(hasPermission = true, modelsReady = true, indexBusy = true, paused = false, newPhotos = 5))
+        assertFalse(AutoIndex.shouldStart(hasPermission = true, modelsReady = true, indexBusy = true, paused = false, changedPhotos = 5))
     }
 
     @Test fun shouldNotStartWhenTheUserPaused() {
-        assertFalse(AutoIndex.shouldStart(hasPermission = true, modelsReady = true, indexBusy = false, paused = true, newPhotos = 5))
+        assertFalse(AutoIndex.shouldStart(hasPermission = true, modelsReady = true, indexBusy = false, paused = true, changedPhotos = 5))
     }
 
     @Test fun shouldNotStartWhenNothingIsNew() {
         // e.g. a favorite toggle touches MediaStore but adds no photo, so a run would only spin its wheels
-        assertFalse(AutoIndex.shouldStart(hasPermission = true, modelsReady = true, indexBusy = false, paused = false, newPhotos = 0))
+        assertFalse(AutoIndex.shouldStart(hasPermission = true, modelsReady = true, indexBusy = false, paused = false, changedPhotos = 0))
     }
 }
