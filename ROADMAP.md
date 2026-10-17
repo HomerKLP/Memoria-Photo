@@ -2,7 +2,7 @@
 
 Hardest part first, UI last.
 
-**Next step:** check live people while indexing on the phone, then pick from the list below (Change cover, faster Help recognize, Settings leftovers: Folders to skip, Export / Import, Licenses). Phase 1 leftovers (tuning limits, more Takeout parts) wait until the user asks.
+**Next step:** check live people while indexing on the phone, then pick from the list below (faster Help recognize, Settings leftovers: Folders to skip, Export / Import, Licenses). Phase 1 leftovers (tuning limits, more Takeout parts) wait until the user asks.
 
 ## Phase 1: face pipeline quality (done, leftovers later)
 Pick the best models on real photos before writing app code. Details: `docs/face-pipeline.md`.
@@ -43,7 +43,7 @@ Pick the best models on real photos before writing app code. Details: `docs/face
 - [x] People and Person screens built to the mockup: People = top bar + search, Help recognize card, index progress, 4-column grid, one list: named people first, then unnamed (no label), each by photo count. Library row same order. Person = face chips, "Faces" row, "Unsure faces" card, 3-column photo grid; tap a photo opens the viewer. Merge with / Change cover / Hide person are placeholders (no screens yet).
 - [x] Merge with (one person at a time, most alike first) and Hide person, both survive regroups (DB v7). Hidden people opens from Settings. Checked on the phone.
 - [x] Settings from the Library gear: Only while charging, Background work, Find faces again, Hidden people. Folders to skip, Export / Import face data and Licenses are shown but wait for design or decisions. Checked on the phone.
-- [ ] Fixes, per-person tuning. Change cover not designed. A new person starts from a face only ("Who is this?" > New person), never from an empty card. Full stable people: still group all faces without a person (old ones too), so 5 old photos plus 1 new one can form a person.
+- [ ] Fixes, per-person tuning. Change cover built (mockup "Change cover"): the chip on the person screen opens a sheet with the person's sure faces, clearest first, current cover on top; picking one saves it and it survives re-index (DB v8). A new person starts from a face only ("Who is this?" > New person), never from an empty card. Full stable people: still group all faces without a person (old ones too), so 5 old photos plus 1 new one can form a person.
 - [x] Start gate: only camera faces with quality 0.4+ (EDifFIQA-T on the phone) start a person. Junk groups gone.
 - [x] A person needs starting faces from 6+ photos.
 - [x] Sure-only matching: a face in a person is sure only with quality 0.4+. Unsure faces still join, but are faded and not counted.
@@ -66,6 +66,8 @@ Pick the best models on real photos before writing app code. Details: `docs/face
 - [x] Viewer: zoom (pinch 1-6x, double tap), pan while zoomed, favorite. Swipe down and pager are off while zoomed.
 - [x] Viewer details sheet (swipe up or the Info button): date and timezone, place, camera EXIF, file details.
 - [x] Favorites album: MediaStore query with `QUERY_ARG_MATCH_FAVORITE`, heart on grid tiles.
+- [ ] Favorites: fewer dates. It reuses the timeline, so every day gets a header for a few photos; show month headers only (or fewer dates). Mockup first.
+- [ ] Viewer and Album More menus (mockup "Viewer, More", "Album, More"). Move to album needs an album picker sheet, album select needs its mockup.
 - [x] Library tab layout from the mockup: search bar, People row, index progress, "Help recognize" card, Albums/Places placeholders, shortcuts (Favorites, Videos, Locked folder, Trash), Dev tools. Albums, Places, Locked folder, Trash and Help recognize wait for their screens.
 - [ ] Viewer details sheet: People section (waits for naming), place name (waits for offline geocoding).
 - [x] Viewer: the photo fills the whole screen; the top / bottom bars float on it, transparent (a soft gradient under the icons, not the old 50% black strip). Tapping the photo hides the bars and the system status / nav bars, so nothing covers the photo; tapping again brings them back. The bars are `ViewerChrome` (pure UI, so tests and previews render it without MediaStore). Test: `viewerBars_hiding_keepsPhotoPut`; previews: `ViewerBars` / `ViewerTapped`. Checked on the phone: the two bars hide and show on a tap (fade cut to 120 ms, see `decisions.md`), but the system status / nav bars do not hide (see `bugs.md`). Mockup: `docs/design.html` "Viewer" and "Viewer, tapped".
@@ -76,6 +78,7 @@ Pick the best models on real photos before writing app code. Details: `docs/face
 - [ ] Albums: New album card, More menu, long press select (no design for the actions yet).
 - [x] Videos screen from the Library card: all videos by month (month pinned), 3-column grid, count and total size on top.
 - [ ] Media3 video player.
+- [ ] Search screen (mockup "Search"): from the Photos icon and the Library bar. Finds people, albums, months and years (places after offline geocoding), each hit opens a screen we have. Later: two people at once, free text, a results grid.
 
 ## Phase 5: video compression
 - [ ] HEVC re-encode with Media3 Transformer, keep metadata, keep original until approved.

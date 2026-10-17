@@ -285,7 +285,7 @@ fun WhoIsThisContent(
                 Modifier.fillMaxWidth().height(52.dp).clickable { onPick(p) }.padding(horizontal = 20.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                FaceImage(p.main, Modifier.size(40.dp).clip(CircleShape))
+                FaceImage(p.cover, Modifier.size(40.dp).clip(CircleShape))
                 Text(p.name.orEmpty(), Modifier.padding(start = 14.dp).weight(1f), fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("${p.photos} photo${if (p.photos == 1) "" else "s"}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }

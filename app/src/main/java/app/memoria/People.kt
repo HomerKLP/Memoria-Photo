@@ -91,9 +91,12 @@ class FaceVec(
     val sure get() = yes || (quality >= 0.4f && !rejected)
 }
 
-class Person(val faces: List<FaceVec>, val main: FaceVec, val id: Long = 0, val name: String? = null, val hidden: Boolean = false) {
+class Person(val faces: List<FaceVec>, val main: FaceVec, val id: Long = 0, val name: String? = null, val hidden: Boolean = false, val coverFaceId: Long? = null) {
     /** Distinct photos the person appears in. */
     val photos get() = faces.map { it.photoId }.distinct().size
+
+    /** The face shown for this person (People, Library, the top bar, the sheets): the user's pick, or the main face. */
+    val cover get() = faces.firstOrNull { it.id == coverFaceId } ?: main
 }
 
 /** Everything the People screen shows, loaded in one pass. */
@@ -235,6 +238,7 @@ fun PeopleScreen(
     var reload by remember { mutableStateOf(0) }
     var naming by remember { mutableStateOf<Person?>(null) }
     var merging by remember { mutableStateOf<Person?>(null) }
+    var covering by remember { mutableStateOf<Person?>(null) }
     var hiding by remember { mutableStateOf<Person?>(null) }
     val work by remember { WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow("index") }.collectAsState(emptyList())
     val indexed by remember { dao.kinds() }.collectAsState(emptyMap())
@@ -246,7 +250,7 @@ fun PeopleScreen(
             val faces = dao.faceVecs()
             val byPerson = faces.filter { it.personId != null }.groupBy { it.personId!! }
             // getValue would crash on a person with no faces (stopped index, manual edit); skip it
-            val people = dao.people().mapNotNull { p -> byPerson[p.id]?.let { fs -> Person(fs, fs.firstOrNull { it.id == p.mainFaceId } ?: fs.first(), p.id, p.name, p.hidden) } }
+            val people = dao.people().mapNotNull { p -> byPerson[p.id]?.let { fs -> Person(fs, fs.firstOrNull { it.id == p.mainFaceId } ?: fs.first(), p.id, p.name, p.hidden, p.coverFaceId) } }
                 .sortedWith(compareBy({ it.name.isNullOrBlank() }, { -it.photos })) // named first, then by photo count
             // hidden people stay in the list, so one opened from Hidden people still shows
             val shown = people.filter { !it.hidden }
@@ -276,6 +280,7 @@ fun PeopleScreen(
         onHelpRecognize = onHelpRecognize,
         hiddenOnly = hiddenOnly,
         onMerge = { merging = it },
+        onCover = { covering = it },
         onHide = { p ->
             if (p.hidden) scope.launch { withContext(Dispatchers.IO) { dao.setHidden(p.id, false) }; reload++ } else hiding = p
         },
@@ -285,6 +290,15 @@ fun PeopleScreen(
             merging = null
             scope.launch {
                 withContext(Dispatchers.IO) { mergePeople(db, p, other) }
+                reload++
+            }
+        }
+    }
+    covering?.let { p ->
+        ChangeCoverSheet(p, onDismiss = { covering = null }) { faceId ->
+            covering = null
+            scope.launch {
+                withContext(Dispatchers.IO) { dao.setCover(p.id, faceId) }
                 reload++
             }
         }
@@ -348,6 +362,7 @@ fun PeopleContent(
     onHelpRecognize: (Long?) -> Unit = {},
     hiddenOnly: Boolean = false,
     onMerge: (Person) -> Unit = {},
+    onCover: (Person) -> Unit = {},
     onHide: (Person) -> Unit = {},
 ) {
     val open = data?.people?.firstOrNull { it.id == openId }
@@ -402,7 +417,7 @@ fun PeopleContent(
         } else if (data != null) {
             PersonDetail(
                 open, onBack = onClosePerson, onName = { onName(open) }, onOpen = onOpen, onReview = { onHelpRecognize(open.id) },
-                onMerge = { onMerge(open) }, onHide = { onHide(open) },
+                onMerge = { onMerge(open) }, onCover = { onCover(open) }, onHide = { onHide(open) },
             )
         }
     }
@@ -417,7 +432,7 @@ private fun PersonCard(p: Person, modifier: Modifier = Modifier, faceSize: Dp = 
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         // the ring is drawn outside the face, so picking never moves the grid
-        FaceImage(p.main, Modifier.drawBehind { if (picked) drawCircle(ring, size.minDimension / 2 + 4.5.dp.toPx(), style = Stroke(3.dp.toPx())) }.size(faceSize).clip(CircleShape))
+        FaceImage(p.cover, Modifier.drawBehind { if (picked) drawCircle(ring, size.minDimension / 2 + 4.5.dp.toPx(), style = Stroke(3.dp.toPx())) }.size(faceSize).clip(CircleShape))
         Spacer(Modifier.height(8.dp))
         if (!p.name.isNullOrBlank()) Text(p.name, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
         Text("${p.photos}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -433,6 +448,7 @@ fun PersonDetail(
     onOpen: (List<Tile>, Tile) -> Unit,
     onReview: () -> Unit = {},
     onMerge: () -> Unit = {},
+    onCover: () -> Unit = {},
     onHide: () -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -449,7 +465,7 @@ fun PersonDetail(
         title = name,
         subtitle = "${p.photos} photo${if (p.photos == 1) "" else "s"} · ${p.faces.size} face${if (p.faces.size == 1) "" else "s"}",
         onBack = onBack,
-        leading = { FaceImage(p.main, Modifier.padding(end = 12.dp).size(40.dp).clip(CircleShape)) },
+        leading = { FaceImage(p.cover, Modifier.padding(end = 12.dp).size(40.dp).clip(CircleShape)) },
         trailing = { // TODO: more menu
             IconButton({}) { Icon(painterResource(R.drawable.ic_more), "More") }
         },
@@ -462,7 +478,7 @@ fun PersonDetail(
             ) {
                 Chip(if (p.name.isNullOrBlank()) "Add name" else "Rename", R.drawable.ic_person, onName)
                 Chip("Merge with", R.drawable.ic_person_add, onMerge)
-                Chip("Change cover", R.drawable.ic_photo, {}) // TODO: not designed yet
+                Chip("Change cover", R.drawable.ic_photo, onCover)
                 if (p.hidden) Chip("Show person", R.drawable.ic_eye, onHide) else Chip("Hide person", R.drawable.ic_block, onHide)
             }
         }
@@ -541,7 +557,7 @@ fun MergeContent(
     val shown = alike.filter { it.name.orEmpty().contains(text.trim(), ignoreCase = true) }
     Column(Modifier.padding(bottom = 28.dp)) {
         Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
-            FaceImage(person.main, Modifier.size(48.dp).clip(CircleShape))
+            FaceImage(person.cover, Modifier.size(48.dp).clip(CircleShape))
             Column(Modifier.padding(start = 14.dp)) {
                 Text("Merge with ${person.name?.takeIf { it.isNotBlank() } ?: "this person"}", style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("Pick the same person, most alike first", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -591,6 +607,74 @@ fun MergeContent(
 }
 
 /**
+ * "Change cover" sheet from the mockup: the person's sure faces, clearest first, the current cover on top.
+ * Picking a face sets the person's cover; Save is off until a face is picked.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ChangeCoverSheet(person: Person, onDismiss: () -> Unit, onSave: (Long) -> Unit) {
+    val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var picked by remember { mutableStateOf<Long?>(null) }
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet, containerColor = MaterialTheme.colorScheme.background) {
+        // body split out: a ModalBottomSheet renders blank in the screenshot tests (see NamePersonContent)
+        ChangeCoverContent(person, picked, { picked = it }, onDismiss, onSave)
+    }
+}
+
+/** The sheet's body without the bottom-sheet chrome, so tests can render it directly. */
+@Composable
+fun ChangeCoverContent(person: Person, picked: Long?, onPick: (Long) -> Unit, onCancel: () -> Unit, onSave: (Long) -> Unit) {
+    val ring = MaterialTheme.colorScheme.primary
+    val cover = person.cover
+    // the current cover first, then the person's sure faces, clearest first
+    val faces = remember(person) {
+        val sure = person.faces.filter { it.sure }.sortedByDescending { it.quality }
+        listOf(cover) + sure.filter { it.id != cover.id }
+    }
+    Column(Modifier.padding(bottom = 28.dp)) {
+        Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+            FaceImage(cover, Modifier.size(48.dp).clip(CircleShape))
+            Column(Modifier.padding(start = 14.dp)) {
+                Text("Change cover", style = MaterialTheme.typography.titleLarge)
+                Text("${faces.size} face${if (faces.size == 1) "" else "s"}, clearest first", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        // fixed height: picking a face must not move the buttons under the grid
+        LazyVerticalGrid(GridCells.Fixed(4), Modifier.height(320.dp), contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp)) {
+            items(faces, key = { it.id }) { f ->
+                Box(Modifier.padding(4.dp).clickable { onPick(f.id) }) {
+                    FaceImage(
+                        f,
+                        Modifier.drawBehind { if (f.id == picked) drawCircle(ring, size.minDimension / 2 + 4.5.dp.toPx(), style = Stroke(3.dp.toPx())) }
+                            .size(68.dp).clip(CircleShape),
+                    )
+                }
+            }
+        }
+        Row(Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Box(
+                Modifier.weight(1f).height(52.dp).clip(RoundedCornerShape(26.dp))
+                    .border(1.dp, MaterialTheme.colorScheme.onSurfaceVariant, RoundedCornerShape(26.dp))
+                    .clickable(onClick = onCancel),
+                contentAlignment = Alignment.Center,
+            ) { Text("Cancel", fontWeight = FontWeight.Medium) }
+            Row(
+                Modifier.weight(1f).height(52.dp).clip(RoundedCornerShape(26.dp))
+                    .background(if (picked == null) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primary)
+                    .clickable(enabled = picked != null) { picked?.let(onSave) },
+                horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
+            ) {
+                val color = if (picked == null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary
+                Icon(painterResource(R.drawable.ic_check), null, Modifier.size(18.dp), tint = color)
+                Spacer(Modifier.width(8.dp))
+                Text("Save", color = color, fontWeight = FontWeight.Medium)
+            }
+        }
+    }
+}
+
+/**
  * "Name this person" sheet from the mockup: just a name field.
  * Saves a blank name as no name.
  */
@@ -611,7 +695,7 @@ fun NamePersonSheet(person: Person, onDismiss: () -> Unit, onSave: (String) -> U
 fun NamePersonContent(person: Person, text: String, onText: (String) -> Unit, onCancel: () -> Unit, onSave: (String) -> Unit) {
     Column(Modifier.padding(bottom = 28.dp).verticalScroll(rememberScrollState())) {
         Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
-            FaceImage(person.main, Modifier.size(48.dp).clip(CircleShape))
+            FaceImage(person.cover, Modifier.size(48.dp).clip(CircleShape))
             Column(Modifier.padding(start = 14.dp)) {
                 Text("Name this person", style = MaterialTheme.typography.titleLarge)
                 Text("${person.photos} photo${if (person.photos == 1) "" else "s"} · ${person.faces.size} face${if (person.faces.size == 1) "" else "s"}", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)

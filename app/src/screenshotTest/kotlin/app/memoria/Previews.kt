@@ -226,6 +226,15 @@ fun MergeSheetPreview() = MemoriaTheme {
 }
 
 @PreviewTest
+@Preview(widthDp = 360, heightDp = 720)
+@Composable
+fun ChangeCoverSheetPreview() = MemoriaTheme {
+    Surface {
+        ChangeCoverContent(fakePerson(1, null), null, {}, {}, {})
+    }
+}
+
+@PreviewTest
 @Preview(widthDp = 360, heightDp = 800)
 @Composable
 fun TrashLoading() = MemoriaTheme { Surface { TrashContent(emptyList(), loading = true) } }

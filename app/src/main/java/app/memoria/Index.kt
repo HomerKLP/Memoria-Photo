@@ -61,9 +61,12 @@ class FaceRow(
     val notFace: Boolean = false, // the user said "Not a face": left out of everything
 )
 
-/** People saved by the last index run, see savePeople. `name` and `hidden` are the user's; kept across re-index runs. */
+/**
+ * People saved by the last index run, see savePeople. `name`, `hidden` and `coverFaceId` are the user's; kept across re-index runs.
+ * `mainFaceId` is the face the app matches and merges with; `coverFaceId` is only the picture shown for the person (Change cover), null = the main face.
+ */
 @Entity(tableName = "person")
-class PersonRow(@PrimaryKey val id: Long, val mainFaceId: Long, val name: String? = null, val hidden: Boolean = false)
+class PersonRow(@PrimaryKey val id: Long, val mainFaceId: Long, val name: String? = null, val hidden: Boolean = false, val coverFaceId: Long? = null)
 
 /**
  * Help recognize answer: face [faceId] is (yes) or is not (no) the person that [personFace] belongs to.
@@ -118,9 +121,10 @@ interface IndexDao {
     @Query("UPDATE face SET personId = :to WHERE personId = :from") suspend fun movePerson(from: Long, to: Long)
     @Query("DELETE FROM person WHERE id = :id") suspend fun deletePerson(id: Long)
     @Query("UPDATE person SET hidden = :hidden WHERE id = :id") suspend fun setHidden(id: Long, hidden: Boolean)
+    @Query("UPDATE person SET coverFaceId = :face WHERE id = :id") suspend fun setCover(id: Long, face: Long?)
 }
 
-@Database(entities = [PhotoRow::class, FaceRow::class, PersonRow::class, AnswerRow::class, MergeRow::class], version = 7)
+@Database(entities = [PhotoRow::class, FaceRow::class, PersonRow::class, AnswerRow::class, MergeRow::class], version = 8)
 @TypeConverters(Converters::class)
 abstract class Db : RoomDatabase() {
     abstract fun index(): IndexDao
@@ -144,7 +148,11 @@ abstract class Db : RoomDatabase() {
                 db.execSQL("CREATE TABLE merged (face INTEGER NOT NULL, personFace INTEGER NOT NULL, PRIMARY KEY(face, personFace))")
             }
         }
-        internal val MIGRATIONS = arrayOf(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+        /** v8: Change cover, the user's pick for a person's picture (null = the main face). */
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) = db.execSQL("ALTER TABLE person ADD COLUMN coverFaceId INTEGER")
+        }
+        internal val MIGRATIONS = arrayOf(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
         private var db: Db? = null
         @Synchronized fun get(context: Context) =
             db ?: // a missing migration crashes instead of wiping names; MigrationTest checks each bump
@@ -368,7 +376,8 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                 if (ids.isEmpty()) continue // never happens (a person needs faces), keeps IN () off the DB
                 val match = carry(ids, old, oldFaces, taken)
                 val pid = match?.id ?: next++
-                dao.insertPerson(PersonRow(pid, p.main.id, match?.name, match?.hidden ?: false))
+                // the cover follows the person only while its face is still with them; else the app picks one again (main face)
+                dao.insertPerson(PersonRow(pid, p.main.id, match?.name, match?.hidden ?: false, match?.coverFaceId?.takeIf { it in ids }))
                 dao.setPerson(ids, pid)
             }
             people.size to taken.size

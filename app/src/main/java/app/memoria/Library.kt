@@ -85,7 +85,7 @@ fun LibraryScreen(
             val faces = dao.faceVecs()
             val byId = faces.associateBy { it.id }
             val byPerson = faces.filter { it.personId != null }.groupBy { it.personId!! }
-            val people = dao.people().filter { !it.hidden }.mapNotNull { p -> byId[p.mainFaceId]?.let { m -> Person(byPerson[p.id] ?: listOf(m), m, p.id, p.name) } }
+            val people = dao.people().filter { !it.hidden }.mapNotNull { p -> byId[p.mainFaceId]?.let { m -> Person(byPerson[p.id] ?: listOf(m), m, p.id, p.name, false, p.coverFaceId) } }
                 .sortedWith(compareBy({ it.name.isNullOrBlank() }, { -it.photos })) // named first, then by photo count
             val albums = albums(context)
             val all = albums.flatMap { it.tiles }
@@ -284,7 +284,7 @@ fun PeopleRow(faces: List<Person>?, onOpen: (Long) -> Unit, onSeeAll: () -> Unit
         }
         items(faces.orEmpty().take(12), key = { it.id }) { p ->
             Column(Modifier.width(72.dp).clickable { onOpen(p.id) }, horizontalAlignment = Alignment.CenterHorizontally) {
-                FaceImage(p.main, Modifier.size(72.dp).clip(CircleShape))
+                FaceImage(p.cover, Modifier.size(72.dp).clip(CircleShape))
                 Spacer(Modifier.height(6.dp))
                 // empty line for unnamed people too: the row's height follows the visible items, so it jumped while scrolling
                 Text(p.name.orEmpty(), fontSize = 13.sp, minLines = 1, maxLines = 1)
