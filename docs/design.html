@@ -63,7 +63,7 @@ figcaption { color: var(--muted); font-size: 13px; text-align: center; text-wrap
 /* Photos tab */
 .month { margin: 0; padding: 20px 16px 2px; font: 700 20px/1.2 var(--display); position: sticky; top: 0; z-index: 2; background: var(--bg); }
 .month-sec { display: block; }
-.day { display: flex; gap: 8px; align-items: baseline; padding: 12px 16px 8px; font-weight: 500; }
+.day { position: relative; display: flex; gap: 8px; align-items: baseline; padding: 12px 16px 8px; font-weight: 500; }
 .day small { color: var(--muted); font-weight: 400; font-size: 13px; }
 .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; }
 .tile { aspect-ratio: 1; max-width: 100%; position: relative; }
@@ -266,8 +266,12 @@ figcaption { color: var(--muted); font-size: 13px; text-align: center; text-wrap
 .left { position: absolute; left: 6px; bottom: 5px; color: #fff; font-weight: 500; font-size: 11px; text-shadow: 0 1px 2px rgba(0, 0, 0, .5); }
 .sel { position: absolute; top: 6px; left: 6px; width: 22px; height: 22px; box-sizing: border-box; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 3px rgba(0, 0, 0, .35); display: grid; place-items: center; }
 .tile.on { outline: 3px solid var(--accent); outline-offset: -3px; }
-.tile.on .sel { border-color: var(--accent); background: var(--accent); }
-.tile.on .sel svg.i { width: 16px; height: 16px; fill: #fff; }
+.tile.on .sel, .day.on .sel { border-color: var(--accent); background: var(--accent); }
+.tile.on .sel svg.i, .day.on .sel svg.i { width: 16px; height: 16px; fill: #fff; }
+.day .sel { top: 50%; left: auto; right: 16px; margin-top: -11px; border-color: var(--muted); box-shadow: none; }
+.picking .tab { color: var(--fg); }
+.picking .pill { padding: 0 8px; }
+.tab.danger { color: var(--danger); }
 .answers.selbar { padding: 12px 16px; border-top: 1px solid var(--line); }
 .answers .no.danger { border-color: var(--danger); color: var(--danger); }
 /* Shared parts: check these before building a screen. One place to fix, same look everywhere. */
@@ -359,6 +363,25 @@ figcaption { color: var(--muted); font-size: 13px; text-align: center; text-wrap
       </div>
     </div>
     <figcaption>Photos tab, scrolled: the month heading stays pinned while its photos pass under it, and the month slider has faded in (it hides again a moment after you stop). Drag the slider to jump to a month; it never covers the bottom bar</figcaption>
+  </figure>
+  <figure id="photos-select">
+    <div class="phone">
+      <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+      <div class="subbar">
+        <button class="icon-btn" aria-label="Close"><svg class="i"><use href="#i-close"/></svg></button>
+        <div class="title"><b>6 selected</b><span>18.4 MB</span></div>
+      </div>
+      <div class="scroll" id="timeline-select"></div>
+      <div class="bottom picking">
+        <nav>
+          <button class="tab"><span class="pill"><svg class="i"><use href="#i-share"/></svg>Share</span></button>
+          <button class="tab"><span class="pill"><svg class="i"><use href="#i-heart-line"/></svg>Favorite</span></button>
+          <button class="tab danger"><span class="pill"><svg class="i"><use href="#i-trash-line"/></svg>Delete</span></button>
+        </nav>
+        <div class="handle"></div>
+      </div>
+    </div>
+    <figcaption>Photos, selecting: long press a photo to start, drag to add the ones you pass, tap a day's circle for the whole day. The top bar and the tabs swap in place at the same height, so the grid never moves. Delete sends all to the phone's trash with one Android confirm. Favorite reads Unfavorite when all picked are favorites. The circle covers the heart while selecting. Back or X leaves</figcaption>
   </figure>
 
   <figure>
@@ -847,6 +870,18 @@ figcaption { color: var(--muted); font-size: 13px; text-align: center; text-wrap
   </article>
 
   <article class="part">
+    <h3>Select bar</h3>
+    <div class="bottom picking">
+      <nav>
+        <button class="tab"><span class="pill"><svg class="i"><use href="#i-share"/></svg>Share</span></button>
+        <button class="tab"><span class="pill"><svg class="i"><use href="#i-heart-line"/></svg>Favorite</span></button>
+        <button class="tab danger"><span class="pill"><svg class="i"><use href="#i-trash-line"/></svg>Delete</span></button>
+      </nav>
+    </div>
+    <p>Takes the bottom tabs' place while selecting on a tab screen, same height, so the grid keeps its size. Delete goes last, in red. Screens without tabs use the Action bar.</p>
+  </article>
+
+  <article class="part">
     <h3>Tile</h3>
     <div class="grid big">
       <div class="tile" data-photo><span class="sel"></span><span class="left">12 days</span></div>
@@ -1031,6 +1066,15 @@ const trashTiles = (on = []) => trashDays.map((d, i) => `<div class="tile${on.in
   i == 3 ? `<span class="dur">0:42<svg class="i"><use href="#i-play"/></svg></span>` : ""}<span class="left">${d} days</span></div>`).join("");
 fill("trash-grid", trashTiles());
 fill("trash-picked", trashTiles([1, 4]));
+// Photos, selecting: Today picked whole, plus a few from other days.
+const check = '<svg class="i"><use href="#i-check"/></svg>';
+const picked = { "Today": [0, 1, 2], "Yesterday": [4], "Sat, 11 Oct": [2, 6] };
+fill("timeline-select", `<section class="month-sec"><h3 class="month">October 2026</h3>${days.slice(1, 4).map(x => {
+  const on = picked[x.d] ?? [], all = on.length == x.n;
+  return `<div class="day${all ? " on" : ""}">${x.d}${x.p ? `<small>${x.p}</small>` : ""}<span class="sel">${all ? check : ""}</span></div><div class="grid">${
+    Array.from({ length: x.n }, (_, i) => `<div class="tile${on.includes(i) ? " on" : ""}" style="background:${photo()}"><span class="sel">${on.includes(i) ? check : ""}</span>${
+      x.v?.includes(i) ? `<span class="dur">${durs[i % durs.length]}<svg class="i"><use href="#i-play"/></svg></span>` : ""}</div>`).join("")}</div>`;
+}).join("")}</section>`);
 </script>
 
 </body>
