@@ -429,10 +429,10 @@ fun PhotosContent(
                     is Tile -> item(key = x.id, contentType = "tile") {
                         TileImage(
                             x,
-                            if (tabs) Modifier.combinedClickable(
+                            (if (tabs) Modifier.combinedClickable(
                                 onClick = { if (selecting) selection.toggle(x) else onOpen(photos, x) },
                                 onLongClick = { selection.start(x) },
-                            ) else Modifier.clickable { onOpen(photos, x) },
+                            ) else Modifier.clickable { onOpen(photos, x) }).testTag("tile-${x.id}"),
                             selecting = selecting,
                             selected = x.id in selectedIds,
                         )

@@ -63,6 +63,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -643,7 +644,7 @@ fun ChangeCoverContent(person: Person, picked: Long?, onPick: (Long) -> Unit, on
         // fixed height: picking a face must not move the buttons under the grid
         LazyVerticalGrid(GridCells.Fixed(4), Modifier.height(320.dp), contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp)) {
             items(faces, key = { it.id }) { f ->
-                Box(Modifier.padding(4.dp).clickable { onPick(f.id) }) {
+                Box(Modifier.padding(4.dp).testTag("coverFace-${f.id}").clickable { onPick(f.id) }) {
                     FaceImage(
                         f,
                         Modifier.drawBehind { if (f.id == picked) drawCircle(ring, size.minDimension / 2 + 4.5.dp.toPx(), style = Stroke(3.dp.toPx())) }
