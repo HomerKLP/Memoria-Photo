@@ -2,6 +2,7 @@ package app.memoria
 
 import android.content.Context
 import android.media.ExifInterface
+import android.media.MediaMetadataRetriever
 import android.provider.MediaStore
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -72,7 +73,6 @@ fun loadInfo(context: Context, tile: Tile): PhotoInfo {
     val cols = arrayOf(
         MediaStore.MediaColumns.DISPLAY_NAME, MediaStore.MediaColumns.RELATIVE_PATH,
         MediaStore.MediaColumns.SIZE, MediaStore.MediaColumns.WIDTH, MediaStore.MediaColumns.HEIGHT,
-        "latitude", "longitude", // LATITUDE/LONGITUDE constants are deprecated, the columns are still there
     )
     context.contentResolver.query(base, cols, "${MediaStore.MediaColumns._ID} = ?", arrayOf(tile.id.toString()), null)?.use { c ->
         if (c.moveToNext()) {
@@ -81,14 +81,23 @@ fun loadInfo(context: Context, tile: Tile): PhotoInfo {
             size = c.getLong(2)
             width = c.getInt(3)
             height = c.getInt(4)
-            if (!c.isNull(5)) lat = c.getDouble(5)
-            if (!c.isNull(6)) lon = c.getDouble(6)
         }
     }
-    if (lat == 0.0 && lon == 0.0) { lat = null; lon = null } // MediaStore writes 0,0 when the photo has no GPS
+    // MediaStore's latitude/longitude are always null since Android 10; GPS is only in the original file
+    val original = runCatching { MediaStore.setRequireOriginal(tile.uri) }.getOrDefault(tile.uri)
     // Videos have no camera EXIF
     val exif = if (tile.duration != null) null
-    else runCatching { context.contentResolver.openInputStream(tile.uri)?.use { ExifInterface(it) } }.getOrNull()
+    else runCatching { context.contentResolver.openInputStream(original)?.use { ExifInterface(it) } }.getOrNull()
+        ?: runCatching { context.contentResolver.openInputStream(tile.uri)?.use { ExifInterface(it) } }.getOrNull()
+    val ll = FloatArray(2)
+    if (exif != null) { if (exif.getLatLong(ll)) { lat = ll[0].toDouble(); lon = ll[1].toDouble() } }
+    else if (tile.duration != null) runCatching {
+        MediaMetadataRetriever().use { r ->
+            r.setDataSource(context, original)
+            iso6709(r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_LOCATION))?.let { lat = it.first; lon = it.second }
+        }
+    }
+    if (lat == 0.0 && lon == 0.0) { lat = null; lon = null } // some cameras write 0,0 when they have no GPS
     val f = exif?.getAttributeDouble(ExifInterface.TAG_F_NUMBER, 0.0) ?: 0.0
     val exposure = exif?.getAttributeDouble(ExifInterface.TAG_EXPOSURE_TIME, 0.0) ?: 0.0
     val iso = exif?.getAttributeInt(ExifInterface.TAG_ISO_SPEED_RATINGS, 0) ?: 0
@@ -103,6 +112,12 @@ fun loadInfo(context: Context, tile: Tile): PhotoInfo {
         name, folder, size, width, height, lat, lon,
         exif?.getAttribute(ExifInterface.TAG_MODEL)?.trim()?.takeIf { it.isNotEmpty() }, settings,
     )
+}
+
+/** Video GPS, ISO 6709 like "+37.4219-122.0840/" (an altitude may follow). */
+internal fun iso6709(s: String?): Pair<Double, Double>? {
+    val m = Regex("""^([+-]\d+(?:\.\d+)?)([+-]\d+(?:\.\d+)?)""").find(s ?: return null) ?: return null
+    return m.groupValues[1].toDouble() to m.groupValues[2].toDouble()
 }
 
 private fun sizeLabel(bytes: Long) = when {

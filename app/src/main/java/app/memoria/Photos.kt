@@ -267,10 +267,12 @@ fun PhotosScreen(
     reload: Int = 0,
 ) {
     val context = LocalContext.current
-    val perms = arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO)
-    var granted by remember { mutableStateOf(perms.all { context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }) }
-    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted = it.values.all { ok -> ok } }
-    LaunchedEffect(Unit) { if (!granted) ask.launch(perms) }
+    val media = arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO)
+    val perms = media + Manifest.permission.ACCESS_MEDIA_LOCATION // photo GPS, optional
+    fun has(p: String) = context.checkSelfPermission(p) == PackageManager.PERMISSION_GRANTED
+    var granted by remember { mutableStateOf(media.all(::has)) }
+    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted = media.all(::has) }
+    LaunchedEffect(Unit) { if (!perms.all(::has)) ask.launch(perms) }
     val items by produceState(if (favoritesOnly) lastFavorites else lastTimeline, granted, reload) {
         if (granted) value = withContext(Dispatchers.IO) { timeline(context, favoritesOnly) }
             .also { if (favoritesOnly) lastFavorites = it else lastTimeline = it }

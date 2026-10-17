@@ -5,23 +5,46 @@ JAVA_HOME ?= /Applications/Android Studio.app/Contents/jbr/Contents/Home
 export JAVA_HOME
 
 ADB := $(HOME)/Library/Android/sdk/platform-tools/adb
+APKSIGNER := $(HOME)/Library/Android/sdk/build-tools/36.0.0/apksigner
 EMULATOR := $(HOME)/Library/Android/sdk/emulator/emulator
 AVD ?= Medium_Phone_API_37.0
 SERIAL ?= emulator-5554
 DENSITY ?= 480
 
-.PHONY: help test screenshots shot-check emulator layout check
+.PHONY: help install release pull-db test screenshots shot-check emulator layout check
 
 help:
-	@echo "make test        unit tests (pure logic, no device)"
+	@echo "make install     build debug, install on the phone over USB, open the app (stops if the build fails)"
+	@echo "make release     build release, sign with the debug key, install, open (for speed checks, keeps the data)"
+	@echo "make pull-db     copy the debug app's DB (+ -wal, -shm) to testdata/out/db/"
+	@echo "make test        unit tests (pure logic, no device); one class: make test T=DetailsGpsTest"
 	@echo "make screenshots refresh screenshot baselines (no device)"
 	@echo "make shot-check  validate screenshots against the baselines (no device)"
 	@echo "make emulator    boot $(AVD) and set $(DENSITY) density (360 dp wide)"
 	@echo "make layout      LayoutJumpTest on a headless emulator (boots it if needed, closes it after)"
 	@echo "make check       unit + shot-check, no device (the quick gate)"
 
+# No pipes here: a pipe hides gradle's exit code, and a failed build would install the old APK.
+install:
+	./gradlew :app:assembleDebug
+	$(ADB) -d install -r app/build/outputs/apk/debug/app-debug.apk
+	$(ADB) -d shell am start -n app.memoria/.MainActivity
+
+release:
+	./gradlew :app:assembleRelease
+	PATH="$(JAVA_HOME)/bin:$$PATH" $(APKSIGNER) sign --ks $(HOME)/.android/debug.keystore --ks-pass pass:android \
+		--out app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/app-release-unsigned.apk
+	$(ADB) -d install -r app/build/outputs/apk/release/app-release.apk
+	$(ADB) -d shell am start -n app.memoria/.MainActivity
+
+# run-as only works on a debug build; checked first so a failed read never overwrites the local copy.
+pull-db:
+	$(ADB) -d shell run-as app.memoria true
+	mkdir -p testdata/out/db
+	for f in memoria.db memoria.db-wal memoria.db-shm; do $(ADB) -d exec-out run-as app.memoria cat databases/$$f > testdata/out/db/$$f || exit 1; done
+
 test:
-	./gradlew :app:testDebugUnitTest
+	./gradlew :app:testDebugUnitTest $(if $(T),--tests '$(T)')
 
 screenshots:
 	./gradlew :app:updateDebugScreenshotTest
