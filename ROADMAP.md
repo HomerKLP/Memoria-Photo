@@ -2,7 +2,7 @@
 
 Hardest part first, UI last.
 
-**Next step:** pick from the list below (live people while indexing, Change cover, faster Help recognize, Settings leftovers: Folders to skip, Export / Import, Licenses). Phase 1 leftovers (tuning limits, more Takeout parts) wait until the user asks.
+**Next step:** check live people while indexing on the phone, then pick from the list below (Change cover, faster Help recognize, Settings leftovers: Folders to skip, Export / Import, Licenses). Phase 1 leftovers (tuning limits, more Takeout parts) wait until the user asks.
 
 ## Phase 1: face pipeline quality (done, leftovers later)
 Pick the best models on real photos before writing app code. Details: `docs/face-pipeline.md`.
@@ -38,7 +38,7 @@ Pick the best models on real photos before writing app code. Details: `docs/face
 - [x] Grouping on the phone (same as the bench, camera faces start people) and a plain People screen.
 - [x] Save people in Room: grouped again from scratch at the end of each index run. Keep people stable once naming comes.
 - [x] Auto-index when new photos arrive: watch MediaStore (ContentObserver on images), start an index run for the new photos once the change burst settles (3 s). App open only (no background start, so no battery exemption needed): skips when a run is going or queued, when the user paused, when the models are missing, or when nothing is new (e.g. a favorite toggle). Decision is pure, `AutoIndexTest` (11 cases) covers it with no phone.
-- [ ] People appear in Library / People while indexing, not only at the end of the run. The end-of-run case is done: both screens key their load on `running` (WorkManager), so saved people show up the moment the run finishes, no tab switch. Live per-batch updates are unblocked: `groupFaces` is O(n²) now (NN-chain), a full regroup (`savePeople`) takes 2.1 s on the phone (debug, 2052 starting faces), was 9.8 s. Next: regroup every N photos and reload.
+- [x] People appear in Library / People while indexing. The run regroups (`savePeople`) at most every 30 s and never closer than 10x the regroup time; Library and People reload on each save (`peopleSaved`). Person ids stay put across regroups. Not checked on the phone yet.
 - [x] Naming: "Name this person" sheet (Add name / Rename), name survives re-index (`savePeople` carries it over on shared faces).
 - [x] People and Person screens built to the mockup: People = top bar + search, Help recognize card, index progress, 4-column grid, one list: named people first, then unnamed (no label), each by photo count. Library row same order. Person = face chips, "Faces" row, "Unsure faces" card, 3-column photo grid; tap a photo opens the viewer. Merge with / Change cover / Hide person are placeholders (no screens yet).
 - [x] Merge with (one person at a time, most alike first) and Hide person, both survive regroups (DB v7). Hidden people opens from Settings. Checked on the phone.

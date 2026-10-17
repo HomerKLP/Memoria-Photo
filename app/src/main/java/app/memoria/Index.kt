@@ -39,6 +39,7 @@ import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import java.io.File
 import java.nio.ByteBuffer
 import kotlin.math.min
@@ -226,6 +227,21 @@ object IndexControl {
     fun resume(context: Context) = start(context, IndexProgress.testOnly(context))
 }
 
+/** Goes up after each savePeople, so Library and People reload while a run is going. */
+val peopleSaved = MutableStateFlow(0)
+
+/**
+ * The old person whose faces overlap this new group the most, if it kept at least half of them.
+ * Named or hidden people win, so a name survives two people joining. `taken` keeps one old person from landing on two groups when it split.
+ */
+fun carry(ids: List<Long>, old: List<PersonRow>, oldFaces: Map<Long, Set<Long>>, taken: MutableSet<Long>): PersonRow? {
+    val set = ids.toSet()
+    return old.filter { it.id !in taken }
+        .map { it to set.count { f -> f in oldFaces[it.id].orEmpty() } }
+        .filter { (o, n) -> n * 2 >= (oldFaces[o.id]?.size ?: 1) }
+        .maxWithOrNull(compareBy({ it.first.name != null || it.first.hidden }, { it.second }))?.first?.also { taken += it.id }
+}
+
 /** Rough time left: elapsed per photo times the photos left. Null until at least one photo is done. */
 fun etaMillis(started: Long, done: Int, total: Int): Long? {
     if (started <= 0L || done <= 0 || total <= done) return null
@@ -277,6 +293,7 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         }
         val start = System.nanoTime()
         var count = 0
+        var nextSave = start + 30_000_000_000L
         try {
             FacePipeline(OrtEnvironment.getEnvironment(), File(models, "detector.onnx").path, File(models, "recognizer.onnx").path, File(models, "quality.onnx").path, options).use { pipeline ->
                 for (photo in todo) {
@@ -309,6 +326,12 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                     })
                     count++
                     if (foreground && count % 10 == 0) notifications.notify(1, notice(base + count, total))
+                    // people show up while indexing; saves stay 10x their own time apart, so they never take more than ~10% of the run
+                    if (System.nanoTime() > nextSave) {
+                        val t = System.nanoTime()
+                        savePeople()
+                        nextSave = System.nanoTime() + maxOf(30_000_000_000L, 10 * (System.nanoTime() - t))
+                    }
                 }
             }
         } finally {
@@ -319,42 +342,37 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         return if (isStopped) Result.success() else savePeople()
     }
 
-    /** Groups all faces again and replaces the saved people. Names and hidden survive by matching old and new groups on shared faces. */
+    /**
+     * Groups all faces again and replaces the saved people. A new group keeps the id, name and hidden flag of the old person it
+     * matches (see [carry]), so an open Person screen and a name typed mid-run stay on the same person.
+     */
     private suspend fun savePeople(): Result {
         val start = System.nanoTime()
         val db = Db.get(applicationContext)
         val dao = db.index()
-        val faces = dao.faceVecs()
-        val old = dao.people().filter { it.name != null || it.hidden }
-        val oldFaces = faces.filter { it.personId != null }.groupBy { it.personId!! }.mapValues { e -> e.value.map { it.id }.toSet() }
-        val people = groupFaces(faces, dao.answers(), dao.merges())
-        val taken = mutableSetOf<Long>()
-        db.withTransaction {
+        // one transaction: a name or New person saved during the regroup waits for it instead of being lost
+        val (saved, kept) = db.withTransaction {
+            val faces = dao.faceVecs()
+            val old = dao.people()
+            val oldFaces = faces.filter { it.personId != null }.groupBy { it.personId!! }.mapValues { e -> e.value.map { it.id }.toSet() }
+            val people = groupFaces(faces, dao.answers(), dao.merges())
+            val taken = mutableSetOf<Long>()
+            var next = (old.maxOfOrNull { it.id } ?: 0) + 1
             dao.deletePeople()
             dao.clearPersonIds()
-            people.forEachIndexed { i, p ->
+            for (p in people) {
                 val ids = p.faces.map { it.id }
-                if (ids.isEmpty()) return@forEachIndexed // never happens (a person needs faces), keeps IN () off the DB
-                val pid = i + 1L
-                val kept = carry(ids, old, oldFaces, taken)
-                dao.insertPerson(PersonRow(pid, p.main.id, kept?.name, kept?.hidden ?: false))
+                if (ids.isEmpty()) continue // never happens (a person needs faces), keeps IN () off the DB
+                val match = carry(ids, old, oldFaces, taken)
+                val pid = match?.id ?: next++
+                dao.insertPerson(PersonRow(pid, p.main.id, match?.name, match?.hidden ?: false))
                 dao.setPerson(ids, pid)
             }
+            people.size to taken.size
         }
-        Log.i("Memoria", "saved ${people.size} people (${taken.size} named or hidden) in ${(System.nanoTime() - start) / 1_000_000} ms")
+        peopleSaved.value++
+        Log.i("Memoria", "saved $saved people ($kept kept their id) in ${(System.nanoTime() - start) / 1_000_000} ms")
         return Result.success()
-    }
-
-    /**
-     * The old named or hidden person whose faces overlap this new group the most, if it kept at least half of them.
-     * `taken` keeps one old person from landing on two groups when it split.
-     */
-    private fun carry(ids: List<Long>, old: List<PersonRow>, oldFaces: Map<Long, Set<Long>>, taken: MutableSet<Long>): PersonRow? {
-        val set = ids.toSet()
-        return old.filter { it.id !in taken }
-            .map { it to set.count { f -> f in oldFaces[it.id].orEmpty() } }
-            .filter { (o, n) -> n * 2 >= (oldFaces[o.id]?.size ?: 1) }
-            .maxByOrNull { it.second }?.first?.also { taken += it.id }
     }
 
     private fun notice(done: Int, total: Int): Notification {

@@ -75,15 +75,23 @@ fun watchNewPhotos(context: Context, lifecycle: Lifecycle): Closeable {
     }
     context.contentResolver.registerContentObserver(Media.EXTERNAL_CONTENT_URI, true, observer)
     scope.launch {
+        var wasOpen = false
         while (isActive) {
             delay(1000)
+            // photos taken while the app was closed or away fire no change here, so each open counts as one
+            val open = lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+            if (open && !wasOpen) burst.change(System.currentTimeMillis())
+            wasOpen = open
             // wait for the burst to settle, and only act while the app is actually open
-            if (!burst.due(System.currentTimeMillis()) || !lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) continue
+            if (!burst.due(System.currentTimeMillis()) || !open) continue
+            // a going run listed its photos before this change, so keep the burst and try again when it ends
+            val busy = indexBusy(context)
+            if (busy) continue
             burst.take()
             val start = AutoIndex.shouldStart(
                 hasPermission = canReadPhotos(context),
                 modelsReady = modelsReady(context),
-                indexBusy = indexBusy(context),
+                indexBusy = busy,
                 paused = IndexProgress.paused(context),
                 newPhotos = newPhotos(context),
             )

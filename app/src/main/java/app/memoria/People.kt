@@ -239,8 +239,9 @@ fun PeopleScreen(
     val work by remember { WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow("index") }.collectAsState(emptyList())
     val indexed by remember { dao.kinds() }.collectAsState(emptyMap())
     val running = work.any { it.state == WorkInfo.State.RUNNING }
-    // [running] as a key: people only exist after the run's savePeople, so the grid loads them again when the run ends.
-    val result by cachedProduceState("people", reload, running) {
+    // [saved] as a key: the run saves people every so often, so they show up while indexing.
+    val saved by peopleSaved.collectAsState()
+    val result by cachedProduceState("people", reload, saved) {
         withContext(Dispatchers.IO) {
             val faces = dao.faceVecs()
             val byPerson = faces.filter { it.personId != null }.groupBy { it.personId!! }

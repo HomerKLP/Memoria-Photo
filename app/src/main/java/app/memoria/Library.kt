@@ -78,8 +78,9 @@ fun LibraryScreen(
     val indexed by remember { dao.kinds() }.collectAsState(emptyMap())
     val running = work.any { it.state == WorkInfo.State.RUNNING }
     // cached, not null: an empty first frame is shorter and the tab's restored scroll clamps to it.
-    // Keyed on [running]: people only exist after the run's savePeople, so the tab loads them again when the run ends.
-    val data by cachedProduceState("library", running) {
+    // Keyed on [saved]: the run saves people every so often, so they show up while indexing.
+    val saved by peopleSaved.collectAsState()
+    val data by cachedProduceState("library", saved) {
         withContext(Dispatchers.IO) {
             val faces = dao.faceVecs()
             val byId = faces.associateBy { it.id }
