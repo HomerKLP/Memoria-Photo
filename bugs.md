@@ -43,13 +43,20 @@ numbers; 8 swipes down, then tap, `dumpsys gfxinfo`, 3 runs each):
 - `scrollToItem(0)` (instant): 47-49 frames, 15-18% janky, p50 26-38 ms.
 
 2026-10-18: fixed. New `jumpToTop(firstVisibleItemIndex, visibleItemCount)`
-(`Photos.kt`): the tab jumps with `scrollToItem(0)` when the grid is more than a screen
-from the top and only animates a short hop. Same emulator A/B after the fix: 42-50
-frames, 18-22% janky (from 75-82 frames, 25-41%). Unit test `ScrollToTopTest`; `make
-check` green.
+(`Photos.kt`): a short hop still animates the grid; a long one snapshots the screen and
+slides it off instead of animating the grid across every tile. The grid is wrapped in a
+capture layer (`rememberGraphicsLayer`), recorded only on the tap; underneath, the tab
+jumps with `scrollToItem(0)` and the snapshot slides down over one viewport in a capped
+`tabScrollToTopMs` = 350 ms. No intermediate tiles compose and no evicted thumb reloads
+during the animation, so the cost does not grow with distance. Emulator A/B (8 swipes
+down, then tap, `dumpsys gfxinfo`, 3 runs): `animateScrollToItem` before 75-82 frames /
+25-41% janky; after 46-48 frames / 20-30% (an instant jump alone read 47-49 / 15-18%, so
+the extra is the 350 ms slide). Visual checked at 10x on the emulator (the old screen
+sweeps down, the top shows through). Unit test `ScrollToTopTest`; `make check` and the
+full androidTest suite (`make layout`, behavior + layout + migration) green.
 
 Fix ideas:
-- Done: jump (`scrollToItem`) when far from the top; keep the animation for a short hop.
+- Done: short hop animates, far scroll slides the current screen off (capped, no loads).
 - Or cap the animation time, and don't start thumbnail loads for tiles that are only
   passing through (load once the scroll settles, like the fling case).
 
