@@ -396,6 +396,31 @@ fun MoveToAlbumNamingPreview() = MemoriaTheme {
     }
 }
 
+/** New album sheet (mockup "New album"): the folder head, the name field, Cancel / Next. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 620)
+@Composable
+fun NewAlbumSheetPreview() = MemoriaTheme {
+    Surface { NewAlbumContent("Holidays", {}, false, {}, {}) }
+}
+
+/** New album, pick photos (mockup): the timeline in select mode, "Add to <name>", Cancel / Move here. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 800)
+@Composable
+fun NewAlbumPickPreview() = MemoriaTheme {
+    val tiles = (1L..9L).map { Tile(it, android.net.Uri.parse("content://media/external/images/media/$it"), 0L, null) }
+    val items: List<Any> = remember { listOf(Header("m1", "October 2026", true), Header("d1", "Sat, 11 Oct", false)) + tiles }
+    val selection = remember { PhotoSelection().apply { addAll(tiles.take(6)) } }
+    Surface {
+        PhotosContent(
+            items, selection = selection, pickedSize = 18_400_000,
+            forceSelecting = true, titleWhileSelecting = "Add to Holidays", scrollWhileSelecting = true,
+            footer = { ActionBar("Cancel", null, {}, "Move here", R.drawable.ic_move, {}, danger = false) },
+        )
+    }
+}
+
 /** The timeline month slider (Ui.kt shared part): rail, ticks, the month on screen and the knob. */
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 480)

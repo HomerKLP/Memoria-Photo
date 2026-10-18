@@ -4,7 +4,9 @@ Open-source Android gallery. All photo processing and AI runs on the phone: phot
 
 Hardest part first, UI last. Phases are the order of work; Later and Ideas at the bottom have no phase yet.
 
-**Next step:** Phase 6 (design and UI polish) is current; Phase 2 (face pipeline) is paused and its index / grouping follow-ups wait until the UI is mostly finished. UI items to pick from: the People screen redesign, matching the app to the mockup's "Shapes and sizes" list, and the unbuilt screens (Search, New album). Phase 1 leftovers (tuning limits, more Takeout parts) wait until the user asks.
+**Index upgrades:** a new index step (search labels, OCR, video towns) fills in only what an existing index is missing, like `recutThumbs` does for face pictures. Never re-index from scratch, so names, merges, hidden people, covers and answers stay.
+
+**Next step:** Phase 6 (design and UI polish) is current; Phase 2 (face pipeline) is paused and its index / grouping follow-ups wait until the UI is mostly finished. UI items to pick from: the unbuilt screens (Search, New album). Phase 1 leftovers (tuning limits, more Takeout parts) wait until the user asks.
 
 ## Phase 1: face pipeline quality (done, leftovers later)
 Pick the best models on real photos before writing app code. Details: `docs/face-pipeline.md`.
@@ -84,7 +86,7 @@ Goal: keep screenshots, memes and documents out of face search.
 - [x] Albums: device folders (MediaStore buckets), 6 on Library, Albums screen from See all, album grid opens the viewer.
 - [x] Photos tab: select many (mockup "Photos, selecting"). Long press starts, drag adds, a day's circle picks the whole day. Share, Favorite, Delete (one Android trash confirm for all). Albums have it too (Albums below); a person's photos later. No Move here: the grid does not say which album a photo is in (Move is in the viewer and album select).
 - [x] Album More and select (mockup "Album, More", "Album, selecting"). Long press or More > Select; Select all; Share, Favorite, Move (the Move to album sheet, moved photos leave), Delete (one Android confirm). Ignore faces in this album: asks first when turning on, saves the album's bucket id; the next index run drops its photos and their faces (`libraryPhotos`), Settings > Folders to skip shows the count. Tests: `album_*` in `BehaviorTest`, `album_selecting_keepsTopBarAndGridTop`; previews `AlbumSelect`, `AlbumMore`. Not checked on the phone.
-- [ ] Albums: New album (name sheet, then pick photos). Designed (mockup "New album"), not built.
+- [x] Albums: New album (mockup "New album" + "New album, pick photos"). The tile on Albums (accent fill) opens a name sheet (Next off while empty or the name is taken), then the timeline in select mode; Move here moves the picked photos to `Pictures/<name>/` and opens the new album. Nothing is made until a move. From Move to album the same field's button reads Move. Tests: `newAlbum_next_needsANameAndAUniqueOne`, `newAlbumPick_moveHereOffUntilPicked`, `newAlbum_typingPlaceholder_keepsFieldAndButtonsPut`, `newAlbumPick_loadingToLoaded_topBarAndFooterStayPut`; previews `NewAlbumSheetPreview`, `NewAlbumPickPreview`.
 - [x] Offline town names at index time: `assets/towns.tsv` (GeoNames, 1000+ people, no districts), each photo's GPS and nearest town saved on its photo row (DB v9). Photos only, not videos yet.
 - [x] Places screen and Place screen (mockup "Places", "Place"): Library row (3 biggest towns) and See all grid from `photo.townId`, Place = photos by month like Videos, tap opens the viewer. Checked on the phone.
 - [ ] Places leftovers: videos (no town yet), long press select on Place, an empty state when no photo has a place (designed, mockup "Places, empty"; grey tiles hold the row for now).
@@ -102,7 +104,7 @@ Goal: no visible loss, not lossless (re-encoding always loses some).
 
 ## Phase 6: design and UI polish (current)
 - [x] Mockup, Honey palette: Photos, Library, viewer, Help recognize (link in `decisions.md`).
-- [ ] Redesign the People screen: the user doesn't like how it looks (2026-10-17), even now that the app matches the mockup. Mockup first, then code.
+- [x] Redesign the People screen: the user didn't like how it looked (2026-10-17), even when the app matched the mockup. Mockup first, then code. The user likes the result (2026-10-18).
   - [x] Mockup (2026-10-18): "Named" 96 dp faces, 3 a row, name 6 dp under the face, count right under; "No name yet" 56 dp faces, 5 a row, no text.
   - [x] Code: built in `PeopleContent` / `PersonCard` (`People.kt`). Merge with and Hidden people get the same tight card (6 dp, count right under). Layout change: `LayoutJumpTest` case, `make layout` and `make screenshots`.
 - [x] Match the app to the mockup's "Shapes and sizes" part (designed 2026-10-18). Each is a layout change: `make layout` and `make screenshots`.
@@ -113,7 +115,7 @@ Goal: no visible loss, not lossless (re-encoding always loses some).
   - [x] Merge with and Change cover: a picked face also gets the accent check (`PersonCard`, `ChangeCoverSheet`).
   - [x] Sheets: side padding 20 → 16 dp, subtitle 13 → 12 sp, 16 dp between a row's picture and its text. Who is this? (`Recognize.kt`), Merge with, Change cover, Name this person (`People.kt`), Move to album (`Move.kt`).
   - [x] Menu: 14 → 16 dp between icon and text (`Menu`, `Ui.kt`).
-  - Not built yet, build to the mockup: Search (album hit shows its cover as a square, month hit a square icon, faces 72 dp), the Albums New album tile (accent fill, not dashed), the New album sheet.
+  - Not built yet, build to the mockup: Search (album hit shows its cover as a square, month hit a square icon, faces 72 dp).
 - [ ] UX pass: find and fix what feels broken in use, page by page. Known so far:
   - [ ] Moving or deleting the last photo of an album leaves an empty album page with no title. An album that becomes empty should close and go back.
   - [ ] Check every page that shows a set that can run empty, after a move, delete, unfavorite, hide or merge: Album, Place, Person, Favorites, Videos, Trash, and the viewer when its last photo goes. Each should close or show its empty state, never a blank page.
@@ -139,7 +141,7 @@ Goal: motion that feels finished, like a mature gallery app, before the first AP
 - [ ] Room tests (in-memory DB): DAO queries.
 - [x] Compose layout tests (`app/src/androidTest/`, `./gradlew :app:connectedDebugAndroidTest`): `LayoutJumpTest` states the "nothing else may move" rule as an assertion. Library loading->loaded, Pause/Resume bar length, unnamed People row height, Trash selecting, TopBar empty subtitle. Runs on a 360 dp emulator (`wm density 480`), not the phone. Mutation-checked: removing the unnamed name line fails the row-height test.
 - [ ] Compose flow tests: tabs open, grid shows, tap a tile opens the viewer, People list loads.
-- [ ] `LayoutJumpTest` case for the People screen (loading -> loaded, rows of 4). It has none yet.
+- [x] `LayoutJumpTest` cases for the People screen: loading -> loaded, cards in a row the same height.
 - [x] Screenshot tests (the built-in `com.android.compose.screenshot`, JVM, no phone): `./gradlew :app:updateDebugScreenshotTest` records, `:app:validateDebugScreenshotTest` compares. One preview per state (loading / indexing / paused / empty), paired with `LayoutJumpTest`.
 - [ ] Keep phone checks for the rest: stutter, blurry viewer, NPU, foreground worker. Tests can't cover these.
 

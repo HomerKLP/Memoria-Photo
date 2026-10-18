@@ -121,20 +121,27 @@ fun Note(icon: Int, text: String, modifier: Modifier = Modifier) {
     }
 }
 
-/** Two buttons at the bottom: the danger one outlined, the safe one filled with the accent. [danger] false: grey outline (Help recognize's No). */
+/**
+ * Two buttons at the bottom: the danger one outlined, the safe one filled with the accent. [danger] false: grey
+ * outline (Help recognize's No, the New album picker's Cancel). [dangerIcon] null draws no icon (New album's Cancel
+ * has none in the mockup). [primaryEnabled] false greys the safe button out (Move here until a photo is picked).
+ */
 @Composable
 fun ActionBar(
     dangerLabel: String,
-    dangerIcon: Int,
+    dangerIcon: Int?,
     onDanger: () -> Unit,
     primaryLabel: String,
     primaryIcon: Int,
     onPrimary: () -> Unit,
     modifier: Modifier = Modifier,
     danger: Boolean = true,
+    primaryEnabled: Boolean = true,
 ) {
     val outline = if (danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
     val content = if (danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+    val primaryBg = if (primaryEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+    val primaryContent = if (primaryEnabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
     Row(
         modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -143,15 +150,15 @@ fun ActionBar(
             Modifier.weight(1f).height(52.dp).clip(CircleShape).border(1.dp, outline, CircleShape).clickable(onClick = onDanger),
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(painterResource(dangerIcon), null, Modifier.size(20.dp), tint = content)
+            dangerIcon?.let { Icon(painterResource(it), null, Modifier.size(20.dp), tint = content) }
             Text(dangerLabel, color = content, fontWeight = FontWeight.Medium, fontSize = 15.sp)
         }
         Row(
-            Modifier.weight(1f).height(52.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary).clickable(onClick = onPrimary),
+            Modifier.weight(1f).height(52.dp).clip(CircleShape).background(primaryBg).clickable(enabled = primaryEnabled, onClick = onPrimary),
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(painterResource(primaryIcon), null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onPrimary)
-            Text(primaryLabel, color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Medium, fontSize = 15.sp)
+            Icon(painterResource(primaryIcon), null, Modifier.size(20.dp), tint = primaryContent)
+            Text(primaryLabel, color = primaryContent, fontWeight = FontWeight.Medium, fontSize = 15.sp)
         }
     }
 }

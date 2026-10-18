@@ -328,6 +328,45 @@ class BehaviorTest {
         assertEquals("Pictures/Holidays/", path)
     }
 
+    // --- New album -----------------------------------------------------------------------------
+
+    @Test fun newAlbum_next_needsANameAndAUniqueOne() {
+        var name by mutableStateOf("")
+        var taken by mutableStateOf(false)
+        var next = false
+        rule.setContent { MemoriaTheme { Surface { NewAlbumContent(name, { name = it }, taken, {}, { next = true }) } } }
+
+        rule.onNodeWithText("Next").assertIsNotEnabled()
+        rule.onNode(hasSetTextAction()).performTextInput("Holidays")
+        rule.onNodeWithText("Next").assertIsEnabled()
+        rule.runOnIdle { taken = true } // an album with that name exists
+        rule.onNodeWithText("Next").assertIsNotEnabled()
+        rule.runOnIdle { taken = false }
+        rule.onNodeWithText("Next").performClick()
+        assertTrue(next)
+    }
+
+    @Test fun newAlbumPick_moveHereOffUntilPicked() {
+        val selection = PhotoSelection()
+        rule.setContent {
+            MemoriaTheme { Surface {
+                PhotosContent(
+                    timeline, selection = selection,
+                    forceSelecting = true, titleWhileSelecting = "Add to Holidays",
+                    footer = {
+                        ActionBar("Cancel", null, {}, "Move here", R.drawable.ic_move, {}, danger = false, primaryEnabled = selection.ids.isNotEmpty())
+                    },
+                )
+            } }
+        }
+
+        rule.onNodeWithText("Add to Holidays").assertIsDisplayed()
+        rule.onNodeWithText("Move here").assertIsNotEnabled()
+        rule.onNodeWithTag("tile-3").performClick()
+        assertEquals(setOf(3L), selection.ids)
+        rule.onNodeWithText("Move here").assertIsEnabled()
+    }
+
     // --- Settings ------------------------------------------------------------------------------
 
     @Test fun settings_rows_fireTheirCallbacks() {

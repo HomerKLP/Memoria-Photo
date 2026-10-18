@@ -106,6 +106,9 @@ fun App(dir: File) {
     var personDirect by rememberSaveable { mutableStateOf(false) } // person was opened from Library, so back returns there
     var openAlbum by rememberSaveable { mutableStateOf(0L) }
     var albumFrom by rememberSaveable { mutableStateOf("library") } // back from an album returns here
+    var namingAlbum by rememberSaveable { mutableStateOf(false) } // Albums shows the New album name sheet
+    var newName by rememberSaveable { mutableStateOf("") } // the name typed in the New album sheet
+    var newAlbum by rememberSaveable { mutableStateOf<String?>(null) } // the name the picker is filling
     var openPlace by rememberSaveable { mutableStateOf(0) }
     var placeFrom by rememberSaveable { mutableStateOf("library") } // back from a place returns here
     var recognizeFor by rememberSaveable { mutableStateOf<Long?>(null) } // Help recognize asks only about this person, if set
@@ -214,10 +217,31 @@ fun App(dir: File) {
             }
         }
         "albums" -> {
-            val close = { tabs.removeState("albums"); screen = "library" } // next visit starts at the top
+            val close = { tabs.removeState("albums"); namingAlbum = false; screen = "library" } // next visit starts at the top
             BackHandler(onBack = close)
             tabs.SaveableStateProvider("albums") { // keeps the scroll while an album is open
-                AlbumsScreen(onBack = close, onOpenAlbum = { openAlbum = it; albumFrom = "albums"; screen = "album" })
+                AlbumsScreen(
+                    onBack = close,
+                    onOpenAlbum = { openAlbum = it; albumFrom = "albums"; screen = "album" },
+                    onNewAlbum = { namingAlbum = true },
+                )
+            }
+            // New album names the folder first, then the picker opens (mockup "New album")
+            if (namingAlbum) NewAlbumSheet(newName, onDismiss = { namingAlbum = false; newName = "" }) { n ->
+                newName = n; namingAlbum = false; newAlbum = n; screen = "newalbum"
+            }
+        }
+        "newalbum" -> {
+            // Back keeps the typed name (reopens the sheet); Cancel makes nothing
+            val back = { screen = "albums"; namingAlbum = true }
+            val cancel = { newName = ""; screen = "albums" }
+            tabs.SaveableStateProvider("newalbum") { // keeps the picker while nothing else opens
+                NewAlbumScreen(
+                    name = newAlbum.orEmpty(),
+                    onBack = back,
+                    onCancel = cancel,
+                    onMoved = { id -> newName = ""; newAlbum = null; tabs.removeState("albums"); openAlbum = id; albumFrom = "albums"; screen = "album" },
+                )
             }
         }
         "album" -> {

@@ -62,6 +62,7 @@ fun MoveToAlbumContent(
     onNewAlbum: () -> Unit,
     onMove: (MoveTarget) -> Unit,
     onMoveNew: (String) -> Unit,
+    taken: Boolean = false,
 ) {
     Column(Modifier.padding(bottom = 28.dp)) {
         Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -75,20 +76,7 @@ fun MoveToAlbumContent(
         }
         if (naming) {
             // name field + Cancel / Move, like Name a person
-            Box(
-                Modifier.padding(horizontal = 16.dp).fillMaxWidth().height(48.dp)
-                    .clip(RoundedCornerShape(24.dp)).background(MaterialTheme.colorScheme.surfaceVariant).padding(horizontal = 16.dp),
-                contentAlignment = Alignment.CenterStart,
-            ) {
-                if (name.isEmpty()) Text("Album name", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                BasicTextField(
-                    name, onName, singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
-                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
-                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                )
-            }
+            AlbumNameField(name, onName, Modifier.padding(horizontal = 16.dp))
             Row(Modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Box(
                     Modifier.weight(1f).height(52.dp).clip(RoundedCornerShape(26.dp))
@@ -98,11 +86,11 @@ fun MoveToAlbumContent(
                 ) { Text("Cancel", fontWeight = FontWeight.Medium) }
                 Row(
                     Modifier.weight(1f).height(52.dp).clip(RoundedCornerShape(26.dp))
-                        .background(if (name.isBlank()) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primary)
-                        .clickable(enabled = name.isNotBlank()) { onMoveNew(name) },
+                        .background(if (name.isBlank() || taken) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primary)
+                        .clickable(enabled = name.isNotBlank() && !taken) { onMoveNew(name) },
                     horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    val color = if (name.isBlank()) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary
+                    val color = if (name.isBlank() || taken) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary
                     Icon(painterResource(R.drawable.ic_move), null, Modifier.size(18.dp), tint = color)
                     Spacer(Modifier.width(8.dp))
                     Text("Move", color = color, fontWeight = FontWeight.Medium)
@@ -119,8 +107,29 @@ fun MoveToAlbumContent(
     }
 }
 
-/** One row of the sheet (mockup `.pick`): an accent icon or an album cover, both square, a label, a count. */
+/**
+ * The rounded 48 dp name field shared by the New album sheet and Move to album's New album state (mockup `.field`).
+ * The placeholder is a separate Text, so it does not move the field or the buttons under it.
+ */
 @Composable
+internal fun AlbumNameField(name: String, onName: (String) -> Unit, modifier: Modifier = Modifier) {
+    Box(
+        modifier.fillMaxWidth().height(48.dp)
+            .clip(RoundedCornerShape(24.dp)).background(MaterialTheme.colorScheme.surfaceVariant).padding(horizontal = 16.dp),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        if (name.isEmpty()) Text("Album name", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        BasicTextField(
+            name, onName, singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+            textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+        )
+    }
+}
+
+/** One row of the sheet (mockup `.pick`): an accent icon or an album cover, both square, a label, a count. */@Composable
 private fun PickRow(cover: Tile? = null, icon: Int? = null, label: String, note: String?, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().heightIn(min = 52.dp).clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 4.dp),
@@ -156,6 +165,7 @@ fun MoveToAlbumSheet(photo: Tile, onDismiss: () -> Unit, onMove: (String) -> Uni
             onNewAlbum = { naming = true },
             onMove = { onMove(it.path) },
             onMoveNew = { onMove("Pictures/${it.trim()}/") },
+            taken = targets?.any { it.name.equals(name.trim(), ignoreCase = true) } == true,
         )
     }
 }

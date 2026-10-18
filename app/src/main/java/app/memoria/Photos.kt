@@ -380,11 +380,17 @@ fun PhotosContent(
     grid: LazyGridState = rememberLazyGridState(),
     selection: PhotoSelection? = null,
     pickedSize: Long = 0L,
+    // The New album picker opens already in select mode (empty pick), under its own title and bar:
+    forceSelecting: Boolean? = null,
+    titleWhileSelecting: String? = null,
+    scrollWhileSelecting: Boolean = false,
+    onSelectBack: (() -> Unit)? = null,
+    footer: (@Composable () -> Unit)? = null,
 ) {
     val list = items.orEmpty()
     val photos = list.filterIsInstance<Tile>()
     val tabs = selection != null // the main tab supports select mode; Favorites passes none
-    val selecting = selection?.active == true
+    val selecting = forceSelecting ?: (selection?.active == true)
     val selectedIds = selection?.ids.orEmpty()
     // One entry per month header: the grid item a month starts at, and its name for the slider
     val months = remember(items) { list.mapIndexedNotNull { i, x -> if (x is Header && x.month) i to x.text else null } }
@@ -418,7 +424,7 @@ fun PhotosContent(
         map
     }
     val tilesById = remember(photos) { photos.associateBy { it.id } }
-    if (selecting) BackHandler { selection.clear() }
+    if (selecting) BackHandler { onSelectBack?.invoke() ?: selection?.clear() }
     Column {
         // The wordmark and the select top bar share one Box: the select bar is drawn over the wordmark,
         // so swapping them never changes the height and the grid under it never moves.
@@ -438,10 +444,14 @@ fun PhotosContent(
                 Modifier.matchParentSize().background(MaterialTheme.colorScheme.surface).padding(start = 4.dp, end = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                IconButton({ selection.clear() }) { Icon(painterResource(R.drawable.ic_close), "Cancel") }
+                IconButton({ onSelectBack?.invoke() ?: selection?.clear() }) { Icon(painterResource(R.drawable.ic_close), "Cancel") }
                 Column(Modifier.weight(1f)) {
-                    Text("${selectedIds.size} selected", style = MaterialTheme.typography.titleLarge)
-                    Text(formatBytes(pickedSize), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    // The picker shows "Add to <name>" with the count under it; the tab shows "N selected"
+                    Text(titleWhileSelecting ?: "${selectedIds.size} selected", style = MaterialTheme.typography.titleLarge)
+                    Text(
+                        if (titleWhileSelecting != null) "${selectedIds.size} selected · ${formatBytes(pickedSize)}" else formatBytes(pickedSize),
+                        fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }
@@ -472,12 +482,13 @@ fun PhotosContent(
             },
             // always on for the timeline (Favorites has its own screen and no slider)
             enabled = !selecting,
+            modifier = Modifier.weight(1f),
         ) {
             LazyVerticalGrid(
                 GridCells.Fixed(4), state = grid,
-                modifier = (if (tabs) Modifier.selectDrag(grid, tilesById, selection) else Modifier).testTag("photosGrid"),
+                modifier = (if (tabs) Modifier.selectDrag(grid, tilesById, selection!!) else Modifier).testTag("photosGrid"),
                 horizontalArrangement = Arrangement.spacedBy(2.dp), verticalArrangement = Arrangement.spacedBy(2.dp),
-                userScrollEnabled = !selecting,
+                userScrollEnabled = !selecting || scrollWhileSelecting,
             ) {
                 for (x in list) when (x) {
                     is Header -> if (x.month) {
@@ -492,7 +503,7 @@ fun PhotosContent(
                         Box(Modifier.fillMaxWidth().testTag("dayHeader")) {
                             Text(x.text, Modifier.padding(start = 16.dp, top = 12.dp, bottom = 6.dp), style = MaterialTheme.typography.titleSmall)
                             if (selecting) DayCircle(all, Modifier.align(Alignment.CenterEnd).padding(end = 16.dp)) {
-                                if (all) selection.remove(day.map { it.id }) else selection.addAll(day)
+                                if (all) selection?.remove(day.map { it.id }) else selection?.addAll(day)
                             }
                         }
                     }
@@ -500,8 +511,8 @@ fun PhotosContent(
                         TileImage(
                             x,
                             (if (tabs) Modifier.combinedClickable(
-                                onClick = { if (selecting) selection.toggle(x) else onOpen(photos, x) },
-                                onLongClick = { selection.start(x) },
+                                onClick = { if (selecting) selection?.toggle(x) else onOpen(photos, x) },
+                                onLongClick = { selection?.start(x) },
                             ) else Modifier.clickable { onOpen(photos, x) }).testTag("tile-${x.id}"),
                             selecting = selecting,
                             selected = x.id in selectedIds,
@@ -510,6 +521,7 @@ fun PhotosContent(
                 }
             }
         }
+        footer?.invoke()
     }
 }
 

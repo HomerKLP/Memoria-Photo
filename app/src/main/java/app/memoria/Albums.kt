@@ -32,6 +32,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -39,13 +40,20 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.time.Instant
@@ -131,9 +139,21 @@ fun movePhoto(context: Context, tile: Tile, path: String) {
     context.contentResolver.update(tile.uri, values, null, null)
 }
 
+/** The display names of the device's folders (buckets), for the New album "this name is taken" check. */
+fun albumNames(context: Context): Set<String> {
+    val names = mutableSetOf<String>()
+    val cols = arrayOf(FileColumns.BUCKET_DISPLAY_NAME)
+    val where = "${FileColumns.MEDIA_TYPE} IN (${FileColumns.MEDIA_TYPE_IMAGE}, ${FileColumns.MEDIA_TYPE_VIDEO})"
+    val args = Bundle().apply { putString(ContentResolver.QUERY_ARG_SQL_SELECTION, where) }
+    context.contentResolver.query(MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL), cols, args, null)?.use { c ->
+        while (c.moveToNext()) c.getString(0)?.let { names += it }
+    }
+    return names
+}
+
 /** All device folders as covers. Layout per docs/design.html. Split from the load so previews can pass fake data. */
 @Composable
-fun AlbumsContent(albums: List<Album>?, onBack: () -> Unit = {}, onOpenAlbum: (Long) -> Unit = {}) {
+fun AlbumsContent(albums: List<Album>?, onBack: () -> Unit = {}, onOpenAlbum: (Long) -> Unit = {}, onNewAlbum: () -> Unit = {}) {
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         TopBar("Albums", albums?.let { a -> "${a.size} albums · ${a.sumOf { it.tiles.size }} items" }, onBack = onBack)
         SectionHead("On this device", hint = "Device folders")
@@ -142,15 +162,33 @@ fun AlbumsContent(albums: List<Album>?, onBack: () -> Unit = {}, onOpenAlbum: (L
             horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             items(albums.orEmpty(), key = { it.id }) { CoverTile(it.tiles.first(), it.name, "${it.tiles.size}", Modifier.clickable { onOpenAlbum(it.id) }) }
+            // the New album tile stays last, like the mockup, and does not depend on the load
+            item(key = "newAlbum") { NewAlbumTile(onClick = onNewAlbum) }
+        }
+    }
+}
+
+/** New album tile on Albums (mockup `.place.new`): accent fill, a centered + in the space above the labels, name and "Pick photos" at the bottom. */
+@Composable
+fun NewAlbumTile(modifier: Modifier = Modifier, onClick: () -> Unit = {}) {
+    Box(modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.primaryContainer).clickable(onClick = onClick)) {
+        Column(Modifier.fillMaxSize().padding(8.dp)) {
+            // the + centers in the free space above the labels (mockup `svg.i { margin: auto }` in a flex-end column)
+            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Icon(painterResource(R.drawable.ic_add), null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+            }
+            // lineHeight 1.4 like the mockup's body: a plain Text would take the ambient 24 sp line and push the two lines apart
+            Text("New album", color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("Pick photos", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, lineHeight = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
 
 @Composable
-fun AlbumsScreen(onBack: () -> Unit, onOpenAlbum: (Long) -> Unit) {
+fun AlbumsScreen(onBack: () -> Unit, onOpenAlbum: (Long) -> Unit, onNewAlbum: () -> Unit = {}) {
     val context = LocalContext.current
     val albums by cachedProduceState("albums") { withContext(Dispatchers.IO) { albums(context) } }
-    AlbumsContent(albums, onBack, onOpenAlbum)
+    AlbumsContent(albums, onBack, onOpenAlbum, onNewAlbum)
 }
 
 /**

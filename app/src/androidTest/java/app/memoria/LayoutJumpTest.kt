@@ -344,6 +344,41 @@ class LayoutJumpTest {
     }
 
     /** Photos select mode: the top bar swaps for "N selected" and the tiles grow a circle; the grid must not move. */
+    /** New album: the picker opens in select mode; loading the timeline must not move its bar or footer. */
+    @Test fun newAlbumPick_loadingToLoaded_topBarAndFooterStayPut() {
+        var items by mutableStateOf<List<Any>?>(null)
+        val selection = PhotoSelection()
+        rule.setContent {
+            MemoriaTheme {
+                Surface {
+                    PhotosContent(
+                        items, selection = selection,
+                        forceSelecting = true, titleWhileSelecting = "Add to Holidays",
+                        footer = { ActionBar("Cancel", null, {}, "Move here", R.drawable.ic_move, {}, danger = false) },
+                    )
+                }
+            }
+        }
+
+        val titleBefore = rule.onNodeWithText("Add to Holidays").top()
+        val moveBefore = rule.onNodeWithText("Move here").top()
+        rule.runOnIdle { items = listOf(Header("m1", "October 2026", true), Header("d1", "Sat, 11 Oct", false)) + (1L..9L).map { tile(it) } }
+        assertSame("picker title", titleBefore, rule.onNodeWithText("Add to Holidays").top())
+        assertSame("Move here", moveBefore, rule.onNodeWithText("Move here").top())
+    }
+
+    /** New album sheet: typing must not move the field or the buttons under it. */
+    @Test fun newAlbum_typingPlaceholder_keepsFieldAndButtonsPut() {
+        var name by mutableStateOf("")
+        rule.setContent { MemoriaTheme { Surface { NewAlbumContent(name, { name = it }, false, {}, {}) } } }
+
+        val fieldBefore = rule.onNodeWithText("Album name").top()
+        val cancelBefore = rule.onNodeWithText("Cancel").top()
+        rule.runOnIdle { name = "Holidays" }
+        assertSame("name field", fieldBefore, rule.onNodeWithText("Holidays").top())
+        assertSame("Cancel button", cancelBefore, rule.onNodeWithText("Cancel").top())
+    }
+
     @Test fun photos_selecting_keepsGridPut() {
         val tiles = (1L..9L).map { tile(it) }
         val items: List<Any> = listOf(Header("m1", "October 2026", true), Header("d1", "Sat, 11 Oct", false)) + tiles
