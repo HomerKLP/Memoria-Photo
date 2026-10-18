@@ -118,13 +118,13 @@ Goal: no visible loss, not lossless (re-encoding always loses some).
   - [x] Menu: 14 → 16 dp between icon and text (`Menu`, `Ui.kt`).
   - [x] Search built to the mockup: album hit with its cover as a square, month hit a square icon, faces 72 dp.
 - [ ] UX pass: find and fix what feels broken in use, page by page. Known so far:
-  - [ ] Moving or deleting the last photo of an album leaves an empty album page with no title. An album that becomes empty should close and go back.
-  - [ ] Check every page that shows a set that can run empty, after a move, delete, unfavorite, hide or merge: Album, Place, Person, Favorites, Videos, Trash, and the viewer when its last photo goes. Each should close or show its empty state, never a blank page.
+  - [x] Moving or deleting the last photo of an album leaves an empty album page with no title. An album that becomes empty should close and go back. Fixed 2026-10-18 with `CloseWhenEmpty` (`Ui.kt`); see `bugs.md`.
+  - [x] Check every page that shows a set that can run empty, after a move, delete, unfavorite, hide or merge: Album, Place, Person, Favorites, Videos, Trash, and the viewer when its last photo goes. Each should close or show its empty state, never a blank page. Done 2026-10-18: Album, Place, Videos and the open Person close; Favorites and Trash show their empty states; the viewer already closed. See `bugs.md`.
   - [ ] After Change cover, going back to Library shows the old face for a moment, then flips to the new one. Library starts from its cached data and only then reloads. Fix by updating the cache when the cover changes (or preloading), or at least a crossfade.
 
 ## Phase 7: animations
-Goal: motion that feels finished, like a mature gallery app, before the first APK release. Design first (how each motion looks and how long it runs), then code.
-- [ ] Opening and closing a photo: it grows out of its tile and shrinks back into it.
+Goal: motion that feels finished, like a mature gallery app, before the first APK release. No motion design in the mockup: Claude checks each motion on the emulator, the user on the phone.
+- [x] Opening and closing a photo: it grows out of its tile and shrinks back into it (swipe down or Back). Later: when the open photo's tile is off screen, scroll the grid to it first instead of fading.
 - [ ] Page changes: open and back between screens, and the tab switch.
 - [ ] Sheets, menus and dialogs: smooth in and out.
 - [ ] Select mode: the top bar and the Select bar swap smoothly.

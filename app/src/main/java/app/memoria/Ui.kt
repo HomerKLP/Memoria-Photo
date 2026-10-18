@@ -36,6 +36,7 @@ import androidx.compose.material3.ShortNavigationBarItem
 import androidx.compose.material3.ShortNavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -71,14 +72,31 @@ private val cache = mutableMapOf<String, Any?>()
 /**
  * Like produceState, but starts from what this key had last time and remembers the fresh value.
  * A screen that starts empty is short for a frame, and a list's restored scroll clamps to that.
+ * An empty result is never remembered: it is as short as no cache, and a screen that closes when its
+ * set runs empty (see [CloseWhenEmpty]) must not close on a stale empty value.
  */
 @Composable
-fun <T : Any> cachedProduceState(key: String, vararg keys: Any?, load: suspend () -> T): State<T?> =
+fun <T : Any> cachedProduceState(
+    key: String,
+    vararg keys: Any?,
+    isEmpty: (T) -> Boolean = { it is Collection<*> && it.isEmpty() },
+    load: suspend () -> T,
+): State<T?> =
     produceState(cache[key] as T?, key, *keys) {
         val fresh = load()
-        cache[key] = fresh
+        if (!isEmpty(fresh)) cache[key] = fresh
         value = fresh
     }
+
+/**
+ * Calls [onClose] once a load has finished and found nothing. A page whose whole set ran empty (the
+ * last photo of an album, a place or the videos) closes instead of sitting there blank. [value] null
+ * means the screen is still loading, so nothing happens yet.
+ */
+@Composable
+fun <T> CloseWhenEmpty(value: T?, empty: Boolean, onClose: () -> Unit) {
+    LaunchedEffect(value, empty) { if (value != null && empty) onClose() }
+}
 
 /**
  * One title, one subtitle line, one trailing button. The subtitle keeps its line even when it is

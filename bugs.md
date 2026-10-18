@@ -335,6 +335,8 @@ Steps:
 
 Fix ideas: `albums(context, id)` returns nothing for an empty bucket, so `AlbumScreen` shows the loading state (title " "). Close the page (`onBack`) when a reload finds the album gone. Check Place and Person for the same.
 
+2026-10-18: fixed, and the same check done on every set that can run empty. New `CloseWhenEmpty` (`Ui.kt`): a screen calls `onBack` once a load has finished and found nothing (null means still loading, so nothing closes on the first frame). Used by `AlbumScreen` (album gone), `PlaceScreen` (town gone), `VideosScreen` (no videos), and `PeopleScreen` (the open person left the list; only after it was seen once, so a stale cached list missing a just-created person does not close the screen on open). `cachedProduceState` no longer remembers an empty result — it is as short as no cache, and a stale empty value must not close a page that is only loading. Favorites already shows its "No favorites yet" hint, Trash its empty state, and the viewer already closes when its last photo leaves (trash or move). Behavior test `closeWhenEmpty_firesOnlyAfterALoadFindsNothing`; `make check` and `make layout` green.
+
 ## Old cover flashes on Library after Change cover
 
 After picking a new cover for a person, Library's People row first shows the old face, then flips to the new one.

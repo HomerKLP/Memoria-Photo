@@ -440,6 +440,22 @@ class BehaviorTest {
         rule.onNodeWithText("Move here").assertIsEnabled()
     }
 
+    // --- Empty pages ---------------------------------------------------------------------------
+
+    @Test fun closeWhenEmpty_firesOnlyAfterALoadFindsNothing() {
+        var value by mutableStateOf<Any?>(null)
+        var closes = 0
+        rule.setContent {
+            val v = value
+            MemoriaTheme { Surface { CloseWhenEmpty(v, v is Collection<*> && v.isEmpty()) { closes++ } } }
+        }
+
+        rule.runOnIdle { assertEquals(0, closes) } // still loading: nothing closes
+        rule.runOnIdle { value = emptyList<Int>() }
+        rule.waitUntil(5_000) { closes == 1 }
+        assertEquals(1, closes)
+    }
+
     // --- Settings ------------------------------------------------------------------------------
 
     @Test fun settings_rows_fireTheirCallbacks() {

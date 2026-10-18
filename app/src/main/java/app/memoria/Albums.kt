@@ -276,6 +276,8 @@ fun AlbumScreen(id: Long, onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit
     val pick = rememberPick()
     val album by cachedProduceState("album$id", pick.changes) { withContext(Dispatchers.IO) { albums(context, id) } }
     val a = album?.firstOrNull()
+    // the last photo moved, was deleted or moved out: the album is gone, so close instead of a blank page
+    CloseWhenEmpty(album, album?.isEmpty() == true, onBack)
     val picked = a?.tiles.orEmpty().filter { it.id in pick.ids.orEmpty() }
     var ignored by remember { mutableStateOf(id in IndexProgress.skipped(context)) }
     var moving by remember { mutableStateOf(false) }
@@ -352,7 +354,7 @@ fun VideosContent(videos: Videos?, onBack: () -> Unit = {}, onOpen: (List<Tile>,
 fun VideosScreen(onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit) {
     val context = LocalContext.current
     val pick = rememberPick()
-    val videos by cachedProduceState("videos", pick.changes) {
+    val videos by cachedProduceState("videos", pick.changes, isEmpty = { it.all.isEmpty() }) {
         withContext(Dispatchers.IO) {
             val all = albums(context).flatMap { it.tiles }.filter { it.duration != null }.sortedByDescending { it.date }
             var bytes = 0L
@@ -364,5 +366,7 @@ fun VideosScreen(onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit) {
             Videos(all.groupBy { month.format(Instant.ofEpochMilli(it.date).atZone(zone)) }, all, bytes)
         }
     }
+    // the last video was deleted: nothing to show, so close instead of a blank page
+    CloseWhenEmpty(videos, videos?.all?.isEmpty() == true, onBack)
     VideosContent(videos, onBack, onOpen, pick)
 }

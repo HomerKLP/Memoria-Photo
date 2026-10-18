@@ -264,6 +264,15 @@ fun PeopleScreen(
     BackHandler { if (naming != null) naming = null else if (openId != null) onPersonBack() else onBack() }
     val pick = rememberPick()
     LaunchedEffect(openId) { pick.set(null) }
+    // The open person left the list (faces removed or regrouped away): go back to the list instead of a
+    // stale page. Close only after the person was seen once, so a stale cached list missing a person
+    // just created elsewhere (Library -> the person) does not close the screen on open.
+    var sawOpen by remember { mutableStateOf(false) }
+    LaunchedEffect(result, openId) {
+        if (openId == null) sawOpen = false
+        else if (result?.people?.any { it.id == openId } == true) sawOpen = true
+        else if (sawOpen && result != null) onPersonBack()
+    }
 
     val r = result
     PeopleContent(
