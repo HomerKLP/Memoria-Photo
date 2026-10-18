@@ -19,6 +19,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.rememberSplineBasedDecay
@@ -99,6 +100,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -112,6 +114,8 @@ import kotlin.math.max
 internal val onViewer = Color(0xFFF4ECE1)
 internal val viewerBg = Color(0xFF120E0A)
 private const val maxZoom = 6f
+// Double-tap zoom: short, eased, in the viewer only
+private const val zoomMillis = 250
 
 // Bars fade fast: the tap must feel immediate. Material's default fade is a spring (~400 ms).
 private const val barsFadeMillis = 120
@@ -487,6 +491,8 @@ fun ViewerPage(
     // Zoom state lives here: a zoomed photo cannot be swiped away, so the page is never stale.
     val zoom = remember { mutableFloatStateOf(1f) }
     val pan = remember { mutableStateOf(Offset.Zero) }
+    val scope = rememberCoroutineScope()
+    var zoomJob by remember { mutableStateOf<Job?>(null) }
     val box = remember { mutableStateOf(IntSize.Zero) }
     val fit = remember { mutableStateOf(Size.Zero) }
     LaunchedEffect(image, box.value) { fit.value = fitSize(image, box.value) }
@@ -495,6 +501,10 @@ fun ViewerPage(
     // The details square shows the photo at 1x: opening them drops a zoom, and pinching waits until they close
     val detailsNow by rememberUpdatedState(details)
     fun transform(zoomChange: Float, panChange: Offset) {
+        // A real pinch or pan takes over from a running double-tap zoom. A bare tap (no movement) must
+        // not: its down and up both land here just to clamp the pan, and cancelling would kill the
+        // zoom-out animation the same tap just started.
+        if (zoomChange != 1f || panChange != Offset.Zero) zoomJob?.cancel()
         val next = if (detailsNow() > 0f) 1f else (zoom.floatValue * zoomChange).coerceIn(1f, maxZoom)
         val roomX = ((fit.value.width * next - box.value.width) / 2f).coerceAtLeast(0f)
         val roomY = ((fit.value.height * next - box.value.height) / 2f).coerceAtLeast(0f)
@@ -502,7 +512,20 @@ fun ViewerPage(
         else Offset((pan.value.x + panChange.x).coerceIn(-roomX, roomX), (pan.value.y + panChange.y).coerceIn(-roomY, roomY))
         zoom.floatValue = next
     }
-    LaunchedEffect(Unit) { snapshotFlow { detailsNow() > 0f }.collect { if (it) transform(1f, Offset.Zero) } }
+    // Double tap eases to the target instead of jumping, and keeps the pan inside the new room (1x clears it)
+    fun animateZoomTo(target: Float) {
+        zoomJob?.cancel()
+        zoomJob = scope.launch {
+            animate(zoom.floatValue, target, animationSpec = tween(zoomMillis, easing = FastOutSlowInEasing)) { v, _ ->
+                val roomX = ((fit.value.width * v - box.value.width) / 2f).coerceAtLeast(0f)
+                val roomY = ((fit.value.height * v - box.value.height) / 2f).coerceAtLeast(0f)
+                pan.value = if (v == 1f) Offset.Zero
+                else Offset(pan.value.x.coerceIn(-roomX, roomX), pan.value.y.coerceIn(-roomY, roomY))
+                zoom.floatValue = v
+            }
+        }
+    }
+    LaunchedEffect(Unit) { snapshotFlow { detailsNow() > 0f }.collect { if (it) { zoomJob?.cancel(); transform(1f, Offset.Zero) } } }
     var page by remember { mutableStateOf<LayoutCoordinates?>(null) }
     // The photo's rect and clip right now. No clip: no tile to fly from, so it fades with [shown].
     fun motion(fit: Size, screen: Size): Pair<Rect, Rect?> {
@@ -570,7 +593,7 @@ fun ViewerPage(
                         onTap = { onTap() },
                         onDoubleTap = {
                             // 1x -> 2.5x, then back out. Center anchored: good enough, keeps the maths short.
-                            if (zoom.floatValue > 1f) transform(1f / zoom.floatValue, Offset.Zero) else transform(2.5f, Offset.Zero)
+                            if (zoom.floatValue > 1f) animateZoomTo(1f) else animateZoomTo(2.5f)
                         },
                     )
                 }
