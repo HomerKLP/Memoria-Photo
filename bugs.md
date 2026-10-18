@@ -44,19 +44,23 @@ A/B on the emulator (software GPU, so judge the *difference*; 8 swipes down, the
   phone's release build (baseline fling 1.1%). The emulator's software GPU, not the
   animation, is what makes its numbers high.
 
-2026-10-18: fixed, the way Immich does it. `Photos.kt`: while a tab-tap scroll runs,
-`Thumb` stops starting decodes (`fastScrolling`); the exact distance to the top is
-measured with a `scrollBy` there and back inside one frame (nothing is drawn); then the
-grid is sent up in ONE `animateScrollBy(-distance, tween(tabScrollToTopMs))`. `350 ms`
-capped, whatever the distance. Each frame composes only the on-screen tiles and no tile
-the viewport passes starts a decode, so the cost does not grow with distance. Checked on
-the emulator at 10x (a genuine scroll: headings move continuously, tiles streak by) and on
-the phone (release). `jumpToTop` and `ScrollToTopTest` are gone: one scroll for every tap,
-no separate short-hop path. `make check` and all androidTests green.
+2026-10-18: built Immich-style (one capped `animateScrollBy` tween, distance measured with
+a `scrollBy` there and back in one frame, `Thumb` decoding paused while it runs — see
+`decisions.md`). `jumpToTop` and `ScrollToTopTest` are gone. `make check` and all
+androidTests green; release checked on the emulator (real scroll at 10x) and the phone.
+
+2026-10-18: NOT fixed. The user still finds it sloppy: scrolled to the middle of the real
+library (much farther than my 25-swipe test) and tapped — it stutters, then the rest of
+the way it snaps up instantly. The 350 ms cap means one frame moves an enormous distance,
+so the grid composes a fresh viewport every frame and the tail of the tween lands as a
+jump. Left for later (the user's call, 2026-10-18). Ideas: cap the per-frame move and
+teleport the far part like Compose's own `animateScrollToItem` does, or scroll in chunks
+with a total time budget.
 
 Fix ideas:
 - Done: one continuous scroll, capped at `tabScrollToTopMs`, no decode for tiles that only
   fly by.
+- Open: stop the far-distance stutter-then-snap (see above).
 
 ## Library tab feels laggy
 
