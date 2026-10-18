@@ -448,9 +448,15 @@ fun ViewerPage(
     fun motion(fit: Size, screen: Size): Pair<Rect, Rect?> {
         val spot = tileSpots[tile.id]?.takeIf { fly && it.isAttached }
         val here = page?.takeIf { it.isAttached }
-        val visible = if (spot != null && here != null) here.localBoundingBoxOf(spot, clipBounds = true) else Rect.Zero
-        if (visible.isEmpty) return photoMotion(fit, screen, null, null, 1f, dragY())
-        return photoMotion(fit, screen, here!!.localBoundingBoxOf(spot!!, clipBounds = false), visible, shown(), dragY())
+        // localBoundingBoxOf throws when the two nodes do not share a hierarchy. The tile can leave the
+        // composition while the viewer opens (the grid follows the photo), so this is a real case: no
+        // tile to fly from, fade instead of crashing.
+        fun bounds(from: LayoutCoordinates, to: LayoutCoordinates, clip: Boolean): Rect? =
+            try { from.localBoundingBoxOf(to, clipBounds = clip) } catch (_: IllegalArgumentException) { null }
+        val visible = if (spot != null && here != null) bounds(here, spot, clip = true) else null
+        if (visible == null || visible.isEmpty) return photoMotion(fit, screen, null, null, 1f, dragY())
+        val full = bounds(here!!, spot!!, clip = false) ?: return photoMotion(fit, screen, null, null, 1f, dragY())
+        return photoMotion(fit, screen, full, visible, shown(), dragY())
     }
     Box(
         Modifier.fillMaxSize()

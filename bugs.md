@@ -361,3 +361,14 @@ Steps:
 Fix ideas: Library starts from `cachedProduceState`'s last data (old cover), then reloads. Update the cached Library and People data when the cover changes, or preload before going back; a crossfade at least hides the flip.
 
 2026-10-18: fixed. New `updateCached` (`Ui.kt`) replaces one cached value in place; `LibraryData` and `PeopleData` became data classes with a `withCover(personId, faceId)` helper, and Change cover calls it before `reload++` (`People.kt`). The Library tab is off composition while a person is open, so its cache now holds the new cover for its first frame back. Unit tests `CoverCacheTest` (cover mapping + the cache helper) and `make check` / `make layout` green.
+
+## App crashes (and restarts) when a tile leaves the grid while the viewer opens
+
+The app closes and reopens on its own. Cause (logcat, `AndroidRuntime`): `java.lang.IllegalArgumentException: layouts are not part of the same hierarchy` at `ViewerKt.ViewerPage$motion` (`Viewer.kt`), from the graphicsLayer that flies the photo out of its tile.
+
+`motion()` calls `here.localBoundingBoxOf(spot, …)`: `here` is the viewer page, `spot` is the tile's saved coordinates (`tileSpots`). When the tile leaves the composition while the viewer opens (the grid follows the photo, an item is disposed), the two nodes no longer share a hierarchy and Compose throws.
+
+Steps:
+1. Open a photo, swipe through a few. Crash is a race, so not every time.
+
+2026-10-18: fixed. `motion()` now guards the two `localBoundingBoxOf` calls (`Viewer.kt`, `bounds()` helper) and falls back to the no-tile fade path when the tile's node is gone: no fly-from-tile, no crash.
