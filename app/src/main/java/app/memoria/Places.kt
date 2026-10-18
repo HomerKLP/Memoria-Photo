@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -155,8 +156,10 @@ fun PlaceContent(place: Place?, onBack: () -> Unit = {}, onOpen: (List<Tile>, Ti
         }
         // " " while loading: an empty title may measure to nothing and the grid would jump
         else TopBar(p?.name?.ifEmpty { " " } ?: " ", p?.let { "${it.tiles.size} photos" }, onBack = onBack)
+        val grid = rememberLazyGridState()
+        FollowViewer(grid, p?.tiles.orEmpty())
         LazyVerticalGrid(
-            GridCells.Fixed(3), Modifier.weight(1f).testTag("placeGrid"),
+            GridCells.Fixed(3), Modifier.weight(1f).testTag("placeGrid"), state = grid,
             horizontalArrangement = Arrangement.spacedBy(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp),
         ) {
             p?.tiles?.groupBy { month.format(Instant.ofEpochMilli(it.date).atZone(zone)) }?.forEach { (m, tiles) ->

@@ -32,7 +32,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -67,6 +69,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -94,6 +97,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.Instant
@@ -226,6 +231,36 @@ val tileSpots = HashMap<Long, LayoutCoordinates>()
 
 /** The photo open in the viewer; its tile stays empty, since the viewer draws it. */
 var viewerTile by mutableStateOf<Long?>(null)
+
+/** Keeps the viewer's photo in view in [grid], whose tiles come in [order], so closing the viewer lands in its tile. */
+@Composable
+fun FollowViewer(grid: LazyGridState, order: List<Tile>) {
+    val tiles by rememberUpdatedState(order)
+    LaunchedEffect(grid) { snapshotFlow { viewerTile }.filterNotNull().collectLatest { grid.reveal(it, tiles) } }
+}
+
+/** Scrolls until tile [id] is fully in view and not under a pinned month header. */
+private suspend fun LazyGridState.reveal(id: Long, order: List<Tile>) {
+    val at = order.indexOfFirst { it.id == id }
+    if (at < 0) return
+    // ponytail: walks a screen at a time, unseen behind the viewer; following page by page, it is one step at most
+    repeat(50) {
+        val info = layoutInfo
+        val item = info.visibleItemsInfo.firstOrNull { it.key == id }
+        if (item == null) {
+            val seen = info.visibleItemsInfo.firstOrNull { it.key is Long }?.let { v -> order.indexOfFirst { it.id == v.key } } ?: return
+            scrollBy(if (at < seen) -info.viewportSize.height.toFloat() else info.viewportSize.height.toFloat())
+            return@repeat
+        }
+        // tile keys are Long, header keys are not; a pinned header sits on the top edge with tiles passing under it
+        val top = info.visibleItemsInfo.filter { it.key !is Long && it.offset.y <= info.viewportStartOffset }
+            .maxOfOrNull { it.offset.y + it.size.height } ?: info.viewportStartOffset
+        val below = item.offset.y + item.size.height - info.viewportEndOffset
+        if (item.offset.y < top) animateScrollBy((item.offset.y - top).toFloat())
+        else if (below > 0) animateScrollBy(below.toFloat())
+        return
+    }
+}
 
 /**
  * Writes MediaStore's own favorite flag. Throws SecurityException for photos the app does not own:
@@ -444,8 +479,10 @@ fun FavoritesContent(
             Text("No favorites yet. Open a photo and tap the heart.", Modifier.padding(horizontal = 20.dp))
             return@Column
         }
+        val grid = rememberLazyGridState()
+        FollowViewer(grid, f?.all.orEmpty())
         LazyVerticalGrid(
-            GridCells.Fixed(3), Modifier.weight(1f).testTag("favoritesGrid"),
+            GridCells.Fixed(3), Modifier.weight(1f).testTag("favoritesGrid"), state = grid,
             horizontalArrangement = Arrangement.spacedBy(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp),
         ) {
             f?.months?.forEach { (month, tiles) ->
@@ -595,6 +632,7 @@ fun PhotosContent(
             enabled = !selecting,
             modifier = Modifier.weight(1f),
         ) {
+            FollowViewer(grid, photos)
             LazyVerticalGrid(
                 GridCells.Fixed(4), state = grid,
                 modifier = (if (tabs) Modifier.selectDrag(grid, tilesById, selection!!) else Modifier).testTag("photosGrid"),

@@ -29,6 +29,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -102,8 +103,15 @@ class Person(val faces: List<FaceVec>, val main: FaceVec, val id: Long = 0, val 
     val cover get() = faces.firstOrNull { it.id == coverFaceId } ?: main
 }
 
+/** The same person with a new cover, for updating a cached list in place (see [updateCached]). */
+fun Person.withCover(cover: Long?) = Person(faces, main, id, name, hidden, cover)
+
 /** Everything the People screen shows, loaded in one pass. */
-class PeopleData(val summary: String, val people: List<Person>, val unsure: List<FaceVec>, val total: Int)
+data class PeopleData(val summary: String, val people: List<Person>, val unsure: List<FaceVec>, val total: Int)
+
+/** The same data with one person's cover changed, for updating a cached list in place (see [updateCached]). */
+fun PeopleData.withCover(personId: Long, faceId: Long?) =
+    copy(people = people.map { if (it.id == personId) it.withCover(faceId) else it })
 
 // Decoded face pictures, so scrolling the grids does not decode the same face again
 private val faceBitmaps = object : LruCache<Long, ImageBitmap>((Runtime.getRuntime().maxMemory() / 8).toInt()) {
@@ -314,6 +322,10 @@ fun PeopleScreen(
             covering = null
             scope.launch {
                 withContext(Dispatchers.IO) { dao.setCover(p.id, faceId) }
+                // The Library tab is off composition while this person is open, so update its cache (and
+                // People's) in place; otherwise its first frame back shows the old cover, then flips.
+                updateCached("library", LibraryData::class.java) { it.withCover(p.id, faceId) }
+                updateCached("people", PeopleData::class.java) { it.withCover(p.id, faceId) }
                 reload++
             }
         }
@@ -545,8 +557,10 @@ fun PersonDetail(
                 IconButton({}) { Icon(painterResource(R.drawable.ic_more), "More") }
             },
         )
+        val grid = rememberLazyGridState()
+        FollowViewer(grid, shownPhotos)
         LazyVerticalGrid(
-            GridCells.Fixed(3), modifier = Modifier.weight(1f).testTag("personPhotos"),
+            GridCells.Fixed(3), modifier = Modifier.weight(1f).testTag("personPhotos"), state = grid,
             contentPadding = PaddingValues(bottom = 24.dp),
             horizontalArrangement = Arrangement.spacedBy(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp),
         ) {

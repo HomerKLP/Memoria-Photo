@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
@@ -221,8 +222,10 @@ fun AlbumContent(
             else TopBar(a?.name ?: " ", a?.let { "${it.tiles.size - videos} photos" + if (videos > 0) " · $videos videos" else "" }, onBack = onBack) {
                 IconButton({ more = true }) { Icon(painterResource(R.drawable.ic_more), "More") }
             }
+            val grid = rememberLazyGridState()
+            FollowViewer(grid, a?.tiles.orEmpty())
             LazyVerticalGrid(
-                GridCells.Fixed(3), Modifier.weight(1f).testTag("albumGrid"),
+                GridCells.Fixed(3), Modifier.weight(1f).testTag("albumGrid"), state = grid,
                 horizontalArrangement = Arrangement.spacedBy(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp),
             ) {
                 items(a?.tiles.orEmpty(), key = { it.id }) { t ->
@@ -318,8 +321,10 @@ fun VideosContent(videos: Videos?, onBack: () -> Unit = {}, onOpen: (List<Tile>,
             if (v != null && sel.size < v.all.size) TextButton({ pick.set(v.all.map { it.id }.toSet()) }) { Text("Select all") }
         }
         else TopBar("Videos", v?.let { "${it.all.size} videos · $size" }, onBack = onBack)
+        val grid = rememberLazyGridState()
+        FollowViewer(grid, v?.all.orEmpty())
         LazyVerticalGrid(
-            GridCells.Fixed(3), Modifier.weight(1f).testTag("videosGrid"),
+            GridCells.Fixed(3), Modifier.weight(1f).testTag("videosGrid"), state = grid,
             horizontalArrangement = Arrangement.spacedBy(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp),
         ) {
             v?.months?.forEach { (month, tiles) ->

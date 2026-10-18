@@ -15,7 +15,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -413,7 +412,8 @@ fun ViewerPage(
 ) {
     val context = LocalContext.current
     // Grid thumbnail first, then a screen-size decode
-    val image by produceState(thumbs.get(tile.id), tile.id) {
+    val thumb = remember(tile.id) { thumbs.get(tile.id) }
+    val image by produceState(thumb, tile.id) {
         val full = withContext(Dispatchers.IO) {
             runCatching {
                 // MediaStore keeps only a small video thumbnail, so take a sharp frame from the file
@@ -425,6 +425,8 @@ fun ViewerPage(
         }
         if (full != null) value = full
     }
+    val sharp = remember(tile.id) { Animatable(0f) }
+    LaunchedEffect(image) { if (image !== thumb) sharp.animateTo(1f, tween(150)) }
     // Zoom state lives here: a zoomed photo cannot be swiped away, so the page is never stale.
     val zoom = remember { mutableFloatStateOf(1f) }
     val pan = remember { mutableStateOf(Offset.Zero) }
@@ -507,9 +509,10 @@ fun ViewerPage(
                     translationY = pan.value.y
                 },
         ) {
-            // fade the grid thumbnail into the sharp decode, not a one-frame swap
-            Crossfade(image, Modifier.fillMaxSize(), tween(150), label = "photo") { bitmap ->
-                bitmap?.let { Image(it.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit) }
+            // the sharp decode fades in over the thumbnail, which stays opaque so the grid never shows through mid-zoom
+            thumb?.let { Image(it.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit) }
+            if (image !== thumb) image?.let {
+                Image(it.asImageBitmap(), null, Modifier.fillMaxSize().graphicsLayer { alpha = sharp.value }, contentScale = ContentScale.Fit)
             }
         }
         if (tile.duration != null) {

@@ -89,6 +89,22 @@ fun <T : Any> cachedProduceState(
     }
 
 /**
+ * Replaces one cached value in place. A screen that is off composition (Library while a person is open)
+ * starts from this cache, so a small change like a new cover shows on its first frame instead of the
+ * stale value. Does nothing when the key is not cached or holds another type.
+ */
+fun <T : Any> updateCached(key: String, type: Class<T>, transform: (T) -> T) =
+    updateInCache(cache, key, type, transform)
+
+/** The map part of [updateCached], split out so it can be unit-tested without a composition. */
+internal fun <T : Any> updateInCache(map: MutableMap<String, Any?>, key: String, type: Class<T>, transform: (T) -> T) {
+    val current = map[key]
+    if (current == null || !type.isInstance(current)) return
+    @Suppress("UNCHECKED_CAST")
+    map[key] = transform(current as T)
+}
+
+/**
  * Calls [onClose] once a load has finished and found nothing. A page whose whole set ran empty (the
  * last photo of an album, a place or the videos) closes instead of sitting there blank. [value] null
  * means the screen is still loading, so nothing happens yet.

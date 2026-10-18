@@ -21,6 +21,19 @@ Fix ideas:
 2026-10-16: `Thumb` now loads at most 4 thumbnails at once and cancels a load when its tile leaves the screen. Fling test (8 flings, `dumpsys gfxinfo`), janky frames / 90th percentile: debug cold 29% / 61 ms, debug AOT cold 16% / 28 ms, debug AOT warm 1% / 10 ms, release AOT cold 0% / 6 ms. The rest is the debug build; judge smoothness on release only.
 - Warm visible thumbnails right after `timeline()`.
 
+## Photos: tapping the tab to scroll back to top stutters
+
+Tap the Photos tab while already on it and the grid animates back to the top. The
+animation stutters for a bit at the start.
+
+Steps:
+1. Photos, scroll well down.
+2. Tap the Photos tab again.
+
+Fix ideas:
+- The scroll passes every tile on the way up, so `Thumb` starts a load per tile. Use a bounded pool / skip decoding while the animation runs.
+- Jump (`scrollToItem`) instead of animating when far from the top.
+
 ## Library tab feels laggy
 
 User report, release build. Each Library and People open read all 3555 face pictures and vectors (~30 MB, 15 `CursorWindow: Failed NO_MEMORY` per open). Fixed 2026-10-16: `FaceImage` reads its own picture by face id; 5 overflows per open are left (face vectors).
@@ -346,3 +359,5 @@ Steps:
 2. Go back to Library.
 
 Fix ideas: Library starts from `cachedProduceState`'s last data (old cover), then reloads. Update the cached Library and People data when the cover changes, or preload before going back; a crossfade at least hides the flip.
+
+2026-10-18: fixed. New `updateCached` (`Ui.kt`) replaces one cached value in place; `LibraryData` and `PeopleData` became data classes with a `withCover(personId, faceId)` helper, and Change cover calls it before `reload++` (`People.kt`). The Library tab is off composition while a person is open, so its cache now holds the new cover for its first frame back. Unit tests `CoverCacheTest` (cover mapping + the cache helper) and `make check` / `make layout` green.

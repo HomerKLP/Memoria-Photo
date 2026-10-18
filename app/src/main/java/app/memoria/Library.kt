@@ -54,7 +54,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /** Everything the Library tab shows, loaded in one pass. */
-class LibraryData(
+data class LibraryData(
     val faces: List<Person>,        // one person per row entry (main face + name), same order as the People screen
     val unsure: List<FaceVec>,      // unsure faces for the "Help recognize" card
     val albums: List<Album>,        // device folders, biggest first
@@ -64,6 +64,10 @@ class LibraryData(
     val total: Int,                 // photos in the index scope, for the progress bar
     val places: List<Place> = emptyList(), // towns, most photos first
 )
+
+/** The same data with one person's cover changed, for updating a cached list in place (see [updateCached]). */
+fun LibraryData.withCover(personId: Long, faceId: Long?) =
+    copy(faces = faces.map { if (it.id == personId) it.withCover(faceId) else it })
 
 /** Shown at once when the tab opens again, then replaced by a fresh load. */
 @Composable
