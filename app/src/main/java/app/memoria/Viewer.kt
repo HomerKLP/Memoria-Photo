@@ -446,6 +446,19 @@ internal fun fitSize(imageWidth: Int, imageHeight: Int, boxWidth: Int, boxHeight
 private fun fitSize(bitmap: Bitmap?, box: IntSize): Size =
     if (bitmap == null) Size(0f, 0f) else fitSize(bitmap.width, bitmap.height, box.width, box.height)
 
+/**
+ * Pan that keeps the double-tapped [focus] point under the finger while zooming to [target] (from the
+ * centered 1x photo). Pan is measured from the centered photo (0 = centered), so a tap right of center
+ * pans left to bring that side in. Clamped to the photo's pan room, so a tap near an edge is fine.
+ */
+internal fun zoomToFocusPan(fit: Size, box: Size, target: Float, focus: Offset): Offset {
+    if (target <= 1f) return Offset.Zero
+    val d = focus - Offset(box.width / 2f, box.height / 2f)
+    val roomX = ((fit.width * target - box.width) / 2f).coerceAtLeast(0f)
+    val roomY = ((fit.height * target - box.height) / 2f).coerceAtLeast(0f)
+    return Offset((d.x * (1f - target)).coerceIn(-roomX, roomX), (d.y * (1f - target)).coerceIn(-roomY, roomY))
+}
+
 /** True when the photo's grid tile is at least partly on screen. */
 private fun onScreen(id: Long): Boolean = tileSpots[id]?.takeIf { it.isAttached }?.boundsInWindow()?.isEmpty == false
 
@@ -512,16 +525,18 @@ fun ViewerPage(
         else Offset((pan.value.x + panChange.x).coerceIn(-roomX, roomX), (pan.value.y + panChange.y).coerceIn(-roomY, roomY))
         zoom.floatValue = next
     }
-    // Double tap eases to the target instead of jumping, and keeps the pan inside the new room (1x clears it)
-    fun animateZoomTo(target: Float) {
+    // Double tap eases to the target, and slides the pan to keep the tapped point under the finger.
+    // Zooming back out (target 1x) returns the pan to center.
+    fun animateZoomTo(target: Float, focus: Offset?) {
         zoomJob?.cancel()
+        val startZoom = zoom.floatValue
+        val startPan = pan.value
+        val endPan = if (target <= 1f || focus == null) Offset.Zero
+        else zoomToFocusPan(fit.value, Size(box.value.width.toFloat(), box.value.height.toFloat()), target, focus)
         zoomJob = scope.launch {
-            animate(zoom.floatValue, target, animationSpec = tween(zoomMillis, easing = FastOutSlowInEasing)) { v, _ ->
-                val roomX = ((fit.value.width * v - box.value.width) / 2f).coerceAtLeast(0f)
-                val roomY = ((fit.value.height * v - box.value.height) / 2f).coerceAtLeast(0f)
-                pan.value = if (v == 1f) Offset.Zero
-                else Offset(pan.value.x.coerceIn(-roomX, roomX), pan.value.y.coerceIn(-roomY, roomY))
-                zoom.floatValue = v
+            animate(0f, 1f, animationSpec = tween(zoomMillis, easing = FastOutSlowInEasing)) { t, _ ->
+                zoom.floatValue = startZoom + (target - startZoom) * t
+                pan.value = startPan + (endPan - startPan) * t
             }
         }
     }
@@ -591,9 +606,9 @@ fun ViewerPage(
                 .pointerInput(tile.id) {
                     detectTapGestures(
                         onTap = { onTap() },
-                        onDoubleTap = {
-                            // 1x -> 2.5x, then back out. Center anchored: good enough, keeps the maths short.
-                            if (zoom.floatValue > 1f) animateZoomTo(1f) else animateZoomTo(2.5f)
+                        onDoubleTap = { offset ->
+                            // 1x -> 2.5x zoomed toward the tapped point; 2.5x -> 1x back to center
+                            if (zoom.floatValue > 1f) animateZoomTo(1f, offset) else animateZoomTo(2.5f, offset)
                         },
                     )
                 }

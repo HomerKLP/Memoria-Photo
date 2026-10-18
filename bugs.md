@@ -338,6 +338,27 @@ Steps:
 Fix ideas:
 - Done: cache the last photo list per person so the first frame back is full.
 
+## Double-tap zoom always zooms to the center
+
+Double-tapping a photo in the viewer zooms to 2.5x around the center of the
+screen, not around the point the user tapped. On a photo with detail near an
+edge (a face in a corner), the tapped area drifts away and the user must pan to
+it.
+
+Steps:
+1. Open a photo in the viewer.
+2. Double-tap near a corner. The zoom centers the middle of the photo.
+
+2026-10-19: fixed. The double-tap offset was ignored (`animateZoomTo(target)`
+only changed the zoom and clamped the old pan). Now `onDoubleTap` passes the tap
+`offset`, and `animateZoomTo(target, focus)` slides the pan to
+`zoomToFocusPan(fit, box, target, focus)` (a new pure function) so the tapped
+point stays under the finger, clamped to the photo's pan room. Zooming back out
+(target 1x) returns the pan to center. Zoom and pan now animate together on one
+`tween` progress, so the focus stays put through the whole motion. Checked with
+5 unit tests in `ViewerFitTest` (center, right, clamped near an edge, zoom-out,
+and that the tapped point lands back under the finger).
+
 # Known issues and bad patterns
 
 Found while reading the code, not seen on the phone yet. No steps, just the risk.
