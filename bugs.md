@@ -24,15 +24,28 @@ Fix ideas:
 ## Photos: tapping the tab to scroll back to top stutters
 
 Tap the Photos tab while already on it and the grid animates back to the top. The
-animation stutters for a bit at the start.
+animation is janky the whole way, not only at the start.
 
 Steps:
 1. Photos, scroll well down.
 2. Tap the Photos tab again.
 
+Root cause (found 2026-10-18, emulator A/B): the tab runs
+`photosGrid.animateScrollToItem(0)` (`MainActivity.kt`), which *animates* across the
+whole distance. Compose composes and draws every tile the viewport passes (and, once
+the top tiles have been evicted from the LRU, `Thumb` starts a load per tile, four at a
+time). The budget is spent on tiles that only flash by, so the animation drops frames
+for its ~1.3 s. The farther you scrolled, the more tiles are passed.
+
+A/B on the emulator (software GPU, so judge the *difference*, not the absolute
+numbers; 8 swipes down, then tap, `dumpsys gfxinfo`, 3 runs each):
+- `animateScrollToItem(0)`: 75-82 frames, 25-41% janky, p50 38-48 ms.
+- `scrollToItem(0)` (instant): 47-49 frames, 15-18% janky, p50 26-38 ms.
+
 Fix ideas:
-- The scroll passes every tile on the way up, so `Thumb` starts a load per tile. Use a bounded pool / skip decoding while the animation runs.
-- Jump (`scrollToItem`) instead of animating when far from the top.
+- Jump (`scrollToItem`) when far from the top; keep the animation for a short hop.
+- Or cap the animation time, and don't start thumbnail loads for tiles that are only
+  passing through (load once the scroll settles, like the fling case).
 
 ## Library tab feels laggy
 
