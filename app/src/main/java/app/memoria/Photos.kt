@@ -70,6 +70,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -534,18 +535,21 @@ fun PhotosContent(
                 }, Modifier.weight(1f).padding(start = 20.dp, top = 18.dp, bottom = 18.dp), style = MaterialTheme.typography.titleLarge)
                 IconButton(onSearch) { Icon(painterResource(R.drawable.ic_search), "Search") }
             }
-            if (selecting) Row(
-                Modifier.matchParentSize().background(MaterialTheme.colorScheme.surface).padding(start = 4.dp, end = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton({ onSelectBack?.invoke() ?: selection?.clear() }) { Icon(painterResource(R.drawable.ic_close), "Cancel") }
-                Column(Modifier.weight(1f)) {
-                    // The picker shows "Add to <name>" with the count under it; the tab shows "N selected"
-                    Text(titleWhileSelecting ?: "${selectedIds.size} selected", style = MaterialTheme.typography.titleLarge)
-                    Text(
-                        if (titleWhileSelecting != null) "${selectedIds.size} selected · ${formatBytes(pickedSize)}" else formatBytes(pickedSize),
-                        fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+            // fade the select bar in over the wordmark instead of cutting to it
+            Crossfade(selecting, Modifier.matchParentSize(), animationSpec = tween(150), label = "selectBar") { on ->
+                if (on) Row(
+                    Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface).padding(start = 4.dp, end = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton({ onSelectBack?.invoke() ?: selection?.clear() }) { Icon(painterResource(R.drawable.ic_close), "Cancel") }
+                    Column(Modifier.weight(1f)) {
+                        // The picker shows "Add to <name>" with the count under it; the tab shows "N selected"
+                        Text(titleWhileSelecting ?: "${selectedIds.size} selected", style = MaterialTheme.typography.titleLarge)
+                        Text(
+                            if (titleWhileSelecting != null) "${selectedIds.size} selected · ${formatBytes(pickedSize)}" else formatBytes(pickedSize),
+                            fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }
@@ -707,8 +711,10 @@ fun Thumb(tile: Tile, modifier: Modifier) {
         // The tile left the screen: stop its load
         awaitDispose { signal.cancel() }
     }
+    // A freshly decoded thumb fades in; a cached one is already there on the first frame (no flash)
+    val alpha by animateFloatAsState(if (image != null) 1f else 0f, tween(180), label = "thumb")
     Box(modifier.background(MaterialTheme.colorScheme.surfaceVariant)) {
-        image?.let { Image(it.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
+        image?.let { Image(it.asImageBitmap(), null, Modifier.fillMaxSize().alpha(alpha), contentScale = ContentScale.Crop) }
         tile.duration?.let { ms ->
             val s = ms / 1000
             val shadow = TextStyle(color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium, shadow = Shadow(Color.Black.copy(alpha = 0.5f), Offset(0f, 1f), 2f))

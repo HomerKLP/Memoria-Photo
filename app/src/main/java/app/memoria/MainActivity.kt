@@ -16,6 +16,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -297,23 +298,27 @@ fun App(dir: File) {
             TrashScreen { screen = "library" }
         }
         else -> Scaffold(bottomBar = {
-            if (screen == "photos" && selection.active) SelectBar(
-                favorite = selection.allFavorite,
-                onShare = shareSelected,
-                onFavorite = { favoriteSelected(!selection.allFavorite) },
-                onDelete = deleteSelected,
-            )
-            else ShortNavigationBar {
-                ShortNavigationBarItem(
-                    screen == "photos", {
-                        if (screen == "photos") scope.launch { photosGrid.animateScrollToItem(0) } else screen = "photos"
-                    }, { Icon(painterResource(R.drawable.ic_photo), null) }, { Text("Photos") },
-                    iconPosition = NavigationItemIconPosition.Start,
+            // The tabs and the Select bar are the same height (both build on ShortNavigationBar),
+            // so crossfading them never moves the grid.
+            Crossfade(targetState = screen == "photos" && selection.active, label = "bottomBar") { selecting ->
+                if (selecting) SelectBar(
+                    favorite = selection.allFavorite,
+                    onShare = shareSelected,
+                    onFavorite = { favoriteSelected(!selection.allFavorite) },
+                    onDelete = deleteSelected,
                 )
-                ShortNavigationBarItem(
-                    screen == "library", { screen = "library" }, { Icon(painterResource(R.drawable.ic_library), null) }, { Text("Library") },
-                    iconPosition = NavigationItemIconPosition.Start,
-                )
+                else ShortNavigationBar {
+                    ShortNavigationBarItem(
+                        screen == "photos", {
+                            if (screen == "photos") scope.launch { photosGrid.animateScrollToItem(0) } else screen = "photos"
+                        }, { Icon(painterResource(R.drawable.ic_photo), null) }, { Text("Photos") },
+                        iconPosition = NavigationItemIconPosition.Start,
+                    )
+                    ShortNavigationBarItem(
+                        screen == "library", { screen = "library" }, { Icon(painterResource(R.drawable.ic_library), null) }, { Text("Library") },
+                        iconPosition = NavigationItemIconPosition.Start,
+                    )
+                }
             }
         }) { padding ->
             Column(Modifier.padding(padding)) {

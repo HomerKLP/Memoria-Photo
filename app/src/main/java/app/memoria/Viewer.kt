@@ -16,6 +16,9 @@ import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -55,6 +58,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -70,6 +74,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
@@ -81,6 +86,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.LocalDate
@@ -129,9 +135,15 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
     val tile = list[pager.currentPage.coerceAtMost(list.lastIndex)]
     // Swipe down to close: track the drag, dismiss only past a threshold
     val dismissAt = with(LocalDensity.current) { 120.dp.toPx() }
+    // Swipe down far enough and the photo slides off this far before the viewer closes
+    val screenH = with(LocalDensity.current) { LocalConfiguration.current.screenHeightDp.dp.toPx() }
     // Swipe up: a much shorter pull is enough, the remaining gesture belongs to the sheet
     val openAt = with(LocalDensity.current) { 48.dp.toPx() }
-    var dragY by remember { mutableFloatStateOf(0f) }
+    // The downward pull follows the finger, then springs back or slides the photo off to close
+    val dragY = remember { Animatable(0f) }
+    // The upward pull only counts towards the details threshold; the photo itself stays put
+    var pullUp by remember { mutableFloatStateOf(0f) }
+    val scope = rememberCoroutineScope()
     // A zoomed photo owns every finger, so the pager and the vertical swipes wait. Reset when the page changes.
     var zoomed by remember { mutableStateOf(false) }
     LaunchedEffect(pager.currentPage) { zoomed = false }
@@ -176,64 +188,81 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
     // Photo fills the whole screen, the bars float on it (transparent gradient, see ViewerChrome)
     val zone = Instant.ofEpochMilli(tile.date).atZone(ZoneId.systemDefault())
     val dayPattern = if (zone.year == LocalDate.now().year) "EEE, d MMM" else "EEE, d MMM yyyy"
-    Box(
-        Modifier.fillMaxSize().background(viewerBg)
-            // Only a downward drag moves the photo (closing it). On an upward drag the photo stays
-            // put: a short pull opens the details and the sheet is the feedback.
-            .offset { IntOffset(0, dragY.coerceAtLeast(0f).roundToInt()) }
-            .draggable(
-                orientation = Orientation.Vertical,
-                state = rememberDraggableState {
-                    dragY += it
-                    if (dragY < -openAt && !details) { details = true; dragY = 0f }
+    // Static dark backdrop: on a dismiss the photo (and the bars) slide over it, so no window gap shows.
+    Box(Modifier.fillMaxSize().background(viewerBg)) {
+        Box(
+            Modifier.fillMaxSize()
+                // Only a downward drag moves the photo (closing it). On an upward drag the photo stays
+                // put: a short pull opens the details and the sheet is the feedback.
+                .offset { IntOffset(0, dragY.value.roundToInt()) }
+                .draggable(
+                    orientation = Orientation.Vertical,
+                    state = rememberDraggableState { delta ->
+                        if (delta < 0f) {
+                            // upward: only the threshold matters, the photo does not move
+                            pullUp -= delta
+                            if (pullUp > openAt && !details) { details = true; pullUp = 0f }
+                        } else {
+                            scope.launch { dragY.snapTo((dragY.value + delta).coerceAtLeast(0f)) }
+                        }
+                    },
+                    enabled = !zoomed,
+                    onDragStopped = {
+                        pullUp = 0f
+                        scope.launch {
+                            if (dragY.value > dismissAt) {
+                                // let go past the threshold: slide the photo off, then close
+                                dragY.animateTo(screenH, tween(200))
+                                onBack()
+                            } else {
+                                // under the threshold: ease back into place instead of snapping
+                                dragY.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow))
+                            }
+                        }
+                    },
+                ),
+        ) {
+            HorizontalPager(pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1, userScrollEnabled = !zoomed, key = { list[it].id }) {
+                ViewerPage(list[it], { zoomed = it }, onTap = { barsVisible = !barsVisible })
+            }
+            ViewerChrome(
+                visible = barsVisible,
+                title = DateTimeFormatter.ofPattern(dayPattern).format(zone),
+                subtitle = DateTimeFormatter.ofPattern("HH:mm").format(zone),
+                favorite = favorite,
+                onBack = onBack,
+                onShare = {
+                    val send = Intent(Intent.ACTION_SEND).setType(context.contentResolver.getType(tile.uri))
+                        .putExtra(Intent.EXTRA_STREAM, tile.uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    context.startActivity(Intent.createChooser(send, null))
                 },
-                enabled = !zoomed,
-                onDragStopped = {
-                    if (dragY > dismissAt) onBack()
-                    dragY = 0f
+                onFavorite = {
+                    val next = !favorite
+                    try {
+                        setFavorite(context, tile, next) // our own photos need no dialog
+                        favorites[tile.id] = next
+                        updateTile(tile.copy(favorite = next))
+                    } catch (e: SecurityException) {
+                        // someone else's photo: Android asks the user once, then remembers
+                        pending = tile.id to next
+                        val ask = MediaStore.createFavoriteRequest(context.contentResolver, listOf(tile.uri), next)
+                        consent.launch(IntentSenderRequest.Builder(ask.intentSender).build())
+                    }
                 },
-            ),
-    ) {
-        HorizontalPager(pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1, userScrollEnabled = !zoomed, key = { list[it].id }) {
-            ViewerPage(list[it], { zoomed = it }, onTap = { barsVisible = !barsVisible })
+                onInfo = { details = true },
+                onDelete = {
+                    trashing = tile.id
+                    val ask = MediaStore.createTrashRequest(context.contentResolver, listOf(tile.uri), true)
+                    trashAsk.launch(IntentSenderRequest.Builder(ask.intentSender).build())
+                },
+                menuItems = buildList {
+                    add(MenuItem(R.drawable.ic_edit, "Edit in…") { editIn(context, tile) })
+                    add(MenuItem(R.drawable.ic_wallpaper, "Use as…") { useAs(context, tile) })
+                    if (showInAlbum) add(MenuItem(R.drawable.ic_folder, "Show in album") { onShowInAlbum(tile) })
+                    add(MenuItem(R.drawable.ic_move, "Move to album", dividerBefore = true) { moving = true })
+                },
+            )
         }
-        ViewerChrome(
-            visible = barsVisible,
-            title = DateTimeFormatter.ofPattern(dayPattern).format(zone),
-            subtitle = DateTimeFormatter.ofPattern("HH:mm").format(zone),
-            favorite = favorite,
-            onBack = onBack,
-            onShare = {
-                val send = Intent(Intent.ACTION_SEND).setType(context.contentResolver.getType(tile.uri))
-                    .putExtra(Intent.EXTRA_STREAM, tile.uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                context.startActivity(Intent.createChooser(send, null))
-            },
-            onFavorite = {
-                val next = !favorite
-                try {
-                    setFavorite(context, tile, next) // our own photos need no dialog
-                    favorites[tile.id] = next
-                    updateTile(tile.copy(favorite = next))
-                } catch (e: SecurityException) {
-                    // someone else's photo: Android asks the user once, then remembers
-                    pending = tile.id to next
-                    val ask = MediaStore.createFavoriteRequest(context.contentResolver, listOf(tile.uri), next)
-                    consent.launch(IntentSenderRequest.Builder(ask.intentSender).build())
-                }
-            },
-            onInfo = { details = true },
-            onDelete = {
-                trashing = tile.id
-                val ask = MediaStore.createTrashRequest(context.contentResolver, listOf(tile.uri), true)
-                trashAsk.launch(IntentSenderRequest.Builder(ask.intentSender).build())
-            },
-            menuItems = buildList {
-                add(MenuItem(R.drawable.ic_edit, "Edit in…") { editIn(context, tile) })
-                add(MenuItem(R.drawable.ic_wallpaper, "Use as…") { useAs(context, tile) })
-                if (showInAlbum) add(MenuItem(R.drawable.ic_folder, "Show in album") { onShowInAlbum(tile) })
-                add(MenuItem(R.drawable.ic_move, "Move to album", dividerBefore = true) { moving = true })
-            },
-        )
     }
     if (details) DetailsSheet(tile, onDismiss = { details = false })
     if (moving) MoveToAlbumSheet(tile, onDismiss = { moving = false }, onMove = { path -> moving = false; applyMove(tile.id, path) })
