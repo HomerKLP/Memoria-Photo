@@ -391,7 +391,6 @@ fun PeopleContent(
         } else if (open == null) {
             TopBar("People", data?.summary, onBack = onBack)
             LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 24.dp)) {
-                item { SearchBar("Search people") }
                 data?.let { d ->
                     if (d.unsure.isNotEmpty()) item {
                         ReviewCard(d.unsure, { onHelpRecognize(null) })
@@ -556,7 +555,7 @@ fun PersonDetail(
 
 /** Bordered action chip, like the mockup's Rename / Merge with. */
 @Composable
-private fun Chip(label: String, icon: Int, onClick: () -> Unit) {
+fun Chip(label: String, icon: Int, onClick: () -> Unit) {
     Row(
         Modifier.clip(RoundedCornerShape(18.dp)).background(MaterialTheme.colorScheme.surfaceVariant)
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(18.dp))

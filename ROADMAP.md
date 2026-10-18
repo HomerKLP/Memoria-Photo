@@ -6,7 +6,7 @@ Hardest part first, UI last. Phases are the order of work; Later and Ideas at th
 
 **Index upgrades:** a new index step (search labels, OCR, video towns) fills in only what an existing index is missing, like `recutThumbs` does for face pictures. Never re-index from scratch, so names, merges, hidden people, covers and answers stay.
 
-**Next step:** Phase 6 (design and UI polish) is current; Phase 2 (face pipeline) is paused and its index / grouping follow-ups wait until the UI is mostly finished. UI items to pick from: the unbuilt screens (Search, New album). Phase 1 leftovers (tuning limits, more Takeout parts) wait until the user asks.
+**Next step:** Phase 6 (design and UI polish) is current; Phase 2 (face pipeline) is paused and its index / grouping follow-ups wait until the UI is mostly finished. UI items to pick from: the UX pass list in Phase 6. Phase 1 leftovers (tuning limits, more Takeout parts) wait until the user asks.
 
 ## Phase 1: face pipeline quality (done, leftovers later)
 Pick the best models on real photos before writing app code. Details: `docs/face-pipeline.md`.
@@ -93,7 +93,7 @@ Goal: keep screenshots, memes and documents out of face search.
 - [ ] Later: spots inside a place (a lake or park near a town shows inside that town's Place). Not designed; see Open questions.
 - [x] Videos screen from the Library card: all videos by month (month pinned), 3-column grid, count and total size on top.
 - [ ] Media3 video player.
-- [ ] Search screen (mockup "Search"): from the Photos icon and the Library bar. Finds people, albums, months and years (places after offline geocoding), each hit opens a screen we have. Later: two people at once, free text, a results grid.
+- [x] Search screen (mockup "Search", `Search.kt`): from the Photos icon and the Library bar. Empty field: named people, Videos / Favorites / Screenshots chips (Screenshots opens the phone's Screenshots album, hidden without one), Recent. Typing finds word starts in people, places, albums, years and months; each hit opens a screen we have, and back returns to Search. A year or month opens the Photos tab at that month. Checked on the phone. Later: two people at once, free text, a results grid.
 
 ## Phase 5: video compression
 Goal: no visible loss, not lossless (re-encoding always loses some).
@@ -115,7 +115,7 @@ Goal: no visible loss, not lossless (re-encoding always loses some).
   - [x] Merge with and Change cover: a picked face also gets the accent check (`PersonCard`, `ChangeCoverSheet`).
   - [x] Sheets: side padding 20 → 16 dp, subtitle 13 → 12 sp, 16 dp between a row's picture and its text. Who is this? (`Recognize.kt`), Merge with, Change cover, Name this person (`People.kt`), Move to album (`Move.kt`).
   - [x] Menu: 14 → 16 dp between icon and text (`Menu`, `Ui.kt`).
-  - Not built yet, build to the mockup: Search (album hit shows its cover as a square, month hit a square icon, faces 72 dp).
+  - [x] Search built to the mockup: album hit with its cover as a square, month hit a square icon, faces 72 dp.
 - [ ] UX pass: find and fix what feels broken in use, page by page. Known so far:
   - [ ] Moving or deleting the last photo of an album leaves an empty album page with no title. An album that becomes empty should close and go back.
   - [ ] Check every page that shows a set that can run empty, after a move, delete, unfavorite, hide or merge: Album, Place, Person, Favorites, Videos, Trash, and the viewer when its last photo goes. Each should close or show its empty state, never a blank page.

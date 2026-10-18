@@ -574,4 +574,23 @@ class LayoutJumpTest {
         assertEquals("unnamed cards on screen", 5, unnamedH.size)
         assertTrue("unnamed cards differ in height: $unnamedH", unnamedH.all { it == unnamedH.first() })
     }
+
+    /** Search: the field is the top bar, so loading, typing (the × shows, hits replace the lists) and clearing never move it. */
+    @Test fun search_loadingAndTyping_keepFieldPut() {
+        var data by mutableStateOf<SearchData?>(null)
+        var text by mutableStateOf("")
+        rule.setContent { MemoriaTheme { Surface { SearchContent(data, text, onQuery = { text = it }) } } }
+
+        val top = rule.onNodeWithTag("searchField").top()
+        val height = rule.onNodeWithTag("searchField").height()
+        rule.runOnIdle {
+            data = SearchData(listOf(person(1, "Dana")), listOf(Hit("person", "1", "Dana", "1 photo", face = face(1))), listOf(Hit("videos", "videos", "Videos")))
+        }
+        assertSame("field after loading", top, rule.onNodeWithTag("searchField").top())
+        rule.runOnIdle { text = "d" }
+        assertSame("field while typing", top, rule.onNodeWithTag("searchField").top())
+        assertSame("field height while typing", height, rule.onNodeWithTag("searchField").height())
+        rule.runOnIdle { text = "" }
+        assertSame("field after clearing", top, rule.onNodeWithTag("searchField").top())
+    }
 }

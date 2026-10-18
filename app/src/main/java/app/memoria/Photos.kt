@@ -269,6 +269,7 @@ fun PhotosScreen(
     grid: LazyGridState = rememberLazyGridState(),
     selection: PhotoSelection? = null,
     reload: Int = 0,
+    onSearch: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val media = arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO)
@@ -305,6 +306,7 @@ fun PhotosScreen(
         grid = grid,
         selection = selection,
         pickedSize = pickedSize,
+        onSearch = onSearch,
     )
 }
 
@@ -380,6 +382,7 @@ fun PhotosContent(
     grid: LazyGridState = rememberLazyGridState(),
     selection: PhotoSelection? = null,
     pickedSize: Long = 0L,
+    onSearch: () -> Unit = {},
     // The New album picker opens already in select mode (empty pick), under its own title and bar:
     forceSelecting: Boolean? = null,
     titleWhileSelecting: String? = null,
@@ -437,8 +440,7 @@ fun PhotosContent(
                     append("Memoria ")
                     withStyle(SpanStyle(MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)) { append("Photo") }
                 }, Modifier.weight(1f).padding(start = 20.dp, top = 18.dp, bottom = 18.dp), style = MaterialTheme.typography.titleLarge)
-                // search is not designed yet: the mockup's magnifier, like the Library gear
-                IconButton({}) { Icon(painterResource(R.drawable.ic_search), "Search") }
+                IconButton(onSearch) { Icon(painterResource(R.drawable.ic_search), "Search") }
             }
             if (selecting) Row(
                 Modifier.matchParentSize().background(MaterialTheme.colorScheme.surface).padding(start = 4.dp, end = 8.dp),

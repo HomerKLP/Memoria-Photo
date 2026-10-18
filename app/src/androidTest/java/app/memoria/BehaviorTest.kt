@@ -389,4 +389,65 @@ class BehaviorTest {
         rule.onNodeWithText("Hidden people").performScrollTo().performClick()
         assertTrue(hidden)
     }
+
+    // --- Search --------------------------------------------------------------------------------
+
+    private val search = SearchData(
+        people = listOf(person(1, "Dana")),
+        hits = listOf(
+            Hit("person", "1", "Dana", "8 photos", face = face(1)),
+            Hit("album", "5", "Downloads", "33 items", cover = tile(5)),
+            Hit("album", "6", "Andy's phone", "4 items", cover = tile(6)),
+            Hit("month", "m2025-12", "December 2025", "48 items"),
+        ),
+        types = listOf(Hit("videos", "videos", "Videos"), Hit("favorites", "favorites", "Favorites"), Hit("album", "7", "Screenshots")),
+    )
+
+    @Test fun search_typing_findsWordStartsAndOpensAHit() {
+        var text by mutableStateOf("")
+        var opened: Hit? = null
+        rule.setContent { MemoriaTheme { Surface { SearchContent(search, text, onQuery = { text = it }, onOpen = { opened = it }) } } }
+
+        rule.onNodeWithTag("searchField").performTextInput("d")
+        rule.onNodeWithText("December 2025").assertIsDisplayed()
+        rule.onNodeWithText("Andy's phone").assertDoesNotExist()
+        rule.onNodeWithText("Downloads").performClick()
+        assertEquals("5", opened?.key)
+    }
+
+    @Test fun search_clear_emptiesTheField() {
+        var text by mutableStateOf("da")
+        rule.setContent { MemoriaTheme { Surface { SearchContent(search, text, onQuery = { text = it }) } } }
+
+        rule.onNodeWithContentDescription("Clear").performClick()
+        assertEquals("", text)
+        rule.onNodeWithText("Types").assertIsDisplayed()
+    }
+
+    @Test fun search_noHits_saysSo() {
+        rule.setContent { MemoriaTheme { Surface { SearchContent(search, "xyz") } } }
+        rule.onNodeWithText("Nothing for \"xyz\"").assertIsDisplayed()
+    }
+
+    @Test fun search_peopleChipsAndRecent_fireTheirCallbacks() {
+        var opened: Hit? = null
+        var removed: Hit? = null
+        var cleared = false
+        rule.setContent {
+            MemoriaTheme { Surface {
+                SearchContent(search, "", recent = listOf(search.hits[3]), onOpen = { opened = it }, onRemoveRecent = { removed = it }, onClearRecent = { cleared = true })
+            } }
+        }
+
+        rule.onNodeWithText("Dana").performClick()
+        assertEquals("person", opened?.kind)
+        rule.onNodeWithText("Screenshots").performClick()
+        assertEquals("7", opened?.key)
+        rule.onNodeWithText("December 2025").performClick()
+        assertEquals("m2025-12", opened?.key)
+        rule.onNodeWithContentDescription("Remove").performClick()
+        assertEquals("m2025-12", removed?.key)
+        rule.onNodeWithText("Clear").performClick()
+        assertTrue(cleared)
+    }
 }

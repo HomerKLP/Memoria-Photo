@@ -304,6 +304,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .search-bar { display: flex; align-items: center; gap: 4px; min-height: 60px; padding: 4px 16px 4px 4px; }
 .search-bar .field { flex: 1; margin: 0; }
 .field .clear { margin: 0 -12px 0 auto; color: var(--muted); }
+.search-bar .field.filled > svg.i { margin-right: 12px; } /* the magnifier stays while typing, so the text never jumps */
 .head + .chips { padding-top: 0; }
 .pick > svg.i, .pick .icon-btn { color: var(--muted); }
 .pick .icon-btn { margin-right: -12px; }
@@ -478,14 +479,14 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Search: opens from the Photos search icon and the Library search bar, keyboard down. A screen, not a third tab. Named people, types, recent searches; each opens a screen we already have. Recent keeps what you opened; × removes one, Clear all. Nothing recent: no Recent heading. People's own search bar only filters that screen</figcaption>
+      <figcaption>Search: opens from the Photos search icon and the Library search bar, keyboard down. A screen, not a third tab. Named people, types, recent searches; each opens a screen we already have, and back returns here. Screenshots opens the phone's Screenshots album; no such album, no chip. Recent keeps what you opened; × removes one, Clear all. Nothing recent: no Recent heading</figcaption>
     </figure>
     <figure id="search-typing">
       <div class="phone">
         <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
         <div class="search-bar">
           <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
-          <div class="field filled">d<span class="caret"></span><button class="icon-btn clear" aria-label="Clear"><svg class="i"><use href="#i-close"/></svg></button></div>
+          <div class="field filled"><svg class="i"><use href="#i-search"/></svg>d<span class="caret"></span><button class="icon-btn clear" aria-label="Clear"><svg class="i"><use href="#i-close"/></svg></button></div>
         </div>
         <div class="scroll" id="search-hits"></div>
         <div class="kbd"></div>
@@ -876,7 +877,6 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="title"><b>People</b><span>18 people · 1,214 faces</span></div>
         </div>
         <div class="scroll">
-          <div class="search"><svg class="i"><use href="#i-search"/></svg>Search people</div>
   
           <div class="review">
             <div class="stack" id="people-unsure"></div>
@@ -1414,7 +1414,7 @@ fill("search-people", order.filter(i => people[i]).map(i => `<div class="person"
 fill("search-recent", ["Dana", "August 2026", "Camera"]
   .map(t => `<div class="pick"><svg class="i"><use href="#i-history"/></svg><b>${t}</b><button class="icon-btn" aria-label="Remove"><svg class="i"><use href="#i-close"/></svg></button></div>`).join(""));
 const square = icon => `<span class="round square"><svg class="i"><use href="#i-${icon}"/></svg></span>`;
-fill("search-hits", [[face(2, 40), "Dana", "230 photos"], ['<span class="thumb" data-shot></span>', "Downloads", "33 items"], [square("calendar"), "December 2025", "48 photos"]]
+fill("search-hits", [[face(2, 40), "Dana", "230 photos"], ['<span class="thumb" data-shot></span>', "Downloads", "33 items"], [square("calendar"), "December 2025", "48 items"]]
   .map(([lead, t, c]) => `<div class="pick">${lead}<b><mark>${t[0]}</mark>${t.slice(1)}</b><span>${c}</span></div>`).join(""));
 document.querySelectorAll(".kbd").forEach(k => k.innerHTML = [10, 9, 7].map(n => `<div>${"<i></i>".repeat(n)}</div>`).join("") + '<div><i></i><i></i><i class="wide"></i><i></i><i></i></div>');
 fill("cover-face", face(2, 48));

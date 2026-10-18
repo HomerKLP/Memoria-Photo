@@ -68,6 +68,7 @@ class LibraryData(
 /** Shown at once when the tab opens again, then replaced by a fresh load. */
 @Composable
 fun LibraryScreen(
+    onOpenSearch: () -> Unit,
     onOpenPeople: () -> Unit,
     onOpenPerson: (Long) -> Unit,
     onOpenAlbums: () -> Unit,
@@ -120,6 +121,7 @@ fun LibraryScreen(
         paused = !running && IndexProgress.paused(context),
         onPauseIndex = { IndexControl.pause(context) },
         onResumeIndex = { IndexControl.resume(context) },
+        onOpenSearch = onOpenSearch,
         onOpenPeople = onOpenPeople,
         onOpenPerson = onOpenPerson,
         onOpenAlbums = onOpenAlbums,
@@ -147,6 +149,7 @@ fun LibraryContent(
     paused: Boolean = false,
     onPauseIndex: () -> Unit = {},
     onResumeIndex: () -> Unit = {},
+    onOpenSearch: () -> Unit = {},
     onOpenPeople: () -> Unit = {},
     onOpenPerson: (Long) -> Unit = {},
     onOpenAlbums: () -> Unit = {},
@@ -165,7 +168,7 @@ fun LibraryContent(
             Text("Library", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
             IconButton(onOpenSettings) { Icon(painterResource(R.drawable.ic_settings), "Settings") }
         }
-        SearchBar()
+        SearchBar(onOpenSearch)
         SectionHead("People", "See all", onOpenPeople)
         PeopleRow(data?.faces, onOpenPerson, onOpenPeople)
         IndexProgressRow(
@@ -187,24 +190,24 @@ fun LibraryContent(
     }
 }
 
-/** Rounded search field from the mockup: 48 dp tall, 24 dp corners, 16 dp from the edge. Search is not built yet. */
+/** Rounded search field from the mockup: 48 dp tall, 24 dp corners, 16 dp from the edge. A tap opens Search. */
 @Composable
-fun SearchBar(placeholder: String = "Search people, places, dates") {
+fun SearchBar(onClick: () -> Unit) {
     Row(
         Modifier.padding(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 4.dp).fillMaxWidth()
             .height(48.dp).clip(RoundedCornerShape(24.dp)).background(MaterialTheme.colorScheme.surfaceVariant)
-            .padding(horizontal = 16.dp),
+            .clickable(onClick = onClick).padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(painterResource(R.drawable.ic_search), null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.width(12.dp))
-        Text(placeholder, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Search people, places, dates", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
 /** "People" / "See all" header row. */
 @Composable
-fun SectionHead(title: String, action: String? = null, onAction: (() -> Unit)? = null, hint: String? = null) {
+fun SectionHead(title: String, action: String? = null, onAction: (() -> Unit)? = null, hint: String? = null, chevron: Boolean = true) {
     Row(
         Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 22.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -215,7 +218,7 @@ fun SectionHead(title: String, action: String? = null, onAction: (() -> Unit)? =
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(action, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary)
-            Icon(painterResource(R.drawable.ic_chevron), null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+            if (chevron) Icon(painterResource(R.drawable.ic_chevron), null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
         }
         if (hint != null) Text(hint, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }

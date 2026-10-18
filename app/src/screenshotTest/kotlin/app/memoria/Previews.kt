@@ -500,3 +500,32 @@ fun PhotosSelect() = MemoriaTheme {
     val selection = remember { PhotoSelection().apply { addAll(tiles.take(6)) } }
     Surface { PhotosContent(items, selection = selection, pickedSize = 18_400_000) }
 }
+
+private val fakeSearch = SearchData(
+    people = listOf(fakePerson(1, "Dana"), fakePerson(2, "Arman"), fakePerson(3, "Bota"), fakePerson(4, "Mei")),
+    hits = listOf(
+        Hit("person", "1", "Dana", "230 photos", face = fakeFace(100, 0.9f)),
+        Hit("album", "5", "Downloads", "33 items", cover = fakeAlbum(5, "Downloads", 1).tiles.first()),
+        Hit("year", "m2025-12", "2025", "412 items"),
+        Hit("month", "m2025-12", "December 2025", "48 items"),
+        Hit("album", "6", "Camera", "1,204 items", cover = fakeAlbum(6, "Camera", 1).tiles.first()),
+    ),
+    types = listOf(Hit("videos", "videos", "Videos"), Hit("favorites", "favorites", "Favorites"), Hit("album", "7", "Screenshots")),
+)
+
+/** Search (mockup): named people, types and recent. Pairs with search_loadingAndTyping_keepFieldPut. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 760)
+@Composable
+fun SearchStart() = MemoriaTheme { Surface { SearchContent(fakeSearch, "", recent = listOf(fakeSearch.hits[0], fakeSearch.hits[3], fakeSearch.hits[4])) } }
+
+/** Search, typing (mockup): word-start hits, the typed letter in the accent. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 760)
+@Composable
+fun SearchTyping() = MemoriaTheme { Surface { SearchContent(fakeSearch, "d") } }
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 400)
+@Composable
+fun SearchNoHits() = MemoriaTheme { Surface { SearchContent(fakeSearch, "xyz") } }

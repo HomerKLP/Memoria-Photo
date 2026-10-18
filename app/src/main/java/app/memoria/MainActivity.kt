@@ -104,6 +104,9 @@ fun App(dir: File) {
     var viewerFrom by rememberSaveable { mutableStateOf("photos") } // the screen under the viewer, back from Show in album returns here
     var openPerson by rememberSaveable { mutableStateOf<Long?>(null) } // People screen shows this person, if set
     var personDirect by rememberSaveable { mutableStateOf(false) } // person was opened from Library, so back returns there
+    var peopleFrom by rememberSaveable { mutableStateOf("library") } // back from People or a person returns here
+    var shortcutFrom by rememberSaveable { mutableStateOf("library") } // back from Favorites or Videos returns here
+    var searchFrom by rememberSaveable { mutableStateOf("library") } // back from Search returns to this tab
     var openAlbum by rememberSaveable { mutableStateOf(0L) }
     var albumFrom by rememberSaveable { mutableStateOf("library") } // back from an album returns here
     var namingAlbum by rememberSaveable { mutableStateOf(false) } // Albums shows the New album name sheet
@@ -192,7 +195,7 @@ fun App(dir: File) {
         }
         "people" -> {
             // removeState on close: the next visit starts at the list, not the last person
-            val close = { tabs.removeState("people"); openPerson = null; personDirect = false; screen = "library" }
+            val close = { tabs.removeState("people"); openPerson = null; personDirect = false; screen = peopleFrom }
             tabs.SaveableStateProvider("people") { // keeps the open person and list scroll while the viewer is on top
                 PeopleScreen(
                     openId = openPerson,
@@ -210,7 +213,7 @@ fun App(dir: File) {
             HelpRecognizeScreen(recognizeFor, onBack = close)
         }
         "favorites" -> {
-            val close = { tabs.removeState("favorites"); screen = "library" } // next visit starts at the top
+            val close = { tabs.removeState("favorites"); screen = shortcutFrom } // next visit starts at the top
             BackHandler(onBack = close)
             tabs.SaveableStateProvider("favorites") { // keeps the scroll while the viewer is open
                 PhotosScreen(favoritesOnly = true, onBack = close, onOpen = open)
@@ -262,9 +265,32 @@ fun App(dir: File) {
             tabs.SaveableStateProvider("place") { PlaceScreen(openPlace, onBack = close, onOpen = open) }
         }
         "videos" -> {
-            val close = { tabs.removeState("videos"); screen = "library" } // next visit starts at the top
+            val close = { tabs.removeState("videos"); screen = shortcutFrom } // next visit starts at the top
             BackHandler(onBack = close)
             tabs.SaveableStateProvider("videos") { VideosScreen(onBack = close, onOpen = open) } // keeps the scroll while the viewer is open
+        }
+        "search" -> {
+            val close = { tabs.removeState("search"); screen = searchFrom } // next visit starts empty
+            BackHandler(onBack = close)
+            tabs.SaveableStateProvider("search") { // keeps the typed text while a hit is open, so back returns to it
+                SearchScreen(
+                    onBack = close,
+                    onOpen = { h ->
+                        when (h.kind) {
+                            "person" -> { openPerson = h.key.toLong(); personDirect = true; peopleFrom = "search"; screen = "people" }
+                            "place" -> { openPlace = h.key.toInt(); placeFrom = "search"; screen = "place" }
+                            "album" -> { openAlbum = h.key.toLong(); albumFrom = "search"; screen = "album" }
+                            "videos", "favorites" -> { shortcutFrom = "search"; screen = h.kind }
+                            else -> { // a year or a month: the Photos tab, scrolled to that month's header
+                                tabs.removeState("search"); screen = "photos"
+                                val at = lastTimeline?.indexOfFirst { it is Header && it.key == h.key } ?: -1
+                                if (at >= 0) scope.launch { photosGrid.scrollToItem(at) }
+                            }
+                        }
+                    },
+                    onSeeAllPeople = { openPerson = null; personDirect = false; peopleFrom = "search"; screen = "people" },
+                )
+            }
         }
         "trash" -> {
             BackHandler { screen = "library" }
@@ -292,16 +318,20 @@ fun App(dir: File) {
         }) { padding ->
             Column(Modifier.padding(padding)) {
                 tabs.SaveableStateProvider(screen) {
-                    if (screen == "photos") PhotosScreen(onOpen = open, grid = photosGrid, selection = selection, reload = photosReload)
+                    if (screen == "photos") PhotosScreen(
+                        onOpen = open, grid = photosGrid, selection = selection, reload = photosReload,
+                        onSearch = { searchFrom = "photos"; screen = "search" },
+                    )
                     else LibraryScreen(
-                        onOpenPeople = { screen = "people" },
-                        onOpenPerson = { openPerson = it; personDirect = true; screen = "people" },
+                        onOpenSearch = { searchFrom = "library"; screen = "search" },
+                        onOpenPeople = { peopleFrom = "library"; screen = "people" },
+                        onOpenPerson = { openPerson = it; personDirect = true; peopleFrom = "library"; screen = "people" },
                         onOpenAlbums = { screen = "albums" },
                         onOpenAlbum = { openAlbum = it; albumFrom = "library"; screen = "album" },
                         onOpenPlaces = { screen = "places" },
                         onOpenPlace = { openPlace = it; placeFrom = "library"; screen = "place" },
-                        onOpenFavorites = { screen = "favorites" },
-                        onOpenVideos = { screen = "videos" },
+                        onOpenFavorites = { shortcutFrom = "library"; screen = "favorites" },
+                        onOpenVideos = { shortcutFrom = "library"; screen = "videos" },
                         onOpenTrash = { screen = "trash" },
                         onHelpRecognize = { recognizeFor = null; recognizeFrom = "library"; screen = "recognize" },
                         onOpenSettings = { screen = "settings" },
