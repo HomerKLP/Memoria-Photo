@@ -15,6 +15,7 @@ import android.provider.MediaStore.Files.FileColumns
 import android.util.LruCache
 import android.util.Size
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.ReportDrawnWhen
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -277,6 +278,7 @@ fun PhotosScreen(
         if (granted) value = withContext(Dispatchers.IO) { timeline(context, favoritesOnly) }
             .also { if (favoritesOnly) lastFavorites = it else lastTimeline = it }
     }
+    ReportDrawnWhen { items != null } // "fully drawn" for startup timing (bench/perf.py)
     // total bytes of the picked tiles, for the select top bar
     val pickedSize by produceState(0L, selection?.ids) {
         value = selection?.ids?.takeIf { it.isNotEmpty() }?.let { withContext(Dispatchers.IO) { selectedSize(context, it) } } ?: 0L

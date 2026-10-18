@@ -23,7 +23,7 @@ help:
 	@echo "make emulator    boot $(AVD) and set $(DENSITY) density (360 dp wide)"
 	@echo "make layout      LayoutJumpTest on a headless emulator (boots it if needed, closes it after)"
 	@echo "make behavior    BehaviorTest on the same emulator (boots it if needed, closes it after)"
-	@echo "make perf        Macrobenchmark startup + scroll on $(SERIAL) (release; numbers, not a pass/fail)"
+	@echo "make perf        cold start + janky frames per screen on the phone's release build (make release first; keeps the data)"
 	@echo "make check       unit + shot-check, no device (the quick gate)"
 
 # No pipes here: a pipe hides gradle's exit code, and a failed build would install the old APK.
@@ -81,9 +81,8 @@ layout:
 behavior: UI_FILTER = -Pandroid.testInstrumentationRunnerArguments.class=app.memoria.BehaviorTest
 behavior: layout
 
-# Macrobenchmark numbers (startup + scroll) on $(SERIAL): an emulator by default, the phone with SERIAL=<id>.
-# Runs on a release build; the tests grant the app's permissions themselves, so no dialogs appear.
+# Taps and dumpsys on the installed app, so its data stays (a Gradle device run uninstalls the app).
 perf:
-	ANDROID_SERIAL=$(SERIAL) ./gradlew :baselineprofile:connectedBenchmarkReleaseAndroidTest
+	uv run bench/perf.py
 
 check: test shot-check

@@ -11,7 +11,7 @@ import org.junit.runner.RunWith
 /**
  * Startup numbers for the Phase 10 goal ("a number per screen"). Run on a release build on a device:
  * `./gradlew :app:generateBaselineProfile` writes the profile; these are measured with
- * `./gradlew :baselineprofile:connectedBenchmarkAndroidTest` (or `make perf`, see the Makefile).
+ * `./gradlew :baselineprofile:connectedBenchmarkAndroidTest` (uninstalls the app after: back up the DB first; `make perf` is the safe gauge).
  */
 @RunWith(AndroidJUnit4::class)
 class StartupBenchmarks {

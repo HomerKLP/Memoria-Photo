@@ -122,9 +122,11 @@ Goal: no visible loss, not lossless (re-encoding always loses some).
 ## Phase 10: performance (feels slow; measure first)
 Today perf is found only after someone feels it (`bugs.md` holds the numbers). No repeatable measurement, no gate. Goal: a number per screen, then fix the load costs, then keep them from coming back.
 - [x] Baseline profiles: `androidx.profileinstaller` + `app/src/main/baseline-prof.txt` (generated, 1376 app classes merged into the APK). `<profileable android:shell="true"/>` so release can be traced. A release build no longer runs cold/JIT.
-- [x] `:baselineprofile` module (Macrobenchmark): startup (cold/warm) and scroll (Photos) scenarios; the tests grant the app's permissions themselves, so no dialogs. `make perf` (SERIAL= the phone or an emulator). Left: run it and record the numbers in `bugs.md`.
-- [ ] Fix the known load costs, by measured impact: Details loads every face vector for one photo (`Details.kt`); Library/People load faces with vectors and scan all of MediaStore just to count (`libraryPhotos(...).size`); thumbnails start only when a screen opens (warm the visible ones after `timeline()`); the viewer decodes full size then sharpens (`Viewer.kt`).
-- [ ] A short Perf section in `AGENTS.md`: measure on a release build, one number per screen. (`make perf` is in the Makefile.)
+- [x] `:baselineprofile` module (Macrobenchmark): generates the profile. Its Gradle runs uninstall the app (data loss), and the emulator has no library, so it is not the perf gauge.
+- [x] `make perf` (`bench/perf.py`): cold start (first frame, timeline shown) and janky frames for Photos, Library, People, viewer, Details, on the phone's release build. Taps and dumpsys only, data stays. First numbers in `bugs.md`: every screen under 3% janky frames.
+- [ ] Fix the known load costs, by measured impact. They do not show as janky frames; if a screen still feels slow, measure how long its data takes to show first: Details loads every face vector for one photo (`Details.kt`); Library/People load faces with vectors and scan all of MediaStore just to count (`libraryPhotos(...).size`); thumbnails start only when a screen opens (warm the visible ones after `timeline()`); the viewer decodes full size then sharpens (`Viewer.kt`).
+- [ ] Load time in `make perf`: ms from opening a screen until its data shows (Library, People, Person, Details, the viewer's sharp photo), like the cold start's timeline time.
+- [x] Perf line in `AGENTS.md` (Commands): `make release`, pause indexing, `make perf`.
 
 ## Later
 - Google Takeout import: copy photos not already on the phone, dates from the JSON, skip duplicates. Plan: `docs/library-unification.md`.

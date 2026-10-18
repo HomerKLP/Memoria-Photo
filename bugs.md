@@ -284,3 +284,19 @@ Found while reading the code, not seen on the phone yet. No steps, just the risk
 - **`libraryPhotos(context).size` scans all of MediaStore.** `Library.kt` and `People.kt` build a `MediaPhoto` per row just to count. A `SELECT COUNT(*)` query does the same.
 - **`groupFaces` holds an n×n float matrix in memory** (`People.kt`). Time is O(n²) since the NN-chain (2026-10-17), but memory is 17 MB at today's 2052 starting faces and ~400 MB at 10k. Store half of it (or float16) before libraries get that big.
 - **Dead `photo.path` column.** `PhotoRow.path` (`Index.kt`) is written on insert but no query reads it. Remove it when the schema is next touched (needs a migration).
+
+## Perf numbers (`make perf`)
+
+Release build, baseline profile compiled, full library after a re-index (~4400 photos), median of 3. The phone runs at 120 Hz.
+
+| 2026-10-18 | frames | janky % | p90 ms | p99 ms |
+|---|---|---|---|---|
+| Cold start: first frame 115 ms, timeline 154 ms | | | | |
+| Photos, first scroll | 324 | 0.6 | 7 | 10 |
+| Photos, scroll | 313 | 0.6 | 9 | 13 |
+| Library, open + scroll | 150 | 1.3 | 7 | 24 |
+| People, open + scroll | 105 | 1.0 | 5 | 13 |
+| Viewer, open + 3 swipes | 165 | 1.8 | 5 | 24 |
+| Details, open | 72 | 2.8 | 5 | 23 |
+
+The first run, right after indexing (warm phone), read 2-4x more janky frames. Compare runs taken in the same state. These are frame times only; how long data takes to show on a screen is not measured yet.
