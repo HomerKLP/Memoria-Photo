@@ -478,8 +478,9 @@ private fun PersonCard(
     ) {
         PickFace(p.cover, faceSize, picked)
         if (showName || showCount) Spacer(Modifier.height(if (tight) 6.dp else 8.dp))
-        if (showName && !p.name.isNullOrBlank()) Text(p.name, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
-        if (showCount) Text("${p.photos}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        // 1.25 line height like the mockup: the plain Text default (a 24 sp line) left a big gap between name and count
+        if (showName && !p.name.isNullOrBlank()) Text(p.name, fontSize = 13.sp, lineHeight = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
+        if (showCount) Text("${p.photos}", fontSize = 12.sp, lineHeight = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
