@@ -71,6 +71,8 @@ Measured after the fix (release): 1 dropped frame per tab switch, both tabs (bui
 Steps:
 1. Switch Photos -> Library and scroll at once.
 
+2026-10-18: the count no longer scans MediaStore (`libraryPhotoCount`), and Details no longer loads every face vector (`photoFaces` + vectorless `taggedFaces`). Library and People still load the full faces: the Merge with sheet ranks by vector, so the vectors are still needed there.
+
 Fix ideas:
 - Load faces without vectors for Library and People (only grouping needs them).
 
@@ -345,8 +347,8 @@ Found while reading the code, not seen on the phone yet. No steps, just the risk
 - **Destructive migrations.** Fixed 2026-10-17: only v1-3 databases are wiped; a missing migration crashes on open, and `MigrationTest` fails first.
 - **Global mutable state.** `lastTimeline` and `thumbs` are top-level (`Photos.kt`); the Photos tab and the viewer both depend on them silently.
 - **Bitmap churn.** `detect` makes new full-size bitmaps per photo and never recycles (`Faces.kt`). Adds to load cost and heat.
-- **Details loads every face vector.** `Details.kt` calls `dao.faceVecs()` for one photo, then filters by `photoId`. A per-photo query (plus a light people query) would be much lighter. Same "faces without vectors" idea as Library.
-- **`libraryPhotos(context).size` scans all of MediaStore.** `Library.kt` and `People.kt` build a `MediaPhoto` per row just to count. A `SELECT COUNT(*)` query does the same.
+- **Details loads every face vector.** Fixed 2026-10-18. `Details.kt` called `dao.faceVecs()` for one photo, then filtered by `photoId`. Now `IndexDao.photoFaces(id)` reads that photo's faces (a handful of rows) and `IndexDao.taggedFaces()` reads the saved people's faces **without** their 512-float vectors (`LightFace`, `People.kt`) for the Who is this? sheet. Details never matches by distance, so no vector is needed. Same "faces without vectors" idea as Library (`People.kt` `MergeContent` still ranks by vector, so the People screen keeps the full load).
+- **`libraryPhotos(context).size` scans all of MediaStore.** Fixed 2026-10-18. `Library.kt`, `People.kt` and `MainActivity.kt` built a `MediaPhoto` per row just to count. Now `libraryPhotoCount(context)` (`Index.kt`) reads the row count only, with the skipped-album filter in the query. The full `libraryPhotos` list is still built for an index run only.
 - **`groupFaces` holds an n×n float matrix in memory** (`People.kt`). Time is O(n²) since the NN-chain (2026-10-17), but memory is 17 MB at today's 2052 starting faces and ~400 MB at 10k. Store half of it (or float16) before libraries get that big.
 - **Dead `photo.path` column.** `PhotoRow.path` (`Index.kt`) is written on insert but no query reads it. Remove it when the schema is next touched (needs a migration).
 

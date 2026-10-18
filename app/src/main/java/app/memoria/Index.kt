@@ -108,6 +108,20 @@ interface IndexDao {
             "EXISTS(SELECT 1 FROM answer a WHERE a.faceId = f.id AND NOT a.yes) AS rejected FROM face f JOIN photo p ON p.id = f.photoId WHERE NOT f.notFace",
     )
     suspend fun faceVecs(): List<FaceVec>
+    /** The faces of one photo, with vectors: a handful of rows instead of the whole [faceVecs]. */
+    @Query(
+        "SELECT f.id, f.photoId, f.box, f.vector, f.quality, p.kind, f.personId, " +
+            "EXISTS(SELECT 1 FROM answer a WHERE a.faceId = f.id AND a.yes) AS yes, " +
+            "EXISTS(SELECT 1 FROM answer a WHERE a.faceId = f.id AND NOT a.yes) AS rejected FROM face f JOIN photo p ON p.id = f.photoId WHERE NOT f.notFace AND f.photoId = :photoId",
+    )
+    suspend fun photoFaces(photoId: Long): List<FaceVec>
+    /** The faces that belong to a saved person, without vectors: the viewer details panel never matches by distance. */
+    @Query(
+        "SELECT f.id, f.photoId, f.box, f.quality, p.kind, f.personId, " +
+            "EXISTS(SELECT 1 FROM answer a WHERE a.faceId = f.id AND a.yes) AS yes, " +
+            "EXISTS(SELECT 1 FROM answer a WHERE a.faceId = f.id AND NOT a.yes) AS rejected FROM face f JOIN photo p ON p.id = f.photoId WHERE NOT f.notFace AND f.personId IS NOT NULL",
+    )
+    suspend fun taggedFaces(): List<LightFace>
     @Query("SELECT * FROM person ORDER BY id") suspend fun people(): List<PersonRow>
     @Query("UPDATE person SET name = :name WHERE id = :id") suspend fun setName(id: Long, name: String?)
     @Query("DELETE FROM person") suspend fun deletePeople()
@@ -207,6 +221,18 @@ fun libraryPhotos(context: Context): List<MediaPhoto> {
         }
     }
     return photos
+}
+
+/**
+ * How many photos [libraryPhotos] would return, without building the list: a row-count read only.
+ * Library, People and the test screen only need the number for their progress totals.
+ */
+fun libraryPhotoCount(context: Context): Int {
+    val skipped = IndexProgress.skipped(context)
+    val selection = if (skipped.isEmpty()) null else "${Media.BUCKET_ID} NOT IN (${skipped.joinToString(",")})"
+    return runCatching {
+        context.contentResolver.query(Media.EXTERNAL_CONTENT_URI, arrayOf(Media._ID), selection, null, null)?.use { it.count } ?: 0
+    }.getOrDefault(0)
 }
 
 /** Total and start time of the current index run, so the UI can show a progress bar and time left. */

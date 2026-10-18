@@ -390,7 +390,7 @@ fun TestScreen(dir: File, onPeople: () -> Unit) {
     val photos = Manifest.permission.READ_MEDIA_IMAGES
     val index = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
         if (granted[photos] == true) {
-            total = if (testOnly) testPhotos(context).size else libraryPhotos(context).size
+            total = if (testOnly) testPhotos(context).size else libraryPhotoCount(context)
             IndexControl.start(context, testOnly)
         } else log += "\nNo photo permission"
     }

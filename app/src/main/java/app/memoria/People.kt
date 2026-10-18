@@ -95,6 +95,17 @@ class FaceVec(
     val sure get() = yes || (quality >= 0.4f && !rejected)
 }
 
+/**
+ * A face that belongs to a person, without its 512-float vector (see `IndexDao.taggedFaces`).
+ * The viewer details panel shows names, covers and counts; it never matches by distance, so the vector is not read.
+ */
+class LightFace(
+    val id: Long, val photoId: Long, val box: FloatArray, val quality: Float, val kind: String, val personId: Long,
+    val yes: Boolean = false, val rejected: Boolean = false,
+) {
+    fun toVec() = FaceVec(id, photoId, box, FloatArray(0), quality, kind, personId, yes, rejected)
+}
+
 class Person(val faces: List<FaceVec>, val main: FaceVec, val id: Long = 0, val name: String? = null, val hidden: Boolean = false, val coverFaceId: Long? = null) {
     /** Distinct photos the person appears in. */
     val photos get() = faces.map { it.photoId }.distinct().size
@@ -266,7 +277,7 @@ fun PeopleScreen(
             // hidden people stay in the list, so one opened from Hidden people still shows
             val shown = people.filter { !it.hidden }
             val unsure = shown.flatMap { p -> p.faces.filter { !it.sure } }.sortedBy { it.quality }
-            PeopleData("${shown.size} people · ${faces.size} faces", people, unsure, libraryPhotos(context).size)
+            PeopleData("${shown.size} people · ${faces.size} faces", people, unsure, libraryPhotoCount(context))
         }
     }
     BackHandler { if (naming != null) naming = null else if (openId != null) onPersonBack() else onBack() }

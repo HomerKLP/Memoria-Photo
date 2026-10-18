@@ -155,14 +155,17 @@ fun DetailsPanel(tile: Tile, modifier: Modifier = Modifier) {
     LaunchedEffect(tile.id, reload) {
         withContext(Dispatchers.IO) {
             val dao = db.index()
-            val all = if (tile.duration != null) emptyList() else dao.faceVecs() // videos are not indexed
-            val byPerson = all.filter { it.personId != null }.groupBy { it.personId!! }
-            Triple(
-                runCatching { loadInfo(context, tile) }.getOrNull(),
-                all.filter { it.photoId == tile.id }.sortedBy { it.box[0] }, // left to right, like the photo
-                dao.people().mapNotNull { p -> byPerson[p.id]?.let { fs -> Person(fs, fs.firstOrNull { it.id == p.mainFaceId } ?: fs.first(), p.id, p.name, p.hidden) } }
-                    .sortedWith(compareBy({ it.name.isNullOrBlank() }, { -it.photos })),
-            )
+            val info = runCatching { loadInfo(context, tile) }.getOrNull()
+            // only this photo's faces and the (vectorless) faces of saved people: no whole-library read
+            val photoFaces = if (tile.duration != null) emptyList() else dao.photoFaces(tile.id).sortedBy { it.box[0] } // left to right, like the photo
+            val byPerson = if (tile.duration != null) emptyMap() else dao.taggedFaces().groupBy { it.personId }
+            val people = dao.people().mapNotNull { p ->
+                byPerson[p.id]?.let { fs ->
+                    val main = fs.firstOrNull { it.id == p.mainFaceId } ?: fs.first()
+                    Person(fs.map { it.toVec() }, main.toVec(), p.id, p.name, p.hidden, p.coverFaceId)
+                }
+            }.sortedWith(compareBy({ it.name.isNullOrBlank() }, { -it.photos }))
+            Triple(info, photoFaces, people)
         }.let { (i, f, p) -> info = i; faces = f; people = p }
     }
     // closes the sheet at once, then writes and reloads the row

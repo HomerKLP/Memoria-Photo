@@ -110,7 +110,7 @@ fun LibraryScreen(
                 favorites = all.count { it.favorite },
                 videos = all.count { it.duration != null },
                 trash = runCatching { trash(context).size }.getOrDefault(0),
-                total = libraryPhotos(context).size,
+                total = libraryPhotoCount(context),
                 places = places(dao.placed(), all),
             )
         }
