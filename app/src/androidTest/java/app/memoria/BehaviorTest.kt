@@ -90,6 +90,23 @@ class BehaviorTest {
         assertEquals(setOf(1L), selection.ids)
     }
 
+    // --- Favorites -----------------------------------------------------------------------------
+
+    @Test fun favorites_tapTile_opensIt() {
+        var opened: Tile? = null
+        var openedList: List<Tile>? = null
+        val tiles = (1L..4L).map { tile(it) }
+        rule.setContent {
+            MemoriaTheme { Surface {
+                FavoritesContent(Favorites(linkedMapOf("October 2026" to tiles), tiles), onOpen = { list, t -> openedList = list; opened = t })
+            } }
+        }
+
+        rule.onNodeWithTag("tile-3").performClick()
+        assertEquals(3L, opened?.id)
+        assertEquals(4, openedList?.size)
+    }
+
     // --- Trash ---------------------------------------------------------------------------------
 
     @Test fun trash_longPress_picksTheRow() {

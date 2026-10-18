@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -110,19 +109,19 @@ fun MoveToAlbumContent(
                 }
             }
         } else {
-            PickRow(icon = R.drawable.ic_add, round = true, label = "New album", note = null, onClick = onNewAlbum)
+            PickRow(icon = R.drawable.ic_add, label = "New album", note = null, onClick = onNewAlbum)
             LazyColumn(Modifier.heightIn(max = 380.dp)) {
                 items(targets.orEmpty(), key = { it.path }) { t ->
-                    PickRow(cover = t.cover, round = false, label = t.name, note = t.count.toString(), onClick = { onMove(t) })
+                    PickRow(cover = t.cover, label = t.name, note = t.count.toString(), onClick = { onMove(t) })
                 }
             }
         }
     }
 }
 
-/** One row of the sheet (mockup `.pick`): a round accent icon or a square album cover, a label, a count. */
+/** One row of the sheet (mockup `.pick`): an accent icon or an album cover, both square, a label, a count. */
 @Composable
-private fun PickRow(cover: Tile? = null, icon: Int? = null, round: Boolean, label: String, note: String?, onClick: () -> Unit) {
+private fun PickRow(cover: Tile? = null, icon: Int? = null, label: String, note: String?, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().heightIn(min = 52.dp).clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -130,7 +129,7 @@ private fun PickRow(cover: Tile? = null, icon: Int? = null, round: Boolean, labe
     ) {
         when {
             icon != null -> Box(
-                Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer),
+                Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.primaryContainer),
                 contentAlignment = Alignment.Center,
             ) { Icon(painterResource(icon), null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary) }
             else -> Box(Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {

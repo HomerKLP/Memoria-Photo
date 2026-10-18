@@ -210,7 +210,7 @@ fun App(dir: File) {
             val close = { tabs.removeState("favorites"); screen = "library" } // next visit starts at the top
             BackHandler(onBack = close)
             tabs.SaveableStateProvider("favorites") { // keeps the scroll while the viewer is open
-                Box(Modifier.safeDrawingPadding()) { PhotosScreen(favoritesOnly = true, onBack = close, onOpen = open) }
+                PhotosScreen(favoritesOnly = true, onBack = close, onOpen = open)
             }
         }
         "albums" -> {

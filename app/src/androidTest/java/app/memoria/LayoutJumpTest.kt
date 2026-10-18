@@ -431,6 +431,16 @@ class LayoutJumpTest {
         assertSame("top bar height", barBefore, rule.onNodeWithTag("topBar").height())
     }
 
+    /** Favorites: the month header is pinned, no day headings; loading must not move the screen's bar. */
+    @Test fun favorites_loadingToLoaded_topBarStaysPut() {
+        var favorites by mutableStateOf<Favorites?>(null)
+        rule.setContent { MemoriaTheme { Surface { FavoritesContent(favorites) } } }
+
+        val barBefore = rule.onNodeWithTag("topBar").height()
+        rule.runOnIdle { favorites = Favorites(linkedMapOf("October 2026" to albumTiles(1, 4)), albumTiles(1, 4)) }
+        assertSame("top bar height", barBefore, rule.onNodeWithTag("topBar").height())
+    }
+
     /** Details: faces, place and camera facts fill in below the date; the date header must not move. */
     @Test fun details_fillingInSections_keepsDatePut() {
         val tile = Tile(1, Uri.parse("content://media/external/images/media/1"), 1_700_000_000_000L, null)

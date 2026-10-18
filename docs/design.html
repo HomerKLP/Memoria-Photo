@@ -88,7 +88,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .slider .bubble { position: absolute; right: 30px; transform: translateY(-50%); height: 32px; padding: 0 14px; border-radius: 16px; background: var(--accent); color: #fff; display: flex; align-items: center; white-space: nowrap; font-weight: 500; font-size: 13px; box-shadow: 0 6px 16px -6px rgba(70, 45, 20, .6); }
 
 /* Library tab */
-.search { margin: 2px 16px 4px; height: 52px; padding: 0 18px; border-radius: 26px; background: var(--surface); color: var(--muted); display: flex; align-items: center; gap: 12px; font-size: 15px; }
+.search { margin: 2px 16px 4px; height: 48px; padding: 0 16px; border-radius: 24px; background: var(--surface); color: var(--muted); display: flex; align-items: center; gap: 12px; }
 .head { display: flex; justify-content: space-between; align-items: center; padding: 22px 16px 12px; }
 .head h3 { margin: 0; font: 700 18px/1.2 var(--display); }
 .head a { color: var(--accent); font-weight: 500; font-size: 13px; text-decoration: none; display: flex; align-items: center; }
@@ -101,11 +101,9 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .unnamed { color: var(--muted); }
 .face { width: var(--s, 72px); height: var(--s, 72px); flex: none; border-radius: 50%; overflow: hidden; display: grid; place-items: end center; }
 .face svg.i { width: 83%; height: 83%; fill: rgba(255, 255, 255, .72); margin-bottom: -14%; }
-.see-all { width: 72px; height: 72px; border-radius: 50%; background: var(--surface); color: var(--accent); display: grid; place-items: center; }
 /* Empty, in a row: the same 72px item as a face, so the row keeps its height and nothing below moves */
 .empty-face { background: var(--surface); place-items: center; }
 .empty-face svg.i { width: 44%; height: 44%; fill: var(--muted); margin: 0; }
-.see-all + span { color: var(--accent); font-weight: 500; }
 .progress { margin: 14px 16px 0; display: grid; gap: 6px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .progress-foot { display: flex; align-items: center; gap: 12px; }
 .track { flex: 1; height: 4px; border-radius: 2px; background: var(--line); }
@@ -117,8 +115,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .review-text { flex: 1; min-width: 0; display: grid; }
 .review-text span { color: var(--muted); font-size: 12px; }
 .pill-btn { height: 36px; padding: 0 16px; border: 0; border-radius: 18px; background: var(--accent); color: #fff; font-weight: 500; font-size: 13px; }
-.albums, .places { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px 8px; padding: 0 16px; }
-.cover { aspect-ratio: 1; max-width: 100%; border-radius: 12px; }
+.places { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px 8px; padding: 0 16px; }
 .shortcut span { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .place { aspect-ratio: 1; min-width: 0; border-radius: 12px; padding: 8px; color: #fff; display: flex; flex-direction: column; justify-content: flex-end; text-shadow: 0 1px 2px rgba(0, 0, 0, .5); }
 .place b { font-weight: 500; font-size: 13px; }
@@ -134,7 +131,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 
 /* People screen */
 .people-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px 6px; padding: 4px 16px 24px; }
-.pcard { display: grid; justify-items: center; gap: 8px; text-align: center; }
+.pcard { position: relative; display: grid; justify-items: center; gap: 8px; text-align: center; }
 .pcard b { max-width: 100%; font-weight: 500; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pcard span { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 
@@ -145,11 +142,11 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .chip svg.i { width: 18px; height: 18px; color: var(--accent); }
 
 /* Albums screen */
-.cover.new { border: 1.5px dashed var(--muted); background: none; display: grid; place-items: center; color: var(--muted); }
 /* Cover tile (albums and places): name and count on the photo, one line each, cut with … */
 .place b, .place span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.place.new { border: 1.5px dashed var(--muted); background: none; color: var(--muted); text-shadow: none; }
-.place.new svg.i { margin: auto; }
+/* New album: accent fill and icon, like the New album row in Move to album */
+.place.new { background: var(--accent-soft); color: var(--fg); text-shadow: none; }
+.place.new svg.i { margin: auto; color: var(--accent); }
 
 /* Grid with fewer, bigger tiles (album, person, videos) */
 .grid.big { grid-template-columns: repeat(3, 1fr); gap: 3px; }
@@ -189,7 +186,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .viewer-full { position: absolute; inset: 0; }
 .crop { flex: none; height: 270px; position: relative; }
 .crop .vbar { position: absolute; inset: 0 0 auto; color: #fff; }
-.info { position: relative; margin-top: -24px; padding-bottom: 20px; border-radius: 24px 24px 0 0; background: var(--bg); color: var(--fg); }
+.info { position: relative; margin-top: -28px; padding-bottom: 20px; border-radius: 28px 28px 0 0; background: var(--bg); color: var(--fg); }
 .grab { width: 32px; height: 4px; margin: 10px auto 0; border-radius: 2px; background: var(--muted); opacity: .4; }
 .date { display: grid; padding: 12px 16px 0; }
 .date b { font: 700 20px/1.25 var(--display); }
@@ -224,11 +221,11 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 /* Who is this? sheet */
 .dim { flex: 1; }
 .sheet { position: relative; margin-top: -28px; border-radius: 28px 28px 0 0; background: var(--bg); color: var(--fg); }
-.sheet-head { display: flex; align-items: center; gap: 14px; padding: 12px 20px; }
+.sheet-head { display: flex; align-items: center; gap: 16px; padding: 12px 16px; }
 .sheet-head b { display: block; font: 700 20px/1.2 var(--display); }
-.sheet-head span { color: var(--muted); font-size: 13px; }
+.sheet-head span { color: var(--muted); font-size: 12px; }
 .field { margin: 0 16px 6px; height: 48px; padding: 0 16px; border-radius: 24px; background: var(--surface); color: var(--muted); display: flex; align-items: center; gap: 12px; }
-.pick { display: flex; align-items: center; gap: 14px; min-height: 52px; padding: 4px 20px; }
+.pick { display: flex; align-items: center; gap: 16px; min-height: 52px; padding: 4px 16px; }
 .pick b { flex: 1; font-weight: 500; }
 .pick span { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .pick .round { width: 40px; height: 40px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; flex: none; }
@@ -243,6 +240,19 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 /* Merge with sheet */
 .people-grid.picker { padding: 4px 16px 0; }
 .pcard.on .face { outline: 3px solid var(--accent); outline-offset: 3px; }
+.pcard .sel { top: -1px; left: calc(50% + 13px); }
+
+/* Move to album sheet: square covers, so albums never look like people */
+.thumb { width: var(--s, 40px); height: var(--s, 40px); flex: none; border-radius: 10px; }
+/* New album sheet: an icon where other sheets show a face */
+.sheet-head .round { width: 48px; height: 48px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; flex: none; }
+/* People are circles, albums are squares */
+.round.square { border-radius: 10px; }
+/* Select bar with four actions: the label goes under the icon, or they do not fit at 360 dp */
+.picking.four .pill { height: auto; padding: 4px 0; flex-direction: column; gap: 2px; font-size: 12px; }
+/* Empty cover row (Places with no location yet): one muted tile at a cover's size */
+.place.empty { background: var(--surface); color: var(--muted); text-shadow: none; }
+.place.empty svg.i { margin: auto; }
 
 /* Settings */
 .set { display: flex; align-items: center; gap: 16px; min-height: 56px; padding: 6px 16px; }
@@ -272,8 +282,8 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .left { position: absolute; left: 6px; bottom: 5px; color: #fff; font-weight: 500; font-size: 11px; text-shadow: 0 1px 2px rgba(0, 0, 0, .5); }
 .sel { position: absolute; top: 6px; left: 6px; width: 22px; height: 22px; box-sizing: border-box; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 3px rgba(0, 0, 0, .35); display: grid; place-items: center; }
 .tile.on { outline: 3px solid var(--accent); outline-offset: -3px; }
-.tile.on .sel, .day.on .sel { border-color: var(--accent); background: var(--accent); }
-.tile.on .sel svg.i, .day.on .sel svg.i { width: 16px; height: 16px; fill: #fff; }
+.tile.on .sel, .day.on .sel, .pcard.on .sel { border-color: var(--accent); background: var(--accent); }
+.tile.on .sel svg.i, .day.on .sel svg.i, .pcard.on .sel svg.i { width: 16px; height: 16px; fill: #fff; }
 .day .sel { top: 50%; left: auto; right: 16px; margin-top: -11px; border-color: var(--muted); box-shadow: none; }
 .picking .tab { color: var(--fg); }
 .picking .pill { padding: 0 8px; }
@@ -299,7 +309,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 /* Menu: drops from a top bar's More, over the screen, no dim */
 .menu { width: 248px; padding: 8px 0; border-radius: 16px; background: var(--bg); color: var(--fg); box-shadow: 0 12px 32px -8px rgba(43, 33, 24, .5); display: grid; }
 .phone .menu { position: absolute; top: 88px; right: 8px; z-index: 3; }
-.mi { display: flex; align-items: center; gap: 14px; height: 48px; padding: 0 16px; border: 0; background: transparent; font-size: 15px; text-align: left; white-space: nowrap; }
+.mi { display: flex; align-items: center; gap: 16px; height: 48px; padding: 0 16px; border: 0; background: transparent; font-size: 15px; text-align: left; white-space: nowrap; }
 .mi:hover { background: var(--surface); }
 .mi svg.i { color: var(--muted); }
 .mi svg.i.tick { margin-left: auto; color: var(--accent); }
@@ -508,7 +518,21 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <button class="mi" role="menuitem"><svg class="i"><use href="#i-move"/></svg>Move to album</button>
         </div>
       </div>
-      <figcaption>Viewer, More: Edit in… and Use as… (wallpaper, contact photo) hand the photo to another app through Android's chooser. Show in album opens the photo's folder, hidden when the viewer came from that album. Move to album picks an album from a sheet (not designed yet); Android asks to confirm. No Copy: albums are phone folders, so a copy is a second file. A video adds Compress video (phase 5). Tap outside or Back closes it</figcaption>
+      <figcaption>Viewer, More: Edit in… and Use as… (wallpaper, contact photo) hand the photo to another app through Android's chooser. Show in album opens the photo's folder, hidden when the viewer came from that album. Move to album opens the album sheet. No Copy: albums are phone folders, so a copy is a second file. A video adds Compress video (phase 5). Tap outside or Back closes it</figcaption>
+    </figure>
+    <figure id="move-album">
+      <div class="phone dark">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="dim" id="move-dim"></div>
+        <div class="sheet">
+          <div class="grab"></div>
+          <div class="sheet-head"><span class="thumb" style="--s:48px" data-shot></span><div><b>Move to album</b><span>Now in Camera</span></div></div>
+          <div class="pick"><span class="round square"><svg class="i"><use href="#i-add"/></svg></span><b>New album</b></div>
+          <div id="move-list"></div>
+          <div class="gesture light"><div class="handle"></div></div>
+        </div>
+      </div>
+      <figcaption>Move to album: opens from the viewer's More. Same order as Albums, minus the photo's own album (named in the head). Only folders under DCIM and Pictures are listed: Android allows a move only there, so WhatsApp's folder is left out. Tap one to move; Android asks to confirm. New album opens the New album sheet, its button reads Move. Opened from an album, the moved photo leaves it, so the viewer shows the next one. Album select uses it too</figcaption>
     </figure>
     <figure id="viewer-tap">
       <div class="phone dark">
@@ -612,6 +636,18 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
       </div>
       <figcaption>Videos: opens from the Library card. Every video, newest first, by month; the month stays pinned. Tap opens the viewer. The size is for video compression later</figcaption>
     </figure>
+    <figure id="favorites">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="title"><b>Favorites</b><span>34 photos · 4 videos</span></div>
+        </div>
+        <div class="scroll vids" id="favorites-grid"></div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Favorites: opens from the Library card. Like Videos: newest first, by month, the month pinned, no day headings (with a few favorites a day, each one got its own date). No hearts on the tiles: they are all favorites. Tap opens the viewer, long press selects, like an album</figcaption>
+    </figure>
     <figure id="trash">
       <div class="phone">
         <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
@@ -704,7 +740,30 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <button class="mi" role="menuitemcheckbox" aria-checked="false"><svg class="i"><use href="#i-block"/></svg>Ignore faces in this album</button>
         </div>
       </div>
-      <figcaption>Album, More: Select starts select mode, same as a long press (album select not designed yet). No sort: albums are always newest first, like the timeline. Ignore faces in this album adds the folder to Settings, Folders to skip: no face search there, and faces already found there leave their people on the next run. A check shows when it is on. No Delete album: one tap would trash a whole folder</figcaption>
+      <figcaption>Album, More: Select starts select mode, same as a long press. No sort: albums are always newest first, like the timeline. Ignore faces in this album adds the folder to Settings, Folders to skip: no face search there, and faces already found there leave their people on the next run. A check shows when it is on. No Delete album: one tap would trash a whole folder</figcaption>
+    </figure>
+    <figure id="album-select">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Close"><svg class="i"><use href="#i-close"/></svg></button>
+          <div class="title"><b>3 selected</b><span>Camera · 9.6 MB</span></div>
+          <button class="text-btn">Select all</button>
+        </div>
+        <div class="scroll">
+          <div class="grid big" id="album-picked"></div>
+        </div>
+        <div class="bottom picking four">
+          <nav>
+            <button class="tab"><span class="pill"><svg class="i"><use href="#i-share"/></svg>Share</span></button>
+            <button class="tab"><span class="pill"><svg class="i"><use href="#i-heart-line"/></svg>Favorite</span></button>
+            <button class="tab"><span class="pill"><svg class="i"><use href="#i-move"/></svg>Move</span></button>
+            <button class="tab danger"><span class="pill"><svg class="i"><use href="#i-trash-line"/></svg>Delete</span></button>
+          </nav>
+          <div class="handle"></div>
+        </div>
+      </div>
+      <figcaption>Album, selecting: long press a photo, or More > Select. The top bar swaps in place; the Select bar comes up at the bottom, under the grid, so nothing above it moves. Select all picks the whole album. Move opens the Move to album sheet; moved photos leave this album. Delete sends all to the phone's trash with one Android confirm. Favorite reads Unfavorite when all picked are favorites. Back or X leaves. Favorites and a Place select the same way, without Move: only an album says which album its photos are in</figcaption>
     </figure>
     <figure id="ignore">
       <div class="phone modal" id="ignore-phone">
@@ -718,6 +777,39 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         </div>
       </div>
       <figcaption>Ignore faces: asks first, only when turning it on. Turning it off asks nothing; the next run searches the album again</figcaption>
+    </figure>
+    <figure id="new-album">
+      <div class="phone dark">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="dim"></div>
+        <div class="sheet">
+          <div class="grab"></div>
+          <div class="sheet-head"><span class="round square"><svg class="i"><use href="#i-folder"/></svg></span><div><b>New album</b><span>A folder in Pictures</span></div></div>
+          <div class="field filled">Holidays<span class="caret"></span></div>
+          <div class="answers">
+            <button class="no">Cancel</button>
+            <button class="yes">Next<svg class="i"><use href="#i-chevron"/></svg></button>
+          </div>
+          <div class="gesture light"><div class="handle"></div></div>
+        </div>
+      </div>
+      <figcaption>New album: the New album tile on Albums opens this sheet. Type a name; Next is off while it is empty or an album with that name exists. An album is a phone folder and Android keeps no empty folders, so nothing is made until photos move in. From Move to album the same sheet's button reads Move and moves the photo at once</figcaption>
+    </figure>
+    <figure id="new-album-pick">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="title"><b>Add to Holidays</b><span>6 selected · 18.4 MB</span></div>
+        </div>
+        <div class="scroll" id="album-pick"></div>
+        <div class="answers selbar">
+          <button class="no">Cancel</button>
+          <button class="yes"><svg class="i"><use href="#i-move"/></svg>Move here</button>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>New album, pick photos: the whole timeline; tap photos or a day's circle, drag to add. The bar is there from the start, so nothing jumps; Move here is off until something is picked. Picked photos move out of their old album (Camera too). Android asks to confirm, then the new album opens. Back fixes the name, Cancel makes nothing</figcaption>
     </figure>
   </div>
   <h3 id="page-places">Places</h3>
@@ -748,6 +840,20 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
       </div>
       <figcaption>Place: every photo and video taken in that town, newest first, by month; the month stays pinned. Tap opens the viewer, long press selects. No map: map tiles need the internet</figcaption>
     </figure>
+    <figure id="places-empty">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="title"><b>Places</b><span>None yet</span></div>
+        </div>
+        <div class="scroll">
+          <div class="empty"><svg class="i"><use href="#i-pin"/></svg><b>No places yet</b><p>Photos with a location show up here, by town. For new ones, turn on location in your camera app</p></div>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Places, empty: the index has read every photo and none has a location. The Library row shows one muted tile at a cover's size instead (see Empty), so Shortcuts below never move. While locations are still being read, three grey tiles hold the row, never this</figcaption>
+    </figure>
   </div>
 </section>
 <section class="group" id="page-people">
@@ -759,7 +865,6 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <div class="subbar">
           <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
           <div class="title"><b>People</b><span>7 people · 412 faces</span></div>
-          <button class="icon-btn" aria-label="Search"><svg class="i"><use href="#i-search"/></svg></button>
         </div>
         <div class="scroll">
           <div class="search"><svg class="i"><use href="#i-search"/></svg>Search people</div>
@@ -905,7 +1010,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="gesture light"><div class="handle"></div></div>
         </div>
       </div>
-      <figcaption>Merge with: opens from the chip on the person screen. Every other person, most alike first, so the other halves of a split person are on top. Tap one to pick it (accent ring), Merge joins it into this person. One at a time: after a merge the order is worked out again, so the next part moves up. This person's name stays; if it has none, the picked one's name is used. Merge is off until something is picked. The grid scrolls, the field and buttons stay</figcaption>
+      <figcaption>Merge with: opens from the chip on the person screen. Every other person, most alike first, so the other halves of a split person are on top. Tap one to pick it (accent ring and check), Merge joins it into this person. One at a time: after a merge the order is worked out again, so the next part moves up. This person's name stays; if it has none, the picked one's name is used. Merge is off until something is picked. The grid scrolls, the field and buttons stay</figcaption>
     </figure>
     <figure id="change-cover">
       <div class="phone dark">
@@ -922,7 +1027,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="gesture light"><div class="handle"></div></div>
         </div>
       </div>
-      <figcaption>Change cover: opens from the chip on the person screen. The current cover first (shown in the header too), then the person's sure faces, clearest first. Tap a face to pick it (accent ring), Save sets it, Cancel keeps the old one. Save is off until another face is picked. The grid scrolls, the buttons stay. The cover is only the picture (People, Library, the top bar), not the face the app matches with, so answers and merges are not touched. If the cover face leaves the person, the app picks one again</figcaption>
+      <figcaption>Change cover: opens from the chip on the person screen. The current cover first (shown in the header too), then the person's sure faces, clearest first. Tap a face to pick it (accent ring and check), Save sets it, Cancel keeps the old one. Save is off until another face is picked. The grid scrolls, the buttons stay. The cover is only the picture (People, Library, the top bar), not the face the app matches with, so answers and merges are not touched. If the cover face leaves the person, the app picks one again</figcaption>
     </figure>
     <figure id="hide">
       <div class="phone modal" id="hide-phone">
@@ -1050,7 +1155,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
       <button class="no danger"><svg class="i"><use href="#i-trash-line"/></svg>Delete</button>
       <button class="yes"><svg class="i"><use href="#i-restore"/></svg>Restore</button>
     </div>
-    <p>Two buttons at the bottom: the danger one outlined, the safe one filled with the accent. Used by Trash, Help recognize and the selection modes. Help recognize's No is not dangerous, so its outline is grey (muted), not red.</p>
+    <p>Two buttons at the bottom: the danger one outlined, the safe one filled with the accent. Used by Trash, Help recognize and New album's picker. Help recognize's No is not dangerous, so its outline is grey (muted), not red.</p>
   </article>
 
   <article class="part">
@@ -1062,7 +1167,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <button class="tab danger"><span class="pill"><svg class="i"><use href="#i-trash-line"/></svg>Delete</span></button>
       </nav>
     </div>
-    <p>Takes the bottom tabs' place while selecting on a tab screen, same height, so the grid keeps its size. Delete goes last, in red. Screens without tabs use the Action bar.</p>
+    <p>Takes the bottom tabs' place while selecting on a tab screen, same height, so the grid keeps its size. On a screen without tabs (Album, Favorites, Place) it comes up at the bottom, under the grid, so nothing above moves. Move only in an album, the one screen that says where its photos are; four actions put the label under the icon. Delete goes last, in red. Trash has two actions and uses the Action bar.</p>
   </article>
 
   <article class="part">
@@ -1133,7 +1238,20 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <span class="unnamed">No people yet</span>
       </div>
     </div>
+    <p>In a cover row (Places), one tile at a cover's size: surface color, muted icon, one muted line.</p>
+    <div class="places"><div class="place empty"><svg class="i"><use href="#i-pin"/></svg><b>No places yet</b></div></div>
     <p>Used when a list has nothing to show, and for the same reason it should never appear for a moment while loading.</p>
+  </article>
+
+  <article class="part">
+    <h3>Shapes and sizes</h3>
+    <ul>
+      <li>A person is a circle. An album, a photo or a month is a square with 10 dp corners (12 on a cover tile).</li>
+      <li>Faces: 72 in a row of people, 68 in a grid, 48 in a sheet head, 40 in a list row.</li>
+      <li>Rows and sheets keep 16 dp from the screen edge, and 16 dp between a row's icon or picture and its text.</li>
+      <li>A subtitle under a title is 12 sp, in a top bar and in a sheet. Sheets have 28 dp top corners. A search field is 48 dp tall.</li>
+      <li>A picked item shows the accent ring or outline and a check.</li>
+    </ul>
   </article>
 
   <article class="part">
@@ -1265,7 +1383,7 @@ fill("albums", [["Camera", "1,412"], ["Screenshots", "214"], ["Telegram", "96"],
 fill("places", [["Riverton", "642"], ["Northport", "118"], ["Harborview", "87"]].map(([n, c]) => cover(n, c)).join(""));
 
 fill("viewer-people", [[0, "Me"], [2, "Dana"], [4, null]]
-  .map(([i, n]) => `<div class="person">${face(i, 56)}${n ?? '<span class="unnamed">Add name</span>'}</div>`).join(""));
+  .map(([i, n]) => `<div class="person">${face(i, 72)}${n ?? '<span class="unnamed">Add name</span>'}</div>`).join(""));
 
 fill("ask-face", face(5, 88));
 fill("known", [2, 2, 2, 2, 2].map(i => face(i, 40)).join(""));
@@ -1277,23 +1395,25 @@ fill("name-face", face(0, 48));
 fill("name-sub", "24 photos · 31 faces");
 
 fill("merge-face", face(2, 48));
-const pcard = ([i, n, c, on]) => `<div class="pcard${on ? " on" : ""}">${face(i, 60)}${n ? `<b>${n}</b>` : ""}<span>${c}</span></div>`;
+const pick = '<span class="sel"><svg class="i"><use href="#i-check"/></svg></span>';
+const pcard = ([i, n, c, on]) => `<div class="pcard${on ? " on" : ""}">${on ? pick : ""}${face(i, 68)}${n ? `<b>${n}</b>` : ""}<span>${c}</span></div>`;
 fill("merge-grid", [[4, null, "31", 1], [6, null, "12"], [5, "Aliya", "64"], [1, "Mom", "230"], [3, "Arman", "96"], [0, "Me", "412"], [4, null, "8"], [6, null, "6"]].map(pcard).join(""));
 fill("hidden-grid", [[3, "Arman", "96"], [6, null, "27"]].map(pcard).join(""));
-fill("search-people", order.filter(i => people[i]).map(i => `<div class="person">${face(i, 64)}${people[i]}</div>`).join(""));
+fill("search-people", order.filter(i => people[i]).map(i => `<div class="person">${face(i, 72)}${people[i]}</div>`).join(""));
 fill("search-recent", ["Dana", "August 2026", "Camera"]
   .map(t => `<div class="pick"><svg class="i"><use href="#i-history"/></svg><b>${t}</b><button class="icon-btn" aria-label="Remove"><svg class="i"><use href="#i-close"/></svg></button></div>`).join(""));
-const round = icon => `<span class="round"><svg class="i"><use href="#i-${icon}"/></svg></span>`;
-fill("search-hits", [[face(2, 40), "Dana", "230 photos"], [round("folder"), "Downloads", "33 items"], [round("calendar"), "December 2025", "48 photos"]]
+const square = icon => `<span class="round square"><svg class="i"><use href="#i-${icon}"/></svg></span>`;
+fill("search-hits", [[face(2, 40), "Dana", "230 photos"], ['<span class="thumb" data-shot></span>', "Downloads", "33 items"], [square("calendar"), "December 2025", "48 photos"]]
   .map(([lead, t, c]) => `<div class="pick">${lead}<b><mark>${t[0]}</mark>${t.slice(1)}</b><span>${c}</span></div>`).join(""));
 document.querySelectorAll(".kbd").forEach(k => k.innerHTML = [10, 9, 7].map(n => `<div>${"<i></i>".repeat(n)}</div>`).join("") + '<div><i></i><i></i><i class="wide"></i><i></i><i></i></div>');
 fill("cover-face", face(2, 48));
-fill("cover-grid", Array.from({ length: 16 }, (_, i) => `<div class="pcard${i == 5 ? " on" : ""}">${face(2, 68)}</div>`).join(""));
+fill("cover-grid", Array.from({ length: 16 }, (_, i) => `<div class="pcard${i == 5 ? " on" : ""}">${i == 5 ? pick : ""}${face(2, 68)}</div>`).join(""));
 
 const shot = photo();
 document.querySelectorAll("[data-shot]").forEach(el => el.style.background = shot);
 document.querySelectorAll("[data-photo]").forEach(el => el.style.background = photo());
 document.getElementById("dim").style.background = `linear-gradient(rgba(0,0,0,.55), rgba(0,0,0,.55)), ${shot}`;
+document.getElementById("move-dim").style.background = document.getElementById("dim").style.background;
 const rescan = document.getElementById("rescan-phone");
 rescan.prepend(...[...document.querySelector("#settings .phone").children].map(n => n.cloneNode(true)));
 document.getElementById("hide-phone").prepend(...[...document.querySelector("#person .phone").children].map(n => n.cloneNode(true)));
@@ -1322,6 +1442,15 @@ fill("place-grid", [["Riverton", "642"], ["Northport", "118"], ["Harborview", "8
   .map(([n, c]) => cover(n, c)).join(""));
 fill("place-photos", [["October 2026", 5], ["September 2026", 8], ["July 2026", 6]]
   .map(([m, n]) => `<section class="month-sec"><h3 class="month">${m}</h3><div class="grid big">${tiles(n, [2], [0])}</div></section>`).join(""));
+// Move to album: filled last so the photos above keep their colors.
+fill("move-list", [["Screenshots", "214"], ["Telegram", "96"], ["Holidays 2024", "47"], ["Instagram", "21"], ["Edits", "9"]]
+  .map(([n, c]) => `<div class="pick"><span class="thumb" style="background:${photo()}"></span><b>${n}</b><span>${c}</span></div>`).join(""));
+// Album, selecting: same tiles as an album, three picked.
+fill("album-picked", Array.from({ length: 15 }, (_, i) => `<div class="tile${[1, 2, 6].includes(i) ? " on" : ""}" style="background:${photo()}"><span class="sel">${
+  [1, 2, 6].includes(i) ? check : ""}</span>${i == 4 ? `<span class="dur">0:18<svg class="i"><use href="#i-play"/></svg></span>` : ""}</div>`).join(""));
+fill("album-pick", document.getElementById("timeline-select").innerHTML);
+fill("favorites-grid", [["October 2026", 4], ["August 2026", 7], ["May 2026", 3], ["December 2025", 5]]
+  .map(([m, n]) => `<section class="month-sec"><h3 class="month">${m}</h3><div class="grid big">${tiles(n, [2])}</div></section>`).join(""));
 </script>
 
 </body>

@@ -198,6 +198,21 @@ fun VideosGrid() = MemoriaTheme {
     Surface { VideosContent(Videos(months, months.values.flatten(), 2_500_000_000L)) }
 }
 
+private fun fakeFavorites() = linkedMapOf(
+    "October 2026" to (1L..4L).map { Tile(it, android.net.Uri.parse("content://media/external/images/media/$it"), 1_700_000_000_000L - it * 86_400_000L, null) },
+    "September 2026" to (5L..7L).map { Tile(it, android.net.Uri.parse("content://media/external/images/media/$it"), 1_690_000_000_000L - it * 86_400_000L, null) },
+).let { Favorites(it, it.values.flatten()) }
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 760)
+@Composable
+fun FavoritesGrid() = MemoriaTheme { Surface { FavoritesContent(fakeFavorites()) } }
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 760)
+@Composable
+fun FavoritesLoading() = MemoriaTheme { Surface { FavoritesContent(null) } }
+
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 760)
 @Composable
