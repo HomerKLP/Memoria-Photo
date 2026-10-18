@@ -4,8 +4,10 @@ import android.content.Context
 import android.media.ExifInterface
 import android.net.Uri
 import android.provider.MediaStore
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -20,10 +22,12 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -128,14 +132,31 @@ fun PlacesContent(places: List<Place>?, onBack: () -> Unit = {}, onOpenPlace: (I
 @Composable
 fun PlaceScreen(id: Int, onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit) {
     val context = LocalContext.current
-    val place by cachedProduceState("place$id") { loadPlaces(context).firstOrNull { it.id == id } ?: Place(id, "", emptyList()) }
+    val pick = rememberPick()
+    val place by cachedProduceState("place$id", pick.changes) { loadPlaces(context).firstOrNull { it.id == id } ?: Place(id, "", emptyList()) }
+    PlaceContent(place, onBack, onOpen, pick)
+}
+
+@Composable
+fun PlaceContent(place: Place?, onBack: () -> Unit = {}, onOpen: (List<Tile>, Tile) -> Unit = { _, _ -> }, pick: Pick = Pick(null)) {
     val p = place
+    val sel = pick.ids
+    if (sel != null) BackHandler { pick.set(null) }
     val month = DateTimeFormatter.ofPattern("LLLL yyyy")
     val zone = ZoneId.systemDefault()
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
+        if (sel != null) TopBar(
+            "${sel.size} selected", "${p?.name} · ${formatBytes(pick.size)}",
+            onBack = { pick.set(null) }, backIcon = R.drawable.ic_close, backLabel = "Cancel",
+        ) {
+            if (p != null && sel.size < p.tiles.size) TextButton({ pick.set(p.tiles.map { it.id }.toSet()) }) { Text("Select all") }
+        }
         // " " while loading: an empty title may measure to nothing and the grid would jump
-        TopBar(p?.name?.ifEmpty { " " } ?: " ", p?.let { "${it.tiles.size} photos" }, onBack = onBack)
-        LazyVerticalGrid(GridCells.Fixed(3), horizontalArrangement = Arrangement.spacedBy(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        else TopBar(p?.name?.ifEmpty { " " } ?: " ", p?.let { "${it.tiles.size} photos" }, onBack = onBack)
+        LazyVerticalGrid(
+            GridCells.Fixed(3), Modifier.weight(1f).testTag("placeGrid"),
+            horizontalArrangement = Arrangement.spacedBy(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
             p?.tiles?.groupBy { month.format(Instant.ofEpochMilli(it.date).atZone(zone)) }?.forEach { (m, tiles) ->
                 stickyHeader(key = m) {
                     // background: the pinned month covers the tiles passing under it
@@ -144,8 +165,22 @@ fun PlaceScreen(id: Int, onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit)
                         style = MaterialTheme.typography.titleLarge,
                     )
                 }
-                items(tiles, key = { it.id }) { TileImage(it, Modifier.clickable { onOpen(p.tiles, it) }) }
+                items(tiles, key = { it.id }) { t ->
+                    val on = sel != null && t.id in sel
+                    TileImage(
+                        t,
+                        Modifier.combinedClickable(
+                            onClick = { if (sel == null) onOpen(p.tiles, t) else pick.set(if (on) sel - t.id else sel + t.id) },
+                            onLongClick = { pick.set(sel.orEmpty() + t.id) },
+                        ).testTag("tile-${t.id}"),
+                        selecting = sel != null, selected = on,
+                    )
+                }
             }
+        }
+        if (sel != null) {
+            val picked = p?.tiles.orEmpty().filter { it.id in sel }
+            SelectBar(picked.isNotEmpty() && picked.all { it.favorite }, { pick.share(picked) }, { pick.favorite(picked) }, { pick.delete(picked) })
         }
     }
 }

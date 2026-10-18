@@ -507,6 +507,60 @@ class LayoutJumpTest {
         assertSame("top bar height", barBefore, rule.onNodeWithTag("topBar").height())
     }
 
+    /** Favorites, selecting: the top bar swaps in place and the Select bar comes up under the grid; the grid's top must not move. */
+    @Test fun favorites_selecting_keepsTopBarAndGridTop() {
+        val tiles = albumTiles(1, 9)
+        var ids by mutableStateOf<Set<Long>?>(null)
+        rule.setContent { MemoriaTheme { Surface { FavoritesContent(Favorites(linkedMapOf("October 2026" to tiles), tiles), pick = Pick(ids)) } } }
+
+        val barBefore = rule.onNodeWithTag("topBar").height()
+        val gridBefore = rule.onNodeWithTag("favoritesGrid").top()
+        rule.runOnIdle { ids = setOf(1001L) }
+        assertSame("top bar height", barBefore, rule.onNodeWithTag("topBar").height())
+        assertSame("grid top", gridBefore, rule.onNodeWithTag("favoritesGrid").top())
+    }
+
+    /** Videos, selecting: same as Favorites. */
+    @Test fun videos_selecting_keepsTopBarAndGridTop() {
+        val tiles = albumTiles(1, 9)
+        var ids by mutableStateOf<Set<Long>?>(null)
+        rule.setContent { MemoriaTheme { Surface { VideosContent(Videos(linkedMapOf("October 2026" to tiles), tiles, 2_500_000_000L), pick = Pick(ids)) } } }
+
+        val barBefore = rule.onNodeWithTag("topBar").height()
+        val gridBefore = rule.onNodeWithTag("videosGrid").top()
+        rule.runOnIdle { ids = setOf(1001L) }
+        assertSame("top bar height", barBefore, rule.onNodeWithTag("topBar").height())
+        assertSame("grid top", gridBefore, rule.onNodeWithTag("videosGrid").top())
+    }
+
+    /** Place, selecting: same as Favorites. */
+    @Test fun place_selecting_keepsTopBarAndGridTop() {
+        var ids by mutableStateOf<Set<Long>?>(null)
+        rule.setContent { MemoriaTheme { Surface { PlaceContent(Place(1, "Riverton", albumTiles(1, 9)), pick = Pick(ids)) } } }
+
+        val barBefore = rule.onNodeWithTag("topBar").height()
+        val gridBefore = rule.onNodeWithTag("placeGrid").top()
+        rule.runOnIdle { ids = setOf(1001L) }
+        assertSame("top bar height", barBefore, rule.onNodeWithTag("topBar").height())
+        assertSame("grid top", gridBefore, rule.onNodeWithTag("placeGrid").top())
+    }
+
+    /** Person, selecting: the bar loses the face and More, but keeps its height; the chips and grid above the photos stay put. */
+    @Test fun personDetail_selecting_keepsTopBarAndChips() {
+        val faces = (1L..6L).map { face(it) }
+        val person = Person(faces, faces.first(), 1, "Dana")
+        var ids by mutableStateOf<Set<Long>?>(null)
+        rule.setContent { MemoriaTheme { Surface { PersonDetail(person, onBack = {}, onName = {}, onOpen = { _, _ -> }, loadPhotos = { albumTiles(1, 6) }, pick = Pick(ids)) } } }
+
+        val barBefore = rule.onNodeWithTag("topBar").height()
+        val gridBefore = rule.onNodeWithTag("personPhotos").top()
+        val chipBefore = rule.onNodeWithText("Rename").top()
+        rule.runOnIdle { ids = setOf(1001L) }
+        assertSame("top bar height", barBefore, rule.onNodeWithTag("topBar").height())
+        assertSame("grid top", gridBefore, rule.onNodeWithTag("personPhotos").top())
+        assertSame("chips", chipBefore, rule.onNodeWithText("Rename").top())
+    }
+
     /** Details: faces, place and camera facts fill in below the date; the date header must not move. */
     @Test fun details_fillingInSections_keepsDatePut() {
         val tile = Tile(1, Uri.parse("content://media/external/images/media/1"), 1_700_000_000_000L, null)

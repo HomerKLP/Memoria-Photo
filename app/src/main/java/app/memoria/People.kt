@@ -8,6 +8,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -45,6 +46,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -260,6 +262,8 @@ fun PeopleScreen(
         }
     }
     BackHandler { if (naming != null) naming = null else if (openId != null) onPersonBack() else onBack() }
+    val pick = rememberPick()
+    LaunchedEffect(openId) { pick.set(null) }
 
     val r = result
     PeopleContent(
@@ -280,6 +284,7 @@ fun PeopleScreen(
         onOpen = onOpen,
         onHelpRecognize = onHelpRecognize,
         hiddenOnly = hiddenOnly,
+        pick = pick,
         onMerge = { merging = it },
         onCover = { covering = it },
         onHide = { p ->
@@ -362,6 +367,7 @@ fun PeopleContent(
     onOpen: (List<Tile>, Tile) -> Unit = { _, _ -> },
     onHelpRecognize: (Long?) -> Unit = {},
     hiddenOnly: Boolean = false,
+    pick: Pick = Pick(null),
     onMerge: (Person) -> Unit = {},
     onCover: (Person) -> Unit = {},
     onHide: (Person) -> Unit = {},
@@ -427,7 +433,7 @@ fun PeopleContent(
         } else if (data != null) {
             PersonDetail(
                 open, onBack = onClosePerson, onName = { onName(open) }, onOpen = onOpen, onReview = { onHelpRecognize(open.id) },
-                onMerge = { onMerge(open) }, onCover = { onCover(open) }, onHide = { onHide(open) },
+                onMerge = { onMerge(open) }, onCover = { onCover(open) }, onHide = { onHide(open) }, pick = pick,
             )
         }
     }
@@ -495,13 +501,16 @@ fun PersonDetail(
     onCover: () -> Unit = {},
     onHide: () -> Unit = {},
     loadPhotos: (suspend (List<Long>) -> List<Tile>)? = null, // tests inject a fake; null loads from MediaStore
+    pick: Pick = Pick(null),
 ) {
     val context = LocalContext.current
+    val sel = pick.ids
+    if (sel != null) BackHandler { pick.set(null) }
     // keyed on the photos, not the person id: a merge or a fixed face keeps the id (old photos stay shown while it reloads)
     val photoIds = p.faces.map { it.photoId }.distinct()
     // cached, not produceState: the viewer replaces the whole screen tree, so on the way back an
     // empty first frame would let the grid's restored scroll clamp to the top (see cachedProduceState)
-    val photos by cachedProduceState("person${p.id}", photoIds) {
+    val photos by cachedProduceState("person${p.id}", photoIds, pick.changes) {
         val load = loadPhotos ?: { ids: List<Long> -> photosByIds(context, ids) }
         runCatching { withContext(Dispatchers.IO) { load(photoIds) } }.getOrDefault(emptyList())
     }
@@ -509,47 +518,70 @@ fun PersonDetail(
     val name = p.name ?: "No name"
     // an unnamed person reads badly in a sentence ("11 may be No name"), so use "this person" there
     val who = p.name ?: "this person"
-    TopBar(
-        title = name,
-        subtitle = "${p.photos} photo${if (p.photos == 1) "" else "s"} · ${p.faces.size} face${if (p.faces.size == 1) "" else "s"}",
-        onBack = onBack,
-        leading = { FaceImage(p.cover, Modifier.padding(end = 12.dp).size(40.dp).clip(CircleShape)) },
-        trailing = { // TODO: more menu
-            IconButton({}) { Icon(painterResource(R.drawable.ic_more), "More") }
-        },
-    )
-    LazyVerticalGrid(
-        GridCells.Fixed(3), modifier = Modifier.testTag("personPhotos"),
-        contentPadding = PaddingValues(bottom = 24.dp),
-        horizontalArrangement = Arrangement.spacedBy(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp),
-    ) {
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Chip(if (p.name.isNullOrBlank()) "Add name" else "Rename", R.drawable.ic_person, onName)
-                Chip("Merge with", R.drawable.ic_person_add, onMerge)
-                Chip("Change cover", R.drawable.ic_photo, onCover)
-                if (p.hidden) Chip("Show person", R.drawable.ic_eye, onHide) else Chip("Hide person", R.drawable.ic_block, onHide)
+    val shownPhotos = photos.orEmpty()
+    // own Column: the Select bar goes under the grid
+    Column(Modifier.fillMaxSize()) {
+        if (sel != null) TopBar(
+            "${sel.size} selected", "$name · ${formatBytes(pick.size)}",
+            onBack = { pick.set(null) }, backIcon = R.drawable.ic_close, backLabel = "Cancel",
+        ) {
+            if (sel.size < shownPhotos.size) TextButton({ pick.set(shownPhotos.map { it.id }.toSet()) }) { Text("Select all") }
+        }
+        else TopBar(
+            title = name,
+            subtitle = "${p.photos} photo${if (p.photos == 1) "" else "s"} · ${p.faces.size} face${if (p.faces.size == 1) "" else "s"}",
+            onBack = onBack,
+            leading = { FaceImage(p.cover, Modifier.padding(end = 12.dp).size(40.dp).clip(CircleShape)) },
+            trailing = { // TODO: more menu
+                IconButton({}) { Icon(painterResource(R.drawable.ic_more), "More") }
+            },
+        )
+        LazyVerticalGrid(
+            GridCells.Fixed(3), modifier = Modifier.weight(1f).testTag("personPhotos"),
+            contentPadding = PaddingValues(bottom = 24.dp),
+            horizontalArrangement = Arrangement.spacedBy(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Chip(if (p.name.isNullOrBlank()) "Add name" else "Rename", R.drawable.ic_person, onName)
+                    Chip("Merge with", R.drawable.ic_person_add, onMerge)
+                    Chip("Change cover", R.drawable.ic_photo, onCover)
+                    if (p.hidden) Chip("Show person", R.drawable.ic_eye, onHide) else Chip("Hide person", R.drawable.ic_block, onHide)
+                }
+            }
+            item(span = { GridItemSpan(maxLineSpan) }) { SectionHead("Faces", hint = "These faces match $who") }
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    sure.take(30).forEach { FaceImage(it, Modifier.size(44.dp).clip(CircleShape)) }
+                }
+            }
+            if (unsure.isNotEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
+                // "may be this person" wraps next to the face stack
+                ReviewCard(unsure, onReview, title = "Unsure faces", note = if (p.name.isNullOrBlank()) "${unsure.size} to check" else "${unsure.size} may be ${p.name}")
+            }
+            item(span = { GridItemSpan(maxLineSpan) }) { SectionHead("Photos", hint = "${p.photos} · by date") }
+            items(shownPhotos, key = { it.id }) { t ->
+                val on = sel != null && t.id in sel
+                TileImage(
+                    t,
+                    Modifier.combinedClickable(
+                        onClick = { if (sel == null) onOpen(shownPhotos, t) else pick.set(if (on) sel - t.id else sel + t.id) },
+                        onLongClick = { pick.set(sel.orEmpty() + t.id) },
+                    ).testTag("tile-${t.id}"),
+                    selecting = sel != null, selected = on,
+                )
             }
         }
-        item(span = { GridItemSpan(maxLineSpan) }) { SectionHead("Faces", hint = "These faces match $who") }
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 2.dp),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                sure.take(30).forEach { FaceImage(it, Modifier.size(44.dp).clip(CircleShape)) }
-            }
+        if (sel != null) {
+            val picked = shownPhotos.filter { it.id in sel }
+            SelectBar(picked.isNotEmpty() && picked.all { it.favorite }, { pick.share(picked) }, { pick.favorite(picked) }, { pick.delete(picked) })
         }
-        if (unsure.isNotEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
-            // "may be this person" wraps next to the face stack
-            ReviewCard(unsure, onReview, title = "Unsure faces", note = if (p.name.isNullOrBlank()) "${unsure.size} to check" else "${unsure.size} may be ${p.name}")
-        }
-        item(span = { GridItemSpan(maxLineSpan) }) { SectionHead("Photos", hint = "${p.photos} · by date") }
-        val shownPhotos = photos.orEmpty()
-        items(shownPhotos, key = { it.id }) { TileImage(it, Modifier.clickable { onOpen(shownPhotos, it) }) }
     }
 }
 

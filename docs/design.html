@@ -644,7 +644,27 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <div class="scroll vids" id="videos"></div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Videos: opens from the Library card. Every video, newest first, by month; the month stays pinned. Tap opens the viewer. The size is for video compression later</figcaption>
+      <figcaption>Videos: opens from the Library card. Every video, newest first, by month; the month stays pinned. Tap opens the viewer, long press selects. The size is for video compression later</figcaption>
+    </figure>
+    <figure id="videos-select">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Close"><svg class="i"><use href="#i-close"/></svg></button>
+          <div class="title"><b>2 selected</b><span>Videos · 412 MB</span></div>
+          <button class="text-btn">Select all</button>
+        </div>
+        <div class="scroll vids" id="videos-picked"></div>
+        <div class="bottom picking">
+          <nav>
+            <button class="tab"><span class="pill"><svg class="i"><use href="#i-share"/></svg>Share</span></button>
+            <button class="tab"><span class="pill"><svg class="i"><use href="#i-heart-line"/></svg>Favorite</span></button>
+            <button class="tab danger"><span class="pill"><svg class="i"><use href="#i-trash-line"/></svg>Delete</span></button>
+          </nav>
+          <div class="handle"></div>
+        </div>
+      </div>
+      <figcaption>Videos, selecting: same as an album, without Move</figcaption>
     </figure>
     <figure id="favorites">
       <div class="phone">
@@ -657,6 +677,26 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <div class="gesture"><div class="handle"></div></div>
       </div>
       <figcaption>Favorites: opens from the Library card. Like Videos: newest first, by month, the month pinned, no day headings (with a few favorites a day, each one got its own date). No hearts on the tiles: they are all favorites. Tap opens the viewer, long press selects, like an album</figcaption>
+    </figure>
+    <figure id="favorites-select">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Close"><svg class="i"><use href="#i-close"/></svg></button>
+          <div class="title"><b>3 selected</b><span>Favorites · 11.2 MB</span></div>
+          <button class="text-btn">Select all</button>
+        </div>
+        <div class="scroll vids" id="favorites-picked"></div>
+        <div class="bottom picking">
+          <nav>
+            <button class="tab"><span class="pill"><svg class="i"><use href="#i-share"/></svg>Share</span></button>
+            <button class="tab"><span class="pill"><svg class="i"><use href="#i-heart-line"/></svg>Unfavorite</span></button>
+            <button class="tab danger"><span class="pill"><svg class="i"><use href="#i-trash-line"/></svg>Delete</span></button>
+          </nav>
+          <div class="handle"></div>
+        </div>
+      </div>
+      <figcaption>Favorites, selecting: all picked are favorites, so the middle action is always Unfavorite. Unfavorited photos leave the grid</figcaption>
     </figure>
     <figure id="trash">
       <div class="phone">
@@ -773,7 +813,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="handle"></div>
         </div>
       </div>
-      <figcaption>Album, selecting: long press a photo, or More > Select. The top bar swaps in place; the Select bar comes up at the bottom, under the grid, so nothing above it moves. Select all picks the whole album. Move opens the Move to album sheet; moved photos leave this album. Delete sends all to the phone's trash with one Android confirm. Favorite reads Unfavorite when all picked are favorites. Back or X leaves. Favorites and a Place select the same way, without Move: only an album says which album its photos are in</figcaption>
+      <figcaption>Album, selecting: long press a photo, or More > Select. The top bar swaps in place; the Select bar comes up at the bottom, under the grid, so nothing above it moves. Select all picks the whole album. Move opens the Move to album sheet; moved photos leave this album. Delete sends all to the phone's trash with one Android confirm. Favorite reads Unfavorite when all picked are favorites. Back or X leaves. Favorites, a Place, a person and Videos select the same way, without Move: only an album says which album its photos are in</figcaption>
     </figure>
     <figure id="ignore">
       <div class="phone modal" id="ignore-phone">
@@ -849,6 +889,26 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <div class="gesture"><div class="handle"></div></div>
       </div>
       <figcaption>Place: every photo and video taken in that town, newest first, by month; the month stays pinned. Tap opens the viewer, long press selects. No map: map tiles need the internet</figcaption>
+    </figure>
+    <figure id="place-select">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Close"><svg class="i"><use href="#i-close"/></svg></button>
+          <div class="title"><b>3 selected</b><span>Riverton · 8.1 MB</span></div>
+          <button class="text-btn">Select all</button>
+        </div>
+        <div class="scroll vids" id="place-picked"></div>
+        <div class="bottom picking">
+          <nav>
+            <button class="tab"><span class="pill"><svg class="i"><use href="#i-share"/></svg>Share</span></button>
+            <button class="tab"><span class="pill"><svg class="i"><use href="#i-heart-line"/></svg>Favorite</span></button>
+            <button class="tab danger"><span class="pill"><svg class="i"><use href="#i-trash-line"/></svg>Delete</span></button>
+          </nav>
+          <div class="handle"></div>
+        </div>
+      </div>
+      <figcaption>Place, selecting: same as an album, without Move</figcaption>
     </figure>
     <figure id="places-empty">
       <div class="phone">
@@ -931,7 +991,27 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Person: opens from the People grid. Name, fixes, the faces that match, their photos. Unnamed: the card says "12 to check" (one line). Hidden person: the last chip is "Show person" with the eye icon</figcaption>
+      <figcaption>Person: opens from the People grid. Name, fixes, the faces that match, their photos. Unnamed: the card says "12 to check" (one line). Hidden person: the last chip is "Show person" with the eye icon. Long press a photo selects</figcaption>
+    </figure>
+    <figure id="person-select">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Close"><svg class="i"><use href="#i-close"/></svg></button>
+          <div class="title"><b>3 selected</b><span>Dana · 7.4 MB</span></div>
+          <button class="text-btn">Select all</button>
+        </div>
+        <div class="scroll" id="person-picked"></div>
+        <div class="bottom picking">
+          <nav>
+            <button class="tab"><span class="pill"><svg class="i"><use href="#i-share"/></svg>Share</span></button>
+            <button class="tab"><span class="pill"><svg class="i"><use href="#i-heart-line"/></svg>Favorite</span></button>
+            <button class="tab danger"><span class="pill"><svg class="i"><use href="#i-trash-line"/></svg>Delete</span></button>
+          </nav>
+          <div class="handle"></div>
+        </div>
+      </div>
+      <figcaption>Person, selecting: same as an album, without Move. Only the top bar swaps; the chips, faces and card above the photos stay put</figcaption>
     </figure>
     <figure>
       <div class="phone">
@@ -1178,7 +1258,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <button class="tab danger"><span class="pill"><svg class="i"><use href="#i-trash-line"/></svg>Delete</span></button>
       </nav>
     </div>
-    <p>Takes the bottom tabs' place while selecting on a tab screen, same height, so the grid keeps its size. On a screen without tabs (Album, Favorites, Place) it comes up at the bottom, under the grid, so nothing above moves. Move only in an album, the one screen that says where its photos are; four actions put the label under the icon. Delete goes last, in red. Trash has two actions and uses the Action bar.</p>
+    <p>Takes the bottom tabs' place while selecting on a tab screen, same height, so the grid keeps its size. On a screen without tabs (Album, Favorites, Place, Person, Videos) it comes up at the bottom, under the grid, so nothing above moves. Move only in an album, the one screen that says where its photos are; four actions put the label under the icon. Delete goes last, in red. Trash has two actions and uses the Action bar.</p>
   </article>
 
   <article class="part">
@@ -1462,6 +1542,15 @@ fill("album-picked", Array.from({ length: 15 }, (_, i) => `<div class="tile${[1,
 fill("album-pick", document.getElementById("timeline-select").innerHTML);
 fill("favorites-grid", [["October 2026", 4], ["August 2026", 7], ["May 2026", 3], ["December 2025", 5]]
   .map(([m, n]) => `<section class="month-sec"><h3 class="month">${m}</h3><div class="grid big">${tiles(n, [2])}</div></section>`).join(""));
+// Videos, Favorites, Place and Person, selecting: filled last so the photos above keep their colors.
+const pickTiles = (n, on, vids) => Array.from({ length: n }, (_, i) => `<div class="tile${on.includes(i) ? " on" : ""}" style="background:${photo()}"><span class="sel">${
+  on.includes(i) ? check : ""}</span>${vids.includes(i) ? `<span class="dur">${durs[i % durs.length]}<svg class="i"><use href="#i-play"/></svg></span>` : ""}</div>`).join("");
+const pickMonths = (ms, vids) => ms.map(([m, n, on]) => `<section class="month-sec"><h3 class="month">${m}</h3><div class="grid big">${pickTiles(n, on, vids(n))}</div></section>`).join("");
+fill("videos-picked", pickMonths([["October 2026", 5, [1, 3]], ["September 2026", 7, []]], n => [...Array(n).keys()]));
+fill("favorites-picked", pickMonths([["October 2026", 4, [0, 2]], ["August 2026", 7, [5]]], () => [2]));
+fill("place-picked", pickMonths([["October 2026", 5, [1]], ["September 2026", 8, [0, 3]]], () => [2]));
+fill("person-picked", document.querySelector("#person .scroll").innerHTML);
+document.querySelector("#person-picked .grid").innerHTML = pickTiles(12, [0, 4, 5], [3, 7]);
 </script>
 
 </body>

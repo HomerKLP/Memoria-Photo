@@ -73,6 +73,20 @@ fun PersonScreen() = MemoriaTheme {
     }
 }
 
+/** Person, selecting (mockup): the bar swaps, the chips and faces stay. Pairs with personDetail_selecting_keepsTopBarAndChips. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 900)
+@Composable
+fun PersonSelect() = MemoriaTheme {
+    Surface {
+        PersonDetail(
+            fakePerson(1, "Dana"), onBack = {}, onName = {}, onOpen = { _, _ -> },
+            loadPhotos = { ids -> ids.map { Tile(it, android.net.Uri.parse("content://media/external/images/media/$it"), 0L, null) } },
+            pick = Pick(setOf(0L), size = 7_400_000),
+        )
+    }
+}
+
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 1000)
 @Composable
@@ -167,6 +181,12 @@ fun PlacesGrid() = MemoriaTheme { Surface { PlacesContent(fakePlaces) } }
 @Composable
 fun PlacesLoading() = MemoriaTheme { Surface { PlacesContent(null) } }
 
+/** Place, selecting (mockup). Pairs with place_selecting_keepsTopBarAndGridTop. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 760)
+@Composable
+fun PlaceSelect() = MemoriaTheme { Surface { PlaceContent(fakePlaces[1], pick = Pick(setOf(1001L, 1003L, 1004L), size = 8_100_000)) } }
+
 private fun fakeAlbum(id: Long, name: String, count: Int) =
     Album(id, name, List(count) { Tile(id * 1000 + it, android.net.Uri.parse("content://media/external/images/media/${id * 1000 + it}"), 1_700_000_000_000L - it * 86_400_000L, null) })
 
@@ -223,6 +243,15 @@ fun VideosGrid() = MemoriaTheme {
     Surface { VideosContent(Videos(months, months.values.flatten(), 2_500_000_000L)) }
 }
 
+/** Videos, selecting (mockup). Pairs with videos_selecting_keepsTopBarAndGridTop. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 760)
+@Composable
+fun VideosSelect() = MemoriaTheme {
+    val tiles = (1L..7L).map { Tile(it, android.net.Uri.parse("content://media/external/video/media/$it"), 1_700_000_000_000L - it * 86_400_000L, 12_000L) }
+    Surface { VideosContent(Videos(linkedMapOf("October 2026" to tiles), tiles, 2_500_000_000L), pick = Pick(setOf(2L, 4L), size = 412_000_000)) }
+}
+
 private fun fakeFavorites() = linkedMapOf(
     "October 2026" to (1L..4L).map { Tile(it, android.net.Uri.parse("content://media/external/images/media/$it"), 1_700_000_000_000L - it * 86_400_000L, null) },
     "September 2026" to (5L..7L).map { Tile(it, android.net.Uri.parse("content://media/external/images/media/$it"), 1_690_000_000_000L - it * 86_400_000L, null) },
@@ -232,6 +261,12 @@ private fun fakeFavorites() = linkedMapOf(
 @Preview(widthDp = 360, heightDp = 760)
 @Composable
 fun FavoritesGrid() = MemoriaTheme { Surface { FavoritesContent(fakeFavorites()) } }
+
+/** Favorites, selecting (mockup): the bar reads Unfavorite. Pairs with favorites_selecting_keepsTopBarAndGridTop. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 760)
+@Composable
+fun FavoritesSelect() = MemoriaTheme { Surface { FavoritesContent(fakeFavorites(), pick = Pick(setOf(1L, 3L, 6L), size = 11_200_000)) } }
 
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 760)

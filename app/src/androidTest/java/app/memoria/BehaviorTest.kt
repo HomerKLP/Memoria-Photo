@@ -293,6 +293,79 @@ class BehaviorTest {
         assertEquals(false, ignored)
     }
 
+    // --- Select on Favorites, Videos, Place, Person ---------------------------------------------
+
+    @Test fun favorites_selecting_unfavoritesThePicked() {
+        val tiles = (1L..4L).map { tile(it) }
+        var ids by mutableStateOf<Set<Long>?>(null)
+        var unfavorited: List<Tile>? = null
+        rule.setContent {
+            MemoriaTheme { Surface {
+                FavoritesContent(Favorites(linkedMapOf("October 2026" to tiles), tiles), pick = Pick(ids, set = { ids = it }, favorite = { unfavorited = it }))
+            } }
+        }
+
+        rule.onNodeWithTag("tile-2").performTouchInput { longClick() }
+        rule.onNodeWithTag("tile-3").performClick()
+        rule.onNodeWithText("Unfavorite").performClick()
+        assertEquals(listOf(2L, 3L), unfavorited?.map { it.id })
+    }
+
+    @Test fun videos_selecting_selectAllThenShareSendsAll() {
+        val tiles = (1L..4L).map { tile(it) }
+        var ids by mutableStateOf<Set<Long>?>(null)
+        var shared: List<Tile>? = null
+        rule.setContent {
+            MemoriaTheme { Surface {
+                VideosContent(Videos(linkedMapOf("October 2026" to tiles), tiles, 0L), pick = Pick(ids, set = { ids = it }, share = { shared = it }))
+            } }
+        }
+
+        rule.onNodeWithTag("tile-1").performTouchInput { longClick() }
+        rule.onNodeWithText("Select all").performClick()
+        rule.onNodeWithText("Share").performClick()
+        assertEquals((1L..4L).toList(), shared?.map { it.id })
+    }
+
+    @Test fun place_selecting_tapTogglesAndDeleteGetsThePicked() {
+        val tiles = (1L..4L).map { tile(it) }
+        var ids by mutableStateOf<Set<Long>?>(null)
+        var deleted: List<Tile>? = null
+        var opened = false
+        rule.setContent {
+            MemoriaTheme { Surface {
+                PlaceContent(Place(1, "Riverton", tiles), onOpen = { _, _ -> opened = true }, pick = Pick(ids, set = { ids = it }, delete = { deleted = it }))
+            } }
+        }
+
+        rule.onNodeWithTag("tile-1").performTouchInput { longClick() }
+        rule.onNodeWithTag("tile-2").performClick()
+        rule.onNodeWithTag("tile-1").performClick()
+        assertEquals(setOf(2L), ids)
+        assertEquals(false, opened)
+        rule.onNodeWithText("Delete").performClick()
+        assertEquals(listOf(2L), deleted?.map { it.id })
+        rule.onNodeWithContentDescription("Cancel").performClick()
+        assertEquals(null, ids)
+    }
+
+    @Test fun person_selecting_favoriteGetsThePicked() {
+        val photos = (101L..106L).map { tile(it) }
+        var ids by mutableStateOf<Set<Long>?>(null)
+        var faved: List<Tile>? = null
+        rule.setContent {
+            MemoriaTheme { Surface {
+                PersonDetail(person(1, "Dana"), onBack = {}, onName = {}, onOpen = { _, _ -> }, loadPhotos = { photos }, pick = Pick(ids, set = { ids = it }, favorite = { faved = it }))
+            } }
+        }
+
+        rule.onNodeWithTag("tile-102").performTouchInput { longClick() }
+        rule.onNodeWithTag("tile-104").performClick()
+        rule.onNodeWithText("2 selected").assertIsDisplayed()
+        rule.onNodeWithText("Favorite").performClick()
+        assertEquals(listOf(102L, 104L), faved?.map { it.id })
+    }
+
     // --- Move to album -------------------------------------------------------------------------
 
     @Test fun moveToAlbum_pick_handsTheFolderPath() {

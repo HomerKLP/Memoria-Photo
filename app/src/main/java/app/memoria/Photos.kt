@@ -1,10 +1,13 @@
 package app.memoria
 
 import android.Manifest
+import android.app.Activity
+import android.app.PendingIntent
 import android.content.ContentUris
 import android.content.ContentValues
 import android.content.ContentResolver
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
@@ -18,7 +21,11 @@ import android.util.Size
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.ReportDrawnWhen
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -48,6 +55,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -240,6 +248,61 @@ class PhotoSelection {
     fun clear() { tiles = emptyMap() }
 }
 
+/**
+ * Select mode on a grid without tabs (Album, Favorites, Place, Person, Videos). Plain values, so tests
+ * build one by hand; [rememberPick] makes the real one. Screens reload when [changes] goes up.
+ */
+class Pick(
+    val ids: Set<Long>?, // null: not selecting; empty: More > Select with nothing picked yet
+    val size: Long = 0L,
+    val changes: Int = 0,
+    val set: (Set<Long>?) -> Unit = {},
+    val share: (List<Tile>) -> Unit = {},
+    val favorite: (List<Tile>) -> Unit = {},
+    val delete: (List<Tile>) -> Unit = {},
+    val confirm: (PendingIntent, () -> Unit) -> Unit = { _, _ -> },
+    val done: () -> Unit = {},
+)
+
+@Composable
+fun rememberPick(): Pick {
+    val context = LocalContext.current
+    var ids by remember { mutableStateOf<Set<Long>?>(null) }
+    var changes by remember { mutableIntStateOf(0) }
+    val size by produceState(0L, ids) { value = withContext(Dispatchers.IO) { selectedSize(context, ids.orEmpty()) } }
+    // Android's confirm for photos another app owns: [then] runs on OK
+    var then by remember { mutableStateOf<(() -> Unit)?>(null) }
+    val ask = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) { then?.invoke(); ids = null }
+        then = null
+        changes++ // our own photos changed before the confirm, even on Cancel
+    }
+    fun confirm(request: PendingIntent, onOk: () -> Unit) { then = onOk; ask.launch(IntentSenderRequest.Builder(request.intentSender).build()) }
+    fun done() { ids = null; changes++ }
+    return Pick(
+        ids, size, changes, set = { ids = it },
+        share = { picked ->
+            if (picked.isNotEmpty()) {
+                val send = Intent(Intent.ACTION_SEND_MULTIPLE).setType("*/*").putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(picked.map { it.uri }))
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                context.startActivity(Intent.createChooser(send, null))
+            }
+        },
+        favorite = { picked ->
+            if (picked.isNotEmpty()) {
+                val fav = !picked.all { it.favorite }
+                val foreign = picked.filter { t -> runCatching { setFavorite(context, t, fav) }.onSuccess { updateTile(t.copy(favorite = fav)) }.isFailure }
+                if (foreign.isEmpty()) done()
+                else confirm(MediaStore.createFavoriteRequest(context.contentResolver, foreign.map { it.uri }, fav)) { foreign.forEach { updateTile(it.copy(favorite = fav)) } }
+            }
+        },
+        delete = { picked ->
+            if (picked.isNotEmpty()) confirm(MediaStore.createTrashRequest(context.contentResolver, picked.map { it.uri }, true)) { picked.forEach { forgetTile(it.id) } }
+        },
+        confirm = ::confirm, done = ::done,
+    )
+}
+
 /** Total bytes of the given MediaStore ids, for the select top bar's "18.4 MB" (one small query). */
 fun selectedSize(context: Context, ids: Collection<Long>): Long {
     if (ids.isEmpty()) return 0L
@@ -278,7 +341,8 @@ fun PhotosScreen(
     var granted by remember { mutableStateOf(media.all(::has)) }
     val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted = media.all(::has) }
     LaunchedEffect(Unit) { if (!perms.all(::has)) ask.launch(perms) }
-    val items by produceState(if (favoritesOnly) lastFavorites else lastTimeline, granted, reload) {
+    val pick = rememberPick() // Favorites only, the timeline has its own select mode
+    val items by produceState(if (favoritesOnly) lastFavorites else lastTimeline, granted, reload, pick.changes) {
         if (granted) value = withContext(Dispatchers.IO) { timeline(context, favoritesOnly) }
             .also { if (favoritesOnly) lastFavorites = it else lastTimeline = it }
     }
@@ -290,6 +354,7 @@ fun PhotosScreen(
             onAsk = { ask.launch(perms) },
             onBack = onBack ?: {},
             onOpen = onOpen,
+            pick = pick,
         )
         return
     }
@@ -340,10 +405,19 @@ fun FavoritesContent(
     onAsk: () -> Unit = {},
     onBack: () -> Unit = {},
     onOpen: (List<Tile>, Tile) -> Unit = { _, _ -> },
+    pick: Pick = Pick(null),
 ) {
     val f = favorites
+    val sel = pick.ids
+    if (sel != null) BackHandler { pick.set(null) }
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-        TopBar("Favorites", f?.let(::favoritesSubtitle), onBack = onBack)
+        if (sel != null) TopBar(
+            "${sel.size} selected", "Favorites · ${formatBytes(pick.size)}",
+            onBack = { pick.set(null) }, backIcon = R.drawable.ic_close, backLabel = "Cancel",
+        ) {
+            if (f != null && sel.size < f.all.size) TextButton({ pick.set(f.all.map { it.id }.toSet()) }) { Text("Select all") }
+        }
+        else TopBar("Favorites", f?.let(::favoritesSubtitle), onBack = onBack)
         if (!granted) {
             // ponytail: after two denials Android stops asking, then the user has to allow it in system settings
             Column(Modifier.padding(horizontal = 20.dp)) {
@@ -356,7 +430,10 @@ fun FavoritesContent(
             Text("No favorites yet. Open a photo and tap the heart.", Modifier.padding(horizontal = 20.dp))
             return@Column
         }
-        LazyVerticalGrid(GridCells.Fixed(3), horizontalArrangement = Arrangement.spacedBy(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        LazyVerticalGrid(
+            GridCells.Fixed(3), Modifier.weight(1f).testTag("favoritesGrid"),
+            horizontalArrangement = Arrangement.spacedBy(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
             f?.months?.forEach { (month, tiles) ->
                 stickyHeader(key = month) {
                     // background: the pinned month covers the tiles passing under it
@@ -365,8 +442,23 @@ fun FavoritesContent(
                         style = MaterialTheme.typography.titleLarge,
                     )
                 }
-                items(tiles, key = { it.id }) { TileImage(it, Modifier.clickable { onOpen(f.all, it) }.testTag("tile-${it.id}"), heart = false) }
+                items(tiles, key = { it.id }) { t ->
+                    val on = sel != null && t.id in sel
+                    TileImage(
+                        t,
+                        Modifier.combinedClickable(
+                            onClick = { if (sel == null) onOpen(f.all, t) else pick.set(if (on) sel - t.id else sel + t.id) },
+                            onLongClick = { pick.set(sel.orEmpty() + t.id) },
+                        ).testTag("tile-${t.id}"),
+                        selecting = sel != null, selected = on, heart = false,
+                    )
+                }
             }
+        }
+        // everything here is a favorite, so the middle action always reads Unfavorite
+        if (sel != null) {
+            val picked = f?.all.orEmpty().filter { it.id in sel }
+            SelectBar(true, { pick.share(picked) }, { pick.favorite(picked) }, { pick.delete(picked) })
         }
     }
 }

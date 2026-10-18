@@ -1,12 +1,6 @@
 package app.memoria
 
-import android.app.Activity
-import android.app.PendingIntent
-import android.content.Intent
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.IntentSenderRequest
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.AlertDialog
@@ -15,7 +9,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.testTag
@@ -280,54 +273,28 @@ fun AlbumContent(
 @Composable
 fun AlbumScreen(id: Long, onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit) {
     val context = LocalContext.current
-    var reload by remember { mutableStateOf(0) }
-    val album by cachedProduceState("album$id", reload) { withContext(Dispatchers.IO) { albums(context, id) } }
+    val pick = rememberPick()
+    val album by cachedProduceState("album$id", pick.changes) { withContext(Dispatchers.IO) { albums(context, id) } }
     val a = album?.firstOrNull()
-    var selected by remember { mutableStateOf<Set<Long>?>(null) }
-    val picked = a?.tiles.orEmpty().filter { it.id in selected.orEmpty() }
-    val pickedSize by produceState(0L, selected) { value = withContext(Dispatchers.IO) { selectedSize(context, selected.orEmpty()) } }
+    val picked = a?.tiles.orEmpty().filter { it.id in pick.ids.orEmpty() }
     var ignored by remember { mutableStateOf(id in IndexProgress.skipped(context)) }
     var moving by remember { mutableStateOf(false) }
-    fun done() { selected = null; reload++ }
-    // Android's confirm for photos another app owns: [then] runs on OK
-    var then by remember { mutableStateOf<(() -> Unit)?>(null) }
-    val ask = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
-        if (result.resultCode == Activity.RESULT_OK) { then?.invoke(); selected = null }
-        then = null
-        reload++ // our own photos changed before the confirm, even on Cancel
-    }
-    fun confirm(request: PendingIntent, onOk: () -> Unit) { then = onOk; ask.launch(IntentSenderRequest.Builder(request.intentSender).build()) }
     AlbumContent(
-        a, onBack, onOpen, selected, pickedSize, ignored,
-        onSelect = { selected = it },
+        a, onBack, onOpen, pick.ids, pick.size, ignored,
+        onSelect = pick.set,
         // the next index run drops (or searches again) this album's photos
         onIgnore = { IndexProgress.setSkipped(context, id, it); ignored = it },
-        onShare = {
-            if (picked.isNotEmpty()) {
-                val send = Intent(Intent.ACTION_SEND_MULTIPLE).setType("*/*").putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(picked.map { it.uri }))
-                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                context.startActivity(Intent.createChooser(send, null))
-            }
-        },
-        onFavorite = {
-            if (picked.isNotEmpty()) {
-                val fav = !picked.all { it.favorite }
-                val foreign = picked.filter { t -> runCatching { setFavorite(context, t, fav) }.onSuccess { updateTile(t.copy(favorite = fav)) }.isFailure }
-                if (foreign.isEmpty()) done()
-                else confirm(MediaStore.createFavoriteRequest(context.contentResolver, foreign.map { it.uri }, fav)) { foreign.forEach { updateTile(it.copy(favorite = fav)) } }
-            }
-        },
+        onShare = { pick.share(picked) },
+        onFavorite = { pick.favorite(picked) },
         onMove = { if (picked.isNotEmpty()) moving = true },
-        onDelete = {
-            if (picked.isNotEmpty()) confirm(MediaStore.createTrashRequest(context.contentResolver, picked.map { it.uri }, true)) { picked.forEach { forgetTile(it.id) } }
-        },
+        onDelete = { pick.delete(picked) },
     )
     // moved photos leave this album; the sheet's head shows the first picked
     if (moving) MoveToAlbumSheet(picked.first(), onDismiss = { moving = false }) { path ->
         moving = false
         val foreign = picked.filter { runCatching { movePhoto(context, it, path) }.isFailure }
-        if (foreign.isEmpty()) done()
-        else confirm(MediaStore.createWriteRequest(context.contentResolver, foreign.map { it.uri })) { foreign.forEach { runCatching { movePhoto(context, it, path) } } }
+        if (foreign.isEmpty()) pick.done()
+        else pick.confirm(MediaStore.createWriteRequest(context.contentResolver, foreign.map { it.uri })) { foreign.forEach { runCatching { movePhoto(context, it, path) } } }
     }
 }
 
@@ -336,12 +303,23 @@ class Videos(val months: Map<String, List<Tile>>, val all: List<Tile>, val bytes
 
 /** All videos by month, the month pinned on top. Layout per docs/design.html. Split from the load for previews. */
 @Composable
-fun VideosContent(videos: Videos?, onBack: () -> Unit = {}, onOpen: (List<Tile>, Tile) -> Unit = { _, _ -> }) {
+fun VideosContent(videos: Videos?, onBack: () -> Unit = {}, onOpen: (List<Tile>, Tile) -> Unit = { _, _ -> }, pick: Pick = Pick(null)) {
     val v = videos
+    val sel = pick.ids
+    if (sel != null) BackHandler { pick.set(null) }
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         val size = v?.bytes?.let { if (it >= 1e9) "%.1f GB".format(it / 1e9) else "%.0f MB".format(it / 1e6) }
-        TopBar("Videos", v?.let { "${it.all.size} videos · $size" }, onBack = onBack)
-        LazyVerticalGrid(GridCells.Fixed(3), horizontalArrangement = Arrangement.spacedBy(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        if (sel != null) TopBar(
+            "${sel.size} selected", "Videos · ${formatBytes(pick.size)}",
+            onBack = { pick.set(null) }, backIcon = R.drawable.ic_close, backLabel = "Cancel",
+        ) {
+            if (v != null && sel.size < v.all.size) TextButton({ pick.set(v.all.map { it.id }.toSet()) }) { Text("Select all") }
+        }
+        else TopBar("Videos", v?.let { "${it.all.size} videos · $size" }, onBack = onBack)
+        LazyVerticalGrid(
+            GridCells.Fixed(3), Modifier.weight(1f).testTag("videosGrid"),
+            horizontalArrangement = Arrangement.spacedBy(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
             v?.months?.forEach { (month, tiles) ->
                 stickyHeader(key = month) {
                     // background: the pinned month covers the tiles passing under it
@@ -350,8 +328,22 @@ fun VideosContent(videos: Videos?, onBack: () -> Unit = {}, onOpen: (List<Tile>,
                         style = MaterialTheme.typography.titleLarge,
                     )
                 }
-                items(tiles, key = { it.id }) { TileImage(it, Modifier.clickable { onOpen(v.all, it) }) }
+                items(tiles, key = { it.id }) { t ->
+                    val on = sel != null && t.id in sel
+                    TileImage(
+                        t,
+                        Modifier.combinedClickable(
+                            onClick = { if (sel == null) onOpen(v.all, t) else pick.set(if (on) sel - t.id else sel + t.id) },
+                            onLongClick = { pick.set(sel.orEmpty() + t.id) },
+                        ).testTag("tile-${t.id}"),
+                        selecting = sel != null, selected = on,
+                    )
+                }
             }
+        }
+        if (sel != null) {
+            val picked = v?.all.orEmpty().filter { it.id in sel }
+            SelectBar(picked.isNotEmpty() && picked.all { it.favorite }, { pick.share(picked) }, { pick.favorite(picked) }, { pick.delete(picked) })
         }
     }
 }
@@ -359,7 +351,8 @@ fun VideosContent(videos: Videos?, onBack: () -> Unit = {}, onOpen: (List<Tile>,
 @Composable
 fun VideosScreen(onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit) {
     val context = LocalContext.current
-    val videos by cachedProduceState("videos") {
+    val pick = rememberPick()
+    val videos by cachedProduceState("videos", pick.changes) {
         withContext(Dispatchers.IO) {
             val all = albums(context).flatMap { it.tiles }.filter { it.duration != null }.sortedByDescending { it.date }
             var bytes = 0L
@@ -371,5 +364,5 @@ fun VideosScreen(onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit) {
             Videos(all.groupBy { month.format(Instant.ofEpochMilli(it.date).atZone(zone)) }, all, bytes)
         }
     }
-    VideosContent(videos, onBack, onOpen)
+    VideosContent(videos, onBack, onOpen, pick)
 }
