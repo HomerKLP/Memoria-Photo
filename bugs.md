@@ -258,6 +258,17 @@ Fix ideas:
   `BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE`.
 - Check on a stock-Pixel emulator to tell whether it is the OEM.
 
+## Person: back from the viewer lands at the top of the photos
+
+Fixed 2026-10-18 (the person's photos loaded with plain `produceState`, so after the viewer tore the tree down they restarted empty; the grid's restored scroll clamped onto the short frame and never came back. Now `cachedProduceState("person${id}", photoIds)` — `People.kt` `PersonDetail`. Same class as the Library-from-Trash fix above. Test `personDetail_backFromViewer_keepsGridScroll`).
+
+Steps:
+1. Library > People > open a person > scroll their photo grid down > tap a photo > go back.
+2. The grid is at the top, not where it was.
+
+Fix ideas:
+- Done: cache the last photo list per person so the first frame back is full.
+
 # Known issues and bad patterns
 
 Found while reading the code, not seen on the phone yet. No steps, just the risk.

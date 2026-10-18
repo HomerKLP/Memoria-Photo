@@ -451,12 +451,16 @@ fun PersonDetail(
     onMerge: () -> Unit = {},
     onCover: () -> Unit = {},
     onHide: () -> Unit = {},
+    loadPhotos: (suspend (List<Long>) -> List<Tile>)? = null, // tests inject a fake; null loads from MediaStore
 ) {
     val context = LocalContext.current
     // keyed on the photos, not the person id: a merge or a fixed face keeps the id (old photos stay shown while it reloads)
     val photoIds = p.faces.map { it.photoId }.distinct()
-    val photos by produceState<List<Tile>>(emptyList(), photoIds) {
-        value = runCatching { withContext(Dispatchers.IO) { photosByIds(context, photoIds) } }.getOrDefault(emptyList())
+    // cached, not produceState: the viewer replaces the whole screen tree, so on the way back an
+    // empty first frame would let the grid's restored scroll clamp to the top (see cachedProduceState)
+    val photos by cachedProduceState("person${p.id}", photoIds) {
+        val load = loadPhotos ?: { ids: List<Long> -> photosByIds(context, ids) }
+        runCatching { withContext(Dispatchers.IO) { load(photoIds) } }.getOrDefault(emptyList())
     }
     val (sure, unsure) = p.faces.partition { it.sure }
     val name = p.name ?: "No name"
@@ -471,7 +475,7 @@ fun PersonDetail(
             IconButton({}) { Icon(painterResource(R.drawable.ic_more), "More") }
         },
     )
-    LazyVerticalGrid(GridCells.Fixed(3), contentPadding = PaddingValues(bottom = 24.dp)) {
+    LazyVerticalGrid(GridCells.Fixed(3), modifier = Modifier.testTag("personPhotos"), contentPadding = PaddingValues(bottom = 24.dp)) {
         item(span = { GridItemSpan(maxLineSpan) }) {
             Row(
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 16.dp, top = 12.dp),
@@ -497,7 +501,8 @@ fun PersonDetail(
             ReviewCard(unsure, onReview, title = "Unsure faces", note = if (p.name.isNullOrBlank()) "${unsure.size} to check" else "${unsure.size} may be ${p.name}")
         }
         item(span = { GridItemSpan(maxLineSpan) }) { SectionHead("Photos", hint = "${p.photos} · by date") }
-        items(photos, key = { it.id }) { TileImage(it, Modifier.clickable { onOpen(photos, it) }) }
+        val shownPhotos = photos.orEmpty()
+        items(shownPhotos, key = { it.id }) { TileImage(it, Modifier.clickable { onOpen(shownPhotos, it) }) }
     }
 }
 

@@ -13,6 +13,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -23,6 +24,7 @@ import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.unit.Dp
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -315,5 +317,37 @@ class LayoutJumpTest {
         val before = rule.onNodeWithTag("bottomBar").height()
         rule.runOnIdle { selecting = true }
         assertSame("bottom bar height", before, rule.onNodeWithTag("bottomBar").height())
+    }
+
+    /**
+     * Person: the viewer replaces the whole screen tree, so the person's photo grid leaves
+     * composition. Back from a photo must keep the grid where it was, not land at the top: the
+     * grid's restored scroll clamps to an empty first frame (the bug). Mirrors `App`'s
+     * `SaveableStateProvider("people")` + viewer swap; fails if the photos reload empty.
+     */
+    @Test fun personDetail_backFromViewer_keepsGridScroll() {
+        val faces = (1L..40L).map { face(it) }
+        val person = Person(faces, faces.first(), 1, "Dana")
+        val photos = (1L..40L).map { tile(it) }
+        var viewing by mutableStateOf(false)
+        rule.setContent {
+            MemoriaTheme {
+                Surface {
+                    val holder = rememberSaveableStateHolder()
+                    if (viewing) Box(Modifier.fillMaxSize().testTag("viewer"))
+                    else holder.SaveableStateProvider("person") {
+                        PersonDetail(person, onBack = {}, onName = {}, onOpen = { _, _ -> }, loadPhotos = { photos })
+                    }
+                }
+            }
+        }
+
+        // scroll past the "Photos" heading (grid index 3); it is off-screen while the scroll holds
+        rule.onNodeWithTag("personPhotos").performScrollToIndex(35)
+        rule.onNodeWithText("Photos").assertDoesNotExist()
+
+        rule.runOnIdle { viewing = true }  // the viewer takes over the tree
+        rule.runOnIdle { viewing = false } // back to the person
+        rule.onNodeWithText("Photos").assertDoesNotExist()
     }
 }
