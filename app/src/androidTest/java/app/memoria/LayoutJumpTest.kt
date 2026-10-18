@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationItemIconPosition
 import androidx.compose.material3.ShortNavigationBar
@@ -26,7 +27,9 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -349,5 +352,88 @@ class LayoutJumpTest {
         rule.runOnIdle { viewing = true }  // the viewer takes over the tree
         rule.runOnIdle { viewing = false } // back to the person
         rule.onNodeWithText("Photos").assertDoesNotExist()
+    }
+
+    private fun albumTiles(id: Long, count: Int) = (1L..count).map { tile(id * 1000 + it) }
+    private fun album(id: Long, name: String, count: Int) = Album(id, name, albumTiles(id, count))
+
+    /** Albums: the cover grid loads after the bar; the "On this device" heading must not move. */
+    @Test fun albums_loadingToLoaded_headerStaysPut() {
+        var albums by mutableStateOf<List<Album>?>(null)
+        rule.setContent { MemoriaTheme { Surface { AlbumsContent(albums) } } }
+
+        val headerBefore = rule.onNodeWithText("On this device").top()
+        rule.runOnIdle { albums = listOf(album(1, "Camera", 5), album(2, "Screenshots", 3)) }
+        assertSame("On this device", headerBefore, rule.onNodeWithText("On this device").top())
+    }
+
+    /** Album: the title is a space while loading so the bar keeps its height; it must not move. */
+    @Test fun album_loadingToLoaded_topBarStaysPut() {
+        var album by mutableStateOf<Album?>(null)
+        rule.setContent { MemoriaTheme { Surface { AlbumContent(album) } } }
+
+        val barBefore = rule.onNodeWithTag("topBar").height()
+        rule.runOnIdle { album = album(1, "Camera", 9) }
+        assertSame("top bar height", barBefore, rule.onNodeWithTag("topBar").height())
+    }
+
+    /** Videos: the month header is pinned; loading must not move the screen's bar. */
+    @Test fun videos_loadingToLoaded_topBarStaysPut() {
+        var videos by mutableStateOf<Videos?>(null)
+        rule.setContent { MemoriaTheme { Surface { VideosContent(videos) } } }
+
+        val barBefore = rule.onNodeWithTag("topBar").height()
+        rule.runOnIdle { videos = Videos(linkedMapOf("October 2026" to albumTiles(1, 4)), albumTiles(1, 4), 2_500_000_000L) }
+        assertSame("top bar height", barBefore, rule.onNodeWithTag("topBar").height())
+    }
+
+    /** Details: faces, place and camera facts fill in below the date; the date header must not move. */
+    @Test fun details_fillingInSections_keepsDatePut() {
+        val tile = Tile(1, Uri.parse("content://media/external/images/media/1"), 1_700_000_000_000L, null)
+        val bare = PhotoInfo("a.jpg", "DCIM/Camera", 0, 0, 0, null, null, null, null)
+        val full = PhotoInfo("a.jpg", "DCIM/Camera", 3_500_000, 4032, 3024, 37.4219, -122.0840, "Pixel 9", "f/1.8 · 1/120 s")
+        var faces by mutableStateOf(emptyList<FaceVec>())
+        var info by mutableStateOf(bare)
+        rule.setContent { MemoriaTheme { Surface { DetailsContent(tile, info, faces, emptyList()) } } }
+
+        val dateText = java.time.format.DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy")
+            .format(java.time.Instant.ofEpochMilli(tile.date).atZone(java.time.ZoneId.systemDefault()))
+        val dateBefore = rule.onNodeWithText(dateText).top()
+        rule.runOnIdle {
+            faces = listOf(face(1))
+            info = full
+        }
+        assertSame("date", dateBefore, rule.onNodeWithText(dateText).top())
+    }
+
+    /**
+     * Person: the chips are a horizontal scroll. With the row wide enough to hold them all, the
+     * last chip ("Hide person") must keep the mockup's 16 dp right padding, not run to the edge.
+     */
+    @Test fun personDetail_lastChip_keepsRightPadding() {
+        val faces = (1L..3L).map { face(it) }
+        val person = Person(faces, faces.first(), 1, "Dana")
+        val wide = 600.dp
+        rule.setContent { MemoriaTheme { Surface { Box(Modifier.width(wide)) { PersonDetail(person, onBack = {}, onName = {}, onOpen = { _, _ -> }, loadPhotos = { emptyList() }) } } } }
+
+        val right = rule.onNodeWithText("Hide person").getUnclippedBoundsInRoot().right.value
+        assertTrue("last chip runs into the right edge: right=$right", right <= wide.value - 16f + 0.5f)
+    }
+
+    /** People: the bar keeps its height while the list loads, and the grid below must not shift. */
+    @Test fun people_loadingToLoaded_topBarKeepsHeight() {
+        var data by mutableStateOf<PeopleData?>(null)
+        rule.setContent { MemoriaTheme { Surface { PeopleContent(data) } } }
+
+        val barBefore = rule.onNodeWithTag("topBar").height()
+        rule.runOnIdle {
+            data = PeopleData(
+                "7 people · 412 faces",
+                (1L..7L).map { person(it, if (it % 2 == 0L) "Person $it" else null) },
+                emptyList(),
+                total = 1706,
+            )
+        }
+        assertSame("top bar height", barBefore, rule.onNodeWithTag("topBar").height())
     }
 }

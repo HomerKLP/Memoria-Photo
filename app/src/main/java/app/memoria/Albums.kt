@@ -59,11 +59,9 @@ fun albums(context: Context, bucket: Long? = null): List<Album> {
         .sortedByDescending { it.tiles.size }
 }
 
-/** All device folders as covers. Layout per docs/design.html. */
+/** All device folders as covers. Layout per docs/design.html. Split from the load so previews can pass fake data. */
 @Composable
-fun AlbumsScreen(onBack: () -> Unit, onOpenAlbum: (Long) -> Unit) {
-    val context = LocalContext.current
-    val albums by cachedProduceState("albums") { withContext(Dispatchers.IO) { albums(context) } }
+fun AlbumsContent(albums: List<Album>?, onBack: () -> Unit = {}, onOpenAlbum: (Long) -> Unit = {}) {
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         TopBar("Albums", albums?.let { a -> "${a.size} albums · ${a.sumOf { it.tiles.size }} items" }, onBack = onBack)
         SectionHead("On this device", hint = "Device folders")
@@ -76,41 +74,40 @@ fun AlbumsScreen(onBack: () -> Unit, onOpenAlbum: (Long) -> Unit) {
     }
 }
 
-/** One device folder: 3-column grid, tap opens the viewer. */
 @Composable
-fun AlbumScreen(id: Long, onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit) {
+fun AlbumsScreen(onBack: () -> Unit, onOpenAlbum: (Long) -> Unit) {
     val context = LocalContext.current
-    val album by cachedProduceState("album$id") { withContext(Dispatchers.IO) { albums(context, id) } }
-    val a = album?.firstOrNull()
+    val albums by cachedProduceState("albums") { withContext(Dispatchers.IO) { albums(context) } }
+    AlbumsContent(albums, onBack, onOpenAlbum)
+}
+
+/** One device folder: 3-column grid, tap opens the viewer. Split from the load for previews. */
+@Composable
+fun AlbumContent(album: Album?, onBack: () -> Unit = {}, onOpen: (List<Tile>, Tile) -> Unit = { _, _ -> }) {
+    val a = album
     val videos = a?.tiles?.count { it.duration != null } ?: 0
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-        // " " while loading: an empty title may measure to nothing and the grid would jump
-        TopBar(a?.name ?: " ", a?.let { "${it.tiles.size - videos} photos" + if (videos > 0) " · $videos videos" else "" }, onBack = onBack)
+        // " " while loading: an empty title may measure to nothing and the grid would jump
+        TopBar(a?.name ?: " ", a?.let { "${it.tiles.size - videos} photos" + if (videos > 0) " · $videos videos" else "" }, onBack = onBack)
         LazyVerticalGrid(GridCells.Fixed(3), horizontalArrangement = Arrangement.spacedBy(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             items(a?.tiles.orEmpty(), key = { it.id }) { TileImage(it, Modifier.clickable { onOpen(a!!.tiles, it) }) }
         }
     }
 }
 
+@Composable
+fun AlbumScreen(id: Long, onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit) {
+    val context = LocalContext.current
+    val album by cachedProduceState("album$id") { withContext(Dispatchers.IO) { albums(context, id) } }
+    AlbumContent(album?.firstOrNull(), onBack, onOpen)
+}
+
 /** Every video, newest first, grouped by month name, and their total size in bytes. */
 class Videos(val months: Map<String, List<Tile>>, val all: List<Tile>, val bytes: Long)
 
-/** All videos by month, the month pinned on top. Layout per docs/design.html. */
+/** All videos by month, the month pinned on top. Layout per docs/design.html. Split from the load for previews. */
 @Composable
-fun VideosScreen(onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit) {
-    val context = LocalContext.current
-    val videos by cachedProduceState("videos") {
-        withContext(Dispatchers.IO) {
-            val all = albums(context).flatMap { it.tiles }.filter { it.duration != null }.sortedByDescending { it.date }
-            var bytes = 0L
-            context.contentResolver.query(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, arrayOf(MediaStore.Video.Media.SIZE), null, null, null)?.use { c ->
-                while (c.moveToNext()) bytes += c.getLong(0)
-            }
-            val month = DateTimeFormatter.ofPattern("LLLL yyyy")
-            val zone = ZoneId.systemDefault()
-            Videos(all.groupBy { month.format(Instant.ofEpochMilli(it.date).atZone(zone)) }, all, bytes)
-        }
-    }
+fun VideosContent(videos: Videos?, onBack: () -> Unit = {}, onOpen: (List<Tile>, Tile) -> Unit = { _, _ -> }) {
     val v = videos
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         val size = v?.bytes?.let { if (it >= 1e9) "%.1f GB".format(it / 1e9) else "%.0f MB".format(it / 1e6) }
@@ -128,4 +125,22 @@ fun VideosScreen(onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit) {
             }
         }
     }
+}
+
+@Composable
+fun VideosScreen(onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit) {
+    val context = LocalContext.current
+    val videos by cachedProduceState("videos") {
+        withContext(Dispatchers.IO) {
+            val all = albums(context).flatMap { it.tiles }.filter { it.duration != null }.sortedByDescending { it.date }
+            var bytes = 0L
+            context.contentResolver.query(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, arrayOf(MediaStore.Video.Media.SIZE), null, null, null)?.use { c ->
+                while (c.moveToNext()) bytes += c.getLong(0)
+            }
+            val month = DateTimeFormatter.ofPattern("LLLL yyyy")
+            val zone = ZoneId.systemDefault()
+            Videos(all.groupBy { month.format(Instant.ofEpochMilli(it.date).atZone(zone)) }, all, bytes)
+        }
+    }
+    VideosContent(videos, onBack, onOpen)
 }

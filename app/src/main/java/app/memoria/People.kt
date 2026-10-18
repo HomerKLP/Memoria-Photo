@@ -379,7 +379,7 @@ fun PeopleContent(
                     Note(R.drawable.ic_info, "Not in People, Library or search. Tap one, then Show person", Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp))
                 }
                 items(hidden.chunked(4), key = { it.first().id }) { row ->
-                    Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(Modifier.padding(horizontal = 16.dp, vertical = 9.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         row.forEach { PersonCard(it, Modifier.weight(1f)) { onOpenPerson(it.id) } }
                         repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
                     }
@@ -405,7 +405,7 @@ fun PeopleContent(
                     item { SectionHead("People", hint = "Tap to see their photos") }
                     val shown = d.people.filter { !it.hidden }
                     items(shown.chunked(4), key = { it.first().id }) { row ->
-                        Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(Modifier.padding(horizontal = 16.dp, vertical = 9.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             row.forEach { PersonCard(it, Modifier.weight(1f)) { onOpenPerson(it.id) } }
                             repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
                         }
@@ -429,7 +429,7 @@ fun PeopleContent(
 private fun PersonCard(p: Person, modifier: Modifier = Modifier, faceSize: Dp = 68.dp, picked: Boolean = false, onClick: () -> Unit) {
     val ring = MaterialTheme.colorScheme.primary
     Column(
-        modifier.padding(4.dp).clickable(onClick = onClick),
+        modifier.clickable(onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         // the ring is drawn outside the face, so picking never moves the grid
@@ -475,10 +475,14 @@ fun PersonDetail(
             IconButton({}) { Icon(painterResource(R.drawable.ic_more), "More") }
         },
     )
-    LazyVerticalGrid(GridCells.Fixed(3), modifier = Modifier.testTag("personPhotos"), contentPadding = PaddingValues(bottom = 24.dp)) {
+    LazyVerticalGrid(
+        GridCells.Fixed(3), modifier = Modifier.testTag("personPhotos"),
+        contentPadding = PaddingValues(bottom = 24.dp),
+        horizontalArrangement = Arrangement.spacedBy(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
             Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 16.dp, top = 12.dp),
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Chip(if (p.name.isNullOrBlank()) "Add name" else "Rename", R.drawable.ic_person, onName)
@@ -490,8 +494,8 @@ fun PersonDetail(
         item(span = { GridItemSpan(maxLineSpan) }) { SectionHead("Faces", hint = "These faces match $who") }
         item(span = { GridItemSpan(maxLineSpan) }) {
             Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 sure.take(30).forEach { FaceImage(it, Modifier.size(44.dp).clip(CircleShape)) }
             }
@@ -587,7 +591,11 @@ fun MergeContent(
             }
         }
         // fixed height: a search that hides people must not move the field you are typing in
-        LazyVerticalGrid(GridCells.Fixed(4), Modifier.height(320.dp), contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp)) {
+        LazyVerticalGrid(
+            GridCells.Fixed(4), Modifier.height(320.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(18.dp),
+        ) {
             items(shown, key = { it.id }) { PersonCard(it, faceSize = 60.dp, picked = it.id == picked?.id) { onPick(it) } }
         }
         Row(Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {

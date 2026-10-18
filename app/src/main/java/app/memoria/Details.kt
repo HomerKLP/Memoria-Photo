@@ -120,7 +120,7 @@ internal fun iso6709(s: String?): Pair<Double, Double>? {
     return m.groupValues[1].toDouble() to m.groupValues[2].toDouble()
 }
 
-private fun sizeLabel(bytes: Long) = when {
+internal fun sizeLabel(bytes: Long) = when {
     bytes >= 1_000_000 -> "%.1f MB".format(bytes / 1e6)
     bytes >= 1_000 -> "%.0f KB".format(bytes / 1e3)
     else -> "$bytes B"
@@ -179,52 +179,64 @@ fun DetailsSheet(tile: Tile, onDismiss: () -> Unit) {
     // open only once loaded: a sheet that grows after it opens jumps
     if (!loaded) return
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.background) {
-        val time = Instant.ofEpochMilli(tile.date).atZone(ZoneId.systemDefault())
-        Column(Modifier.navigationBarsPadding().padding(bottom = 24.dp)) {
-            Text(
-                DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy").format(time),
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp),
-            )
-            Text(
-                "${DateTimeFormatter.ofPattern("HH:mm").format(time)} · ${zoneLabel(time.offset)}",
-                color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp,
-                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 2.dp),
-            )
-            if (faces.isNotEmpty()) {
-                Section("People", "Tap a face to fix it")
-                val muted = MaterialTheme.colorScheme.onSurfaceVariant
-                Row(
-                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                ) {
-                    faces.forEach { f ->
-                        val name = people.firstOrNull { it.id == f.personId }?.name?.takeIf { it.isNotBlank() }
-                        Column(Modifier.width(72.dp).clickable { fixing = f }, horizontalAlignment = Alignment.CenterHorizontally) {
-                            FaceImage(f, Modifier.size(56.dp).clip(CircleShape))
-                            Text(name ?: "Add name", Modifier.padding(top = 6.dp), fontSize = 13.sp, color = if (name == null) muted else Color.Unspecified, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
+        DetailsContent(tile, info, faces, people, onFixFace = { fixing = it })
+    }
+}
+
+/** The sheet's body, split from the load and the sheet so previews and layout tests can render it. */
+@Composable
+fun DetailsContent(
+    tile: Tile,
+    info: PhotoInfo?,
+    faces: List<FaceVec>,
+    people: List<Person>,
+    onFixFace: (FaceVec) -> Unit = {},
+) {
+    val time = Instant.ofEpochMilli(tile.date).atZone(ZoneId.systemDefault())
+    Column(Modifier.navigationBarsPadding().padding(bottom = 24.dp)) {
+        Text(
+            DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy").format(time),
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp),
+        )
+        Text(
+            "${DateTimeFormatter.ofPattern("HH:mm").format(time)} · ${zoneLabel(time.offset)}",
+            color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp,
+            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 2.dp),
+        )
+        if (faces.isNotEmpty()) {
+            Section("People", "Tap a face to fix it")
+            val muted = MaterialTheme.colorScheme.onSurfaceVariant
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                faces.forEach { f ->
+                    val name = people.firstOrNull { it.id == f.personId }?.name?.takeIf { it.isNotBlank() }
+                    Column(Modifier.width(72.dp).clickable { onFixFace(f) }, horizontalAlignment = Alignment.CenterHorizontally) {
+                        FaceImage(f, Modifier.size(56.dp).clip(CircleShape))
+                        Text(name ?: "Add name", Modifier.padding(top = 6.dp), fontSize = 13.sp, color = if (name == null) muted else Color.Unspecified, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
-            info?.let { i ->
-                if (i.lat != null && i.lon != null) {
-                    Section("Place")
-                    // ponytail: coordinates only. A place name needs offline geocoding.
-                    Line(R.drawable.ic_pin, "%.4f, %.4f".format(i.lat, i.lon))
-                }
-                Section("Details")
-                i.camera?.let { Line(R.drawable.ic_camera, it, i.settings) }
-                if (i.name.isNotEmpty()) {
-                    val facts = listOfNotNull(
-                        "%.1f MP".format(i.width * i.height / 1e6).takeIf { i.width > 0 },
-                        "${i.width} × ${i.height}".takeIf { i.width > 0 },
-                        sizeLabel(i.size).takeIf { i.size > 0 },
-                    )
-                    Line(R.drawable.ic_photo, i.name, facts.joinToString(" · "))
-                }
-                if (i.folder.isNotEmpty()) Line(R.drawable.ic_folder, i.folder.substringAfterLast('/'), i.folder)
+        }
+        info?.let { i ->
+            if (i.lat != null && i.lon != null) {
+                Section("Place")
+                // ponytail: coordinates only. A place name needs offline geocoding.
+                Line(R.drawable.ic_pin, "%.4f, %.4f".format(i.lat, i.lon))
             }
+            Section("Details")
+            i.camera?.let { Line(R.drawable.ic_camera, it, i.settings) }
+            if (i.name.isNotEmpty()) {
+                val facts = listOfNotNull(
+                    "%.1f MP".format(i.width * i.height / 1e6).takeIf { i.width > 0 },
+                    "${i.width} × ${i.height}".takeIf { i.width > 0 },
+                    sizeLabel(i.size).takeIf { i.size > 0 },
+                )
+                Line(R.drawable.ic_photo, i.name, facts.joinToString(" · "))
+            }
+            if (i.folder.isNotEmpty()) Line(R.drawable.ic_folder, i.folder.substringAfterLast('/'), i.folder)
         }
     }
 }

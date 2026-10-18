@@ -268,11 +268,14 @@ fun ViewerChrome(
 }
 
 /** How big the photo really is on screen with ContentScale.Fit, so panning stops at its edges. */
-private fun fitSize(bitmap: Bitmap?, box: IntSize): Size {
-    if (bitmap == null || box.width == 0 || box.height == 0) return Size(0f, 0f)
-    val s = minOf(box.width.toFloat() / bitmap.width, box.height.toFloat() / bitmap.height)
-    return Size(bitmap.width * s, bitmap.height * s)
+internal fun fitSize(imageWidth: Int, imageHeight: Int, boxWidth: Int, boxHeight: Int): Size {
+    if (imageWidth <= 0 || imageHeight <= 0 || boxWidth == 0 || boxHeight == 0) return Size(0f, 0f)
+    val s = minOf(boxWidth.toFloat() / imageWidth, boxHeight.toFloat() / imageHeight)
+    return Size(imageWidth * s, imageHeight * s)
 }
+
+private fun fitSize(bitmap: Bitmap?, box: IntSize): Size =
+    if (bitmap == null) Size(0f, 0f) else fitSize(bitmap.width, bitmap.height, box.width, box.height)
 
 @Composable
 fun ViewerPage(tile: Tile, onZoomed: (Boolean) -> Unit, onTap: () -> Unit = {}) {

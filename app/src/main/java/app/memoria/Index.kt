@@ -282,11 +282,19 @@ fun formatEta(ms: Long): String {
     }
 }
 
-fun kindOf(context: Context, photo: MediaPhoto, uri: Uri): String = when {
-    "screenshot" in photo.path.lowercase() || photo.mime == "image/gif" || min(photo.width, photo.height) in 1 until 200 -> "skip"
-    context.contentResolver.openInputStream(uri)!!.use { ExifInterface(it).getAttribute(ExifInterface.TAG_MAKE) } != null -> "camera"
+/** Folders, mime types and tiny images that never enter people grouping. Pure part of [kindOf]. */
+internal fun skipsIndex(photo: MediaPhoto): Boolean =
+    "screenshot" in photo.path.lowercase() || photo.mime == "image/gif" || min(photo.width, photo.height) in 1 until 200
+
+/** Pure part of [kindOf]: [hasCameraMake] is whether the file carries a camera EXIF make. */
+internal fun kindOf(photo: MediaPhoto, hasCameraMake: Boolean): String = when {
+    skipsIndex(photo) -> "skip"
+    hasCameraMake -> "camera"
     else -> "other"
 }
+
+fun kindOf(context: Context, photo: MediaPhoto, uri: Uri): String =
+    kindOf(photo, context.contentResolver.openInputStream(uri)!!.use { ExifInterface(it).getAttribute(ExifInterface.TAG_MAKE) } != null)
 
 /** Finds faces in new photos and saves them. Photos already in the DB are skipped, so it can stop and resume. */
 class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {

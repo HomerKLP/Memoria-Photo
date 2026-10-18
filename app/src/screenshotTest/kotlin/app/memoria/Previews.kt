@@ -48,7 +48,7 @@ fun PeopleList() = MemoriaTheme {
         PeopleContent(
             data = PeopleData(
                 summary = "7 people · 412 faces",
-                people = listOf(fakePerson(1, "Dana"), fakePerson(2, "Arman"), fakePerson(3, null), fakePerson(4, null)),
+                people = listOf(fakePerson(1, "Dana"), fakePerson(2, "Arman"), fakePerson(3, null), fakePerson(4, null), fakePerson(5, "Bota"), fakePerson(6, null), fakePerson(7, "Mei")),
                 unsure = listOf(fakeFace(201, 0.3f), fakeFace(202, 0.3f), fakeFace(203, 0.3f)),
                 total = 1706,
             ),
@@ -166,6 +166,54 @@ fun PlacesGrid() = MemoriaTheme { Surface { PlacesContent(fakePlaces) } }
 @Preview(widthDp = 360, heightDp = 760)
 @Composable
 fun PlacesLoading() = MemoriaTheme { Surface { PlacesContent(null) } }
+
+private fun fakeAlbum(id: Long, name: String, count: Int) =
+    Album(id, name, List(count) { Tile(id * 1000 + it, android.net.Uri.parse("content://media/external/images/media/${id * 1000 + it}"), 1_700_000_000_000L - it * 86_400_000L, null) })
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 760)
+@Composable
+fun AlbumsGrid() = MemoriaTheme {
+    Surface { AlbumsContent(listOf(fakeAlbum(1, "Camera", 5), fakeAlbum(2, "Screenshots", 3), fakeAlbum(3, "Telegram", 2), fakeAlbum(4, "Downloads", 1))) }
+}
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 760)
+@Composable
+fun AlbumsLoading() = MemoriaTheme { Surface { AlbumsContent(null) } }
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 760)
+@Composable
+fun AlbumGrid() = MemoriaTheme { Surface { AlbumContent(fakeAlbum(1, "Camera", 9)) } }
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 760)
+@Composable
+fun VideosGrid() = MemoriaTheme {
+    val months = linkedMapOf(
+        "October 2026" to (1L..4L).map { Tile(it, android.net.Uri.parse("content://media/external/video/media/$it"), 1_700_000_000_000L - it * 86_400_000L, 12_000L) },
+        "September 2026" to (5L..7L).map { Tile(it, android.net.Uri.parse("content://media/external/video/media/$it"), 1_690_000_000_000L - it * 86_400_000L, 8_000L) },
+    )
+    Surface { VideosContent(Videos(months, months.values.flatten(), 2_500_000_000L)) }
+}
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 760)
+@Composable
+fun DetailsView() = MemoriaTheme {
+    Surface {
+        DetailsContent(
+            tile = Tile(1, android.net.Uri.parse("content://media/external/images/media/1"), 1_700_000_000_000L, null),
+            info = PhotoInfo("IMG_20261011_143201.jpg", "DCIM/Camera", 3_500_000, 4032, 3024, 37.4219, -122.0840, "Pixel 9", "f/1.8 · 1/120 s · ISO 64 · 24 mm"),
+            faces = listOf(
+                fakeFace(1, 0.9f),
+                FaceVec(2, 0, floatArrayOf(0f, 0f, 50f, 50f), FloatArray(512), 0.9f, "camera", null),
+            ),
+            people = listOf(fakePerson(1, "Dana")),
+        )
+    }
+}
 
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 1000)
