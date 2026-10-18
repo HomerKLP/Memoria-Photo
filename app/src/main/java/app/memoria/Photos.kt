@@ -24,7 +24,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -74,7 +73,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -82,12 +80,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.layer.drawLayer
-import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.LayoutCoordinates
@@ -106,6 +100,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.Instant
@@ -239,6 +234,12 @@ val tileSpots = HashMap<Long, LayoutCoordinates>()
 /** The photo open in the viewer; its tile stays empty, since the viewer draws it. */
 var viewerTile by mutableStateOf<Long?>(null)
 
+/**
+ * A tab-tap scroll to the top is running. Tiles that fly by don't start a thumbnail decode; they load
+ * once it settles, so the fly-by stays cheap instead of decoding (and dropping frames) on the way up.
+ */
+var fastScrolling by mutableStateOf(false)
+
 /** Keeps the viewer's photo in view in [grid], whose tiles come in [order], so closing the viewer lands in its tile. */
 @Composable
 fun FollowViewer(grid: LazyGridState, order: List<Tile>) {
@@ -270,14 +271,10 @@ private suspend fun LazyGridState.reveal(id: Long, order: List<Tile>) {
 }
 
 /**
- * Whether a tab tap to the top should jump instantly instead of animating. `animateScrollToItem`
- * composes and draws every tile the viewport passes, so over a long timeline the whole animation
- * drops frames. Past about one screen it is cheaper to jump; a short hop still animates.
+ * How long the tab-tap scroll to the top takes. One fixed number, whatever the distance (Immich /
+ * Telegram style): the grid scrolls there in one continuous motion, capped, instead of a longer
+ * animation the farther you scrolled.
  */
-fun jumpToTop(firstVisibleItemIndex: Int, visibleItemCount: Int): Boolean =
-    visibleItemCount <= 0 || firstVisibleItemIndex > visibleItemCount
-
-/** How long the tab-tap scroll to the top may take, however far you scrolled (capped, not distance-based). */
 const val tabScrollToTopMs = 350
 
 /**
@@ -580,31 +577,21 @@ fun PhotosContent(
     LaunchedEffect(sliderTick) {
         if (sliderTick > 0) { delay(2000); if (dragMonth == null) sliderOn = false }
     }
-    // Tab tap to the top: a short hop animates the grid, a long one slides the current screen up instead.
-    // Animating the grid across a long timeline composes every tile it passes and loads each one's thumb,
-    // so the far case snapshots the screen, jumps under it and animates the snapshot off (capped, no loads).
-    val captureLayer = rememberGraphicsLayer()
-    var capturing by remember { mutableStateOf(false) }
-    var curtain by remember { mutableStateOf<ImageBitmap?>(null) }
-    val curtainY = remember { Animatable(0f) }
+    // Tab tap to the top, Immich style: one continuous scroll, capped at tabScrollToTopMs whatever the
+    // distance, and no thumbnail decode for the tiles that only fly by (Thumb waits on fastScrolling).
     LaunchedEffect(scrollToTop) {
         if (scrollToTop == 0) return@LaunchedEffect
-        val info = grid.layoutInfo
-        if (!jumpToTop(grid.firstVisibleItemIndex, info.visibleItemsInfo.size)) {
-            grid.animateScrollToItem(0)
-            return@LaunchedEffect
+        fastScrolling = true
+        try {
+            // The exact pixel distance to the top, measured with a scroll there and back inside one
+            // frame: the two scrolls happen before the next draw, so the jump is never shown.
+            val back = grid.scrollBy(-1e9f)
+            if (back >= 0f) return@LaunchedEffect // already at the top
+            grid.scrollBy(-back)
+            grid.animateScrollBy(back, tween(tabScrollToTopMs, easing = FastOutSlowInEasing))
+        } finally {
+            fastScrolling = false
         }
-        capturing = true
-        withFrameNanos { }; withFrameNanos { } // let the grid draw into the layer
-        val shot = runCatching { captureLayer.toImageBitmap() }.getOrNull()
-        capturing = false
-        if (shot == null) { grid.scrollToItem(0); return@LaunchedEffect } // no snapshot: fall back to a jump
-        curtain = shot
-        curtainY.snapTo(0f)
-        withFrameNanos { } // the curtain is on screen before the grid moves under it
-        grid.scrollToItem(0)
-        curtainY.animateTo(info.viewportSize.height.toFloat(), tween(tabScrollToTopMs, easing = FastOutSlowInEasing))
-        curtain = null
     }
     // a day header's key -> its tiles, for the day circle
     val dayTiles = remember(items) {
@@ -680,50 +667,40 @@ fun PhotosContent(
             modifier = Modifier.weight(1f),
         ) {
             FollowViewer(grid, photos)
-            // The grid draws into a capture layer only on a tab tap, so a normal frame pays nothing.
-            Box(Modifier.fillMaxSize().drawWithContent {
-                if (capturing) captureLayer.record { this@drawWithContent.drawContent() }
-                drawContent()
-            }) {
-                LazyVerticalGrid(
-                    GridCells.Fixed(4), state = grid,
-                    modifier = (if (tabs) Modifier.selectDrag(grid, tilesById, selection!!) else Modifier)
-                        .fillMaxSize().testTag("photosGrid"),
-                    horizontalArrangement = Arrangement.spacedBy(2.dp), verticalArrangement = Arrangement.spacedBy(2.dp),
-                    userScrollEnabled = !selecting || scrollWhileSelecting,
-                ) {
-                    for (x in list) when (x) {
-                        is Header -> if (x.month) {
-                            // pinned while its month is on screen, background so photos scroll under it (mockup "Sticky month header")
-                            stickyHeader(key = x.key) {
-                                Text(x.text, Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(start = 16.dp, top = 20.dp, bottom = 2.dp), style = MaterialTheme.typography.titleLarge)
-                            }
-                        } else item(key = x.key, span = { GridItemSpan(maxLineSpan) }, contentType = "header") {
-                            val day = dayTiles[x.key].orEmpty()
-                            val all = selecting && day.isNotEmpty() && day.all { it.id in selectedIds }
-                            // the circle is an overlay: the header keeps its height, so the photos under it never move
-                            Box(Modifier.fillMaxWidth().testTag("dayHeader")) {
-                                Text(x.text, Modifier.padding(start = 16.dp, top = 12.dp, bottom = 6.dp), style = MaterialTheme.typography.titleSmall)
-                                if (selecting) DayCircle(all, Modifier.align(Alignment.CenterEnd).padding(end = 16.dp)) {
-                                    if (all) selection?.remove(day.map { it.id }) else selection?.addAll(day)
-                                }
-                            }
+            LazyVerticalGrid(
+                GridCells.Fixed(4), state = grid,
+                modifier = (if (tabs) Modifier.selectDrag(grid, tilesById, selection!!) else Modifier).testTag("photosGrid"),
+                horizontalArrangement = Arrangement.spacedBy(2.dp), verticalArrangement = Arrangement.spacedBy(2.dp),
+                userScrollEnabled = !selecting || scrollWhileSelecting,
+            ) {
+                for (x in list) when (x) {
+                    is Header -> if (x.month) {
+                        // pinned while its month is on screen, background so photos scroll under it (mockup "Sticky month header")
+                        stickyHeader(key = x.key) {
+                            Text(x.text, Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(start = 16.dp, top = 20.dp, bottom = 2.dp), style = MaterialTheme.typography.titleLarge)
                         }
-                        is Tile -> item(key = x.id, contentType = "tile") {
-                            TileImage(
-                                x,
-                                (if (tabs) Modifier.combinedClickable(
-                                    onClick = { if (selecting) selection?.toggle(x) else onOpen(photos, x) },
-                                    onLongClick = { selection?.start(x) },
-                                ) else Modifier.clickable { onOpen(photos, x) }).testTag("tile-${x.id}"),
-                                selecting = selecting,
-                                selected = x.id in selectedIds,
-                            )
+                    } else item(key = x.key, span = { GridItemSpan(maxLineSpan) }, contentType = "header") {
+                        val day = dayTiles[x.key].orEmpty()
+                        val all = selecting && day.isNotEmpty() && day.all { it.id in selectedIds }
+                        // the circle is an overlay: the header keeps its height, so the photos under it never move
+                        Box(Modifier.fillMaxWidth().testTag("dayHeader")) {
+                            Text(x.text, Modifier.padding(start = 16.dp, top = 12.dp, bottom = 6.dp), style = MaterialTheme.typography.titleSmall)
+                            if (selecting) DayCircle(all, Modifier.align(Alignment.CenterEnd).padding(end = 16.dp)) {
+                                if (all) selection?.remove(day.map { it.id }) else selection?.addAll(day)
+                            }
                         }
                     }
-                }
-                curtain?.let { shot ->
-                    Image(shot, null, Modifier.fillMaxSize().graphicsLayer { translationY = curtainY.value }, contentScale = ContentScale.Crop)
+                    is Tile -> item(key = x.id, contentType = "tile") {
+                        TileImage(
+                            x,
+                            (if (tabs) Modifier.combinedClickable(
+                                onClick = { if (selecting) selection?.toggle(x) else onOpen(photos, x) },
+                                onLongClick = { selection?.start(x) },
+                            ) else Modifier.clickable { onOpen(photos, x) }).testTag("tile-${x.id}"),
+                            selecting = selecting,
+                            selected = x.id in selectedIds,
+                        )
+                    }
                 }
             }
         }
@@ -811,6 +788,9 @@ fun Thumb(tile: Tile, modifier: Modifier) {
     val context = LocalContext.current
     val image by produceState(thumbs.get(tile.id), tile.id) {
         if (value != null) return@produceState
+        // A tab-tap scroll to the top: a tile only flying by waits instead of decoding, so the fly-by
+        // does not load (or drop frames on) photos you will scroll past anyway.
+        if (fastScrolling) snapshotFlow { fastScrolling }.first { !it }
         val signal = CancellationSignal()
         launch(thumbLoads) {
             val thumb = runCatching { context.contentResolver.loadThumbnail(tile.uri, Size(300, 300), signal) }.getOrNull()

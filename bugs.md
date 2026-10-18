@@ -24,41 +24,39 @@ Fix ideas:
 ## Photos: tapping the tab to scroll back to top stutters
 
 Tap the Photos tab while already on it and the grid animates back to the top. The
-animation is janky the whole way, not only at the start.
+animation is janky when you are scrolled well down.
 
 Steps:
 1. Photos, scroll well down.
 2. Tap the Photos tab again.
 
-Root cause (found 2026-10-18, emulator A/B): the tab runs
-`photosGrid.animateScrollToItem(0)` (`MainActivity.kt`), which *animates* across the
-whole distance. Compose composes and draws every tile the viewport passes (and, once
-the top tiles have been evicted from the LRU, `Thumb` starts a load per tile, four at a
-time). The budget is spent on tiles that only flash by, so the animation drops frames
-for its ~1.3 s. The farther you scrolled, the more tiles are passed.
+Root cause (2026-10-18, read in the Compose source, then measured): the tab ran
+`photosGrid.animateScrollToItem(0)`. That is already a real scroll (it teleports over far
+items, `numOfItemsToTeleport = 100 * columns`, so it does not compose every tile). The
+cost is per frame: it rebuilds the on-screen tiles and `Thumb` starts a decode for each
+tile flying by; and its duration grows with the distance (spring chunks, not capped). On
+a full library that is a long, load-heavy ride.
 
-A/B on the emulator (software GPU, so judge the *difference*, not the absolute
-numbers; 8 swipes down, then tap, `dumpsys gfxinfo`, 3 runs each):
+A/B on the emulator (software GPU, so judge the *difference*; 8 swipes down, then tap,
+`dumpsys gfxinfo`, 3 runs):
 - `animateScrollToItem(0)`: 75-82 frames, 25-41% janky, p50 38-48 ms.
-- `scrollToItem(0)` (instant): 47-49 frames, 15-18% janky, p50 26-38 ms.
+- Now: 47-54 frames, 26-48% janky on the emulator, but 4.5-9% janky, p90 11-12 ms on the
+  phone's release build (baseline fling 1.1%). The emulator's software GPU, not the
+  animation, is what makes its numbers high.
 
-2026-10-18: fixed. New `jumpToTop(firstVisibleItemIndex, visibleItemCount)`
-(`Photos.kt`): a short hop still animates the grid; a long one snapshots the screen and
-slides it off instead of animating the grid across every tile. The grid is wrapped in a
-capture layer (`rememberGraphicsLayer`), recorded only on the tap; underneath, the tab
-jumps with `scrollToItem(0)` and the snapshot slides down over one viewport in a capped
-`tabScrollToTopMs` = 350 ms. No intermediate tiles compose and no evicted thumb reloads
-during the animation, so the cost does not grow with distance. Emulator A/B (8 swipes
-down, then tap, `dumpsys gfxinfo`, 3 runs): `animateScrollToItem` before 75-82 frames /
-25-41% janky; after 46-48 frames / 20-30% (an instant jump alone read 47-49 / 15-18%, so
-the extra is the 350 ms slide). Visual checked at 10x on the emulator (the old screen
-sweeps down, the top shows through). Unit test `ScrollToTopTest`; `make check` and the
-full androidTest suite (`make layout`, behavior + layout + migration) green.
+2026-10-18: fixed, the way Immich does it. `Photos.kt`: while a tab-tap scroll runs,
+`Thumb` stops starting decodes (`fastScrolling`); the exact distance to the top is
+measured with a `scrollBy` there and back inside one frame (nothing is drawn); then the
+grid is sent up in ONE `animateScrollBy(-distance, tween(tabScrollToTopMs))`. `350 ms`
+capped, whatever the distance. Each frame composes only the on-screen tiles and no tile
+the viewport passes starts a decode, so the cost does not grow with distance. Checked on
+the emulator at 10x (a genuine scroll: headings move continuously, tiles streak by) and on
+the phone (release). `jumpToTop` and `ScrollToTopTest` are gone: one scroll for every tap,
+no separate short-hop path. `make check` and all androidTests green.
 
 Fix ideas:
-- Done: short hop animates, far scroll slides the current screen off (capped, no loads).
-- Or cap the animation time, and don't start thumbnail loads for tiles that are only
-  passing through (load once the scroll settles, like the fling case).
+- Done: one continuous scroll, capped at `tabScrollToTopMs`, no decode for tiles that only
+  fly by.
 
 ## Library tab feels laggy
 
