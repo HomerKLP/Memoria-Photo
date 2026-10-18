@@ -205,7 +205,7 @@ fun DetailsView() = MemoriaTheme {
     Surface {
         DetailsContent(
             tile = Tile(1, android.net.Uri.parse("content://media/external/images/media/1"), 1_700_000_000_000L, null),
-            info = PhotoInfo("IMG_20261011_143201.jpg", "DCIM/Camera", 3_500_000, 4032, 3024, 37.4219, -122.0840, "Pixel 9", "f/1.8 · 1/120 s · ISO 64 · 24 mm"),
+            info = PhotoInfo("IMG_20261011_143201.jpg", "DCIM/Camera", 3_500_000, 4032, 3024, "Mountain View", "Pixel 9", "f/1.8 · 1/120 s · ISO 64 · 24 mm"),
             faces = listOf(
                 fakeFace(1, 0.9f),
                 FaceVec(2, 0, floatArrayOf(0f, 0f, 50f, 50f), FloatArray(512), 0.9f, "camera", null),

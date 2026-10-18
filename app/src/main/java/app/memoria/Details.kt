@@ -47,15 +47,14 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import kotlin.math.abs
 
-/** What the details sheet shows. Place name needs offline geocoding, so for now only the coordinates. */
+/** What the details sheet shows. [place] is the nearest town; coordinates are never shown. */
 class PhotoInfo(
     val name: String,
     val folder: String,
     val size: Long,
     val width: Int,
     val height: Int,
-    val lat: Double?,
-    val lon: Double?,
+    val place: String?,
     val camera: String?,
     val settings: String?,
 )
@@ -98,6 +97,9 @@ fun loadInfo(context: Context, tile: Tile): PhotoInfo {
         }
     }
     if (lat == 0.0 && lon == 0.0) { lat = null; lon = null } // some cameras write 0,0 when they have no GPS
+    val la = lat
+    val lo = lon
+    val place = if (la != null && lo != null) Towns.load(context).let { it.name[it.nearest(la, lo)] } else null
     val f = exif?.getAttributeDouble(ExifInterface.TAG_F_NUMBER, 0.0) ?: 0.0
     val exposure = exif?.getAttributeDouble(ExifInterface.TAG_EXPOSURE_TIME, 0.0) ?: 0.0
     val iso = exif?.getAttributeInt(ExifInterface.TAG_ISO_SPEED_RATINGS, 0) ?: 0
@@ -109,7 +111,7 @@ fun loadInfo(context: Context, tile: Tile): PhotoInfo {
         if (focal > 0) add("%.0f mm".format(focal))
     }.joinToString(" · ").takeIf { it.isNotEmpty() }
     return PhotoInfo(
-        name, folder, size, width, height, lat, lon,
+        name, folder, size, width, height, place,
         exif?.getAttribute(ExifInterface.TAG_MODEL)?.trim()?.takeIf { it.isNotEmpty() }, settings,
     )
 }
@@ -221,10 +223,9 @@ fun DetailsContent(
             }
         }
         info?.let { i ->
-            if (i.lat != null && i.lon != null) {
+            i.place?.let {
                 Section("Place")
-                // ponytail: coordinates only. A place name needs offline geocoding.
-                Line(R.drawable.ic_pin, "%.4f, %.4f".format(i.lat, i.lon))
+                Line(R.drawable.ic_pin, it)
             }
             Section("Details")
             i.camera?.let { Line(R.drawable.ic_camera, it, i.settings) }

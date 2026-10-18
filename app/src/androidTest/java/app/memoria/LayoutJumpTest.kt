@@ -390,8 +390,8 @@ class LayoutJumpTest {
     /** Details: faces, place and camera facts fill in below the date; the date header must not move. */
     @Test fun details_fillingInSections_keepsDatePut() {
         val tile = Tile(1, Uri.parse("content://media/external/images/media/1"), 1_700_000_000_000L, null)
-        val bare = PhotoInfo("a.jpg", "DCIM/Camera", 0, 0, 0, null, null, null, null)
-        val full = PhotoInfo("a.jpg", "DCIM/Camera", 3_500_000, 4032, 3024, 37.4219, -122.0840, "Pixel 9", "f/1.8 · 1/120 s")
+        val bare = PhotoInfo("a.jpg", "DCIM/Camera", 0, 0, 0, null, null, null)
+        val full = PhotoInfo("a.jpg", "DCIM/Camera", 3_500_000, 4032, 3024, "Mountain View", "Pixel 9", "f/1.8 · 1/120 s")
         var faces by mutableStateOf(emptyList<FaceVec>())
         var info by mutableStateOf(bare)
         rule.setContent { MemoriaTheme { Surface { DetailsContent(tile, info, faces, emptyList()) } } }

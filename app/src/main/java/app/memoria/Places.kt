@@ -59,7 +59,12 @@ class Towns(val id: IntArray, val name: Array<String>, val lat: FloatArray, val 
             )
         }
 
-        fun load(context: Context) = parse(context.assets.open("towns.tsv").bufferedReader().readLines())
+        @Volatile private var loaded: Towns? = null
+
+        /** Parsed once per process (~140k towns), shared by the index worker and the viewer. */
+        fun load(context: Context) = loaded ?: synchronized(this) {
+            loaded ?: parse(context.assets.open("towns.tsv").bufferedReader().readLines()).also { loaded = it }
+        }
     }
 }
 
