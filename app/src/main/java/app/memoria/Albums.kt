@@ -2,6 +2,7 @@ package app.memoria
 
 import android.content.ContentResolver
 import android.content.ContentUris
+import android.content.ContentValues
 import android.content.Context
 import android.os.Bundle
 import android.provider.MediaStore
@@ -57,6 +58,57 @@ fun albums(context: Context, bucket: Long? = null): List<Album> {
     return rows.groupBy { it.first }
         .map { (id, r) -> Album(id, r[0].second, r.map { it.third }.sortedByDescending { it.date }) }
         .sortedByDescending { it.tiles.size }
+}
+
+/** The device folder (bucket) a photo or video sits in, with its display name, for the viewer's More. */
+class TileAlbum(val id: Long, val name: String)
+
+fun albumOf(context: Context, id: Long): TileAlbum? {
+    val cols = arrayOf(FileColumns.BUCKET_ID, FileColumns.BUCKET_DISPLAY_NAME)
+    val args = Bundle().apply { putString(ContentResolver.QUERY_ARG_SQL_SELECTION, "${FileColumns._ID} = $id") }
+    context.contentResolver.query(MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL), cols, args, null)?.use { c ->
+        if (c.moveToFirst()) return TileAlbum(c.getLong(0), c.getString(1) ?: "Other")
+    }
+    return null
+}
+
+/** An album a photo can be moved to: its name, its MediaStore RELATIVE_PATH, a cover and a count. */
+class MoveTarget(val name: String, val path: String, val cover: Tile?, val count: Int)
+
+/**
+ * The folders "Move to album" can offer: only DCIM and Pictures, where Android lets a move land, biggest
+ * first, without [except] (the photo's own album, since moving there would do nothing). The path is the
+ * folder's RELATIVE_PATH, which the move writes back.
+ */
+fun moveTargets(context: Context, except: Long): List<MoveTarget> {
+    val zone = ZoneId.systemDefault()
+    val cols = arrayOf(
+        FileColumns._ID, FileColumns.MEDIA_TYPE, FileColumns.DATE_TAKEN, FileColumns.DATE_ADDED, FileColumns.DURATION, FileColumns.DATE_MODIFIED,
+        FileColumns.IS_FAVORITE, FileColumns.BUCKET_ID, FileColumns.BUCKET_DISPLAY_NAME, FileColumns.RELATIVE_PATH,
+    )
+    val where = "${FileColumns.MEDIA_TYPE} IN (${FileColumns.MEDIA_TYPE_IMAGE}, ${FileColumns.MEDIA_TYPE_VIDEO})" +
+        " AND ${FileColumns.BUCKET_ID} != $except" +
+        " AND (${FileColumns.RELATIVE_PATH} LIKE 'DCIM/%' OR ${FileColumns.RELATIVE_PATH} LIKE 'Pictures/%')"
+    val args = Bundle().apply { putString(ContentResolver.QUERY_ARG_SQL_SELECTION, where) }
+    val rows = mutableListOf<Triple<Long, Pair<String, String>, Tile>>()
+    context.contentResolver.query(MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL), cols, args, null)?.use { c ->
+        while (c.moveToNext()) {
+            val video = c.getInt(1) == FileColumns.MEDIA_TYPE_VIDEO
+            val base = if (video) MediaStore.Video.Media.EXTERNAL_CONTENT_URI else MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+            val date = if (c.isNull(2)) fallbackDate(c.getString(9), c.getLong(3), c.getLong(5), zone) else c.getLong(2)
+            val tile = Tile(c.getLong(0), ContentUris.withAppendedId(base, c.getLong(0)), date, if (video) c.getLong(4) else null, c.getInt(6) != 0)
+            rows += Triple(c.getLong(7), (c.getString(8) ?: "Other") to (c.getString(9) ?: ""), tile)
+        }
+    }
+    return rows.groupBy { it.first }
+        .map { (_, r) -> MoveTarget(r[0].second.first, r[0].second.second, r.maxByOrNull { it.third.date }?.third, r.size) }
+        .sortedByDescending { it.count }
+}
+
+/** Moves a photo or video into the folder at [path] (a MediaStore RELATIVE_PATH). Throws SecurityException when the file belongs to another app, so the caller asks Android for consent. */
+fun movePhoto(context: Context, tile: Tile, path: String) {
+    val values = ContentValues().apply { put(MediaStore.MediaColumns.RELATIVE_PATH, path) }
+    context.contentResolver.update(tile.uri, values, null, null)
 }
 
 /** All device folders as covers. Layout per docs/design.html. Split from the load so previews can pass fake data. */

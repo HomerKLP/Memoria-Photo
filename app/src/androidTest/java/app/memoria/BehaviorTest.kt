@@ -1,16 +1,20 @@
 package app.memoria
 
 import android.net.Uri
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -189,6 +193,59 @@ class BehaviorTest {
         rule.onNodeWithText("Save").assertIsEnabled()
         rule.onNodeWithText("Save").performClick()
         assertEquals(102L, saved)
+    }
+
+    // --- Viewer --------------------------------------------------------------------------------
+
+    @Test fun viewer_more_opensMenuAndFiresItem() {
+        var fired: String? = null
+        rule.setContent {
+            MemoriaTheme { Surface { Box(Modifier.fillMaxSize()) {
+                ViewerChrome(
+                    true, "Sat, 11 Oct", "14:32", false, {}, {}, {}, {}, {},
+                    menuItems = listOf(MenuItem(R.drawable.ic_edit, "Edit in…") { fired = "edit" }),
+                )
+            } } }
+        }
+
+        rule.onNodeWithContentDescription("More").performClick()
+        rule.onNodeWithText("Edit in…").performClick()
+        assertEquals("edit", fired)
+    }
+
+    // --- Move to album -------------------------------------------------------------------------
+
+    @Test fun moveToAlbum_pick_handsTheFolderPath() {
+        var path: String? = null
+        val targets = listOf(MoveTarget("Screenshots", "Pictures/Screenshots/", null, 214))
+        rule.setContent {
+            MemoriaTheme { Surface {
+                MoveToAlbumContent(tile(1), "Camera", targets, false, "", {}, {}, {}, { path = it.path }, {})
+            } }
+        }
+
+        rule.onNodeWithText("Screenshots").performClick()
+        assertEquals("Pictures/Screenshots/", path)
+    }
+
+    @Test fun moveToAlbum_newAlbum_needsAName() {
+        var naming by mutableStateOf(false)
+        var typed by mutableStateOf("")
+        var path: String? = null
+        rule.setContent {
+            MemoriaTheme { Surface {
+                MoveToAlbumContent(
+                    tile(1), "Camera", emptyList(), naming, typed, { typed = it }, {}, { naming = true },
+                    {}, { path = "Pictures/$it/" },
+                )
+            } }
+        }
+
+        rule.onNodeWithText("New album").performClick()
+        rule.onNodeWithText("Move").assertIsNotEnabled()
+        rule.onNode(hasSetTextAction()).performTextInput("Holidays")
+        rule.onNodeWithText("Move").assertIsEnabled().performClick()
+        assertEquals("Pictures/Holidays/", path)
     }
 
     // --- Settings ------------------------------------------------------------------------------

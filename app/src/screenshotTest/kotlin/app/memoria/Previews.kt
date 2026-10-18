@@ -302,6 +302,38 @@ fun ChangeCoverSheetPreview() = MemoriaTheme {
 @Composable
 fun TrashLoading() = MemoriaTheme { Surface { TrashContent(emptyList(), loading = true) } }
 
+/** Move to album sheet (mockup "Move to album"): the head, New album, then the folders. */
+@PreviewTest
+@Preview(widthDp = 360)
+@Composable
+fun MoveToAlbumSheetPreview() = MemoriaTheme {
+    Surface {
+        MoveToAlbumContent(
+            Tile(1, android.net.Uri.parse("content://media/external/images/media/1"), 1_700_000_000_000L, null),
+            "Camera",
+            listOf(
+                MoveTarget("Screenshots", "Pictures/Screenshots/", null, 214),
+                MoveTarget("Telegram", "Pictures/Telegram/", null, 96),
+                MoveTarget("Holidays 2024", "Pictures/Holidays 2024/", null, 47),
+            ),
+            false, "", {}, {}, {}, {}, {},
+        )
+    }
+}
+
+/** Move to album, New album: the name field and Cancel / Move (the other state of the jump test). */
+@PreviewTest
+@Preview(widthDp = 360)
+@Composable
+fun MoveToAlbumNamingPreview() = MemoriaTheme {
+    Surface {
+        MoveToAlbumContent(
+            Tile(1, android.net.Uri.parse("content://media/external/images/media/1"), 1_700_000_000_000L, null),
+            "Camera", emptyList(), true, "", {}, {}, {}, {}, {},
+        )
+    }
+}
+
 /** The timeline month slider (Ui.kt shared part): rail, ticks, the month on screen and the knob. */
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 480)
@@ -347,6 +379,26 @@ fun ViewerTapped() = MemoriaTheme {
         Box(Modifier.fillMaxSize()) {
             Box(Modifier.fillMaxSize().background(viewerPhoto))
             ViewerChrome(false, "Sat, 11 Oct", "14:32", favorite = false, {}, {}, {}, {}, {})
+        }
+    }
+}
+
+/** Viewer, More (mockup): the menu drops under the More over the photo, no dim. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 800)
+@Composable
+fun ViewerMore() = MemoriaTheme {
+    Surface {
+        Box(Modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxSize().background(viewerPhoto))
+            Menu(
+                true, onDismiss = {},
+                items = listOf(
+                    MenuItem(R.drawable.ic_edit, "Edit in…") {},
+                    MenuItem(R.drawable.ic_wallpaper, "Use as…") {},
+                    MenuItem(R.drawable.ic_folder, "Show in album") {},
+                ),
+            )
         }
     }
 }

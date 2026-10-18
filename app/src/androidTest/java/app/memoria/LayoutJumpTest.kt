@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -280,6 +281,49 @@ class LayoutJumpTest {
         rule.runOnIdle { visible = false }
         assertSame("photo top", top, rule.onNodeWithTag("viewerPhoto").top())
         assertSame("photo height", height, rule.onNodeWithTag("viewerPhoto").height())
+    }
+
+    /** Viewer More: the menu drops over the screen (no dim, no reflow), so opening it must not move what is behind. */
+    @Test fun viewerMore_opening_keepsContentPut() {
+        var open by mutableStateOf(false)
+        rule.setContent {
+            MemoriaTheme {
+                Surface {
+                    Box(Modifier.fillMaxSize()) {
+                        Box(Modifier.fillMaxSize().testTag("viewerPhoto").background(Color.Black))
+                        Menu(open, onDismiss = { open = false }, items = listOf(MenuItem(R.drawable.ic_edit, "Edit in…") {}))
+                    }
+                }
+            }
+        }
+
+        val top = rule.onNodeWithTag("viewerPhoto").top()
+        val height = rule.onNodeWithTag("viewerPhoto").height()
+        rule.runOnIdle { open = true }
+        rule.onNodeWithText("Edit in…").assertIsDisplayed()
+        assertSame("photo top", top, rule.onNodeWithTag("viewerPhoto").top())
+        assertSame("photo height", height, rule.onNodeWithTag("viewerPhoto").height())
+    }
+
+    /** Move to album: New album swaps the list for the name field; the sheet head must not move. */
+    @Test fun moveToAlbum_naming_keepsHeadPut() {
+        var naming by mutableStateOf(false)
+        rule.setContent {
+            MemoriaTheme {
+                Surface {
+                    MoveToAlbumContent(
+                        tile(1), "Camera", listOf(MoveTarget("Screenshots", "Pictures/Screenshots/", null, 214)),
+                        naming, "", {}, {}, { naming = true }, {}, {},
+                    )
+                }
+            }
+        }
+
+        val head = rule.onNodeWithText("Move to album").top()
+        val now = rule.onNodeWithText("Now in Camera").top()
+        rule.runOnIdle { naming = true }
+        assertSame("head top", head, rule.onNodeWithText("Move to album").top())
+        assertSame("now in top", now, rule.onNodeWithText("Now in Camera").top())
     }
 
     /** Photos select mode: the top bar swaps for "N selected" and the tiles grow a circle; the grid must not move. */

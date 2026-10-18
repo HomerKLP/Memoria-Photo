@@ -101,6 +101,7 @@ fun App(dir: File) {
     val scope = rememberCoroutineScope()
     var viewing by rememberSaveable { mutableStateOf<Long?>(null) }
     var viewTiles by remember { mutableStateOf<List<Tile>>(emptyList()) }
+    var viewerFrom by rememberSaveable { mutableStateOf("photos") } // the screen under the viewer, back from Show in album returns here
     var openPerson by rememberSaveable { mutableStateOf<Long?>(null) } // People screen shows this person, if set
     var personDirect by rememberSaveable { mutableStateOf(false) } // person was opened from Library, so back returns there
     var openAlbum by rememberSaveable { mutableStateOf(0L) }
@@ -154,8 +155,15 @@ fun App(dir: File) {
             selectAsk.launch(IntentSenderRequest.Builder(ask.intentSender).build())
         }
     }
-    viewing?.let { return Viewer(it, viewTiles) { viewing = null } }
-    val open: (List<Tile>, Tile) -> Unit = { list, tile -> viewTiles = list; viewing = tile.id }
+    viewing?.let {
+        return Viewer(
+            it, viewTiles, onBack = { viewing = null },
+            // the viewer never opened an album from inside an album, so Show in album is hidden there
+            showInAlbum = viewerFrom != "album",
+            onShowInAlbum = { t -> albumOf(context, t.id)?.let { b -> viewing = null; openAlbum = b.id; albumFrom = viewerFrom; screen = "album" } },
+        )
+    }
+    val open: (List<Tile>, Tile) -> Unit = { list, tile -> viewTiles = list; viewerFrom = screen; viewing = tile.id }
     when (screen) {
         "dev" -> {
             BackHandler { screen = "library" }
