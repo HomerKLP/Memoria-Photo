@@ -135,6 +135,15 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .pcard b { max-width: 100%; font-weight: 500; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pcard span { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 
+/* People screen: named 3 a row, unnamed 5 a row with no text */
+.people-grid.named { grid-template-columns: repeat(3, 1fr); }
+/* Tight: the first line 6px under the face, the count right under the name */
+.people-grid.tight { row-gap: 14px; }
+.tight .pcard { gap: 0; }
+.tight .pcard .face + * { margin-top: 6px; }
+.tight .pcard b, .tight .pcard span:not(.sel) { line-height: 1.25; }
+.people-grid.nameless { grid-template-columns: repeat(5, 1fr); gap: 8px 6px; }
+
 /* Person screen */
 .chips { display: flex; gap: 8px; padding: 12px 16px 0; overflow-x: auto; scrollbar-width: none; }
 .chips::-webkit-scrollbar { display: none; }
@@ -864,7 +873,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
         <div class="subbar">
           <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
-          <div class="title"><b>People</b><span>7 people · 412 faces</span></div>
+          <div class="title"><b>People</b><span>18 people · 1,214 faces</span></div>
         </div>
         <div class="scroll">
           <div class="search"><svg class="i"><use href="#i-search"/></svg>Search people</div>
@@ -882,12 +891,14 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
             </div>
           </div>
   
-          <div class="head"><h3>People</h3><span class="hint">Tap to see their photos</span></div>
-          <div class="people-grid" id="people-grid"></div>
+          <div class="head"><h3>Named</h3><span class="hint">4 people</span></div>
+          <div class="people-grid named tight" id="people-grid"></div>
+          <div class="head"><h3>No name yet</h3><span class="hint">Name them to move them up</span></div>
+          <div class="people-grid nameless" id="people-nameless"></div>
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>People: opens from Library, "See all". Review card, then named people, then unnamed, each by photo count. No name, no label</figcaption>
+      <figcaption>People: opens from Library, "See all". Review card, then named people (96, 3 a row, name and count), then unnamed (56, 5 a row, no text), each by photo count. Not built yet</figcaption>
     </figure>
     <figure id="person">
       <div class="phone">
@@ -1002,7 +1013,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="grab"></div>
           <div class="sheet-head"><span id="merge-face"></span><div><b>Merge with Dana</b><span>Pick the same person, most alike first</span></div></div>
           <div class="field"><svg class="i"><use href="#i-search"/></svg>Search people</div>
-          <div class="people-grid picker" id="merge-grid"></div>
+          <div class="people-grid picker tight" id="merge-grid"></div>
           <div class="answers">
             <button class="no">Cancel</button>
             <button class="yes"><svg class="i"><use href="#i-check"/></svg>Merge</button>
@@ -1098,7 +1109,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Hidden people: opens from Settings. Same grid as People. A tap opens the person screen, where the last chip is "Show person"</figcaption>
+      <figcaption>Hidden people: opens from Settings. 68 faces, 4 a row, each with its count. A tap opens the person screen, where the last chip is "Show person"</figcaption>
     </figure>
     <figure id="hidden-empty">
       <div class="phone">
@@ -1247,7 +1258,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
     <h3>Shapes and sizes</h3>
     <ul>
       <li>A person is a circle. An album, a photo or a month is a square with 10 dp corners (12 on a cover tile).</li>
-      <li>Faces: 72 in a row of people, 68 in a grid, 48 in a sheet head, 40 in a list row.</li>
+      <li>Faces: 72 in a row of people, 68 in a grid, 48 in a sheet head, 40 in a list row. The People screen is the exception: 96 named, 56 unnamed.</li>
       <li>Rows and sheets keep 16 dp from the screen edge, and 16 dp between a row's icon or picture and its text.</li>
       <li>A subtitle under a title is 12 sp, in a top bar and in a sheet. Sheets have 28 dp top corners. A search field is 48 dp tall.</li>
       <li>A picked item shows the accent ring or outline and a check.</li>
@@ -1353,9 +1364,9 @@ const fill = (id, html) => document.getElementById(id).innerHTML = html;
 // People screen: the Help recognize card's stack of unsure faces
 fill("people-unsure", [2, 5, 0].map(i => face(i, 36)).join(""));
 
-const pcounts = [412, 230, 96, 64, 58, 51, 27];
-fill("people-grid", order.map(i => `<div class="pcard">${face(i, 68)}${people[i] ? `<b>${people[i]}</b>` : ""}<span>${pcounts[i]}</span></div>`).join("")
-);
+// People screen: 4 named, 14 unnamed, like a real library.
+fill("people-grid", [["Me", 412], ["Mom", 230], ["Dana", 96], ["Arman", 64]].map(([n, c], i) => `<div class="pcard">${face(i, 96)}<b>${n}</b><span>${c}</span></div>`).join(""));
+fill("people-nameless", Array.from({ length: 14 }, (_, i) => `<div class="pcard">${face((i + 4) % 7, 56)}</div>`).join(""));
 
 const tiles = (n, vids = [], favs = []) => Array.from({ length: n }, (_, i) =>
   `<div class="tile" style="background:${photo()}">${

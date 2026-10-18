@@ -187,13 +187,13 @@ fun LibraryContent(
     }
 }
 
-/** Rounded search field from the mockup. Search is not built yet. */
+/** Rounded search field from the mockup: 48 dp tall, 24 dp corners, 16 dp from the edge. Search is not built yet. */
 @Composable
 fun SearchBar(placeholder: String = "Search people, places, dates") {
     Row(
         Modifier.padding(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 4.dp).fillMaxWidth()
-            .height(52.dp).clip(RoundedCornerShape(26.dp)).background(MaterialTheme.colorScheme.surfaceVariant)
-            .padding(horizontal = 18.dp),
+            .height(48.dp).clip(RoundedCornerShape(24.dp)).background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(painterResource(R.drawable.ic_search), null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)

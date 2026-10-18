@@ -389,10 +389,7 @@ fun PeopleContent(
                 }
             }
         } else if (open == null) {
-            TopBar("People", data?.summary, onBack = onBack) {
-                // TODO: search screen
-                IconButton({}) { Icon(painterResource(R.drawable.ic_search), "Search") }
-            }
+            TopBar("People", data?.summary, onBack = onBack)
             LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 24.dp)) {
                 item { SearchBar("Search people") }
                 data?.let { d ->
@@ -424,16 +421,35 @@ fun PeopleContent(
     }
 }
 
-/** Circular face, the name if any, and the photo count. 68 dp like the mockup. [picked]: accent ring (Merge with). */
+/**
+ * The face of a friend picker (Merge with, Change cover): the person's circle, and while [picked] an
+ * accent ring outside it plus the accent check at its top right (mockup `.pcard.on`). Both are drawn
+ * outside the face, so picking never moves the grid.
+ */
+@Composable
+private fun PickFace(face: FaceVec, faceSize: Dp, picked: Boolean) {
+    val ring = MaterialTheme.colorScheme.primary
+    Box {
+        FaceImage(
+            face,
+            Modifier.drawBehind { if (picked) drawCircle(ring, size.minDimension / 2 + 4.5.dp.toPx(), style = Stroke(3.dp.toPx())) }
+                .size(faceSize).clip(CircleShape),
+        )
+        if (picked) Box(
+            Modifier.align(Alignment.TopEnd).testTag("pickCheck").size(22.dp).clip(CircleShape).background(ring),
+            contentAlignment = Alignment.Center,
+        ) { Icon(painterResource(R.drawable.ic_check), null, Modifier.size(16.dp), tint = Color.White) }
+    }
+}
+
+/** Circular face, the name if any, and the photo count. 68 dp like the mockup. [picked]: accent ring and check (Merge with). */
 @Composable
 private fun PersonCard(p: Person, modifier: Modifier = Modifier, faceSize: Dp = 68.dp, picked: Boolean = false, onClick: () -> Unit) {
-    val ring = MaterialTheme.colorScheme.primary
     Column(
         modifier.clickable(onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // the ring is drawn outside the face, so picking never moves the grid
-        FaceImage(p.cover, Modifier.drawBehind { if (picked) drawCircle(ring, size.minDimension / 2 + 4.5.dp.toPx(), style = Stroke(3.dp.toPx())) }.size(faceSize).clip(CircleShape))
+        PickFace(p.cover, faceSize, picked)
         Spacer(Modifier.height(8.dp))
         if (!p.name.isNullOrBlank()) Text(p.name, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
         Text("${p.photos}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -566,11 +582,11 @@ fun MergeContent(
     }
     val shown = alike.filter { it.name.orEmpty().contains(text.trim(), ignoreCase = true) }
     Column(Modifier.padding(bottom = 28.dp)) {
-        Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             FaceImage(person.cover, Modifier.size(48.dp).clip(CircleShape))
-            Column(Modifier.padding(start = 14.dp)) {
+            Column(Modifier.padding(start = 16.dp)) {
                 Text("Merge with ${person.name?.takeIf { it.isNotBlank() } ?: "this person"}", style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("Pick the same person, most alike first", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Pick the same person, most alike first", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         Spacer(Modifier.height(14.dp))
@@ -596,7 +612,7 @@ fun MergeContent(
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
-            items(shown, key = { it.id }) { PersonCard(it, faceSize = 60.dp, picked = it.id == picked?.id) { onPick(it) } }
+            items(shown, key = { it.id }) { PersonCard(it, faceSize = 68.dp, picked = it.id == picked?.id) { onPick(it) } }
         }
         Row(Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Box(
@@ -638,7 +654,6 @@ fun ChangeCoverSheet(person: Person, onDismiss: () -> Unit, onSave: (Long) -> Un
 /** The sheet's body without the bottom-sheet chrome, so tests can render it directly. */
 @Composable
 fun ChangeCoverContent(person: Person, picked: Long?, onPick: (Long) -> Unit, onCancel: () -> Unit, onSave: (Long) -> Unit) {
-    val ring = MaterialTheme.colorScheme.primary
     val cover = person.cover
     // the current cover first, then the person's sure faces, clearest first
     val faces = remember(person) {
@@ -646,11 +661,11 @@ fun ChangeCoverContent(person: Person, picked: Long?, onPick: (Long) -> Unit, on
         listOf(cover) + sure.filter { it.id != cover.id }
     }
     Column(Modifier.padding(bottom = 28.dp)) {
-        Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             FaceImage(cover, Modifier.size(48.dp).clip(CircleShape))
-            Column(Modifier.padding(start = 14.dp)) {
+            Column(Modifier.padding(start = 16.dp)) {
                 Text("Change cover", style = MaterialTheme.typography.titleLarge)
-                Text("${faces.size} face${if (faces.size == 1) "" else "s"}, clearest first", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("${faces.size} face${if (faces.size == 1) "" else "s"}, clearest first", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         Spacer(Modifier.height(14.dp))
@@ -658,11 +673,7 @@ fun ChangeCoverContent(person: Person, picked: Long?, onPick: (Long) -> Unit, on
         LazyVerticalGrid(GridCells.Fixed(4), Modifier.height(320.dp), contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp)) {
             items(faces, key = { it.id }) { f ->
                 Box(Modifier.padding(4.dp).testTag("coverFace-${f.id}").clickable { onPick(f.id) }) {
-                    FaceImage(
-                        f,
-                        Modifier.drawBehind { if (f.id == picked) drawCircle(ring, size.minDimension / 2 + 4.5.dp.toPx(), style = Stroke(3.dp.toPx())) }
-                            .size(68.dp).clip(CircleShape),
-                    )
+                    PickFace(f, 68.dp, f.id == picked)
                 }
             }
         }
@@ -708,11 +719,11 @@ fun NamePersonSheet(person: Person, onDismiss: () -> Unit, onSave: (String) -> U
 @Composable
 fun NamePersonContent(person: Person, text: String, onText: (String) -> Unit, onCancel: () -> Unit, onSave: (String) -> Unit) {
     Column(Modifier.padding(bottom = 28.dp).verticalScroll(rememberScrollState())) {
-        Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             FaceImage(person.cover, Modifier.size(48.dp).clip(CircleShape))
-            Column(Modifier.padding(start = 14.dp)) {
+            Column(Modifier.padding(start = 16.dp)) {
                 Text("Name this person", style = MaterialTheme.typography.titleLarge)
-                Text("${person.photos} photo${if (person.photos == 1) "" else "s"} · ${person.faces.size} face${if (person.faces.size == 1) "" else "s"}", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("${person.photos} photo${if (person.photos == 1) "" else "s"} · ${person.faces.size} face${if (person.faces.size == 1) "" else "s"}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         Spacer(Modifier.height(14.dp))

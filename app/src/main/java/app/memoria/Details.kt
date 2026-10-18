@@ -199,12 +199,12 @@ fun DetailsContent(
         Text(
             DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy").format(time),
             style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp),
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp),
         )
         Text(
             "${DateTimeFormatter.ofPattern("HH:mm").format(time)} · ${zoneLabel(time.offset)}",
             color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp,
-            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 2.dp),
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 2.dp),
         )
         if (faces.isNotEmpty()) {
             Section("People", "Tap a face to fix it")
@@ -216,7 +216,7 @@ fun DetailsContent(
                 faces.forEach { f ->
                     val name = people.firstOrNull { it.id == f.personId }?.name?.takeIf { it.isNotBlank() }
                     Column(Modifier.width(72.dp).clickable { onFixFace(f) }, horizontalAlignment = Alignment.CenterHorizontally) {
-                        FaceImage(f, Modifier.size(56.dp).clip(CircleShape))
+                        FaceImage(f, Modifier.size(72.dp).clip(CircleShape))
                         Text(name ?: "Add name", Modifier.padding(top = 6.dp), fontSize = 13.sp, color = if (name == null) muted else Color.Unspecified, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
@@ -244,7 +244,7 @@ fun DetailsContent(
 
 @Composable
 private fun Section(title: String, hint: String? = null) {
-    Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 22.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
         if (hint != null) Text(hint, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
@@ -253,7 +253,7 @@ private fun Section(title: String, hint: String? = null) {
 @Composable
 private fun Line(icon: Int, title: String, subtitle: String? = null) {
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.Top,
     ) {

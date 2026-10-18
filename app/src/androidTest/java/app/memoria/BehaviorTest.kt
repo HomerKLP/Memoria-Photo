@@ -206,7 +206,9 @@ class BehaviorTest {
         }
 
         rule.onNodeWithText("Save").assertIsNotEnabled()
+        rule.onNodeWithTag("pickCheck", useUnmergedTree = true).assertDoesNotExist()
         rule.onNodeWithTag("coverFace-102").performClick()
+        rule.onNodeWithTag("pickCheck", useUnmergedTree = true).assertExists()
         rule.onNodeWithText("Save").assertIsEnabled()
         rule.onNodeWithText("Save").performClick()
         assertEquals(102L, saved)

@@ -224,7 +224,7 @@ class LayoutJumpTest {
         assertSame("Merge button", mergeBefore, rule.onNodeWithText("Merge").top())
     }
 
-    /** Change cover: the grid is a fixed height and picking only adds a ring, so the header and Save stay put. */
+    /** Change cover: the grid is a fixed height and picking only adds a ring and a check, so the header and Save stay put. */
     @Test fun changeCover_pickingFace_keepsHeaderAndSavePut() {
         var picked by mutableStateOf<Long?>(null)
         val person = face(1).let { Person((1L..8L).map { i -> face(i) }, it, 1, "Dana") }
@@ -232,9 +232,25 @@ class LayoutJumpTest {
 
         val titleBefore = rule.onNodeWithText("Change cover").top()
         val saveBefore = rule.onNodeWithText("Save").top()
+        rule.onNodeWithTag("pickCheck", useUnmergedTree = true).assertDoesNotExist()
         rule.runOnIdle { picked = 3L }
+        rule.onNodeWithTag("pickCheck", useUnmergedTree = true).assertExists()
         assertSame("title", titleBefore, rule.onNodeWithText("Change cover").top())
         assertSame("Save button", saveBefore, rule.onNodeWithText("Save").top())
+    }
+
+    /** Merge with: picking a face draws the check at its top right and must not move the grid or the buttons. */
+    @Test fun merge_pickingFace_keepsGridAndButtonsPut() {
+        var picked by mutableStateOf<Person?>(null)
+        val people = listOf(person(2, "Arman"), person(3, "Bota"))
+        rule.setContent { MemoriaTheme { Surface { MergeContent(person(1), people, "", {}, picked, { picked = it }, {}, {}) } } }
+
+        val armanBefore = rule.onNodeWithText("Arman").top()
+        val mergeBefore = rule.onNodeWithText("Merge").top()
+        rule.runOnIdle { picked = people.first() }
+        rule.onNodeWithTag("pickCheck", useUnmergedTree = true).assertExists()
+        assertSame("Arman card", armanBefore, rule.onNodeWithText("Arman").top())
+        assertSame("Merge button", mergeBefore, rule.onNodeWithText("Merge").top())
     }
 
     /** The month slider fades in over the grid; showing it must not move the content under it. */

@@ -247,9 +247,9 @@ fun WhoIsThisContent(
     val shown = named.filter { it.name.orEmpty().contains(typed, ignoreCase = true) }
     val canAdd = typed.isNotEmpty() && people.none { it.name.equals(typed, ignoreCase = true) }
     Column(Modifier.padding(bottom = 28.dp).verticalScroll(rememberScrollState())) {
-        Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             FaceImage(face, Modifier.size(48.dp).clip(CircleShape))
-            Column(Modifier.padding(start = 14.dp)) {
+            Column(Modifier.padding(start = 16.dp)) {
                 Text("Who is this?", style = MaterialTheme.typography.titleLarge)
                 Text(
                     when {
@@ -257,7 +257,7 @@ fun WhoIsThisContent(
                         now.name.isNullOrBlank() -> "Now with an unnamed person"
                         else -> "Now tagged as ${now.name}"
                     },
-                    fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
@@ -282,11 +282,11 @@ fun WhoIsThisContent(
         Spacer(Modifier.height(6.dp))
         shown.forEach { p ->
             Row(
-                Modifier.fillMaxWidth().height(52.dp).clickable { onPick(p) }.padding(horizontal = 20.dp),
+                Modifier.fillMaxWidth().height(52.dp).clickable { onPick(p) }.padding(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 FaceImage(p.cover, Modifier.size(40.dp).clip(CircleShape))
-                Text(p.name.orEmpty(), Modifier.padding(start = 14.dp).weight(1f), fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(p.name.orEmpty(), Modifier.padding(start = 16.dp).weight(1f), fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("${p.photos} photo${if (p.photos == 1) "" else "s"}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
@@ -294,25 +294,25 @@ fun WhoIsThisContent(
         // slide the New person row and Remove tag up under the field you are typing in
         Spacer(Modifier.height(52.dp * (named.size - shown.size)))
         Row(
-            Modifier.fillMaxWidth().height(52.dp).alpha(if (canAdd) 1f else 0.4f).clickable(enabled = canAdd) { onNew(typed) }.padding(horizontal = 20.dp),
+            Modifier.fillMaxWidth().height(52.dp).alpha(if (canAdd) 1f else 0.4f).clickable(enabled = canAdd) { onNew(typed) }.padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) {
                 Icon(painterResource(R.drawable.ic_person_add), null, tint = MaterialTheme.colorScheme.primary)
             }
-            Text("New person", Modifier.padding(start = 14.dp).weight(1f), fontWeight = FontWeight.Medium)
+            Text("New person", Modifier.padding(start = 16.dp).weight(1f), fontWeight = FontWeight.Medium)
             Text(typed, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         if (onRemove != null) {
             HorizontalDivider(Modifier.padding(top = 4.dp), color = MaterialTheme.colorScheme.outlineVariant)
             Row(
-                Modifier.fillMaxWidth().height(52.dp).clickable(onClick = onRemove).padding(horizontal = 20.dp),
+                Modifier.fillMaxWidth().height(52.dp).clickable(onClick = onRemove).padding(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) {
                     Icon(painterResource(R.drawable.ic_close), null, tint = MaterialTheme.colorScheme.primary)
                 }
-                Text("Remove tag", Modifier.padding(start = 14.dp), fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.error)
+                Text("Remove tag", Modifier.padding(start = 16.dp), fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.error)
             }
         }
     }

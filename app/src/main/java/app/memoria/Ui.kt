@@ -387,7 +387,7 @@ fun Menu(expanded: Boolean, onDismiss: () -> Unit, items: List<MenuItem>, modifi
                 Row(
                     Modifier.fillMaxWidth().height(48.dp).clickable(onClick = item.onClick).padding(horizontal = 16.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     Icon(painterResource(item.icon), null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(item.label, fontSize = 15.sp)

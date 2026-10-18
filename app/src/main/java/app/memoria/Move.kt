@@ -64,13 +64,13 @@ fun MoveToAlbumContent(
     onMoveNew: (String) -> Unit,
 ) {
     Column(Modifier.padding(bottom = 28.dp)) {
-        Row(Modifier.padding(horizontal = 20.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(48.dp).clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
                 Thumb(photo.copy(duration = null), Modifier.fillMaxSize())
             }
-            Column(Modifier.padding(start = 14.dp)) {
+            Column(Modifier.padding(start = 16.dp)) {
                 Text("Move to album", style = MaterialTheme.typography.titleLarge)
-                Text("Now in $currentAlbum", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Now in $currentAlbum", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         if (naming) {
@@ -123,9 +123,9 @@ fun MoveToAlbumContent(
 @Composable
 private fun PickRow(cover: Tile? = null, icon: Int? = null, label: String, note: String?, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 52.dp).clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 4.dp),
+        Modifier.fillMaxWidth().heightIn(min = 52.dp).clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         when {
             icon != null -> Box(

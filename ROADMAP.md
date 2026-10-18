@@ -102,14 +102,16 @@ Goal: no visible loss, not lossless (re-encoding always loses some).
 ## Phase 6: design and UI polish (current)
 - [x] Mockup, Honey palette: Photos, Library, viewer, Help recognize (link in `decisions.md`).
 - [ ] Redesign the People screen: the user doesn't like how it looks (2026-10-17), even now that the app matches the mockup. Mockup first, then code.
-- [ ] Match the app to the mockup's "Shapes and sizes" part (designed 2026-10-18). Each is a layout change: `make layout` and `make screenshots`.
-  - [ ] Search bar on Library and People: 52 → 48 dp, 24 dp corners, 16 dp padding (`SearchBar`, `Library.kt`).
-  - [ ] People top bar: drop the search icon (`People.kt`, it does nothing today).
-  - [ ] Photo details: People row faces 56 → 72 dp, side padding 20 → 16 dp (`Details.kt`).
-  - [ ] Merge with: faces 60 → 68 dp (`MergeSheet`, `People.kt`).
-  - [ ] Merge with and Change cover: a picked face also gets the accent check (`PersonCard`, `ChangeCoverSheet`).
-  - [ ] Sheets: side padding 20 → 16 dp, subtitle 13 → 12 sp, 16 dp between a row's picture and its text. Who is this? (`Recognize.kt`), Merge with, Change cover, Name this person (`People.kt`), Move to album (`Move.kt`).
-  - [ ] Menu: 14 → 16 dp between icon and text (`Menu`, `Ui.kt`).
+  - [x] Mockup (2026-10-18): "Named" 96 dp faces, 3 a row, name 6 dp under the face, count right under; "No name yet" 56 dp faces, 5 a row, no text.
+  - [ ] Code: build it in `PeopleContent` / `PersonCard` (`People.kt`). Merge with gets the same tight card (6 dp, count right under). Layout change: `LayoutJumpTest` case, `make layout`, `make screenshots`.
+- [x] Match the app to the mockup's "Shapes and sizes" part (designed 2026-10-18). Each is a layout change: `make layout` and `make screenshots`.
+  - [x] Search bar on Library and People: 52 → 48 dp, 24 dp corners, 16 dp padding (`SearchBar`, `Library.kt`).
+  - [x] People top bar: drop the search icon (`People.kt`, it does nothing today).
+  - [x] Photo details: People row faces 56 → 72 dp, side padding 20 → 16 dp (`Details.kt`).
+  - [x] Merge with: faces 60 → 68 dp (`MergeSheet`, `People.kt`).
+  - [x] Merge with and Change cover: a picked face also gets the accent check (`PersonCard`, `ChangeCoverSheet`).
+  - [x] Sheets: side padding 20 → 16 dp, subtitle 13 → 12 sp, 16 dp between a row's picture and its text. Who is this? (`Recognize.kt`), Merge with, Change cover, Name this person (`People.kt`), Move to album (`Move.kt`).
+  - [x] Menu: 14 → 16 dp between icon and text (`Menu`, `Ui.kt`).
   - Not built yet, build to the mockup: Search (album hit shows its cover as a square, month hit a square icon, faces 72 dp), the Albums New album tile (accent fill, not dashed), the New album sheet.
 
 ## Phase 7: release

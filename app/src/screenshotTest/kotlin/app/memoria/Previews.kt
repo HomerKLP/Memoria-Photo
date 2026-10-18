@@ -312,6 +312,28 @@ fun ChangeCoverSheetPreview() = MemoriaTheme {
     }
 }
 
+/** Merge with, one picked (mockup `.pcard.on`): the accent ring and the check at the face's top right. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 720)
+@Composable
+fun MergePickedPreview() = MemoriaTheme {
+    Surface {
+        val picked = fakePerson(2, "Dana")
+        MergeContent(fakePerson(1, null), listOf(picked, fakePerson(3, "Arman")), "", {}, picked, {}, {}, {})
+    }
+}
+
+/** Change cover, one picked: the same ring and check, and Save on. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 720)
+@Composable
+fun ChangeCoverPickedPreview() = MemoriaTheme {
+    Surface {
+        val p = fakePerson(1, null)
+        ChangeCoverContent(p, p.faces.first().id, {}, {}, {})
+    }
+}
+
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 800)
 @Composable
