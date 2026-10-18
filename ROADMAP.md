@@ -4,7 +4,7 @@ Open-source Android gallery. All photo processing and AI runs on the phone: phot
 
 Hardest part first, UI last. Phases are the order of work; Later and Ideas at the bottom have no phase yet.
 
-**Next step:** check live people while indexing on the phone, then pick from the list below (faster Help recognize, Settings leftovers: Folders to skip, Export / Import, Licenses). Phase 1 leftovers (tuning limits, more Takeout parts) wait until the user asks.
+**Next step:** Phase 6 (design and UI polish) is current; Phase 2 (face pipeline) is paused and its index / grouping follow-ups wait until the UI is mostly finished. UI items to pick from: the People screen redesign, matching the app to the mockup's "Shapes and sizes" list, and the unbuilt screens (Search, New album). Phase 1 leftovers (tuning limits, more Takeout parts) wait until the user asks.
 
 ## Phase 1: face pipeline quality (done, leftovers later)
 Pick the best models on real photos before writing app code. Details: `docs/face-pipeline.md`.
@@ -18,7 +18,8 @@ Pick the best models on real photos before writing app code. Details: `docs/face
 - [ ] Tune quality cut for starting groups.
 - [ ] Check AdaFace weights license (YOLOv5-face is GPL-3.0).
 
-## Phase 2: face pipeline on Android (current)
+## Phase 2: face pipeline on Android (paused, UI first)
+Paused while the UI comes first (Phase 6). The index and grouping follow-ups in this phase (small-decode shakedown, blurry face pictures, group/matching tuning, main face) get rechecked once the UI is mostly finished. Working items: see `## Phase 6`.
 - [x] Install Android Studio and SDK on the Mac, turn on USB debugging on the test phone.
 - [x] Half-size (fp16) YOLOv5m-face and AdaFace .onnx files, match fp32.
 - [x] Gradle project, Kotlin, Compose (`app/`).
@@ -26,16 +27,17 @@ Pick the best models on real photos before writing app code. Details: `docs/face
 - [x] NPU run: both models fully on NPU, 6-10x faster than CPU, same accuracy.
 - [x] Small APK (83 MB): models pushed to the phone, only 8 Elite NPU libs.
 - [x] Small decode (640) for detection, full decode only if faces. Decode-ahead threads dropped: too much code, less control.
-- [ ] Recheck small decode: speed gain unclear (~6%), results drift from the Mac (7 lost, 4 new faces of 362). Measure on a cool phone with step timers, give the bench the same smooth resize.
+- [x] Small decode kept as the right way: detect on a 640 decode, and only photos with faces pay the big decode (4096 on the long side). The gain is small (~6%) and results drift a little from the Mac (7 lost, 4 new faces of 362, mostly small or borderline), but the approach is sound and other galleries avoid decoding the original for detection too. No recheck.
 - [x] Face pictures (160 px WebP) saved in Room while indexing, People screen no longer decodes photos.
 - [ ] Some face pictures look blurry on the People screen. Fix later (bigger picture, or upscale small faces).
+- [ ] Decode only the face regions instead of the whole photo. When faces are found, the app decodes the photo at 4096 on the long side (`loadPhoto`) just to embed the faces and cut their 160 px thumbs; only a few small tiles are needed. `ImageDecoder.setCrop` on each face box would decode a tiny bitmap per face, no 12 MP frame. Not on the bench path, so it may drift from the Mac; measure it. May also sharpen the blurry face pictures above.
 - [x] Remove verbose ONNX Runtime logging from the test screen.
 - [ ] Decide how to ship the models in a release (APK size vs download).
 - [x] Background indexing with WorkManager, test folder `Pictures/MemoriaTest` only. Matches the Mac.
 - [x] Photo type from metadata: camera, other (downloads, messengers), skip (screenshots, GIFs, tiny).
 - [x] Store photos, faces and face vectors in Room.
 - [x] Foreground index worker with a progress notification. Plain job was stopped 7 times mid-run.
-- [ ] The OEM's background manager freezes the app ~30 s after screen off, even with the foreground service. Settings > Background work now asks for the battery exemption (the OEM shows the dialog); check if Allow stops the freeze.
+- [x] The OEM's background manager froze the app ~30 s after screen off, even with the foreground service. Fixed by the battery exemption: Settings > Background work asks for it (`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`, the OEM shows its own dialog), and with Allow the freeze is gone. Checked on the phone.
 - [x] Whole library: drop the folder filter, index new photos. `libraryPhotos()` queries all MediaStore images (videos out for now); scope = all minus an `excludedFolders` list, Immich-style. Progress bar + time left on Library and in the notification.
 - [x] Grouping on the phone (same as the bench, camera faces start people) and a plain People screen.
 - [x] Save people in Room: grouped again from scratch at the end of each index run. Keep people stable once naming comes.
@@ -97,7 +99,7 @@ Goal: no visible loss, not lossless (re-encoding always loses some).
 - [ ] Skip videos that are already small.
 - [ ] Later: auto mode, compress new videos at night while charging (opt-in). AV1 where a hardware encoder exists.
 
-## Phase 6: design and UI polish
+## Phase 6: design and UI polish (current)
 - [x] Mockup, Honey palette: Photos, Library, viewer, Help recognize (link in `decisions.md`).
 - [ ] Redesign the People screen: the user doesn't like how it looks (2026-10-17), even now that the app matches the mockup. Mockup first, then code.
 - [ ] Match the app to the mockup's "Shapes and sizes" part (designed 2026-10-18). Each is a layout change: `make layout` and `make screenshots`.
