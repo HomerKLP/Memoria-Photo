@@ -7,6 +7,7 @@ import android.content.ContentResolver
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.ImageDecoder
 import android.net.Uri
 import android.os.Bundle
 import android.os.CancellationSignal
@@ -524,7 +525,11 @@ fun Thumb(tile: Tile, modifier: Modifier) {
         if (value != null) return@produceState
         val signal = CancellationSignal()
         launch(thumbLoads) {
-            value = runCatching { context.contentResolver.loadThumbnail(tile.uri, Size(300, 300), signal) }.getOrNull()?.also { thumbs.put(tile.id, it) }
+            val thumb = runCatching { context.contentResolver.loadThumbnail(tile.uri, Size(300, 300), signal) }.getOrNull()
+            // old camera photos: MediaStore hands back the 160 px EXIF preview, blurry in a tile, so decode the photo itself
+            val small = thumb != null && tile.duration == null && min(thumb.width, thumb.height) < 200
+            value = (if (small) runCatching { loadPhoto(ImageDecoder.createSource(context.contentResolver, tile.uri), 480) }.getOrNull() ?: thumb else thumb)
+                ?.also { thumbs.put(tile.id, it) }
         }
         // The tile left the screen: stop its load
         awaitDispose { signal.cancel() }

@@ -14,6 +14,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -345,7 +346,10 @@ fun ViewerPage(tile: Tile, onZoomed: (Boolean) -> Unit, onTap: () -> Unit = {}) 
                     translationY = pan.value.y
                 },
         ) {
-            image?.let { Image(it.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit) }
+            // fade the grid thumbnail into the sharp decode, not a one-frame swap
+            Crossfade(image, Modifier.fillMaxSize(), tween(150), label = "photo") { bitmap ->
+                bitmap?.let { Image(it.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit) }
+            }
         }
         if (tile.duration != null) {
             // ponytail: the phone's own player for now, Media3 player in phase 4
