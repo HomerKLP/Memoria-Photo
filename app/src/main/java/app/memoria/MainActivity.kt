@@ -307,7 +307,13 @@ fun App(dir: File) {
                         else ShortNavigationBar {
                             ShortNavigationBarItem(
                                 screen == "photos", {
-                                    if (screen == "photos") scope.launch { photosGrid.animateScrollToItem(0) } else screen = "photos"
+                                    if (screen == "photos") scope.launch {
+                                        // Animating to the top composes every tile it passes; a long jump drops frames
+                                        // (bugs.md "tapping the tab to scroll back to top stutters"). Jump when far.
+                                        if (jumpToTop(photosGrid.firstVisibleItemIndex, photosGrid.layoutInfo.visibleItemsInfo.size))
+                                            photosGrid.scrollToItem(0)
+                                        else photosGrid.animateScrollToItem(0)
+                                    } else screen = "photos"
                                 }, { Icon(painterResource(R.drawable.ic_photo), null) }, { Text("Photos") },
                                 iconPosition = NavigationItemIconPosition.Start,
                             )

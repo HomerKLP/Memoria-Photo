@@ -263,6 +263,14 @@ private suspend fun LazyGridState.reveal(id: Long, order: List<Tile>) {
 }
 
 /**
+ * Whether a tab tap to the top should jump instantly instead of animating. `animateScrollToItem`
+ * composes and draws every tile the viewport passes, so over a long timeline the whole animation
+ * drops frames. Past about one screen it is cheaper to jump; a short hop still animates.
+ */
+fun jumpToTop(firstVisibleItemIndex: Int, visibleItemCount: Int): Boolean =
+    visibleItemCount <= 0 || firstVisibleItemIndex > visibleItemCount
+
+/**
  * Writes MediaStore's own favorite flag. Throws SecurityException for photos the app does not own:
  * the caller then asks the user once through MediaStore.createFavoriteRequest.
  */

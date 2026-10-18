@@ -42,8 +42,14 @@ numbers; 8 swipes down, then tap, `dumpsys gfxinfo`, 3 runs each):
 - `animateScrollToItem(0)`: 75-82 frames, 25-41% janky, p50 38-48 ms.
 - `scrollToItem(0)` (instant): 47-49 frames, 15-18% janky, p50 26-38 ms.
 
+2026-10-18: fixed. New `jumpToTop(firstVisibleItemIndex, visibleItemCount)`
+(`Photos.kt`): the tab jumps with `scrollToItem(0)` when the grid is more than a screen
+from the top and only animates a short hop. Same emulator A/B after the fix: 42-50
+frames, 18-22% janky (from 75-82 frames, 25-41%). Unit test `ScrollToTopTest`; `make
+check` green.
+
 Fix ideas:
-- Jump (`scrollToItem`) when far from the top; keep the animation for a short hop.
+- Done: jump (`scrollToItem`) when far from the top; keep the animation for a short hop.
 - Or cap the animation time, and don't start thumbnail loads for tiles that are only
   passing through (load once the scroll settles, like the fling case).
 
