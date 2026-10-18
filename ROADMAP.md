@@ -29,8 +29,8 @@ Paused while the UI comes first (Phase 6). The index and grouping follow-ups in 
 - [x] Small decode (640) for detection, full decode only if faces. Decode-ahead threads dropped: too much code, less control.
 - [x] Small decode kept as the right way: detect on a 640 decode, and only photos with faces pay the big decode (4096 on the long side). The gain is small (~6%) and results drift a little from the Mac (7 lost, 4 new faces of 362, mostly small or borderline), but the approach is sound and other galleries avoid decoding the original for detection too. No recheck.
 - [x] Face pictures (160 px WebP) saved in Room while indexing, People screen no longer decodes photos.
-- [ ] Some face pictures look blurry on the People screen. Fix later (bigger picture, or upscale small faces).
-- [ ] Decode only the face regions instead of the whole photo. When faces are found, the app decodes the photo at 4096 on the long side (`loadPhoto`) just to embed the faces and cut their 160 px thumbs; only a few small tiles are needed. `ImageDecoder.setCrop` on each face box would decode a tiny bitmap per face, no 12 MP frame. Not on the bench path, so it may drift from the Mac; measure it. May also sharpen the blurry face pictures above.
+- [x] Some face pictures looked blurry on the People screen: saved at 160 px, shown at up to 288 px. Now saved at 288 px, old ones cut again once. No upscale: ~90% of faces in people are 288 px or bigger in the photo.
+- [ ] Decode only the face regions instead of the whole photo. When faces are found, the app decodes the photo at 4096 on the long side (`loadPhoto`) just to embed the faces and cut their 288 px thumbs; only a few small tiles are needed. `ImageDecoder.setCrop` on each face box would decode a tiny bitmap per face, no 12 MP frame. Not on the bench path, so it may drift from the Mac; measure it. May also sharpen the blurry face pictures above.
 - [x] Remove verbose ONNX Runtime logging from the test screen.
 - [ ] Decide how to ship the models in a release (APK size vs download).
 - [x] Background indexing with WorkManager, test folder `Pictures/MemoriaTest` only. Matches the Mac.
@@ -117,13 +117,23 @@ Goal: no visible loss, not lossless (re-encoding always loses some).
 - [ ] UX pass: find and fix what feels broken in use, page by page. Known so far:
   - [ ] Moving or deleting the last photo of an album leaves an empty album page with no title. An album that becomes empty should close and go back.
   - [ ] Check every page that shows a set that can run empty, after a move, delete, unfavorite, hide or merge: Album, Place, Person, Favorites, Videos, Trash, and the viewer when its last photo goes. Each should close or show its empty state, never a blank page.
+  - [ ] After Change cover, going back to Library shows the old face for a moment, then flips to the new one. Library starts from its cached data and only then reloads. Fix by updating the cache when the cover changes (or preloading), or at least a crossfade.
 
-## Phase 7: release
+## Phase 7: animations
+Goal: motion that feels finished, like a mature gallery app, before the first APK release. Design first (how each motion looks and how long it runs), then code.
+- [ ] Opening and closing a photo: it grows out of its tile and shrinks back into it.
+- [ ] Page changes: open and back between screens, and the tab switch.
+- [ ] Sheets, menus and dialogs: smooth in and out.
+- [ ] Select mode: the top bar and the Select bar swap smoothly.
+- [ ] Lists: photos and people that leave (delete, move, merge, hide) animate out instead of vanishing; new pictures fade in (thumbnails, covers).
+- [ ] Rules: the no-layout-jump rule still holds; short motions; follow Android's "Remove animations" setting; check on a release build that nothing stutters.
+
+## Phase 8: release
 - [x] GPL-3.0 LICENSE file.
 - [ ] GitHub releases: tag each build, attach the signed APK, keep a changelog.
 - [ ] OTA updates from GitHub release APKs: the app notices a newer release, downloads the APK, and installs it through Android's own installer (PackageInstaller, `REQUEST_INSTALL_PACKAGES`). Needs its own screen (mockup first) and an INTERNET permission scoped to the update check (see Open questions).
 
-## Phase 8: tests (regression)
+## Phase 9: tests (regression)
 - [x] Unit tests (`app/src/test/`, `./gradlew :app:testDebugUnitTest`): pure logic. `fallbackDate`, `groupFaces` (6-photo gate, quality cut, camera-only, small faces), `etaMillis` / `formatEta`, `zoneLabel`, `monthAt` / `trackY`, NN-chain grouping = the old closest-pair-first loop. 23 tests. First win: `DetailsZoneTest` caught the "GMT-" bug (now fixed).
 - [x] Migration test (`MigrationTest`, androidTest): a v7 DB with a named, hidden person, an answer and a merge opens with the app's migrations and keeps them. Schemas are saved in `app/schemas/`; a missing migration fails the test and crashes the app instead of wiping it.
 - [ ] Room tests (in-memory DB): DAO queries.
@@ -133,11 +143,11 @@ Goal: no visible loss, not lossless (re-encoding always loses some).
 - [x] Screenshot tests (the built-in `com.android.compose.screenshot`, JVM, no phone): `./gradlew :app:updateDebugScreenshotTest` records, `:app:validateDebugScreenshotTest` compares. One preview per state (loading / indexing / paused / empty), paired with `LayoutJumpTest`.
 - [ ] Keep phone checks for the rest: stutter, blurry viewer, NPU, foreground worker. Tests can't cover these.
 
-## Phase 9: smart search (later)
+## Phase 10: smart search (later)
 - [ ] AI labels on every photo (document, ID card, receipt, meme, food, pet...): type "documents" or "id", see all of them. Builds on the Phase 3 classifier.
 - [ ] Free text search ("beach at sunset") with an on-device CLIP-style model.
 
-## Phase 10: performance (feels slow; measure first)
+## Phase 11: performance (feels slow; measure first)
 Today perf is found only after someone feels it (`bugs.md` holds the numbers). No repeatable measurement, no gate. Goal: a number per screen, then fix the load costs, then keep them from coming back.
 - [x] Baseline profiles: `androidx.profileinstaller` + `app/src/main/baseline-prof.txt` (generated, 1376 app classes merged into the APK). `<profileable android:shell="true"/>` so release can be traced. A release build no longer runs cold/JIT.
 - [x] `:baselineprofile` module (Macrobenchmark): generates the profile. Its Gradle runs uninstall the app (data loss), and the emulator has no library, so it is not the perf gauge.

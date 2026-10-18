@@ -115,6 +115,7 @@ interface IndexDao {
     @Insert suspend fun insertPerson(person: PersonRow)
     @Query("UPDATE face SET personId = :person WHERE id IN (:faces)") suspend fun setPerson(faces: List<Long>, person: Long)
     @Query("SELECT thumb FROM face WHERE id = :id") suspend fun thumb(id: Long): ByteArray?
+    @Query("UPDATE face SET thumb = :thumb WHERE id = :id") suspend fun setThumb(id: Long, thumb: ByteArray)
     @Query("SELECT * FROM answer") suspend fun answers(): List<AnswerRow>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun answer(answer: AnswerRow)
     @Query("DELETE FROM answer WHERE faceId = :face AND yes") suspend fun dropYes(face: Long)
@@ -311,6 +312,8 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         val done = dao.photoIds().toHashSet()
         // photos deleted from the phone: forget them and their faces, so counts and people match the phone
         if (!testOnly) (done - all.map { it.id }.toSet()).chunked(500).forEach { dao.deleteFaces(it); dao.deletePhotos(it) }
+        recutThumbs()
+        if (isStopped) return Result.success()
         val todo = all.filter { it.id !in done }
         if (todo.isEmpty()) {
             IndexProgress.finish(applicationContext)
@@ -386,6 +389,28 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
     }
 
     private val towns by lazy { Towns.load(applicationContext) }
+
+    /** Cuts the face pictures saved at the old 160 px cap again, once per install. Resumes by photo id after a stop. */
+    private suspend fun recutThumbs() {
+        val prefs = applicationContext.getSharedPreferences("index", Context.MODE_PRIVATE)
+        val after = prefs.getLong("recutTo", 0)
+        if (after == Long.MAX_VALUE) return
+        val start = System.nanoTime()
+        val dao = Db.get(applicationContext).index()
+        val photos = dao.faceVecs().filter { it.photoId > after }.groupBy { it.photoId }.toSortedMap()
+        for ((id, faces) in photos) {
+            if (isStopped) return
+            try {
+                val image = loadPhoto(ImageDecoder.createSource(applicationContext.contentResolver, ContentUris.withAppendedId(Media.EXTERNAL_CONTENT_URI, id)))
+                faces.forEach { dao.setThumb(it.id, faceThumb(image, it.box)) }
+            } catch (e: Exception) {
+                Log.w("Memoria", "recut $id", e)
+            }
+            prefs.edit().putLong("recutTo", id).apply()
+        }
+        prefs.edit().putLong("recutTo", Long.MAX_VALUE).apply()
+        Log.i("Memoria", "recut ${photos.size} photos in ${(System.nanoTime() - start) / 1_000_000_000} s")
+    }
 
     /** Reads GPS and finds the nearest town for photos saved without one: new photos, and photos indexed before DB v9. */
     private suspend fun placePhotos() {

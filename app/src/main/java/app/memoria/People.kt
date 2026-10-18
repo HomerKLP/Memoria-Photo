@@ -104,7 +104,7 @@ class Person(val faces: List<FaceVec>, val main: FaceVec, val id: Long = 0, val 
 class PeopleData(val summary: String, val people: List<Person>, val unsure: List<FaceVec>, val total: Int)
 
 // Decoded face pictures, so scrolling the grids does not decode the same face again
-private val faceBitmaps = object : LruCache<Long, ImageBitmap>((Runtime.getRuntime().maxMemory() / 16).toInt()) {
+private val faceBitmaps = object : LruCache<Long, ImageBitmap>((Runtime.getRuntime().maxMemory() / 8).toInt()) {
     override fun sizeOf(key: Long, value: ImageBitmap) = value.width * value.height * 4
 }
 
@@ -194,14 +194,14 @@ fun groupFaces(all: List<FaceVec>, answers: List<AnswerRow> = emptyList(), merge
     }.sortedByDescending { it.faces.size }
 }
 
-/** Face plus 30% margin as a small WebP, longest side up to 160 px. Saved while indexing, so the People screen never decodes photos. */
+/** Face plus 30% margin as a small WebP, longest side up to 288 px (the 96 dp People face at 3x). Saved while indexing, so the People screen never decodes photos. */
 fun faceThumb(image: Bitmap, box: FloatArray): ByteArray {
     val m = max(box[2] - box[0], box[3] - box[1]) * 0.3f
     val l = (box[0] - m).toInt().coerceIn(0, image.width - 1)
     val t = (box[1] - m).toInt().coerceIn(0, image.height - 1)
     val w = ((box[2] + m).toInt().coerceAtMost(image.width) - l).coerceAtLeast(1)
     val h = ((box[3] + m).toInt().coerceAtMost(image.height) - t).coerceAtLeast(1)
-    val s = min(1f, 160f / max(w, h))
+    val s = min(1f, 288f / max(w, h))
     val thumb = Bitmap.createScaledBitmap(Bitmap.createBitmap(image, l, t, w, h), max(1, (w * s).roundToInt()), max(1, (h * s).roundToInt()), true)
     return ByteArrayOutputStream().also { thumb.compress(Bitmap.CompressFormat.WEBP_LOSSY, 80, it) }.toByteArray()
 }

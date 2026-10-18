@@ -64,6 +64,15 @@ Fix ideas:
 
 2026-10-18: fixed. `Thumb` decodes the photo at 480 px when the thumbnail's short side is under 200 px (memory cache only). Checked on the phone: the tile is sharp, and the viewer opens at the right size.
 
+## People: blurry face pictures
+
+Face pictures were saved at 160 px (with margin) while indexing, but People shows them at up to 96 dp = 288 px on the test phone (3x), so they were stretched ~1.8x.
+
+Steps:
+1. Library > People. Look at a Named face up close.
+
+2026-10-18: fixed. `faceThumb` saves 288 px; the index run cuts the old pictures again once (`recutThumbs`, 1660 photos in 221 s, face ids kept). Checked on the phone: hair and eyes are sharp. Thumbs 12.7 -> 24.2 MB, DB 22 -> 35 MB.
+
 ## Viewer: screen-sized photos do not fill the screen
 
 Fixed 2026-10-15 (photo now fills the screen, bars float on top).
@@ -325,3 +334,13 @@ Steps:
 2. Long press it, Move (or Delete), confirm.
 
 Fix ideas: `albums(context, id)` returns nothing for an empty bucket, so `AlbumScreen` shows the loading state (title " "). Close the page (`onBack`) when a reload finds the album gone. Check Place and Person for the same.
+
+## Old cover flashes on Library after Change cover
+
+After picking a new cover for a person, Library's People row first shows the old face, then flips to the new one.
+
+Steps:
+1. Library > a person > Change cover, pick another face.
+2. Go back to Library.
+
+Fix ideas: Library starts from `cachedProduceState`'s last data (old cover), then reloads. Update the cached Library and People data when the cover changes, or preload before going back; a crossfade at least hides the flip.
