@@ -35,6 +35,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -47,7 +53,7 @@ import androidx.work.WorkManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** Everything the Library tab shows, loaded in one pass. Places waits for its screen. */
+/** Everything the Library tab shows, loaded in one pass. */
 class LibraryData(
     val faces: List<Person>,        // one person per row entry (main face + name), same order as the People screen
     val unsure: List<FaceVec>,      // unsure faces for the "Help recognize" card
@@ -56,6 +62,7 @@ class LibraryData(
     val videos: Int,
     val trash: Int,
     val total: Int,                 // photos in the index scope, for the progress bar
+    val places: List<Place> = emptyList(), // towns, most photos first
 )
 
 /** Shown at once when the tab opens again, then replaced by a fresh load. */
@@ -65,6 +72,8 @@ fun LibraryScreen(
     onOpenPerson: (Long) -> Unit,
     onOpenAlbums: () -> Unit,
     onOpenAlbum: (Long) -> Unit,
+    onOpenPlaces: () -> Unit,
+    onOpenPlace: (Int) -> Unit,
     onOpenFavorites: () -> Unit,
     onOpenVideos: () -> Unit,
     onOpenTrash: () -> Unit,
@@ -97,6 +106,7 @@ fun LibraryScreen(
                 videos = all.count { it.duration != null },
                 trash = runCatching { trash(context).size }.getOrDefault(0),
                 total = libraryPhotos(context).size,
+                places = places(dao.placed(), all),
             )
         }
     }
@@ -114,6 +124,8 @@ fun LibraryScreen(
         onOpenPerson = onOpenPerson,
         onOpenAlbums = onOpenAlbums,
         onOpenAlbum = onOpenAlbum,
+        onOpenPlaces = onOpenPlaces,
+        onOpenPlace = onOpenPlace,
         onOpenFavorites = onOpenFavorites,
         onOpenVideos = onOpenVideos,
         onOpenTrash = onOpenTrash,
@@ -139,6 +151,8 @@ fun LibraryContent(
     onOpenPerson: (Long) -> Unit = {},
     onOpenAlbums: () -> Unit = {},
     onOpenAlbum: (Long) -> Unit = {},
+    onOpenPlaces: () -> Unit = {},
+    onOpenPlace: (Int) -> Unit = {},
     onOpenFavorites: () -> Unit = {},
     onOpenVideos: () -> Unit = {},
     onOpenTrash: () -> Unit = {},
@@ -165,8 +179,8 @@ fun LibraryContent(
 
         SectionHead("Albums", "See all", onOpenAlbums)
         AlbumRows(data?.albums, onOpenAlbum)
-        SectionHead("Places", "See all")
-        PlaceholderGrid(3) { CoverItem(null, "Place", null) }
+        SectionHead("Places", "See all", onOpenPlaces)
+        PlaceRow(data?.places, onOpenPlace)
 
         Shortcuts(onOpenFavorites, onOpenVideos, onOpenTrash, data?.favorites ?: 0, data?.videos ?: 0, data?.trash ?: 0)
         TextButton(onDev, Modifier.padding(start = 8.dp, bottom = 12.dp)) { Text("Dev tools") }
@@ -348,8 +362,8 @@ fun AlbumRows(albums: List<Album>?, onOpen: (Long) -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 row.forEach { a ->
                     Box(Modifier.weight(1f)) {
-                        if (a == null) CoverItem(null, "", "")
-                        else CoverItem(a.tiles.first(), a.name, "${a.tiles.size}", Modifier.clickable { onOpen(a.id) })
+                        if (a == null) CoverTile(null, "", "")
+                        else CoverTile(a.tiles.first(), a.name, "${a.tiles.size}", Modifier.clickable { onOpen(a.id) })
                     }
                 }
                 repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
@@ -358,27 +372,21 @@ fun AlbumRows(albums: List<Album>?, onOpen: (Long) -> Unit) {
     }
 }
 
-/** 3-column grid of placeholder covers, until the Places screen exists. */
+/**
+ * Album and place cover (mockup `.place`): the photo, square, name and count on it over a dark fade with a text shadow, so white
+ * covers stay readable. One line each, a long name ends with …. Grey when [cover] is null.
+ */
 @Composable
-fun PlaceholderGrid(columns: Int, content: @Composable () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        repeat(columns) {
-            Box(Modifier.weight(1f)) { content() }
+fun CoverTile(cover: Tile?, label: String, note: String, modifier: Modifier = Modifier) {
+    Box(modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
+        if (cover == null) return@Box
+        Thumb(cover.copy(duration = null), Modifier.fillMaxSize()) // no video badge on a cover
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.3f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.7f))))
+        val shadow = with(LocalDensity.current) { TextStyle(shadow = Shadow(Color.Black.copy(alpha = 0.5f), Offset(0f, 1.dp.toPx()), 2.dp.toPx())) }
+        Column(Modifier.align(Alignment.BottomStart).padding(8.dp)) {
+            Text(label, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, style = shadow)
+            Text(note, color = Color.White.copy(alpha = 0.9f), fontSize = 12.sp, maxLines = 1, style = shadow)
         }
-    }
-}
-
-/** Rounded square cover, name and count. Grey when [cover] is null. */
-@Composable
-fun CoverItem(cover: Tile?, label: String, note: String?, modifier: Modifier = Modifier) {
-    Column(modifier) {
-        val square = Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(12.dp))
-        // no video badge on a cover
-        if (cover != null) Thumb(cover.copy(duration = null), square)
-        else Box(square.background(MaterialTheme.colorScheme.surfaceVariant))
-        Spacer(Modifier.height(6.dp))
-        Text(label, fontSize = 13.sp, fontWeight = FontWeight.Medium, minLines = 1, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        note?.let { Text(it, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, minLines = 1, maxLines = 1) }
     }
 }
 

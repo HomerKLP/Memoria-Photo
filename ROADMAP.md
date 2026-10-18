@@ -1,6 +1,8 @@
 # Roadmap
 
-Hardest part first, UI last.
+Open-source Android gallery. All photo processing and AI runs on the phone: photos and face data never leave it, models ship inside the app, no accounts, ads, trackers or analytics. The internet is used only for optional comfort features — map tiles for the photo map, and update checks — never to upload or analyze photos. Face data stays in a local DB, with export and import for backup.
+
+Hardest part first, UI last. Phases are the order of work; Later and Ideas at the bottom have no phase yet.
 
 **Next step:** check live people while indexing on the phone, then pick from the list below (faster Help recognize, Settings leftovers: Folders to skip, Export / Import, Licenses). Phase 1 leftovers (tuning limits, more Takeout parts) wait until the user asks.
 
@@ -43,6 +45,7 @@ Pick the best models on real photos before writing app code. Details: `docs/face
 - [x] People and Person screens built to the mockup: People = top bar + search, Help recognize card, index progress, 4-column grid, one list: named people first, then unnamed (no label), each by photo count. Library row same order. Person = face chips, "Faces" row, "Unsure faces" card, 3-column photo grid; tap a photo opens the viewer. Merge with / Change cover / Hide person are placeholders (no screens yet).
 - [x] Merge with (one person at a time, most alike first) and Hide person, both survive regroups (DB v7). Hidden people opens from Settings. Checked on the phone.
 - [x] Settings from the Library gear: Only while charging, Background work, Find faces again, Hidden people. Folders to skip, Export / Import face data and Licenses are shown but wait for design or decisions. Checked on the phone.
+- [ ] Licenses screen (Settings > About, mockup first). Must credit GeoNames (CC BY 4.0: credit, the license, and what we changed: towns of 1000+ only, no districts), and list the fonts (OFL 1.1), ONNX Runtime (MIT), Qualcomm QNN libs, AndroidX / Compose / Kotlin / Material icons (Apache 2.0), and the face models once the app ships them. License texts live inside the app (no internet).
 - [ ] Fixes, per-person tuning. Change cover built (mockup "Change cover"): the chip on the person screen opens a sheet with the person's sure faces, clearest first, current cover on top; picking one saves it and it survives re-index (DB v8). A new person starts from a face only ("Who is this?" > New person), never from an empty card. Full stable people: still group all faces without a person (old ones too), so 5 old photos plus 1 new one can form a person.
 - [x] Start gate: only camera faces with quality 0.4+ (EDifFIQA-T on the phone) start a person. Junk groups gone.
 - [x] A person needs starting faces from 6+ photos.
@@ -54,42 +57,63 @@ Pick the best models on real photos before writing app code. Details: `docs/face
 - [ ] Main face: pick by quality score once a quality model runs on the phone (now: closest to the person's average face).
 
 ## Phase 3: photo type filter
-- [ ] Metadata filter (screenshots, messengers, no camera EXIF).
-- [ ] Classifier for selfie, group, meme, screenshot, document.
+Goal: keep screenshots, memes and documents out of face search.
+- [x] Metadata filter (screenshots, messengers, no camera EXIF): done in Phase 2. Only camera faces start a person; messenger faces can join one.
+- [ ] Classifier for selfie, group, meme, screenshot, document. Main gain is clean people (no celebrity faces from memes), not speed.
+- [ ] Save the labels so the user can browse Selfies, Group photos, Screenshots.
 
 ## Phase 4: gallery basics (paused, basics done)
 - [x] Honey theme (`Theme.kt`, Bricolage Grotesque font in the APK) and two bottom tabs. Test screen moved to Library > Dev tools.
 - [x] Photos tab: timeline from MediaStore, month and day headers, 4-column grid, video length. Thumbnails from MediaStore `loadThumbnail`.
+- [ ] Photos tab: pinch to resize the grid.
 - [ ] Photos tab: refresh when new photos arrive (now only when the tab opens). Place names in day headers (needs offline geocoding).
 - [ ] Test photos with no EXIF date and no date in the name land on the push day. Set their file time from the sidecar `photoTakenTime` before pushing, if it gets in the way. (Full plan and decisions: `docs/library-unification.md`.)
 - [x] Viewer: swipe between photos, date on top, share. Videos show a sharp frame and open in the phone's own player.
 - [x] Viewer: zoom (pinch 1-6x, double tap), pan while zoomed, favorite. Swipe down and pager are off while zoomed.
 - [x] Viewer details sheet (swipe up or the Info button): date and timezone, place, camera EXIF, file details.
 - [x] Favorites album: MediaStore query with `QUERY_ARG_MATCH_FAVORITE`, heart on grid tiles.
-- [ ] Favorites: fewer dates. It reuses the timeline, so every day gets a header for a few photos; show month headers only (or fewer dates). Mockup first.
-- [ ] Viewer and Album More menus (mockup "Viewer, More", "Album, More"). Move to album needs an album picker sheet, album select needs its mockup.
+- [x] Favorites: fewer dates. Month headers only, 3-column grid, no day headings, no hearts (`FavoritesContent`, mockup "Favorites"). Long press select still to come with album select.
+- [x] Viewer More menu (mockup "Viewer, More"), from the shared `Menu` part (`Ui.kt`): Edit in… and Use as… (Android's chooser), Show in album (opens the photo's folder, hidden when the viewer came from that album). Tests: `viewer_more_opensMenuAndFiresItem`, `viewerMore_opening_keepsContentPut`; preview `ViewerMore`. Move to album built (mockup "Move to album"): `MoveToAlbumSheet` / `MoveToAlbumContent` (`Move.kt`), folders under DCIM / Pictures (`moveTargets`), New album, Android's confirm; tests `moveToAlbum_*`, preview `MoveToAlbumSheetPreview`. Album More and album select are designed, not built.
 - [x] Library tab layout from the mockup: search bar, People row, index progress, "Help recognize" card, Albums/Places placeholders, shortcuts (Favorites, Videos, Locked folder, Trash), Dev tools. Albums, Places, Locked folder, Trash and Help recognize wait for their screens.
-- [ ] Viewer details sheet: People section (waits for naming), place name (waits for offline geocoding).
+- [x] Viewer details sheet: People section, and Place as the nearest town (never coordinates; `DetailsPlaceTest`).
 - [x] Viewer: the photo fills the whole screen; the top / bottom bars float on it, transparent (a soft gradient under the icons, not the old 50% black strip). Tapping the photo hides the bars and the system status / nav bars, so nothing covers the photo; tapping again brings them back. The bars are `ViewerChrome` (pure UI, so tests and previews render it without MediaStore). Test: `viewerBars_hiding_keepsPhotoPut`; previews: `ViewerBars` / `ViewerTapped`. Checked on the phone: the two bars hide and show on a tap (fade cut to 120 ms, see `decisions.md`), but the system status / nav bars do not hide (see `bugs.md`). Mockup: `docs/design.html` "Viewer" and "Viewer, tapped".
 - [x] Viewer: delete. Trash button (4th in the bar) sends the photo to the phone's trash through Android's own confirm; on OK the next photo slides in.
 - [x] Trash: the phone's own trash (MediaStore `QUERY_ARG_MATCH_TRASHED`), 3-column grid with days left, long press selects, Restore / Delete / Empty go through Android's own requests. Library card shows the real count.
 - [x] Albums: device folders (MediaStore buckets), 6 on Library, Albums screen from See all, album grid opens the viewer.
-- [x] Photos tab: select many (mockup "Photos, selecting"). Long press starts, drag adds, a day's circle picks the whole day. Share, Favorite, Delete (one Android trash confirm for all). Later: the same mode on albums and a person's photos, Move to album.
-- [ ] Albums: New album card, More menu, long press select (no design for the actions yet).
+- [x] Photos tab: select many (mockup "Photos, selecting"). Long press starts, drag adds, a day's circle picks the whole day. Share, Favorite, Delete (one Android trash confirm for all). Later: the same mode on albums and a person's photos. No Move here: the grid does not say which album a photo is in (Move is in the viewer and album select).
+- [ ] Albums: New album (name sheet, then pick photos), More menu, long press select. Designed (mockup "New album", "Album, More", "Album, selecting"), not built.
+- [x] Offline town names at index time: `assets/towns.tsv` (GeoNames, 1000+ people, no districts), each photo's GPS and nearest town saved on its photo row (DB v9). Photos only, not videos yet.
+- [x] Places screen and Place screen (mockup "Places", "Place"): Library row (3 biggest towns) and See all grid from `photo.townId`, Place = photos by month like Videos, tap opens the viewer. Checked on the phone.
+- [ ] Places leftovers: videos (no town yet), long press select on Place, an empty state when no photo has a place (designed, mockup "Places, empty"; grey tiles hold the row for now).
+- [ ] Later: spots inside a place (a lake or park near a town shows inside that town's Place). Not designed; see Open questions.
 - [x] Videos screen from the Library card: all videos by month (month pinned), 3-column grid, count and total size on top.
 - [ ] Media3 video player.
 - [ ] Search screen (mockup "Search"): from the Photos icon and the Library bar. Finds people, albums, months and years (places after offline geocoding), each hit opens a screen we have. Later: two people at once, free text, a results grid.
 
 ## Phase 5: video compression
-- [ ] HEVC re-encode with Media3 Transformer, keep metadata, keep original until approved.
+Goal: no visible loss, not lossless (re-encoding always loses some).
+- [ ] HEVC re-encode with Media3 Transformer and the hardware encoder. Keep resolution and frame rate, lower the bitrate within a safe range.
+- [ ] Keep date, GPS and rotation. Keep the original until the user approves the result (preview, size saved).
+- [ ] Skip videos that are already small.
+- [ ] Later: auto mode, compress new videos at night while charging (opt-in). AV1 where a hardware encoder exists.
 
 ## Phase 6: design and UI polish
 - [x] Mockup, Honey palette: Photos, Library, viewer, Help recognize (link in `decisions.md`).
 - [ ] Redesign the People screen: the user doesn't like how it looks (2026-10-17), even now that the app matches the mockup. Mockup first, then code.
+- [ ] Match the app to the mockup's "Shapes and sizes" part (designed 2026-10-18). Each is a layout change: `make layout` and `make screenshots`.
+  - [ ] Search bar on Library and People: 52 → 48 dp, 24 dp corners, 16 dp padding (`SearchBar`, `Library.kt`).
+  - [ ] People top bar: drop the search icon (`People.kt`, it does nothing today).
+  - [ ] Photo details: People row faces 56 → 72 dp, side padding 20 → 16 dp (`Details.kt`).
+  - [ ] Merge with: faces 60 → 68 dp (`MergeSheet`, `People.kt`).
+  - [ ] Merge with and Change cover: a picked face also gets the accent check (`PersonCard`, `ChangeCoverSheet`).
+  - [ ] Sheets: side padding 20 → 16 dp, subtitle 13 → 12 sp, 16 dp between a row's picture and its text. Who is this? (`Recognize.kt`), Merge with, Change cover, Name this person (`People.kt`), Move to album (`Move.kt`).
+  - [ ] Menu: 14 → 16 dp between icon and text (`Menu`, `Ui.kt`).
+  - Not built yet, build to the mockup: Search (album hit shows its cover as a square, month hit a square icon, faces 72 dp), the Albums New album tile (accent fill, not dashed), the New album sheet.
 
 ## Phase 7: release
 - [x] GPL-3.0 LICENSE file.
-- [ ] GitHub releases.
+- [ ] GitHub releases: tag each build, attach the signed APK, keep a changelog.
+- [ ] OTA updates from GitHub release APKs: the app notices a newer release, downloads the APK, and installs it through Android's own installer (PackageInstaller, `REQUEST_INSTALL_PACKAGES`). Needs its own screen (mockup first) and an INTERNET permission scoped to the update check (see Open questions).
 
 ## Phase 8: tests (regression)
 - [x] Unit tests (`app/src/test/`, `./gradlew :app:testDebugUnitTest`): pure logic. `fallbackDate`, `groupFaces` (6-photo gate, quality cut, camera-only, small faces), `etaMillis` / `formatEta`, `zoneLabel`, `monthAt` / `trackY`, NN-chain grouping = the old closest-pair-first loop. 23 tests. First win: `DetailsZoneTest` caught the "GMT-" bug (now fixed).
@@ -100,3 +124,43 @@ Pick the best models on real photos before writing app code. Details: `docs/face
 - [ ] `LayoutJumpTest` case for the People screen (loading -> loaded, rows of 4). It has none yet.
 - [x] Screenshot tests (the built-in `com.android.compose.screenshot`, JVM, no phone): `./gradlew :app:updateDebugScreenshotTest` records, `:app:validateDebugScreenshotTest` compares. One preview per state (loading / indexing / paused / empty), paired with `LayoutJumpTest`.
 - [ ] Keep phone checks for the rest: stutter, blurry viewer, NPU, foreground worker. Tests can't cover these.
+
+## Phase 9: smart search (later)
+- [ ] AI labels on every photo (document, ID card, receipt, meme, food, pet...): type "documents" or "id", see all of them. Builds on the Phase 3 classifier.
+- [ ] Free text search ("beach at sunset") with an on-device CLIP-style model.
+
+## Phase 10: performance (feels slow; measure first)
+Today perf is found only after someone feels it (`bugs.md` holds the numbers). No repeatable measurement, no gate. Goal: a number per screen, then fix the load costs, then keep them from coming back.
+- [x] Baseline profiles: `androidx.profileinstaller` + `app/src/main/baseline-prof.txt` (generated, 1376 app classes merged into the APK). `<profileable android:shell="true"/>` so release can be traced. A release build no longer runs cold/JIT.
+- [x] `:baselineprofile` module (Macrobenchmark): generates the profile. Its Gradle runs uninstall the app (data loss), and the emulator has no library, so it is not the perf gauge.
+- [x] `make perf` (`bench/perf.py`): cold start (first frame, timeline shown) and janky frames for Photos, Library, People, viewer, Details, on the phone's release build. Taps and dumpsys only, data stays. First numbers in `bugs.md`: every screen under 3% janky frames.
+- [ ] Fix the known load costs, by measured impact. They do not show as janky frames; if a screen still feels slow, measure how long its data takes to show first: Details loads every face vector for one photo (`Details.kt`); Library/People load faces with vectors and scan all of MediaStore just to count (`libraryPhotos(...).size`); thumbnails start only when a screen opens (warm the visible ones after `timeline()`); the viewer decodes full size then sharpens (`Viewer.kt`).
+- [ ] Load time in `make perf`: ms from opening a screen until its data shows (Library, People, Person, Details, the viewer's sharp photo), like the cold start's timeline time.
+- [x] Perf line in `AGENTS.md` (Commands): `make release`, pause indexing, `make perf`.
+
+## Later
+- Google Takeout import: copy photos not already on the phone, dates from the JSON, skip duplicates. Plan: `docs/library-unification.md`.
+- Names from Takeout: match Google's people tags to our people (photos with one tag and one face, then a majority vote per person, like `bench.py eval`).
+- Split a person. Ignore a face (strangers in the back).
+- Locked folder behind PIN or fingerprint (Library card in the mockup, no screen yet).
+- Simple edit: crop, rotate. Other edits open in another app (Viewer, More > Edit in…).
+- Rename an album.
+- "On this day" memories.
+- Duplicates finder: exact copies, burst shots, very similar shots. Keep the best one (sharpest, open eyes, best faces); deleting the rest needs the user's OK.
+- Blurry and bad photo cleanup.
+
+## Ideas
+- Map of photos by GPS (offline map tiles, or tiles fetched when online).
+- Pets.
+- Search text inside photos (OCR).
+
+## Not planned
+- Cloud sync or backup server.
+- Direct Google Photos sync: Google closed library read access for other apps in 2025.
+- iOS.
+- Full photo editor.
+
+## Open questions
+- Spots inside places: what to call them, where offline names come from (GeoNames lakes, parks, peaks; OpenStreetMap; or the user names a cluster of photos), and which town a spot outside town limits joins. Bench (`bench/places.py`): the nearest town of 1000+ is right; the nearest town of 15000+ sends resort and lake towns 13–22 km away.
+- OTA updates: check the GitHub releases API for a newer tag, download the APK, install it through Android's own installer. Needs `REQUEST_INSTALL_PACKAGES` and the release page URL / repo. Decide the check (on open, daily, or manual).
+- Districts of very big cities: GeoNames lists some as their own towns (district seats), so a few photos get a district tile instead of the city's. Maybe a big city takes every place within a radius that grows with its population.

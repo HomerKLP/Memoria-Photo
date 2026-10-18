@@ -48,7 +48,7 @@ fun PeopleList() = MemoriaTheme {
         PeopleContent(
             data = PeopleData(
                 summary = "7 people · 412 faces",
-                people = listOf(fakePerson(1, "Dana"), fakePerson(2, "Arman"), fakePerson(3, null), fakePerson(4, null)),
+                people = listOf(fakePerson(1, "Dana"), fakePerson(2, "Arman"), fakePerson(3, null), fakePerson(4, null), fakePerson(5, "Bota"), fakePerson(6, null), fakePerson(7, "Mei")),
                 unsure = listOf(fakeFace(201, 0.3f), fakeFace(202, 0.3f), fakeFace(203, 0.3f)),
                 total = 1706,
             ),
@@ -150,7 +150,85 @@ private fun fakeLibrary(people: List<Person>? = null, unsure: List<FaceVec>? = n
     videos = 211,
     trash = 7,
     total = 1706,
+    places = fakePlaces,
 )
+
+private val fakePlaces = listOf("Riverton" to 642, "Northport" to 118, "Harborview" to 87, "Eastfield" to 64, "Lakemoor" to 52).mapIndexed { i, (n, c) ->
+    Place(i, n, List(c) { Tile(i * 1000L + it, android.net.Uri.parse("content://media/external/images/media/$it"), 0L, null) })
+}
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 760)
+@Composable
+fun PlacesGrid() = MemoriaTheme { Surface { PlacesContent(fakePlaces) } }
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 760)
+@Composable
+fun PlacesLoading() = MemoriaTheme { Surface { PlacesContent(null) } }
+
+private fun fakeAlbum(id: Long, name: String, count: Int) =
+    Album(id, name, List(count) { Tile(id * 1000 + it, android.net.Uri.parse("content://media/external/images/media/${id * 1000 + it}"), 1_700_000_000_000L - it * 86_400_000L, null) })
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 760)
+@Composable
+fun AlbumsGrid() = MemoriaTheme {
+    Surface { AlbumsContent(listOf(fakeAlbum(1, "Camera", 5), fakeAlbum(2, "Screenshots", 3), fakeAlbum(3, "Telegram", 2), fakeAlbum(4, "Downloads", 1))) }
+}
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 760)
+@Composable
+fun AlbumsLoading() = MemoriaTheme { Surface { AlbumsContent(null) } }
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 760)
+@Composable
+fun AlbumGrid() = MemoriaTheme { Surface { AlbumContent(fakeAlbum(1, "Camera", 9)) } }
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 760)
+@Composable
+fun VideosGrid() = MemoriaTheme {
+    val months = linkedMapOf(
+        "October 2026" to (1L..4L).map { Tile(it, android.net.Uri.parse("content://media/external/video/media/$it"), 1_700_000_000_000L - it * 86_400_000L, 12_000L) },
+        "September 2026" to (5L..7L).map { Tile(it, android.net.Uri.parse("content://media/external/video/media/$it"), 1_690_000_000_000L - it * 86_400_000L, 8_000L) },
+    )
+    Surface { VideosContent(Videos(months, months.values.flatten(), 2_500_000_000L)) }
+}
+
+private fun fakeFavorites() = linkedMapOf(
+    "October 2026" to (1L..4L).map { Tile(it, android.net.Uri.parse("content://media/external/images/media/$it"), 1_700_000_000_000L - it * 86_400_000L, null) },
+    "September 2026" to (5L..7L).map { Tile(it, android.net.Uri.parse("content://media/external/images/media/$it"), 1_690_000_000_000L - it * 86_400_000L, null) },
+).let { Favorites(it, it.values.flatten()) }
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 760)
+@Composable
+fun FavoritesGrid() = MemoriaTheme { Surface { FavoritesContent(fakeFavorites()) } }
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 760)
+@Composable
+fun FavoritesLoading() = MemoriaTheme { Surface { FavoritesContent(null) } }
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 760)
+@Composable
+fun DetailsView() = MemoriaTheme {
+    Surface {
+        DetailsContent(
+            tile = Tile(1, android.net.Uri.parse("content://media/external/images/media/1"), 1_700_000_000_000L, null),
+            info = PhotoInfo("IMG_20261011_143201.jpg", "DCIM/Camera", 3_500_000, 4032, 3024, "Mountain View", "Pixel 9", "f/1.8 · 1/120 s · ISO 64 · 24 mm"),
+            faces = listOf(
+                fakeFace(1, 0.9f),
+                FaceVec(2, 0, floatArrayOf(0f, 0f, 50f, 50f), FloatArray(512), 0.9f, "camera", null),
+            ),
+            people = listOf(fakePerson(1, "Dana")),
+        )
+    }
+}
 
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 1000)
@@ -239,6 +317,38 @@ fun ChangeCoverSheetPreview() = MemoriaTheme {
 @Composable
 fun TrashLoading() = MemoriaTheme { Surface { TrashContent(emptyList(), loading = true) } }
 
+/** Move to album sheet (mockup "Move to album"): the head, New album, then the folders. */
+@PreviewTest
+@Preview(widthDp = 360)
+@Composable
+fun MoveToAlbumSheetPreview() = MemoriaTheme {
+    Surface {
+        MoveToAlbumContent(
+            Tile(1, android.net.Uri.parse("content://media/external/images/media/1"), 1_700_000_000_000L, null),
+            "Camera",
+            listOf(
+                MoveTarget("Screenshots", "Pictures/Screenshots/", null, 214),
+                MoveTarget("Telegram", "Pictures/Telegram/", null, 96),
+                MoveTarget("Holidays 2024", "Pictures/Holidays 2024/", null, 47),
+            ),
+            false, "", {}, {}, {}, {}, {},
+        )
+    }
+}
+
+/** Move to album, New album: the name field and Cancel / Move (the other state of the jump test). */
+@PreviewTest
+@Preview(widthDp = 360)
+@Composable
+fun MoveToAlbumNamingPreview() = MemoriaTheme {
+    Surface {
+        MoveToAlbumContent(
+            Tile(1, android.net.Uri.parse("content://media/external/images/media/1"), 1_700_000_000_000L, null),
+            "Camera", emptyList(), true, "", {}, {}, {}, {}, {},
+        )
+    }
+}
+
 /** The timeline month slider (Ui.kt shared part): rail, ticks, the month on screen and the knob. */
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 480)
@@ -284,6 +394,26 @@ fun ViewerTapped() = MemoriaTheme {
         Box(Modifier.fillMaxSize()) {
             Box(Modifier.fillMaxSize().background(viewerPhoto))
             ViewerChrome(false, "Sat, 11 Oct", "14:32", favorite = false, {}, {}, {}, {}, {})
+        }
+    }
+}
+
+/** Viewer, More (mockup): the menu drops under the More over the photo, no dim. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 800)
+@Composable
+fun ViewerMore() = MemoriaTheme {
+    Surface {
+        Box(Modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxSize().background(viewerPhoto))
+            Menu(
+                true, onDismiss = {},
+                items = listOf(
+                    MenuItem(R.drawable.ic_edit, "Edit in…") {},
+                    MenuItem(R.drawable.ic_wallpaper, "Use as…") {},
+                    MenuItem(R.drawable.ic_folder, "Show in album") {},
+                ),
+            )
         }
     }
 }

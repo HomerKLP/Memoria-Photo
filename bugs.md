@@ -49,6 +49,21 @@ Fix ideas:
 - Short fade from thumbnail to full photo; now it swaps in one frame.
 - The two neighbour pages decode at the same time as the open one; decode the open one first.
 
+2026-10-18: the swap now fades in 150 ms (`Crossfade`). 2026-10-18: worse on old camera photos (see "Grid: blurry tiles"). The viewer stretches the 160 px preview to full width (~7x), and it has another aspect (160 x 112 vs 3:2), so the photo jumps in size when the real one lands.
+
+## Grid: blurry tiles on old camera photos
+
+Some tiles are blurry. MediaStore's cached thumbnail (`Pictures/.thumbnails/<id>.jpg`) is the camera's embedded EXIF preview, only 160 x 112. `loadThumbnail` returns it as is and the tile scales it up ~2.4x. On the test phone: 590 of 3930 thumbnails are 200 px or less, almost all from `Pictures/Takeout/`. Normal ones are ~600 px.
+
+Steps:
+1. Scroll Photos to an old camera photo from Takeout (2010s DSLR).
+2. Compare the tile with the photo in the viewer.
+
+Fix ideas:
+- In `Thumb`, when the thumbnail is smaller than the tile, decode the photo itself at tile size (sampled JPEG decode) and cache that.
+
+2026-10-18: fixed. `Thumb` decodes the photo at 480 px when the thumbnail's short side is under 200 px (memory cache only). Checked on the phone: the tile is sharp, and the viewer opens at the right size.
+
 ## Viewer: screen-sized photos do not fill the screen
 
 Fixed 2026-10-15 (photo now fills the screen, bars float on top).
@@ -258,6 +273,17 @@ Fix ideas:
   `BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE`.
 - Check on a stock-Pixel emulator to tell whether it is the OEM.
 
+## Person: back from the viewer lands at the top of the photos
+
+Fixed 2026-10-18 (the person's photos loaded with plain `produceState`, so after the viewer tore the tree down they restarted empty; the grid's restored scroll clamped onto the short frame and never came back. Now `cachedProduceState("person${id}", photoIds)` — `People.kt` `PersonDetail`. Same class as the Library-from-Trash fix above. Test `personDetail_backFromViewer_keepsGridScroll`).
+
+Steps:
+1. Library > People > open a person > scroll their photo grid down > tap a photo > go back.
+2. The grid is at the top, not where it was.
+
+Fix ideas:
+- Done: cache the last photo list per person so the first frame back is full.
+
 # Known issues and bad patterns
 
 Found while reading the code, not seen on the phone yet. No steps, just the risk.
@@ -273,3 +299,19 @@ Found while reading the code, not seen on the phone yet. No steps, just the risk
 - **`libraryPhotos(context).size` scans all of MediaStore.** `Library.kt` and `People.kt` build a `MediaPhoto` per row just to count. A `SELECT COUNT(*)` query does the same.
 - **`groupFaces` holds an n×n float matrix in memory** (`People.kt`). Time is O(n²) since the NN-chain (2026-10-17), but memory is 17 MB at today's 2052 starting faces and ~400 MB at 10k. Store half of it (or float16) before libraries get that big.
 - **Dead `photo.path` column.** `PhotoRow.path` (`Index.kt`) is written on insert but no query reads it. Remove it when the schema is next touched (needs a migration).
+
+## Perf numbers (`make perf`)
+
+Release build, baseline profile compiled, full library after a re-index (~4400 photos), median of 3. The phone runs at 120 Hz.
+
+| 2026-10-18 | frames | janky % | p90 ms | p99 ms |
+|---|---|---|---|---|
+| Cold start: first frame 115 ms, timeline 154 ms | | | | |
+| Photos, first scroll | 324 | 0.6 | 7 | 10 |
+| Photos, scroll | 313 | 0.6 | 9 | 13 |
+| Library, open + scroll | 150 | 1.3 | 7 | 24 |
+| People, open + scroll | 105 | 1.0 | 5 | 13 |
+| Viewer, open + 3 swipes | 165 | 1.8 | 5 | 24 |
+| Details, open | 72 | 2.8 | 5 | 23 |
+
+The first run, right after indexing (warm phone), read 2-4x more janky frames. Compare runs taken in the same state. These are frame times only; how long data takes to show on a screen is not measured yet.

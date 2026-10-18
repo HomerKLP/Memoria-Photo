@@ -1,6 +1,7 @@
 package app.memoria
 
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
@@ -14,6 +15,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -31,7 +33,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
@@ -96,7 +97,7 @@ private const val barsFadeMillis = 120
 
 /** Full-screen photos, swipe sideways for the next one. Opens on the tile with id start. */
 @Composable
-fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit) {
+fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Boolean = true, onShowInAlbum: (Tile) -> Unit = {}) {
     val context = LocalContext.current
     var list by remember { mutableStateOf(tiles) } // shrinks when a photo goes to the trash
     if (list.isEmpty()) { // the app was restarted while the viewer was open, or the last photo was trashed
@@ -150,6 +151,26 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit) {
         trashing?.let { id ->
             if (result.resultCode == Activity.RESULT_OK) { list = list.filterNot { it.id == id }; forgetTile(id) }
             trashing = null
+        }
+    }
+    // Move to album: the sheet picks a folder, Android asks for consent when the file belongs to another app.
+    // A photo opened from an album leaves it on a move, so the viewer shows the next one (same as trashing).
+    var moving by remember { mutableStateOf(false) }
+    fun afterMove(id: Long) { if (!showInAlbum) list = list.filterNot { it.id == id } }
+    var movePending by remember { mutableStateOf<Pair<Long, String>?>(null) }
+    val moveAsk = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        movePending?.let { (id, path) ->
+            if (result.resultCode == Activity.RESULT_OK) list.firstOrNull { it.id == id }
+                ?.let { runCatching { movePhoto(context, it, path) }.onSuccess { afterMove(id) } }
+            movePending = null
+        }
+    }
+    fun applyMove(id: Long, path: String) {
+        val t = list.firstOrNull { it.id == id } ?: return
+        runCatching { movePhoto(context, t, path) }.onSuccess { afterMove(id) }.onFailure {
+            movePending = id to path
+            val ask = MediaStore.createWriteRequest(context.contentResolver, listOf(t.uri))
+            moveAsk.launch(IntentSenderRequest.Builder(ask.intentSender).build())
         }
     }
     // Photo fills the whole screen, the bars float on it (transparent gradient, see ViewerChrome)
@@ -206,9 +227,16 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit) {
                 val ask = MediaStore.createTrashRequest(context.contentResolver, listOf(tile.uri), true)
                 trashAsk.launch(IntentSenderRequest.Builder(ask.intentSender).build())
             },
+            menuItems = buildList {
+                add(MenuItem(R.drawable.ic_edit, "Edit in…") { editIn(context, tile) })
+                add(MenuItem(R.drawable.ic_wallpaper, "Use as…") { useAs(context, tile) })
+                if (showInAlbum) add(MenuItem(R.drawable.ic_folder, "Show in album") { onShowInAlbum(tile) })
+                add(MenuItem(R.drawable.ic_move, "Move to album", dividerBefore = true) { moving = true })
+            },
         )
     }
     if (details) DetailsSheet(tile, onDismiss = { details = false })
+    if (moving) MoveToAlbumSheet(tile, onDismiss = { moving = false }, onMove = { path -> moving = false; applyMove(tile.id, path) })
 }
 
 /**
@@ -228,7 +256,9 @@ fun ViewerChrome(
     onFavorite: () -> Unit,
     onInfo: () -> Unit,
     onDelete: () -> Unit,
+    menuItems: List<MenuItem> = emptyList(),
 ) {
+    var menu by remember { mutableStateOf(false) }
     Box(Modifier.fillMaxSize()) {
         AnimatedVisibility(visible, Modifier.align(Alignment.TopCenter), enter = fadeIn(tween(barsFadeMillis)), exit = fadeOut(tween(barsFadeMillis))) {
             Row(
@@ -242,7 +272,10 @@ fun ViewerChrome(
                     Text(title, color = onViewer, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                     Text(subtitle, color = onViewer.copy(alpha = 0.7f), fontSize = 12.sp)
                 }
-                Spacer(Modifier.size(48.dp)) // same width as Back, keeps the date centered
+                // More (three dots): the same width as Back, so the date stays centered. Opens the Menu part.
+                IconButton({ if (menuItems.isNotEmpty()) menu = true }) {
+                    Icon(painterResource(R.drawable.ic_more), "More", tint = onViewer)
+                }
             }
         }
         AnimatedVisibility(visible, Modifier.align(Alignment.BottomCenter), enter = fadeIn(tween(barsFadeMillis)), exit = fadeOut(tween(barsFadeMillis))) {
@@ -264,15 +297,34 @@ fun ViewerChrome(
                 IconButton(onDelete) { Icon(painterResource(R.drawable.ic_trash_line), "Delete", tint = onViewer) }
             }
         }
+        Menu(menu, onDismiss = { menu = false }, items = menuItems)
     }
 }
 
-/** How big the photo really is on screen with ContentScale.Fit, so panning stops at its edges. */
-private fun fitSize(bitmap: Bitmap?, box: IntSize): Size {
-    if (bitmap == null || box.width == 0 || box.height == 0) return Size(0f, 0f)
-    val s = minOf(box.width.toFloat() / bitmap.width, box.height.toFloat() / bitmap.height)
-    return Size(bitmap.width * s, bitmap.height * s)
+/** More > Edit in…: hands the photo to an editor app through Android's chooser. */
+private fun editIn(context: Context, tile: Tile) {
+    val type = context.contentResolver.getType(tile.uri) ?: "*/*"
+    val edit = Intent(Intent.ACTION_EDIT).setDataAndType(tile.uri, type).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    runCatching { context.startActivity(Intent.createChooser(edit, null)) }
 }
+
+/** More > Use as…: set as wallpaper / contact photo through Android's chooser. */
+private fun useAs(context: Context, tile: Tile) {
+    val type = context.contentResolver.getType(tile.uri) ?: "*/*"
+    val use = Intent(Intent.ACTION_ATTACH_DATA).setDataAndType(tile.uri, type)
+        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION).putExtra("mimeType", type)
+    runCatching { context.startActivity(Intent.createChooser(use, null)) }
+}
+
+/** How big the photo really is on screen with ContentScale.Fit, so panning stops at its edges. */
+internal fun fitSize(imageWidth: Int, imageHeight: Int, boxWidth: Int, boxHeight: Int): Size {
+    if (imageWidth <= 0 || imageHeight <= 0 || boxWidth == 0 || boxHeight == 0) return Size(0f, 0f)
+    val s = minOf(boxWidth.toFloat() / imageWidth, boxHeight.toFloat() / imageHeight)
+    return Size(imageWidth * s, imageHeight * s)
+}
+
+private fun fitSize(bitmap: Bitmap?, box: IntSize): Size =
+    if (bitmap == null) Size(0f, 0f) else fitSize(bitmap.width, bitmap.height, box.width, box.height)
 
 @Composable
 fun ViewerPage(tile: Tile, onZoomed: (Boolean) -> Unit, onTap: () -> Unit = {}) {
@@ -342,7 +394,10 @@ fun ViewerPage(tile: Tile, onZoomed: (Boolean) -> Unit, onTap: () -> Unit = {}) 
                     translationY = pan.value.y
                 },
         ) {
-            image?.let { Image(it.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit) }
+            // fade the grid thumbnail into the sharp decode, not a one-frame swap
+            Crossfade(image, Modifier.fillMaxSize(), tween(150), label = "photo") { bitmap ->
+                bitmap?.let { Image(it.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit) }
+            }
         }
         if (tile.duration != null) {
             // ponytail: the phone's own player for now, Media3 player in phase 4

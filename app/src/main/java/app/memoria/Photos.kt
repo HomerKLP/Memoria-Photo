@@ -7,6 +7,7 @@ import android.content.ContentResolver
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.ImageDecoder
 import android.net.Uri
 import android.os.Bundle
 import android.os.CancellationSignal
@@ -15,6 +16,7 @@ import android.provider.MediaStore.Files.FileColumns
 import android.util.LruCache
 import android.util.Size
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.ReportDrawnWhen
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -32,11 +34,13 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
@@ -267,13 +271,26 @@ fun PhotosScreen(
     reload: Int = 0,
 ) {
     val context = LocalContext.current
-    val perms = arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO)
-    var granted by remember { mutableStateOf(perms.all { context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }) }
-    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted = it.values.all { ok -> ok } }
-    LaunchedEffect(Unit) { if (!granted) ask.launch(perms) }
+    val media = arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO)
+    val perms = media + Manifest.permission.ACCESS_MEDIA_LOCATION // photo GPS, optional
+    fun has(p: String) = context.checkSelfPermission(p) == PackageManager.PERMISSION_GRANTED
+    var granted by remember { mutableStateOf(media.all(::has)) }
+    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted = media.all(::has) }
+    LaunchedEffect(Unit) { if (!perms.all(::has)) ask.launch(perms) }
     val items by produceState(if (favoritesOnly) lastFavorites else lastTimeline, granted, reload) {
         if (granted) value = withContext(Dispatchers.IO) { timeline(context, favoritesOnly) }
             .also { if (favoritesOnly) lastFavorites = it else lastTimeline = it }
+    }
+    ReportDrawnWhen { items != null } // "fully drawn" for startup timing (bench/perf.py)
+    if (favoritesOnly) {
+        FavoritesContent(
+            favorites = items?.let(::groupFavorites),
+            granted = granted,
+            onAsk = { ask.launch(perms) },
+            onBack = onBack ?: {},
+            onOpen = onOpen,
+        )
+        return
     }
     // total bytes of the picked tiles, for the select top bar
     val pickedSize by produceState(0L, selection?.ids) {
@@ -282,7 +299,6 @@ fun PhotosScreen(
     PhotosContent(
         items = items,
         granted = granted,
-        favoritesOnly = favoritesOnly,
         onAsk = { ask.launch(perms) },
         onBack = onBack,
         onOpen = onOpen,
@@ -292,12 +308,72 @@ fun PhotosScreen(
     )
 }
 
+/** Every favorite by month, the month pinned, no day headings and no hearts (mockup "Favorites"). */
+class Favorites(val months: Map<String, List<Tile>>, val all: List<Tile>)
+
+/** "34 photos · 4 videos", dropping a zero part. */
+private fun favoritesSubtitle(f: Favorites): String = listOfNotNull(
+    f.all.count { it.duration == null }.takeIf { it > 0 }?.let { "$it photos" },
+    f.all.count { it.duration != null }.takeIf { it > 0 }?.let { "$it videos" },
+).joinToString(" · ")
+
+/** Favorites grouped by month name, newest first. Comes from the timeline so the cache is shared. */
+fun groupFavorites(items: List<Any>): Favorites {
+    val tiles = items.filterIsInstance<Tile>()
+    val month = DateTimeFormatter.ofPattern("LLLL yyyy")
+    val zone = ZoneId.systemDefault()
+    val months = linkedMapOf<String, MutableList<Tile>>()
+    for (t in tiles) months.getOrPut(month.format(Instant.ofEpochMilli(t.date).atZone(zone))) { mutableListOf() } += t
+    return Favorites(months, tiles)
+}
+
+/**
+ * Favorites layout per docs/design.html "Favorites": like Videos, by month, the month pinned, no day
+ * headings and no hearts. No MediaStore, so previews and tests render it.
+ */
+@Composable
+fun FavoritesContent(
+    favorites: Favorites?,
+    granted: Boolean = true,
+    onAsk: () -> Unit = {},
+    onBack: () -> Unit = {},
+    onOpen: (List<Tile>, Tile) -> Unit = { _, _ -> },
+) {
+    val f = favorites
+    Column(Modifier.fillMaxSize().safeDrawingPadding()) {
+        TopBar("Favorites", f?.let(::favoritesSubtitle), onBack = onBack)
+        if (!granted) {
+            // ponytail: after two denials Android stops asking, then the user has to allow it in system settings
+            Column(Modifier.padding(horizontal = 20.dp)) {
+                Text("Memoria needs access to your photos and videos.")
+                Button(onAsk, Modifier.padding(top = 12.dp)) { Text("Allow access") }
+            }
+            return@Column
+        }
+        if (f != null && f.all.isEmpty()) {
+            Text("No favorites yet. Open a photo and tap the heart.", Modifier.padding(horizontal = 20.dp))
+            return@Column
+        }
+        LazyVerticalGrid(GridCells.Fixed(3), horizontalArrangement = Arrangement.spacedBy(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            f?.months?.forEach { (month, tiles) ->
+                stickyHeader(key = month) {
+                    // background: the pinned month covers the tiles passing under it
+                    Text(
+                        month, Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(start = 16.dp, top = 20.dp, bottom = 10.dp),
+                        style = MaterialTheme.typography.titleLarge,
+                    )
+                }
+                items(tiles, key = { it.id }) { TileImage(it, Modifier.clickable { onOpen(f.all, it) }.testTag("tile-${it.id}"), heart = false) }
+            }
+        }
+    }
+}
+
 /** Photos layout per docs/design.html: the timeline, the months slider and the select mode. No MediaStore, so previews and tests render it. */
 @Composable
 fun PhotosContent(
     items: List<Any>?,
     granted: Boolean = true,
-    favoritesOnly: Boolean = false,
     onAsk: () -> Unit = {},
     onBack: (() -> Unit)? = null,
     onOpen: (List<Tile>, Tile) -> Unit = { _, _ -> },
@@ -377,10 +453,6 @@ fun PhotosContent(
             }
             return@Column
         }
-        if (favoritesOnly && items != null && photos.isEmpty()) {
-            Text("No favorites yet. Open a photo and tap the heart.", Modifier.padding(horizontal = 20.dp))
-            return@Column
-        }
         MonthSlider(
             months = monthNames,
             current = month,
@@ -398,8 +470,8 @@ fun PhotosContent(
                 dragMonth = i
                 scope.launch { grid.scrollToItem(monthStarts.getOrElse(i) { 0 }) }
             },
-            // the mockup's slider belongs to the timeline; Favorites has its own scroll, and while selecting a drag picks photos
-            enabled = !favoritesOnly && !selecting,
+            // always on for the timeline (Favorites has its own screen and no slider)
+            enabled = !selecting,
         ) {
             LazyVerticalGrid(
                 GridCells.Fixed(4), state = grid,
@@ -427,10 +499,10 @@ fun PhotosContent(
                     is Tile -> item(key = x.id, contentType = "tile") {
                         TileImage(
                             x,
-                            if (tabs) Modifier.combinedClickable(
+                            (if (tabs) Modifier.combinedClickable(
                                 onClick = { if (selecting) selection.toggle(x) else onOpen(photos, x) },
                                 onLongClick = { selection.start(x) },
-                            ) else Modifier.clickable { onOpen(photos, x) },
+                            ) else Modifier.clickable { onOpen(photos, x) }).testTag("tile-${x.id}"),
                             selecting = selecting,
                             selected = x.id in selectedIds,
                         )
@@ -484,7 +556,7 @@ private fun Modifier.selectDrag(grid: LazyGridState, tilesById: Map<Long, Tile>,
     }
 
 @Composable
-fun TileImage(tile: Tile, modifier: Modifier, selecting: Boolean = false, selected: Boolean = false) {
+fun TileImage(tile: Tile, modifier: Modifier, selecting: Boolean = false, selected: Boolean = false, heart: Boolean = true) {
     Box(
         modifier.aspectRatio(1f)
             .then(if (selected) Modifier.border(3.dp, MaterialTheme.colorScheme.primary) else Modifier),
@@ -500,7 +572,7 @@ fun TileImage(tile: Tile, modifier: Modifier, selecting: Boolean = false, select
                     ),
                 contentAlignment = Alignment.Center,
             ) { if (selected) Icon(painterResource(R.drawable.ic_check), null, Modifier.size(16.dp), tint = Color.White) }
-        } else if (tile.favorite) {
+        } else if (heart && tile.favorite) {
             Box(
                 Modifier.align(Alignment.TopStart).padding(4.dp).size(16.dp).background(Color.Black.copy(alpha = 0.35f), CircleShape),
                 contentAlignment = Alignment.Center,
@@ -520,7 +592,11 @@ fun Thumb(tile: Tile, modifier: Modifier) {
         if (value != null) return@produceState
         val signal = CancellationSignal()
         launch(thumbLoads) {
-            value = runCatching { context.contentResolver.loadThumbnail(tile.uri, Size(300, 300), signal) }.getOrNull()?.also { thumbs.put(tile.id, it) }
+            val thumb = runCatching { context.contentResolver.loadThumbnail(tile.uri, Size(300, 300), signal) }.getOrNull()
+            // old camera photos: MediaStore hands back the 160 px EXIF preview, blurry in a tile, so decode the photo itself
+            val small = thumb != null && tile.duration == null && min(thumb.width, thumb.height) < 200
+            value = (if (small) runCatching { loadPhoto(ImageDecoder.createSource(context.contentResolver, tile.uri), 480) }.getOrNull() ?: thumb else thumb)
+                ?.also { thumbs.put(tile.id, it) }
         }
         // The tile left the screen: stop its load
         awaitDispose { signal.cancel() }

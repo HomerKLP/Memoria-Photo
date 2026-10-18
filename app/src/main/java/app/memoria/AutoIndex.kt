@@ -115,9 +115,10 @@ private fun indexBusy(context: Context): Boolean = runCatching {
         .any { it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.BLOCKED }
 }.getOrDefault(true)
 
-/** Photos the index has not seen yet, plus indexed photos deleted from the phone (a run forgets them). */
+/** Photos the index has not seen yet, indexed photos deleted from the phone (a run forgets them), and photos with no GPS read yet. */
 private fun changedPhotos(context: Context): Int {
-    val indexed = kotlinx.coroutines.runBlocking { Db.get(context).index().photoIds() }.toHashSet()
+    val dao = Db.get(context).index()
+    val indexed = kotlinx.coroutines.runBlocking { dao.photoIds() }.toHashSet()
     val phone = libraryPhotos(context).map { it.id }.toHashSet()
-    return phone.count { it !in indexed } + indexed.count { it !in phone }
+    return phone.count { it !in indexed } + indexed.count { it !in phone } + kotlinx.coroutines.runBlocking { dao.unplaced() }.size
 }

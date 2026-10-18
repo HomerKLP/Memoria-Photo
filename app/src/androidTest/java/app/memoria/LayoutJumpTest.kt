@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationItemIconPosition
 import androidx.compose.material3.ShortNavigationBar
@@ -13,18 +14,23 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -55,7 +61,7 @@ class LayoutJumpTest {
     private fun tile(id: Long) = Tile(id, Uri.parse("content://media/external/images/media/$id"), 0L, null)
 
     /** [named] false: every person has no name, the case that used to shrink the row. [people] overrides the row (empty = the "No people yet" case). */
-    private fun library(named: Boolean = true, people: List<Person>? = null): LibraryData {
+    private fun library(named: Boolean = true, people: List<Person>? = null, places: List<Place> = emptyList()): LibraryData {
         val faces = (1L..4L).map { i ->
             val f = face(i)
             Person(listOf(f), f, i, if (named) "Person $i" else null)
@@ -68,6 +74,7 @@ class LayoutJumpTest {
             videos = 211,
             trash = 7,
             total = 1706,
+            places = places,
         )
     }
 
@@ -126,6 +133,16 @@ class LayoutJumpTest {
         val before = rule.onNodeWithTag("peopleRow").height()
         rule.runOnIdle { data = library() }
         assertSame("People row height", before, rule.onNodeWithTag("peopleRow").height())
+    }
+
+    @Test fun library_placesArriving_shortcutsStayPut() {
+        var data by mutableStateOf(library())
+        rule.setContent { MemoriaTheme { Surface { LibraryContent(data) } } }
+
+        // one town: the row keeps its height with fewer than 3 tiles
+        val before = rule.onNodeWithText("Favorites").top()
+        rule.runOnIdle { data = library(places = listOf(Place(1, "Riverton", listOf(tile(1))))) }
+        assertSame("Favorites", before, rule.onNodeWithText("Favorites").top())
     }
 
     @Test fun library_loadingToEmpty_peopleRowStaysSameHeight() {
@@ -266,6 +283,49 @@ class LayoutJumpTest {
         assertSame("photo height", height, rule.onNodeWithTag("viewerPhoto").height())
     }
 
+    /** Viewer More: the menu drops over the screen (no dim, no reflow), so opening it must not move what is behind. */
+    @Test fun viewerMore_opening_keepsContentPut() {
+        var open by mutableStateOf(false)
+        rule.setContent {
+            MemoriaTheme {
+                Surface {
+                    Box(Modifier.fillMaxSize()) {
+                        Box(Modifier.fillMaxSize().testTag("viewerPhoto").background(Color.Black))
+                        Menu(open, onDismiss = { open = false }, items = listOf(MenuItem(R.drawable.ic_edit, "Edit in…") {}))
+                    }
+                }
+            }
+        }
+
+        val top = rule.onNodeWithTag("viewerPhoto").top()
+        val height = rule.onNodeWithTag("viewerPhoto").height()
+        rule.runOnIdle { open = true }
+        rule.onNodeWithText("Edit in…").assertIsDisplayed()
+        assertSame("photo top", top, rule.onNodeWithTag("viewerPhoto").top())
+        assertSame("photo height", height, rule.onNodeWithTag("viewerPhoto").height())
+    }
+
+    /** Move to album: New album swaps the list for the name field; the sheet head must not move. */
+    @Test fun moveToAlbum_naming_keepsHeadPut() {
+        var naming by mutableStateOf(false)
+        rule.setContent {
+            MemoriaTheme {
+                Surface {
+                    MoveToAlbumContent(
+                        tile(1), "Camera", listOf(MoveTarget("Screenshots", "Pictures/Screenshots/", null, 214)),
+                        naming, "", {}, {}, { naming = true }, {}, {},
+                    )
+                }
+            }
+        }
+
+        val head = rule.onNodeWithText("Move to album").top()
+        val now = rule.onNodeWithText("Now in Camera").top()
+        rule.runOnIdle { naming = true }
+        assertSame("head top", head, rule.onNodeWithText("Move to album").top())
+        assertSame("now in top", now, rule.onNodeWithText("Now in Camera").top())
+    }
+
     /** Photos select mode: the top bar swaps for "N selected" and the tiles grow a circle; the grid must not move. */
     @Test fun photos_selecting_keepsGridPut() {
         val tiles = (1L..9L).map { tile(it) }
@@ -304,5 +364,130 @@ class LayoutJumpTest {
         val before = rule.onNodeWithTag("bottomBar").height()
         rule.runOnIdle { selecting = true }
         assertSame("bottom bar height", before, rule.onNodeWithTag("bottomBar").height())
+    }
+
+    /**
+     * Person: the viewer replaces the whole screen tree, so the person's photo grid leaves
+     * composition. Back from a photo must keep the grid where it was, not land at the top: the
+     * grid's restored scroll clamps to an empty first frame (the bug). Mirrors `App`'s
+     * `SaveableStateProvider("people")` + viewer swap; fails if the photos reload empty.
+     */
+    @Test fun personDetail_backFromViewer_keepsGridScroll() {
+        val faces = (1L..40L).map { face(it) }
+        val person = Person(faces, faces.first(), 1, "Dana")
+        val photos = (1L..40L).map { tile(it) }
+        var viewing by mutableStateOf(false)
+        rule.setContent {
+            MemoriaTheme {
+                Surface {
+                    val holder = rememberSaveableStateHolder()
+                    if (viewing) Box(Modifier.fillMaxSize().testTag("viewer"))
+                    else holder.SaveableStateProvider("person") {
+                        PersonDetail(person, onBack = {}, onName = {}, onOpen = { _, _ -> }, loadPhotos = { photos })
+                    }
+                }
+            }
+        }
+
+        // scroll past the "Photos" heading (grid index 3); it is off-screen while the scroll holds
+        rule.onNodeWithTag("personPhotos").performScrollToIndex(35)
+        rule.onNodeWithText("Photos").assertDoesNotExist()
+
+        rule.runOnIdle { viewing = true }  // the viewer takes over the tree
+        rule.runOnIdle { viewing = false } // back to the person
+        rule.onNodeWithText("Photos").assertDoesNotExist()
+    }
+
+    private fun albumTiles(id: Long, count: Int) = (1L..count).map { tile(id * 1000 + it) }
+    private fun album(id: Long, name: String, count: Int) = Album(id, name, albumTiles(id, count))
+
+    /** Albums: the cover grid loads after the bar; the "On this device" heading must not move. */
+    @Test fun albums_loadingToLoaded_headerStaysPut() {
+        var albums by mutableStateOf<List<Album>?>(null)
+        rule.setContent { MemoriaTheme { Surface { AlbumsContent(albums) } } }
+
+        val headerBefore = rule.onNodeWithText("On this device").top()
+        rule.runOnIdle { albums = listOf(album(1, "Camera", 5), album(2, "Screenshots", 3)) }
+        assertSame("On this device", headerBefore, rule.onNodeWithText("On this device").top())
+    }
+
+    /** Album: the title is a space while loading so the bar keeps its height; it must not move. */
+    @Test fun album_loadingToLoaded_topBarStaysPut() {
+        var album by mutableStateOf<Album?>(null)
+        rule.setContent { MemoriaTheme { Surface { AlbumContent(album) } } }
+
+        val barBefore = rule.onNodeWithTag("topBar").height()
+        rule.runOnIdle { album = album(1, "Camera", 9) }
+        assertSame("top bar height", barBefore, rule.onNodeWithTag("topBar").height())
+    }
+
+    /** Videos: the month header is pinned; loading must not move the screen's bar. */
+    @Test fun videos_loadingToLoaded_topBarStaysPut() {
+        var videos by mutableStateOf<Videos?>(null)
+        rule.setContent { MemoriaTheme { Surface { VideosContent(videos) } } }
+
+        val barBefore = rule.onNodeWithTag("topBar").height()
+        rule.runOnIdle { videos = Videos(linkedMapOf("October 2026" to albumTiles(1, 4)), albumTiles(1, 4), 2_500_000_000L) }
+        assertSame("top bar height", barBefore, rule.onNodeWithTag("topBar").height())
+    }
+
+    /** Favorites: the month header is pinned, no day headings; loading must not move the screen's bar. */
+    @Test fun favorites_loadingToLoaded_topBarStaysPut() {
+        var favorites by mutableStateOf<Favorites?>(null)
+        rule.setContent { MemoriaTheme { Surface { FavoritesContent(favorites) } } }
+
+        val barBefore = rule.onNodeWithTag("topBar").height()
+        rule.runOnIdle { favorites = Favorites(linkedMapOf("October 2026" to albumTiles(1, 4)), albumTiles(1, 4)) }
+        assertSame("top bar height", barBefore, rule.onNodeWithTag("topBar").height())
+    }
+
+    /** Details: faces, place and camera facts fill in below the date; the date header must not move. */
+    @Test fun details_fillingInSections_keepsDatePut() {
+        val tile = Tile(1, Uri.parse("content://media/external/images/media/1"), 1_700_000_000_000L, null)
+        val bare = PhotoInfo("a.jpg", "DCIM/Camera", 0, 0, 0, null, null, null)
+        val full = PhotoInfo("a.jpg", "DCIM/Camera", 3_500_000, 4032, 3024, "Mountain View", "Pixel 9", "f/1.8 · 1/120 s")
+        var faces by mutableStateOf(emptyList<FaceVec>())
+        var info by mutableStateOf(bare)
+        rule.setContent { MemoriaTheme { Surface { DetailsContent(tile, info, faces, emptyList()) } } }
+
+        val dateText = java.time.format.DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy")
+            .format(java.time.Instant.ofEpochMilli(tile.date).atZone(java.time.ZoneId.systemDefault()))
+        val dateBefore = rule.onNodeWithText(dateText).top()
+        rule.runOnIdle {
+            faces = listOf(face(1))
+            info = full
+        }
+        assertSame("date", dateBefore, rule.onNodeWithText(dateText).top())
+    }
+
+    /**
+     * Person: the chips are a horizontal scroll. With the row wide enough to hold them all, the
+     * last chip ("Hide person") must keep the mockup's 16 dp right padding, not run to the edge.
+     */
+    @Test fun personDetail_lastChip_keepsRightPadding() {
+        val faces = (1L..3L).map { face(it) }
+        val person = Person(faces, faces.first(), 1, "Dana")
+        val wide = 600.dp
+        rule.setContent { MemoriaTheme { Surface { Box(Modifier.width(wide)) { PersonDetail(person, onBack = {}, onName = {}, onOpen = { _, _ -> }, loadPhotos = { emptyList() }) } } } }
+
+        val right = rule.onNodeWithText("Hide person").getUnclippedBoundsInRoot().right.value
+        assertTrue("last chip runs into the right edge: right=$right", right <= wide.value - 16f + 0.5f)
+    }
+
+    /** People: the bar keeps its height while the list loads, and the grid below must not shift. */
+    @Test fun people_loadingToLoaded_topBarKeepsHeight() {
+        var data by mutableStateOf<PeopleData?>(null)
+        rule.setContent { MemoriaTheme { Surface { PeopleContent(data) } } }
+
+        val barBefore = rule.onNodeWithTag("topBar").height()
+        rule.runOnIdle {
+            data = PeopleData(
+                "7 people · 412 faces",
+                (1L..7L).map { person(it, if (it % 2 == 0L) "Person $it" else null) },
+                emptyList(),
+                total = 1706,
+            )
+        }
+        assertSame("top bar height", barBefore, rule.onNodeWithTag("topBar").height())
     }
 }

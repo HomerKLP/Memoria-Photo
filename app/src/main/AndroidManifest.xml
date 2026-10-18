@@ -3,6 +3,8 @@
     xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <!-- Without it Android strips GPS from the files we open -->
+    <uses-permission android:name="android.permission.ACCESS_MEDIA_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Settings > Background work: Android's own "allow" dialog, the OEM background manager freezes the index without it -->
@@ -23,6 +25,8 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- trace a release build from the shell (perfetto); debug is already profileable -->
+        <profileable android:shell="true" tools:targetApi="q" />
         <!-- IndexWorker runs here when foreground -->
         <service
             android:name="androidx.work.impl.foreground.SystemForegroundService"

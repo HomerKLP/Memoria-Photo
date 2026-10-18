@@ -2,6 +2,7 @@ package app.memoria
 
 import android.content.Context
 import android.media.ExifInterface
+import android.media.MediaMetadataRetriever
 import android.provider.MediaStore
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -46,15 +47,14 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import kotlin.math.abs
 
-/** What the details sheet shows. Place name needs offline geocoding, so for now only the coordinates. */
+/** What the details sheet shows. [place] is the nearest town; coordinates are never shown. */
 class PhotoInfo(
     val name: String,
     val folder: String,
     val size: Long,
     val width: Int,
     val height: Int,
-    val lat: Double?,
-    val lon: Double?,
+    val place: String?,
     val camera: String?,
     val settings: String?,
 )
@@ -72,7 +72,6 @@ fun loadInfo(context: Context, tile: Tile): PhotoInfo {
     val cols = arrayOf(
         MediaStore.MediaColumns.DISPLAY_NAME, MediaStore.MediaColumns.RELATIVE_PATH,
         MediaStore.MediaColumns.SIZE, MediaStore.MediaColumns.WIDTH, MediaStore.MediaColumns.HEIGHT,
-        "latitude", "longitude", // LATITUDE/LONGITUDE constants are deprecated, the columns are still there
     )
     context.contentResolver.query(base, cols, "${MediaStore.MediaColumns._ID} = ?", arrayOf(tile.id.toString()), null)?.use { c ->
         if (c.moveToNext()) {
@@ -81,14 +80,26 @@ fun loadInfo(context: Context, tile: Tile): PhotoInfo {
             size = c.getLong(2)
             width = c.getInt(3)
             height = c.getInt(4)
-            if (!c.isNull(5)) lat = c.getDouble(5)
-            if (!c.isNull(6)) lon = c.getDouble(6)
         }
     }
-    if (lat == 0.0 && lon == 0.0) { lat = null; lon = null } // MediaStore writes 0,0 when the photo has no GPS
+    // MediaStore's latitude/longitude are always null since Android 10; GPS is only in the original file
+    val original = runCatching { MediaStore.setRequireOriginal(tile.uri) }.getOrDefault(tile.uri)
     // Videos have no camera EXIF
     val exif = if (tile.duration != null) null
-    else runCatching { context.contentResolver.openInputStream(tile.uri)?.use { ExifInterface(it) } }.getOrNull()
+    else runCatching { context.contentResolver.openInputStream(original)?.use { ExifInterface(it) } }.getOrNull()
+        ?: runCatching { context.contentResolver.openInputStream(tile.uri)?.use { ExifInterface(it) } }.getOrNull()
+    val ll = FloatArray(2)
+    if (exif != null) { if (exif.getLatLong(ll)) { lat = ll[0].toDouble(); lon = ll[1].toDouble() } }
+    else if (tile.duration != null) runCatching {
+        MediaMetadataRetriever().use { r ->
+            r.setDataSource(context, original)
+            iso6709(r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_LOCATION))?.let { lat = it.first; lon = it.second }
+        }
+    }
+    if (lat == 0.0 && lon == 0.0) { lat = null; lon = null } // some cameras write 0,0 when they have no GPS
+    val la = lat
+    val lo = lon
+    val place = if (la != null && lo != null) Towns.load(context).let { it.name[it.nearest(la, lo)] } else null
     val f = exif?.getAttributeDouble(ExifInterface.TAG_F_NUMBER, 0.0) ?: 0.0
     val exposure = exif?.getAttributeDouble(ExifInterface.TAG_EXPOSURE_TIME, 0.0) ?: 0.0
     val iso = exif?.getAttributeInt(ExifInterface.TAG_ISO_SPEED_RATINGS, 0) ?: 0
@@ -100,12 +111,18 @@ fun loadInfo(context: Context, tile: Tile): PhotoInfo {
         if (focal > 0) add("%.0f mm".format(focal))
     }.joinToString(" · ").takeIf { it.isNotEmpty() }
     return PhotoInfo(
-        name, folder, size, width, height, lat, lon,
+        name, folder, size, width, height, place,
         exif?.getAttribute(ExifInterface.TAG_MODEL)?.trim()?.takeIf { it.isNotEmpty() }, settings,
     )
 }
 
-private fun sizeLabel(bytes: Long) = when {
+/** Video GPS, ISO 6709 like "+37.4219-122.0840/" (an altitude may follow). */
+internal fun iso6709(s: String?): Pair<Double, Double>? {
+    val m = Regex("""^([+-]\d+(?:\.\d+)?)([+-]\d+(?:\.\d+)?)""").find(s ?: return null) ?: return null
+    return m.groupValues[1].toDouble() to m.groupValues[2].toDouble()
+}
+
+internal fun sizeLabel(bytes: Long) = when {
     bytes >= 1_000_000 -> "%.1f MB".format(bytes / 1e6)
     bytes >= 1_000 -> "%.0f KB".format(bytes / 1e3)
     else -> "$bytes B"
@@ -164,52 +181,63 @@ fun DetailsSheet(tile: Tile, onDismiss: () -> Unit) {
     // open only once loaded: a sheet that grows after it opens jumps
     if (!loaded) return
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.background) {
-        val time = Instant.ofEpochMilli(tile.date).atZone(ZoneId.systemDefault())
-        Column(Modifier.navigationBarsPadding().padding(bottom = 24.dp)) {
-            Text(
-                DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy").format(time),
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp),
-            )
-            Text(
-                "${DateTimeFormatter.ofPattern("HH:mm").format(time)} · ${zoneLabel(time.offset)}",
-                color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp,
-                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 2.dp),
-            )
-            if (faces.isNotEmpty()) {
-                Section("People", "Tap a face to fix it")
-                val muted = MaterialTheme.colorScheme.onSurfaceVariant
-                Row(
-                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                ) {
-                    faces.forEach { f ->
-                        val name = people.firstOrNull { it.id == f.personId }?.name?.takeIf { it.isNotBlank() }
-                        Column(Modifier.width(72.dp).clickable { fixing = f }, horizontalAlignment = Alignment.CenterHorizontally) {
-                            FaceImage(f, Modifier.size(56.dp).clip(CircleShape))
-                            Text(name ?: "Add name", Modifier.padding(top = 6.dp), fontSize = 13.sp, color = if (name == null) muted else Color.Unspecified, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
+        DetailsContent(tile, info, faces, people, onFixFace = { fixing = it })
+    }
+}
+
+/** The sheet's body, split from the load and the sheet so previews and layout tests can render it. */
+@Composable
+fun DetailsContent(
+    tile: Tile,
+    info: PhotoInfo?,
+    faces: List<FaceVec>,
+    people: List<Person>,
+    onFixFace: (FaceVec) -> Unit = {},
+) {
+    val time = Instant.ofEpochMilli(tile.date).atZone(ZoneId.systemDefault())
+    Column(Modifier.navigationBarsPadding().padding(bottom = 24.dp)) {
+        Text(
+            DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy").format(time),
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp),
+        )
+        Text(
+            "${DateTimeFormatter.ofPattern("HH:mm").format(time)} · ${zoneLabel(time.offset)}",
+            color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp,
+            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 2.dp),
+        )
+        if (faces.isNotEmpty()) {
+            Section("People", "Tap a face to fix it")
+            val muted = MaterialTheme.colorScheme.onSurfaceVariant
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                faces.forEach { f ->
+                    val name = people.firstOrNull { it.id == f.personId }?.name?.takeIf { it.isNotBlank() }
+                    Column(Modifier.width(72.dp).clickable { onFixFace(f) }, horizontalAlignment = Alignment.CenterHorizontally) {
+                        FaceImage(f, Modifier.size(56.dp).clip(CircleShape))
+                        Text(name ?: "Add name", Modifier.padding(top = 6.dp), fontSize = 13.sp, color = if (name == null) muted else Color.Unspecified, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
-            info?.let { i ->
-                if (i.lat != null && i.lon != null) {
-                    Section("Place")
-                    // ponytail: coordinates only. A place name needs offline geocoding.
-                    Line(R.drawable.ic_pin, "%.4f, %.4f".format(i.lat, i.lon))
-                }
-                Section("Details")
-                i.camera?.let { Line(R.drawable.ic_camera, it, i.settings) }
-                if (i.name.isNotEmpty()) {
-                    val facts = listOfNotNull(
-                        "%.1f MP".format(i.width * i.height / 1e6).takeIf { i.width > 0 },
-                        "${i.width} × ${i.height}".takeIf { i.width > 0 },
-                        sizeLabel(i.size).takeIf { i.size > 0 },
-                    )
-                    Line(R.drawable.ic_photo, i.name, facts.joinToString(" · "))
-                }
-                if (i.folder.isNotEmpty()) Line(R.drawable.ic_folder, i.folder.substringAfterLast('/'), i.folder)
+        }
+        info?.let { i ->
+            i.place?.let {
+                Section("Place")
+                Line(R.drawable.ic_pin, it)
             }
+            Section("Details")
+            i.camera?.let { Line(R.drawable.ic_camera, it, i.settings) }
+            if (i.name.isNotEmpty()) {
+                val facts = listOfNotNull(
+                    "%.1f MP".format(i.width * i.height / 1e6).takeIf { i.width > 0 },
+                    "${i.width} × ${i.height}".takeIf { i.width > 0 },
+                    sizeLabel(i.size).takeIf { i.size > 0 },
+                )
+                Line(R.drawable.ic_photo, i.name, facts.joinToString(" · "))
+            }
+            if (i.folder.isNotEmpty()) Line(R.drawable.ic_folder, i.folder.substringAfterLast('/'), i.folder)
         }
     }
 }

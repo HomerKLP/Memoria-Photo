@@ -63,6 +63,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -378,7 +379,7 @@ fun PeopleContent(
                     Note(R.drawable.ic_info, "Not in People, Library or search. Tap one, then Show person", Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp))
                 }
                 items(hidden.chunked(4), key = { it.first().id }) { row ->
-                    Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(Modifier.padding(horizontal = 16.dp, vertical = 9.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         row.forEach { PersonCard(it, Modifier.weight(1f)) { onOpenPerson(it.id) } }
                         repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
                     }
@@ -404,7 +405,7 @@ fun PeopleContent(
                     item { SectionHead("People", hint = "Tap to see their photos") }
                     val shown = d.people.filter { !it.hidden }
                     items(shown.chunked(4), key = { it.first().id }) { row ->
-                        Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(Modifier.padding(horizontal = 16.dp, vertical = 9.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             row.forEach { PersonCard(it, Modifier.weight(1f)) { onOpenPerson(it.id) } }
                             repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
                         }
@@ -428,7 +429,7 @@ fun PeopleContent(
 private fun PersonCard(p: Person, modifier: Modifier = Modifier, faceSize: Dp = 68.dp, picked: Boolean = false, onClick: () -> Unit) {
     val ring = MaterialTheme.colorScheme.primary
     Column(
-        modifier.padding(4.dp).clickable(onClick = onClick),
+        modifier.clickable(onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         // the ring is drawn outside the face, so picking never moves the grid
@@ -450,12 +451,16 @@ fun PersonDetail(
     onMerge: () -> Unit = {},
     onCover: () -> Unit = {},
     onHide: () -> Unit = {},
+    loadPhotos: (suspend (List<Long>) -> List<Tile>)? = null, // tests inject a fake; null loads from MediaStore
 ) {
     val context = LocalContext.current
     // keyed on the photos, not the person id: a merge or a fixed face keeps the id (old photos stay shown while it reloads)
     val photoIds = p.faces.map { it.photoId }.distinct()
-    val photos by produceState<List<Tile>>(emptyList(), photoIds) {
-        value = runCatching { withContext(Dispatchers.IO) { photosByIds(context, photoIds) } }.getOrDefault(emptyList())
+    // cached, not produceState: the viewer replaces the whole screen tree, so on the way back an
+    // empty first frame would let the grid's restored scroll clamp to the top (see cachedProduceState)
+    val photos by cachedProduceState("person${p.id}", photoIds) {
+        val load = loadPhotos ?: { ids: List<Long> -> photosByIds(context, ids) }
+        runCatching { withContext(Dispatchers.IO) { load(photoIds) } }.getOrDefault(emptyList())
     }
     val (sure, unsure) = p.faces.partition { it.sure }
     val name = p.name ?: "No name"
@@ -470,10 +475,14 @@ fun PersonDetail(
             IconButton({}) { Icon(painterResource(R.drawable.ic_more), "More") }
         },
     )
-    LazyVerticalGrid(GridCells.Fixed(3), contentPadding = PaddingValues(bottom = 24.dp)) {
+    LazyVerticalGrid(
+        GridCells.Fixed(3), modifier = Modifier.testTag("personPhotos"),
+        contentPadding = PaddingValues(bottom = 24.dp),
+        horizontalArrangement = Arrangement.spacedBy(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
             Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 16.dp, top = 12.dp),
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Chip(if (p.name.isNullOrBlank()) "Add name" else "Rename", R.drawable.ic_person, onName)
@@ -485,8 +494,8 @@ fun PersonDetail(
         item(span = { GridItemSpan(maxLineSpan) }) { SectionHead("Faces", hint = "These faces match $who") }
         item(span = { GridItemSpan(maxLineSpan) }) {
             Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 sure.take(30).forEach { FaceImage(it, Modifier.size(44.dp).clip(CircleShape)) }
             }
@@ -496,7 +505,8 @@ fun PersonDetail(
             ReviewCard(unsure, onReview, title = "Unsure faces", note = if (p.name.isNullOrBlank()) "${unsure.size} to check" else "${unsure.size} may be ${p.name}")
         }
         item(span = { GridItemSpan(maxLineSpan) }) { SectionHead("Photos", hint = "${p.photos} · by date") }
-        items(photos, key = { it.id }) { TileImage(it, Modifier.clickable { onOpen(photos, it) }) }
+        val shownPhotos = photos.orEmpty()
+        items(shownPhotos, key = { it.id }) { TileImage(it, Modifier.clickable { onOpen(shownPhotos, it) }) }
     }
 }
 
@@ -581,7 +591,11 @@ fun MergeContent(
             }
         }
         // fixed height: a search that hides people must not move the field you are typing in
-        LazyVerticalGrid(GridCells.Fixed(4), Modifier.height(320.dp), contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp)) {
+        LazyVerticalGrid(
+            GridCells.Fixed(4), Modifier.height(320.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(18.dp),
+        ) {
             items(shown, key = { it.id }) { PersonCard(it, faceSize = 60.dp, picked = it.id == picked?.id) { onPick(it) } }
         }
         Row(Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -643,7 +657,7 @@ fun ChangeCoverContent(person: Person, picked: Long?, onPick: (Long) -> Unit, on
         // fixed height: picking a face must not move the buttons under the grid
         LazyVerticalGrid(GridCells.Fixed(4), Modifier.height(320.dp), contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp)) {
             items(faces, key = { it.id }) { f ->
-                Box(Modifier.padding(4.dp).clickable { onPick(f.id) }) {
+                Box(Modifier.padding(4.dp).testTag("coverFace-${f.id}").clickable { onPick(f.id) }) {
                     FaceImage(
                         f,
                         Modifier.drawBehind { if (f.id == picked) drawCircle(ring, size.minDimension / 2 + 4.5.dp.toPx(), style = Stroke(3.dp.toPx())) }

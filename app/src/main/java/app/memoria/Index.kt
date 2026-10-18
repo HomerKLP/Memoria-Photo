@@ -43,9 +43,15 @@ import java.io.File
 import java.nio.ByteBuffer
 import kotlin.math.min
 
-/** kind: camera (can start a person), other (downloads, messengers: only join people), skip, error. */
+/**
+ * kind: camera (can start a person), other (downloads, messengers: only join people), skip, error.
+ * townId: GeoNames id of the nearest town (see [Towns]), 0 = no GPS, null = GPS not read yet.
+ */
 @Entity(tableName = "photo")
-class PhotoRow(@PrimaryKey val id: Long, val path: String, val kind: String)
+class PhotoRow(
+    @PrimaryKey val id: Long, val path: String, val kind: String,
+    val lat: Double? = null, val lon: Double? = null, val townId: Int? = null, val town: String? = null,
+)
 
 @Entity(tableName = "face", indices = [Index("photoId")])
 class FaceRow(
@@ -122,9 +128,13 @@ interface IndexDao {
     @Query("DELETE FROM person WHERE id = :id") suspend fun deletePerson(id: Long)
     @Query("UPDATE person SET hidden = :hidden WHERE id = :id") suspend fun setHidden(id: Long, hidden: Boolean)
     @Query("UPDATE person SET coverFaceId = :face WHERE id = :id") suspend fun setCover(id: Long, face: Long?)
+    @Query("SELECT id FROM photo WHERE townId IS NULL") suspend fun unplaced(): List<Long>
+    @Query("SELECT * FROM photo WHERE townId > 0") suspend fun placed(): List<PhotoRow>
+    @Query("UPDATE photo SET lat = :lat, lon = :lon, townId = :townId, town = :town WHERE id = :id")
+    suspend fun setPlace(id: Long, lat: Double?, lon: Double?, townId: Int, town: String?)
 }
 
-@Database(entities = [PhotoRow::class, FaceRow::class, PersonRow::class, AnswerRow::class, MergeRow::class], version = 8)
+@Database(entities = [PhotoRow::class, FaceRow::class, PersonRow::class, AnswerRow::class, MergeRow::class], version = 9)
 @TypeConverters(Converters::class)
 abstract class Db : RoomDatabase() {
     abstract fun index(): IndexDao
@@ -152,7 +162,13 @@ abstract class Db : RoomDatabase() {
         private val MIGRATION_7_8 = object : Migration(7, 8) {
             override fun migrate(db: SupportSQLiteDatabase) = db.execSQL("ALTER TABLE person ADD COLUMN coverFaceId INTEGER")
         }
-        internal val MIGRATIONS = arrayOf(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+        /** v9: photo GPS and nearest town; old photos get them on the next index run. */
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                for (col in listOf("lat REAL", "lon REAL", "townId INTEGER", "town TEXT")) db.execSQL("ALTER TABLE photo ADD COLUMN $col")
+            }
+        }
+        internal val MIGRATIONS = arrayOf(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
         private var db: Db? = null
         @Synchronized fun get(context: Context) =
             db ?: // a missing migration crashes instead of wiping names; MigrationTest checks each bump
@@ -266,11 +282,19 @@ fun formatEta(ms: Long): String {
     }
 }
 
-fun kindOf(context: Context, photo: MediaPhoto, uri: Uri): String = when {
-    "screenshot" in photo.path.lowercase() || photo.mime == "image/gif" || min(photo.width, photo.height) in 1 until 200 -> "skip"
-    context.contentResolver.openInputStream(uri)!!.use { ExifInterface(it).getAttribute(ExifInterface.TAG_MAKE) } != null -> "camera"
+/** Folders, mime types and tiny images that never enter people grouping. Pure part of [kindOf]. */
+internal fun skipsIndex(photo: MediaPhoto): Boolean =
+    "screenshot" in photo.path.lowercase() || photo.mime == "image/gif" || min(photo.width, photo.height) in 1 until 200
+
+/** Pure part of [kindOf]: [hasCameraMake] is whether the file carries a camera EXIF make. */
+internal fun kindOf(photo: MediaPhoto, hasCameraMake: Boolean): String = when {
+    skipsIndex(photo) -> "skip"
+    hasCameraMake -> "camera"
     else -> "other"
 }
+
+fun kindOf(context: Context, photo: MediaPhoto, uri: Uri): String =
+    kindOf(photo, context.contentResolver.openInputStream(uri)!!.use { ExifInterface(it).getAttribute(ExifInterface.TAG_MAKE) } != null)
 
 /** Finds faces in new photos and saves them. Photos already in the DB are skipped, so it can stop and resume. */
 class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
@@ -285,6 +309,7 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         val todo = all.filter { it.id !in done }
         if (todo.isEmpty()) {
             IndexProgress.finish(applicationContext)
+            placePhotos()
             return savePeople() // nothing new, but the grouping code may have changed
         }
         val base = total - todo.size // photos already in the DB, so the bar starts there
@@ -340,6 +365,7 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                     // people show up while indexing; saves stay 10x their own time apart, so they never take more than ~10% of the run
                     if (System.nanoTime() > nextSave) {
                         val t = System.nanoTime()
+                        placePhotos()
                         savePeople()
                         nextSave = System.nanoTime() + maxOf(30_000_000_000L, 10 * (System.nanoTime() - t))
                     }
@@ -350,7 +376,24 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
             val stop = if (isStopped) ", stopped, reason $stopReason" else ""
             Log.i("Memoria", "indexed $count photos in %.0f s$stop".format((System.nanoTime() - start) / 1e9))
         }
+        if (!isStopped) placePhotos()
         return if (isStopped) Result.success() else savePeople()
+    }
+
+    private val towns by lazy { Towns.load(applicationContext) }
+
+    /** Reads GPS and finds the nearest town for photos saved without one: new photos, and photos indexed before DB v9. */
+    private suspend fun placePhotos() {
+        val start = System.nanoTime()
+        val dao = Db.get(applicationContext).index()
+        val ids = dao.unplaced()
+        for (id in ids) {
+            if (isStopped) break
+            val gps = photoGps(applicationContext, ContentUris.withAppendedId(Media.EXTERNAL_CONTENT_URI, id))
+            val t = gps?.let { towns.nearest(it.first, it.second) }
+            dao.setPlace(id, gps?.first, gps?.second, t?.let { towns.id[it] } ?: 0, t?.let { towns.name[it] })
+        }
+        Log.i("Memoria", "placed ${ids.size} photos in ${(System.nanoTime() - start) / 1_000_000} ms")
     }
 
     /**

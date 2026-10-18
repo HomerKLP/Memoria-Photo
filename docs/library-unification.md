@@ -31,7 +31,7 @@ correct dates, no duplicates, nothing lost.
   original beside it.
 - Decision: **keep them all**. Do not merge or delete outside the app.
   Duplicates are removed only through the in-app duplicates finder, with the
-  user's approval (see `features.md`).
+  user's approval (see `ROADMAP.md`, Later).
 - If such a bulk delete is ever run by mistake, the Takeout copy is the backup.
 
 ## Gotchas (learned the hard way)

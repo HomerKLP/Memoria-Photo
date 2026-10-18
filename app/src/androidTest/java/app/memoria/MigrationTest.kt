@@ -35,6 +35,7 @@ class MigrationTest {
             assertEquals(1L, dao.faceVecs().single().personId)
             assertTrue(dao.answers().single().yes)
             assertEquals(12L, dao.merges().single().face)
+            assertEquals(listOf(1L), dao.unplaced()) // v9: GPS not read yet, the next run does it
         }
         db.close()
     }

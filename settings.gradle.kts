@@ -13,3 +13,4 @@ dependencyResolutionManagement {
 }
 rootProject.name = "memoria"
 include(":app")
+include(":baselineprofile")
