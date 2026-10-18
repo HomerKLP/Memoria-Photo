@@ -379,8 +379,8 @@ fun PeopleContent(
                     Note(R.drawable.ic_info, "Not in People, Library or search. Tap one, then Show person", Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp))
                 }
                 items(hidden.chunked(4), key = { it.first().id }) { row ->
-                    Row(Modifier.padding(horizontal = 16.dp, vertical = 9.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        row.forEach { PersonCard(it, Modifier.weight(1f)) { onOpenPerson(it.id) } }
+                    Row(Modifier.padding(horizontal = 16.dp, vertical = 7.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        row.forEach { PersonCard(it, Modifier.weight(1f), tight = true) { onOpenPerson(it.id) } }
                         repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
                     }
                 }
@@ -399,12 +399,25 @@ fun PeopleContent(
                     item {
                         IndexProgressRow(indexing, waiting, indexed, d.total, startedAt, base, paused, onPauseIndex, onResumeIndex)
                     }
-                    item { SectionHead("People", hint = "Tap to see their photos") }
                     val shown = d.people.filter { !it.hidden }
-                    items(shown.chunked(4), key = { it.first().id }) { row ->
-                        Row(Modifier.padding(horizontal = 16.dp, vertical = 9.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            row.forEach { PersonCard(it, Modifier.weight(1f)) { onOpenPerson(it.id) } }
-                            repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+                    // the mockup splits them: named 96 dp 3 a row (name and count), unnamed 56 dp 5 a row (faces only)
+                    val (named, unnamed) = shown.partition { !it.name.isNullOrBlank() }
+                    if (named.isNotEmpty()) {
+                        item { SectionHead("Named", hint = "${named.size} ${if (named.size == 1) "person" else "people"}") }
+                        items(named.chunked(3), key = { "n${it.first().id}" }) { row ->
+                            Row(Modifier.padding(horizontal = 16.dp, vertical = 7.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                row.forEach { PersonCard(it, Modifier.weight(1f).testTag("namedCard"), faceSize = 96.dp, tight = true) { onOpenPerson(it.id) } }
+                                repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                            }
+                        }
+                    }
+                    if (unnamed.isNotEmpty()) {
+                        item { SectionHead("No name yet", hint = "Name them to move them up") }
+                        items(unnamed.chunked(5), key = { "u${it.first().id}" }) { row ->
+                            Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                row.forEach { PersonCard(it, Modifier.weight(1f).testTag("unnamedCard"), faceSize = 56.dp, tight = true, showName = false, showCount = false) { onOpenPerson(it.id) } }
+                                repeat(5 - row.size) { Spacer(Modifier.weight(1f)) }
+                            }
                         }
                     }
                     if (shown.isEmpty()) item {
@@ -442,17 +455,31 @@ private fun PickFace(face: FaceVec, faceSize: Dp, picked: Boolean) {
     }
 }
 
-/** Circular face, the name if any, and the photo count. 68 dp like the mockup. [picked]: accent ring and check (Merge with). */
+/**
+ * Circular face, the name if any, and the photo count. 68 dp by default (Hidden people).
+ * [tight] is the People screen's and Merge with's card (mockup `.tight`): 6 dp under the face and the
+ * count right under the name, no gap. [showName] / [showCount] hide a line without losing the space,
+ * for the unnamed grid (faces only). [picked]: accent ring and check (Merge with).
+ */
 @Composable
-private fun PersonCard(p: Person, modifier: Modifier = Modifier, faceSize: Dp = 68.dp, picked: Boolean = false, onClick: () -> Unit) {
+private fun PersonCard(
+    p: Person,
+    modifier: Modifier = Modifier,
+    faceSize: Dp = 68.dp,
+    picked: Boolean = false,
+    tight: Boolean = false,
+    showName: Boolean = true,
+    showCount: Boolean = true,
+    onClick: () -> Unit,
+) {
     Column(
         modifier.clickable(onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         PickFace(p.cover, faceSize, picked)
-        Spacer(Modifier.height(8.dp))
-        if (!p.name.isNullOrBlank()) Text(p.name, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
-        Text("${p.photos}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (showName || showCount) Spacer(Modifier.height(if (tight) 6.dp else 8.dp))
+        if (showName && !p.name.isNullOrBlank()) Text(p.name, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
+        if (showCount) Text("${p.photos}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -610,9 +637,9 @@ fun MergeContent(
         LazyVerticalGrid(
             GridCells.Fixed(4), Modifier.height(320.dp),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(18.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            items(shown, key = { it.id }) { PersonCard(it, faceSize = 68.dp, picked = it.id == picked?.id) { onPick(it) } }
+            items(shown, key = { it.id }) { PersonCard(it, faceSize = 68.dp, picked = it.id == picked?.id, tight = true) { onPick(it) } }
         }
         Row(Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Box(

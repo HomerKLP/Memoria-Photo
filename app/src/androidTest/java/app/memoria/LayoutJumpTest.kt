@@ -24,6 +24,7 @@ import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollToIndex
@@ -505,5 +506,23 @@ class LayoutJumpTest {
             )
         }
         assertSame("top bar height", barBefore, rule.onNodeWithTag("topBar").height())
+    }
+
+    /**
+     * People redesign: named people are 3 a row, unnamed 5 a row. Every card in a lazy row must be the
+     * same height, or the row resizes (and everything below shifts) once a face's name or picture lands.
+     */
+    @Test fun people_rowCards_sameHeight() {
+        val named = (1L..3L).map { person(it, "Person $it") }
+        val unnamed = (4L..8L).map { person(it, null) }
+        rule.setContent { MemoriaTheme { Surface { PeopleContent(PeopleData("8 people", named + unnamed, emptyList(), 412)) } } }
+
+        fun heights(tag: String) = rule.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes().map { it.boundsInRoot.height }
+        val namedH = heights("namedCard")
+        assertEquals("named cards on screen", 3, namedH.size)
+        assertTrue("named cards differ in height: $namedH", namedH.all { it == namedH.first() })
+        val unnamedH = heights("unnamedCard")
+        assertEquals("unnamed cards on screen", 5, unnamedH.size)
+        assertTrue("unnamed cards differ in height: $unnamedH", unnamedH.all { it == unnamedH.first() })
     }
 }

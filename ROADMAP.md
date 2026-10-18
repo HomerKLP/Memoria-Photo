@@ -103,7 +103,7 @@ Goal: no visible loss, not lossless (re-encoding always loses some).
 - [x] Mockup, Honey palette: Photos, Library, viewer, Help recognize (link in `decisions.md`).
 - [ ] Redesign the People screen: the user doesn't like how it looks (2026-10-17), even now that the app matches the mockup. Mockup first, then code.
   - [x] Mockup (2026-10-18): "Named" 96 dp faces, 3 a row, name 6 dp under the face, count right under; "No name yet" 56 dp faces, 5 a row, no text.
-  - [ ] Code: build it in `PeopleContent` / `PersonCard` (`People.kt`). Merge with gets the same tight card (6 dp, count right under). Layout change: `LayoutJumpTest` case, `make layout`, `make screenshots`.
+  - [x] Code: built in `PeopleContent` / `PersonCard` (`People.kt`). Merge with and Hidden people get the same tight card (6 dp, count right under). Layout change: `LayoutJumpTest` case, `make layout` and `make screenshots`.
 - [x] Match the app to the mockup's "Shapes and sizes" part (designed 2026-10-18). Each is a layout change: `make layout` and `make screenshots`.
   - [x] Search bar on Library and People: 52 → 48 dp, 24 dp corners, 16 dp padding (`SearchBar`, `Library.kt`).
   - [x] People top bar: drop the search icon (`People.kt`, it does nothing today).
