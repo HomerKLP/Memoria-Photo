@@ -438,6 +438,20 @@ class LayoutJumpTest {
         assertSame("top bar height", barBefore, rule.onNodeWithTag("topBar").height())
     }
 
+    /** Album, selecting: the top bar swaps in place and the Select bar comes up under the grid; the grid's top must not move. */
+    @Test fun album_selecting_keepsTopBarAndGridTop() {
+        var selected by mutableStateOf<Set<Long>?>(null)
+        rule.setContent { MemoriaTheme { Surface { AlbumContent(album(1, "Camera", 9), selected = selected) } } }
+
+        val barBefore = rule.onNodeWithTag("topBar").height()
+        val gridBefore = rule.onNodeWithTag("albumGrid").top()
+        rule.runOnIdle { selected = setOf(1001L) }
+        assertSame("top bar height", barBefore, rule.onNodeWithTag("topBar").height())
+        assertSame("grid top", gridBefore, rule.onNodeWithTag("albumGrid").top())
+        rule.runOnIdle { selected = (1001L..1009L).toSet() } // Select all hides itself
+        assertSame("top bar height, all picked", barBefore, rule.onNodeWithTag("topBar").height())
+    }
+
     /** Videos: the month header is pinned; loading must not move the screen's bar. */
     @Test fun videos_loadingToLoaded_topBarStaysPut() {
         var videos by mutableStateOf<Videos?>(null)

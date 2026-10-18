@@ -316,7 +316,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .kbd + .gesture { background: #E6DCCB; }
 
 /* Menu: drops from a top bar's More, over the screen, no dim */
-.menu { width: 248px; padding: 8px 0; border-radius: 16px; background: var(--bg); color: var(--fg); box-shadow: 0 12px 32px -8px rgba(43, 33, 24, .5); display: grid; }
+.menu { width: max-content; min-width: 248px; padding: 8px 0; border-radius: 16px; background: var(--bg); color: var(--fg); box-shadow: 0 12px 32px -8px rgba(43, 33, 24, .5); display: grid; }
 .phone .menu { position: absolute; top: 88px; right: 8px; z-index: 3; }
 .mi { display: flex; align-items: center; gap: 16px; height: 48px; padding: 0 16px; border: 0; background: transparent; font-size: 15px; text-align: left; white-space: nowrap; }
 .mi:hover { background: var(--surface); }

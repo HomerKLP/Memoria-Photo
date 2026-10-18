@@ -232,6 +232,67 @@ class BehaviorTest {
         assertEquals("edit", fired)
     }
 
+    // --- Album ---------------------------------------------------------------------------------
+
+    private val album = Album(1, "Camera", (1L..6L).map { tile(it) })
+
+    @Test fun album_longPress_picksThePhoto() {
+        var picked: Set<Long>? = null
+        rule.setContent { MemoriaTheme { Surface { AlbumContent(album, onSelect = { picked = it }) } } }
+
+        rule.onNodeWithTag("tile-3").performTouchInput { longClick() }
+        assertEquals(setOf(3L), picked)
+    }
+
+    @Test fun album_moreSelect_startsWithNothingPicked() {
+        var picked: Set<Long>? = null
+        rule.setContent { MemoriaTheme { Surface { AlbumContent(album, onSelect = { picked = it }) } } }
+
+        rule.onNodeWithContentDescription("More").performClick()
+        rule.onNodeWithText("Select").performClick()
+        assertEquals(emptySet<Long>(), picked)
+    }
+
+    @Test fun album_selecting_tapTogglesAndSelectAllPicksAll() {
+        var picked by mutableStateOf<Set<Long>?>(setOf(1L))
+        rule.setContent { MemoriaTheme { Surface { AlbumContent(album, selected = picked, onSelect = { picked = it }) } } }
+
+        rule.onNodeWithTag("tile-2").performClick()
+        assertEquals(setOf(1L, 2L), picked)
+        rule.onNodeWithTag("tile-2").performClick()
+        assertEquals(setOf(1L), picked)
+        rule.onNodeWithText("Select all").performClick()
+        assertEquals((1L..6L).toSet(), picked)
+        rule.onNodeWithContentDescription("Cancel").performClick()
+        assertEquals(null, picked)
+    }
+
+    @Test fun album_selectBar_hasMove() {
+        var moved = false
+        rule.setContent { MemoriaTheme { Surface { AlbumContent(album, selected = setOf(1L), onMove = { moved = true }) } } }
+
+        rule.onNodeWithText("Move").performClick()
+        assertTrue(moved)
+    }
+
+    @Test fun album_ignoreFaces_asksOnlyWhenTurningOn() {
+        var ignored by mutableStateOf(false)
+        rule.setContent { MemoriaTheme { Surface { AlbumContent(album, ignored = ignored, onIgnore = { ignored = it }) } } }
+
+        rule.onNodeWithContentDescription("More").performClick()
+        rule.onNodeWithText("Ignore faces in this album").performClick()
+        rule.onNodeWithText("Ignore faces in Camera?").assertIsDisplayed()
+        assertEquals(false, ignored)
+        rule.onNodeWithText("Ignore faces").performClick()
+        assertEquals(true, ignored)
+
+        rule.onNodeWithContentDescription("More").performClick()
+        rule.onNodeWithContentDescription("On").assertIsDisplayed() // the check
+        rule.onNodeWithText("Ignore faces in this album").performClick()
+        rule.onNodeWithText("Ignore faces in Camera?").assertDoesNotExist()
+        assertEquals(false, ignored)
+    }
+
     // --- Move to album -------------------------------------------------------------------------
 
     @Test fun moveToAlbum_pick_handsTheFolderPath() {

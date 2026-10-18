@@ -190,20 +190,19 @@ fun testPhotos(context: Context): List<MediaPhoto> {
     return photos
 }
 
-/** Folders the whole-library index leaves out. Empty for now, scope not decided (see AGENTS.md). */
-private val excludedFolders = emptyList<String>()
-
 /**
- * Every image MediaStore knows about, like Immich's import paths: include all, minus [excludedFolders].
+ * Every image MediaStore knows about, like Immich's import paths: include all, minus the albums
+ * the user ignores (Album, More > Ignore faces). A run forgets the faces of photos that drop out.
  * Videos stay out for now. kindOf sorts camera / other / skip.
  */
 fun libraryPhotos(context: Context): List<MediaPhoto> {
+    val skipped = IndexProgress.skipped(context)
     val photos = mutableListOf<MediaPhoto>()
-    val cols = arrayOf(Media._ID, Media.RELATIVE_PATH, Media.DISPLAY_NAME, Media.MIME_TYPE, Media.WIDTH, Media.HEIGHT)
+    val cols = arrayOf(Media._ID, Media.RELATIVE_PATH, Media.DISPLAY_NAME, Media.MIME_TYPE, Media.WIDTH, Media.HEIGHT, Media.BUCKET_ID)
     context.contentResolver.query(Media.EXTERNAL_CONTENT_URI, cols, null, null, null)?.use { c ->
         while (c.moveToNext()) {
             val path = c.getString(1) + c.getString(2)
-            if (excludedFolders.none { c.getString(1).startsWith(it) }) photos += MediaPhoto(c.getLong(0), path, c.getString(3), c.getInt(4), c.getInt(5))
+            if (c.getLong(6) !in skipped) photos += MediaPhoto(c.getLong(0), path, c.getString(3), c.getInt(4), c.getInt(5))
         }
     }
     return photos
@@ -224,6 +223,12 @@ object IndexProgress {
     fun setTestOnly(context: Context, testOnly: Boolean) = prefs(context).edit().putBoolean("testOnly", testOnly).apply()
     fun chargingOnly(context: Context) = prefs(context).getBoolean("chargingOnly", false)
     fun setChargingOnly(context: Context, on: Boolean) = prefs(context).edit().putBoolean("chargingOnly", on).apply()
+    /** Albums (MediaStore bucket ids) left out of face search. */
+    fun skipped(context: Context): Set<Long> = prefs(context).getStringSet("skipped", null).orEmpty().map { it.toLong() }.toSet()
+    fun setSkipped(context: Context, bucket: Long, on: Boolean) {
+        val ids = skipped(context).map { "$it" }.toSet()
+        prefs(context).edit().putStringSet("skipped", if (on) ids + "$bucket" else ids - "$bucket").apply()
+    }
     /** Done: clears the run's total, base and start time, keeps the paused and scope flags. */
     fun finish(context: Context) = prefs(context).edit().remove("total").remove("base").remove("started").apply()
 }

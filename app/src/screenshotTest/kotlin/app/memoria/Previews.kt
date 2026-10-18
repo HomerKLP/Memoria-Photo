@@ -187,6 +187,31 @@ fun AlbumsLoading() = MemoriaTheme { Surface { AlbumsContent(null) } }
 @Composable
 fun AlbumGrid() = MemoriaTheme { Surface { AlbumContent(fakeAlbum(1, "Camera", 9)) } }
 
+/** Album, selecting (mockup): three picked, the four-action Select bar under the grid. Pairs with album_selecting_keepsTopBarAndGridTop. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 760)
+@Composable
+fun AlbumSelect() = MemoriaTheme { Surface { AlbumContent(fakeAlbum(1, "Camera", 9), selected = setOf(1000L, 1001L, 1004L), pickedSize = 9_600_000) } }
+
+/** Album, More (mockup): Select, then Ignore faces with its check on. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 760)
+@Composable
+fun AlbumMore() = MemoriaTheme {
+    Surface {
+        Box(Modifier.fillMaxSize()) {
+            AlbumContent(fakeAlbum(1, "Camera", 9), ignored = true)
+            Menu(
+                true, onDismiss = {},
+                items = listOf(
+                    MenuItem(R.drawable.ic_select, "Select") {},
+                    MenuItem(R.drawable.ic_block, "Ignore faces in this album", dividerBefore = true, checked = true) {},
+                ),
+            )
+        }
+    }
+}
+
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 760)
 @Composable

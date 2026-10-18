@@ -1,5 +1,25 @@
 package app.memoria
 
+import android.app.Activity
+import android.app.PendingIntent
+import android.content.Intent
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import android.content.ContentResolver
 import android.content.ContentUris
 import android.content.ContentValues
@@ -133,25 +153,144 @@ fun AlbumsScreen(onBack: () -> Unit, onOpenAlbum: (Long) -> Unit) {
     AlbumsContent(albums, onBack, onOpenAlbum)
 }
 
-/** One device folder: 3-column grid, tap opens the viewer. Split from the load for previews. */
+/**
+ * One device folder: 3-column grid, tap opens the viewer. Split from the load for previews.
+ * [selected] null: not selecting; empty: More > Select with nothing picked yet. Long press picks a
+ * photo, the top bar swaps in place and the Select bar comes up under the grid (mockup "Album, selecting").
+ */
 @Composable
-fun AlbumContent(album: Album?, onBack: () -> Unit = {}, onOpen: (List<Tile>, Tile) -> Unit = { _, _ -> }) {
+fun AlbumContent(
+    album: Album?,
+    onBack: () -> Unit = {},
+    onOpen: (List<Tile>, Tile) -> Unit = { _, _ -> },
+    selected: Set<Long>? = null,
+    pickedSize: Long = 0L,
+    ignored: Boolean = false,
+    onSelect: (Set<Long>?) -> Unit = {},
+    onIgnore: (Boolean) -> Unit = {},
+    onShare: () -> Unit = {},
+    onFavorite: () -> Unit = {},
+    onMove: () -> Unit = {},
+    onDelete: () -> Unit = {},
+) {
     val a = album
     val videos = a?.tiles?.count { it.duration != null } ?: 0
-    Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-        // " " while loading: an empty title may measure to nothing and the grid would jump
-        TopBar(a?.name ?: " ", a?.let { "${it.tiles.size - videos} photos" + if (videos > 0) " · $videos videos" else "" }, onBack = onBack)
-        LazyVerticalGrid(GridCells.Fixed(3), horizontalArrangement = Arrangement.spacedBy(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            items(a?.tiles.orEmpty(), key = { it.id }) { TileImage(it, Modifier.clickable { onOpen(a!!.tiles, it) }) }
+    var more by remember { mutableStateOf(false) }
+    var asking by remember { mutableStateOf(false) }
+    if (selected != null) BackHandler { onSelect(null) }
+    Box(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize().safeDrawingPadding()) {
+            if (selected != null) TopBar(
+                "${selected.size} selected", a?.let { "${it.name} · ${formatBytes(pickedSize)}" },
+                onBack = { onSelect(null) }, backIcon = R.drawable.ic_close, backLabel = "Cancel",
+            ) {
+                if (a != null && selected.size < a.tiles.size) TextButton({ onSelect(a.tiles.map { it.id }.toSet()) }) { Text("Select all") }
+            }
+            // " " while loading: an empty title may measure to nothing and the grid would jump
+            else TopBar(a?.name ?: " ", a?.let { "${it.tiles.size - videos} photos" + if (videos > 0) " · $videos videos" else "" }, onBack = onBack) {
+                IconButton({ more = true }) { Icon(painterResource(R.drawable.ic_more), "More") }
+            }
+            LazyVerticalGrid(
+                GridCells.Fixed(3), Modifier.weight(1f).testTag("albumGrid"),
+                horizontalArrangement = Arrangement.spacedBy(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                items(a?.tiles.orEmpty(), key = { it.id }) { t ->
+                    val on = selected != null && t.id in selected
+                    TileImage(
+                        t,
+                        Modifier.combinedClickable(
+                            onClick = { if (selected == null) onOpen(a!!.tiles, t) else onSelect(if (on) selected - t.id else selected + t.id) },
+                            onLongClick = { onSelect(selected.orEmpty() + t.id) },
+                        ).testTag("tile-${t.id}"),
+                        selecting = selected != null, selected = on,
+                    )
+                }
+            }
+            if (selected != null) {
+                val picked = a?.tiles.orEmpty().filter { it.id in selected }
+                SelectBar(picked.isNotEmpty() && picked.all { it.favorite }, onShare, onFavorite, onDelete, onMove = onMove)
+            }
         }
+        Menu(
+            more, onDismiss = { more = false },
+            items = listOf(
+                MenuItem(R.drawable.ic_select, "Select") { more = false; onSelect(emptySet()) },
+                // asks first only when turning it on: faces and names go away
+                MenuItem(R.drawable.ic_block, "Ignore faces in this album", dividerBefore = true, checked = ignored) {
+                    more = false
+                    if (ignored) onIgnore(false) else asking = true
+                },
+            ),
+        )
     }
+    if (asking) AlertDialog(
+        onDismissRequest = { asking = false },
+        icon = { Icon(painterResource(R.drawable.ic_block), null) },
+        title = { Text("Ignore faces in ${a?.name}?") },
+        text = { Text("Faces found in this album will be deleted from the index, and its photos will not be searched for faces. People seen only here go away, names too. The photos stay.") },
+        confirmButton = {
+            TextButton({ asking = false; onIgnore(true) }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
+                Text("Ignore faces")
+            }
+        },
+        dismissButton = { TextButton({ asking = false }) { Text("Cancel") } },
+        containerColor = MaterialTheme.colorScheme.background,
+        iconContentColor = MaterialTheme.colorScheme.error,
+    )
 }
 
 @Composable
 fun AlbumScreen(id: Long, onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit) {
     val context = LocalContext.current
-    val album by cachedProduceState("album$id") { withContext(Dispatchers.IO) { albums(context, id) } }
-    AlbumContent(album?.firstOrNull(), onBack, onOpen)
+    var reload by remember { mutableStateOf(0) }
+    val album by cachedProduceState("album$id", reload) { withContext(Dispatchers.IO) { albums(context, id) } }
+    val a = album?.firstOrNull()
+    var selected by remember { mutableStateOf<Set<Long>?>(null) }
+    val picked = a?.tiles.orEmpty().filter { it.id in selected.orEmpty() }
+    val pickedSize by produceState(0L, selected) { value = withContext(Dispatchers.IO) { selectedSize(context, selected.orEmpty()) } }
+    var ignored by remember { mutableStateOf(id in IndexProgress.skipped(context)) }
+    var moving by remember { mutableStateOf(false) }
+    fun done() { selected = null; reload++ }
+    // Android's confirm for photos another app owns: [then] runs on OK
+    var then by remember { mutableStateOf<(() -> Unit)?>(null) }
+    val ask = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) { then?.invoke(); selected = null }
+        then = null
+        reload++ // our own photos changed before the confirm, even on Cancel
+    }
+    fun confirm(request: PendingIntent, onOk: () -> Unit) { then = onOk; ask.launch(IntentSenderRequest.Builder(request.intentSender).build()) }
+    AlbumContent(
+        a, onBack, onOpen, selected, pickedSize, ignored,
+        onSelect = { selected = it },
+        // the next index run drops (or searches again) this album's photos
+        onIgnore = { IndexProgress.setSkipped(context, id, it); ignored = it },
+        onShare = {
+            if (picked.isNotEmpty()) {
+                val send = Intent(Intent.ACTION_SEND_MULTIPLE).setType("*/*").putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(picked.map { it.uri }))
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                context.startActivity(Intent.createChooser(send, null))
+            }
+        },
+        onFavorite = {
+            if (picked.isNotEmpty()) {
+                val fav = !picked.all { it.favorite }
+                val foreign = picked.filter { t -> runCatching { setFavorite(context, t, fav) }.onSuccess { updateTile(t.copy(favorite = fav)) }.isFailure }
+                if (foreign.isEmpty()) done()
+                else confirm(MediaStore.createFavoriteRequest(context.contentResolver, foreign.map { it.uri }, fav)) { foreign.forEach { updateTile(it.copy(favorite = fav)) } }
+            }
+        },
+        onMove = { if (picked.isNotEmpty()) moving = true },
+        onDelete = {
+            if (picked.isNotEmpty()) confirm(MediaStore.createTrashRequest(context.contentResolver, picked.map { it.uri }, true)) { picked.forEach { forgetTile(it.id) } }
+        },
+    )
+    // moved photos leave this album; the sheet's head shows the first picked
+    if (moving) MoveToAlbumSheet(picked.first(), onDismiss = { moving = false }) { path ->
+        moving = false
+        val foreign = picked.filter { runCatching { movePhoto(context, it, path) }.isFailure }
+        if (foreign.isEmpty()) done()
+        else confirm(MediaStore.createWriteRequest(context.contentResolver, foreign.map { it.uri })) { foreign.forEach { runCatching { movePhoto(context, it, path) } } }
+    }
 }
 
 /** Every video, newest first, grouped by month name, and their total size in bytes. */

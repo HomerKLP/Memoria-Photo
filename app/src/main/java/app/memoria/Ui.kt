@@ -12,6 +12,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
@@ -158,7 +160,8 @@ fun ActionBar(
  * Bottom bar while selecting (mockup "Select bar"). It takes the bottom tabs' place and is built from
  * the same [ShortNavigationBar], so it has exactly the same height and the grid never moves. Share and
  * Favorite read normally, Delete sits last in red. [favorite] true: everything picked is already a
- * favorite, so the middle action reads Unfavorite.
+ * favorite, so the middle action reads Unfavorite. [onMove] adds Move (albums only); four actions put
+ * the label under the icon, or they do not fit at 360 dp.
  */
 @Composable
 fun SelectBar(
@@ -166,6 +169,7 @@ fun SelectBar(
     onShare: () -> Unit,
     onFavorite: () -> Unit,
     onDelete: () -> Unit,
+    onMove: (() -> Unit)? = null,
 ) {
     val error = MaterialTheme.colorScheme.error
     val normal = ShortNavigationBarItemDefaults.colors(
@@ -173,26 +177,34 @@ fun SelectBar(
         unselectedTextColor = MaterialTheme.colorScheme.onSurface,
     )
     val danger = ShortNavigationBarItemDefaults.colors(unselectedIconColor = error, unselectedTextColor = error)
+    val at = if (onMove != null) NavigationItemIconPosition.Top else NavigationItemIconPosition.Start
     ShortNavigationBar {
         ShortNavigationBarItem(
             false, onShare,
             { Icon(painterResource(R.drawable.ic_share), null) },
             { Text("Share") },
-            iconPosition = NavigationItemIconPosition.Start,
+            iconPosition = at,
             colors = normal,
         )
         ShortNavigationBarItem(
             false, onFavorite,
             { Icon(painterResource(R.drawable.ic_favorite_border), null) },
             { Text(if (favorite) "Unfavorite" else "Favorite") },
-            iconPosition = NavigationItemIconPosition.Start,
+            iconPosition = at,
+            colors = normal,
+        )
+        if (onMove != null) ShortNavigationBarItem(
+            false, onMove,
+            { Icon(painterResource(R.drawable.ic_move), null) },
+            { Text("Move") },
+            iconPosition = at,
             colors = normal,
         )
         ShortNavigationBarItem(
             false, onDelete,
             { Icon(painterResource(R.drawable.ic_trash_line), null) },
             { Text("Delete") },
-            iconPosition = NavigationItemIconPosition.Start,
+            iconPosition = at,
             colors = danger,
         )
     }
@@ -354,8 +366,8 @@ private fun Modifier.monthSliderDrag(months: Int, onDragging: (Boolean) -> Unit,
         }
     }
 
-/** One line in a [Menu]: an icon, a label, an action. [dividerBefore] draws a line above it (groups). */
-class MenuItem(val icon: Int, val label: String, val dividerBefore: Boolean = false, val onClick: () -> Unit)
+/** One line in a [Menu]: an icon, a label, an action. [dividerBefore] draws a line above it (groups). [checked] shows the accent check. */
+class MenuItem(val icon: Int, val label: String, val dividerBefore: Boolean = false, val checked: Boolean = false, val onClick: () -> Unit)
 
 /**
  * The shared Menu part (mockup "Menu"): drops under a top bar's More, over the screen, no dim. One
@@ -375,7 +387,7 @@ fun Menu(expanded: Boolean, onDismiss: () -> Unit, items: List<MenuItem>, modifi
     ) {
         Column(
             Modifier.align(Alignment.TopEnd).padding(top = 88.dp, end = 8.dp)
-                .width(248.dp)
+                .widthIn(min = 248.dp).width(IntrinsicSize.Max) // a long label stays on one line
                 .shadow(12.dp, RoundedCornerShape(16.dp), spotColor = Color.Black.copy(alpha = 0.5f))
                 .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(16.dp))
                 .padding(vertical = 8.dp)
@@ -390,7 +402,8 @@ fun Menu(expanded: Boolean, onDismiss: () -> Unit, items: List<MenuItem>, modifi
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     Icon(painterResource(item.icon), null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(item.label, fontSize = 15.sp)
+                    Text(item.label, Modifier.weight(1f), fontSize = 15.sp, maxLines = 1)
+                    if (item.checked) Icon(painterResource(R.drawable.ic_check), "On", Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
                 }
             }
         }

@@ -315,3 +315,13 @@ Release build, baseline profile compiled, full library after a re-index (~4400 p
 | Details, open | 72 | 2.8 | 5 | 23 |
 
 The first run, right after indexing (warm phone), read 2-4x more janky frames. Compare runs taken in the same state. These are frame times only; how long data takes to show on a screen is not measured yet.
+
+## Empty album stays open after its last photo leaves
+
+Moving or deleting the only photo of an album (album select, or the viewer opened from the album) leaves the album page open: no photos, title blank.
+
+Steps:
+1. Open an album with one photo.
+2. Long press it, Move (or Delete), confirm.
+
+Fix ideas: `albums(context, id)` returns nothing for an empty bucket, so `AlbumScreen` shows the loading state (title " "). Close the page (`onBack`) when a reload finds the album gone. Check Place and Person for the same.

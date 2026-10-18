@@ -78,6 +78,7 @@ fun SettingsScreen(onBack: () -> Unit, onHidden: () -> Unit) {
         },
         onRescan = { rescan = true },
         onHidden = onHidden,
+        skipped = remember { IndexProgress.skipped(context).size },
     )
 
     if (rescan) AlertDialog(
@@ -117,6 +118,7 @@ fun SettingsContent(
     onBackgroundWork: () -> Unit = {},
     onRescan: () -> Unit = {},
     onHidden: () -> Unit = {},
+    skipped: Int = 0,
 ) {
     Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
         TopBar("Settings", null, onBack = onBack)
@@ -136,7 +138,10 @@ fun SettingsContent(
             if (allowed) "Allowed. Face search goes on with the screen off" else "Not allowed. The phone may stop face search",
             onBackgroundWork,
         ) { Chevron() }
-        SettingRow(R.drawable.ic_folder, "Folders to skip", "None, all photos are searched") { Chevron() }
+        SettingRow(
+            R.drawable.ic_folder, "Folders to skip",
+            if (skipped == 0) "None, all photos are searched" else "$skipped ${if (skipped == 1) "album" else "albums"}",
+        ) { Chevron() }
         SettingRow(R.drawable.ic_refresh, "Find faces again", "Deletes faces and names, scans all photos again", onRescan)
         SectionHead("People")
         SettingRow(
