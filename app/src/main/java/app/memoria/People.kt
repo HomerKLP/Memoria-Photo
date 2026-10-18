@@ -269,15 +269,16 @@ fun PeopleScreen(
     val saved by peopleSaved.collectAsState()
     val result by cachedProduceState("people", reload, saved) {
         withContext(Dispatchers.IO) {
-            val faces = dao.faceVecs()
-            val byPerson = faces.filter { it.personId != null }.groupBy { it.personId!! }
+            // Faces without vectors: the grid only shows pictures. Merge with ranks by distance, so it loads them itself.
+            val faces = dao.taggedFaces()
+            val byPerson = faces.groupBy { it.personId }
             // getValue would crash on a person with no faces (stopped index, manual edit); skip it
-            val people = dao.people().mapNotNull { p -> byPerson[p.id]?.let { fs -> Person(fs, fs.firstOrNull { it.id == p.mainFaceId } ?: fs.first(), p.id, p.name, p.hidden, p.coverFaceId) } }
+            val people = dao.people().mapNotNull { p -> byPerson[p.id]?.let { fs -> Person(fs.map { it.toVec() }, (fs.firstOrNull { it.id == p.mainFaceId } ?: fs.first()).toVec(), p.id, p.name, p.hidden, p.coverFaceId) } }
                 .sortedWith(compareBy({ it.name.isNullOrBlank() }, { -it.photos })) // named first, then by photo count
             // hidden people stay in the list, so one opened from Hidden people still shows
             val shown = people.filter { !it.hidden }
             val unsure = shown.flatMap { p -> p.faces.filter { !it.sure } }.sortedBy { it.quality }
-            PeopleData("${shown.size} people · ${faces.size} faces", people, unsure, libraryPhotoCount(context))
+            PeopleData("${shown.size} people · ${dao.faceTotal()} faces", people, unsure, libraryPhotoCount(context))
         }
     }
     BackHandler { if (naming != null) naming = null else if (openId != null) onPersonBack() else onBack() }
@@ -647,12 +648,21 @@ suspend fun mergePeople(db: Db, into: Person, other: Person) = db.withTransactio
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MergeSheet(person: Person, people: List<Person>, onDismiss: () -> Unit, onMerge: (Person) -> Unit) {
+    val context = LocalContext.current
+    val dao = remember { Db.get(context).index() }
+    // The list's people carry no vectors (see PeopleScreen); "most alike first" needs them, so load them
+    // once here when the sheet opens, not on every People open.
+    var means by remember { mutableStateOf<Map<Long, FloatArray>>(emptyMap()) }
+    LaunchedEffect(person.id, people) {
+        val byPerson = withContext(Dispatchers.IO) { dao.faceVecs().filter { it.personId != null }.groupBy { it.personId!! } }
+        means = byPerson.mapValues { mean(it.value) }
+    }
     val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var text by remember { mutableStateOf("") }
     var picked by remember { mutableStateOf<Person?>(null) }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet, containerColor = MaterialTheme.colorScheme.background) {
         // body split out: a ModalBottomSheet renders blank in the screenshot tests (see NamePersonContent)
-        MergeContent(person, people, text, { text = it }, picked, { picked = it }, onDismiss, onMerge)
+        MergeContent(person, people, text, { text = it }, picked, { picked = it }, onDismiss, onMerge, means)
     }
 }
 
@@ -667,11 +677,18 @@ fun MergeContent(
     onPick: (Person) -> Unit,
     onCancel: () -> Unit,
     onMerge: (Person) -> Unit,
+    means: Map<Long, FloatArray> = emptyMap(),
 ) {
-    // closest average face first; |m| is the same for all, so only the other person's length counts
-    val alike = remember(person, people) {
-        val m = mean(person.faces)
-        people.sortedByDescending { val o = mean(it.faces); dot(m, o) / sqrt(dot(o, o)) }
+    // closest average face first; |m| is the same for all, so only the other person's length counts.
+    // [means] is loaded by MergeSheet (the list's faces have no vectors); empty in tests/previews.
+    val alike = remember(person, people, means) {
+        if (means.isNotEmpty()) {
+            val m = means[person.id]
+            people.sortedByDescending { val o = means[it.id]; if (m == null || o == null) 0f else dot(m, o) / sqrt(dot(o, o)) }
+        } else {
+            val m = mean(person.faces)
+            people.sortedByDescending { val o = mean(it.faces); dot(m, o) / sqrt(dot(o, o)) }
+        }
     }
     val shown = alike.filter { it.name.orEmpty().contains(text.trim(), ignoreCase = true) }
     Column(Modifier.padding(bottom = 28.dp)) {
