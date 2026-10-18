@@ -12,13 +12,16 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import org.junit.Assert.assertEquals
@@ -538,5 +541,324 @@ class BehaviorTest {
         assertEquals("m2025-12", removed?.key)
         rule.onNodeWithText("Clear").performClick()
         assertTrue(cleared)
+    }
+
+    // --- People --------------------------------------------------------------------------------
+
+    private val peopleData = PeopleData(
+        summary = "3 people · 20 faces",
+        people = listOf(person(1, "Dana"), person(2, "Arman"), person(3)),
+        unsure = listOf(face(99)),
+        total = 10,
+    )
+
+    private fun hiddenPerson(id: Long, name: String) =
+        Person((1L..8L).map { i -> face(id * 100 + i) }, face(id * 100 + 1), id, name, hidden = true)
+
+    @Test fun people_list_tapsAndIndex_fire() {
+        var opened: Long? = null
+        var review = false
+        var paused = false
+        rule.setContent {
+            MemoriaTheme { Surface {
+                PeopleContent(
+                    peopleData, onOpenPerson = { opened = it }, onHelpRecognize = { review = true },
+                    indexing = true, indexed = 3, onPauseIndex = { paused = true },
+                )
+            } }
+        }
+
+        rule.onNodeWithText("Review").performClick()
+        assertTrue(review)
+        rule.onNodeWithText("Pause").performClick()
+        assertTrue(paused)
+        rule.onNodeWithText("Dana").performClick()
+        assertEquals(1L, opened)
+    }
+
+    @Test fun people_list_unnamedTap_opensThePerson() {
+        var opened: Long? = null
+        rule.setContent { MemoriaTheme { Surface { PeopleContent(peopleData, onOpenPerson = { opened = it }) } } }
+
+        rule.onNodeWithTag("unnamedCard").performClick()
+        assertEquals(3L, opened)
+    }
+
+    @Test fun people_list_backAndResume_fire() {
+        var back = false
+        var resume = false
+        rule.setContent {
+            MemoriaTheme { Surface {
+                PeopleContent(peopleData, onBack = { back = true }, paused = true, indexed = 3, onResumeIndex = { resume = true })
+            } }
+        }
+
+        rule.onNodeWithContentDescription("Back").performClick()
+        assertTrue(back)
+        rule.onNodeWithText("Resume").performClick()
+        assertTrue(resume)
+    }
+
+    @Test fun person_chips_fire() {
+        var named = false
+        var merge = false
+        var cover = false
+        var hide = false
+        rule.setContent {
+            MemoriaTheme { Surface {
+                PeopleContent(
+                    peopleData, openId = 1,
+                    onName = { named = true }, onMerge = { merge = true }, onCover = { cover = true }, onHide = { hide = true },
+                )
+            } }
+        }
+
+        rule.onNodeWithText("Rename").performScrollTo().performClick()
+        assertTrue(named)
+        rule.onNodeWithText("Merge with").performScrollTo().performClick()
+        assertTrue(merge)
+        rule.onNodeWithText("Change cover").performScrollTo().performClick()
+        assertTrue(cover)
+        rule.onNodeWithText("Hide person").performScrollTo().performClick()
+        assertTrue(hide)
+    }
+
+    @Test fun person_unnamed_chipAddsName() {
+        var named = false
+        rule.setContent { MemoriaTheme { Surface { PeopleContent(peopleData, openId = 3, onName = { named = true }) } } }
+
+        rule.onNodeWithText("Add name").performScrollTo().performClick()
+        assertTrue(named)
+    }
+
+    @Test fun person_hidden_chipShowsPerson() {
+        var hide = false
+        rule.setContent {
+            MemoriaTheme { Surface {
+                PeopleContent(
+                    PeopleData("1 person", listOf(hiddenPerson(4, "Sara")), emptyList(), 10),
+                    openId = 4, onHide = { hide = true },
+                )
+            } }
+        }
+
+        rule.onNodeWithText("Show person").performScrollTo().performClick()
+        assertTrue(hide)
+    }
+
+    @Test fun person_unsureCard_asksAboutThePerson() {
+        val p = Person(listOf(face(1, 0.9f), face(2, 0.2f)), face(1), 1, "Dana")
+        var review: Long? = null
+        rule.setContent {
+            MemoriaTheme { Surface {
+                PeopleContent(PeopleData("1 person", listOf(p), emptyList(), 10), openId = 1, onHelpRecognize = { review = it })
+            } }
+        }
+
+        rule.onNodeWithText("Review").performScrollTo().performClick()
+        assertEquals(1L, review)
+    }
+
+    @Test fun person_photoTap_opensTheViewer() {
+        val photos = (101L..106L).map { tile(it) }
+        var opened: Tile? = null
+        var openedList: List<Tile>? = null
+        rule.setContent {
+            MemoriaTheme { Surface {
+                PersonDetail(
+                    person(1, "Dana"), onBack = {}, onName = {},
+                    onOpen = { list, t -> openedList = list; opened = t }, loadPhotos = { photos },
+                )
+            } }
+        }
+
+        rule.onNodeWithTag("tile-103").performClick()
+        assertEquals(103L, opened?.id)
+        assertEquals(6, openedList?.size)
+    }
+
+    @Test fun person_selectAll_picksEveryPhoto() {
+        val photos = (101L..106L).map { tile(it) }
+        var ids by mutableStateOf<Set<Long>?>(setOf(101L))
+        rule.setContent {
+            MemoriaTheme { Surface {
+                PersonDetail(
+                    person(1, "Dana"), onBack = {}, onName = {}, onOpen = { _, _ -> },
+                    loadPhotos = { photos }, pick = Pick(ids, set = { ids = it }),
+                )
+            } }
+        }
+
+        rule.onNodeWithText("Select all").performClick()
+        assertEquals((101L..106L).toSet(), ids)
+    }
+
+    @Test fun hiddenPeople_openAndBack_fire() {
+        var opened: Long? = null
+        var back = false
+        rule.setContent {
+            MemoriaTheme { Surface {
+                PeopleContent(
+                    PeopleData("1 person", listOf(hiddenPerson(4, "Sara")), emptyList(), 10),
+                    hiddenOnly = true, onOpenPerson = { opened = it }, onBack = { back = true },
+                )
+            } }
+        }
+
+        rule.onNodeWithText("Hidden people").assertIsDisplayed()
+        rule.onNodeWithText("Sara").performClick()
+        assertEquals(4L, opened)
+        rule.onNodeWithContentDescription("Back").performClick()
+        assertTrue(back)
+    }
+
+    @Test fun hiddenPeople_empty_showsHint() {
+        rule.setContent {
+            MemoriaTheme { Surface {
+                PeopleContent(PeopleData("0 people", emptyList(), emptyList(), 10), hiddenOnly = true)
+            } }
+        }
+
+        rule.onNodeWithText("No hidden people").assertIsDisplayed()
+    }
+
+    // --- Library -------------------------------------------------------------------------------
+    // 3 people: PeopleRow then adds no "See all" tile, so the three section heads are the only ones.
+
+    private val library = LibraryData(
+        faces = (1L..3L).map { person(it, "Person $it") },
+        unsure = listOf(face(99)),
+        albums = listOf(Album(1, "Camera", (1L..6L).map { tile(it) })),
+        favorites = 4, videos = 2, trash = 3, total = 10,
+        places = listOf(Place(1, "Riverton", (1L..3L).map { tile(it) })),
+    )
+
+    @Test fun library_searchAndSettings_fire() {
+        var search = false
+        var settings = false
+        rule.setContent {
+            MemoriaTheme { Surface {
+                LibraryContent(library, onOpenSearch = { search = true }, onOpenSettings = { settings = true })
+            } }
+        }
+
+        rule.onNodeWithText("Search people, places, dates").performClick()
+        assertTrue(search)
+        rule.onNodeWithContentDescription("Settings").performClick()
+        assertTrue(settings)
+    }
+
+    @Test fun library_seeAllHeads_fire() {
+        var people = false
+        var albums = false
+        var places = false
+        rule.setContent {
+            MemoriaTheme { Surface {
+                LibraryContent(library, onOpenPeople = { people = true }, onOpenAlbums = { albums = true }, onOpenPlaces = { places = true })
+            } }
+        }
+
+        // three "See all" heads, top to bottom: People, Albums, Places
+        rule.onAllNodesWithText("See all")[0].performClick()
+        assertTrue(people)
+        rule.onAllNodesWithText("See all")[1].performScrollTo().performClick()
+        assertTrue(albums)
+        rule.onAllNodesWithText("See all")[2].performScrollTo().performClick()
+        assertTrue(places)
+    }
+
+    @Test fun library_personTile_opensThePerson() {
+        var opened: Long? = null
+        rule.setContent { MemoriaTheme { Surface { LibraryContent(library, onOpenPerson = { opened = it }) } } }
+
+        rule.onNodeWithText("Person 1").performClick()
+        assertEquals(1L, opened)
+    }
+
+    @Test fun library_peopleRowSeeAll_opensPeople() {
+        var seeAll = false
+        rule.setContent {
+            MemoriaTheme { Surface {
+                PeopleRow((1L..13L).map { person(it, "Person $it") }, {}, { seeAll = true })
+            } }
+        }
+
+        rule.onNodeWithTag("peopleRow").performScrollToNode(hasText("See all"))
+        rule.onNodeWithText("See all").performClick()
+        assertTrue(seeAll)
+    }
+
+    @Test fun library_albumCover_opensTheAlbum() {
+        var opened: Long? = null
+        rule.setContent { MemoriaTheme { Surface { LibraryContent(library, onOpenAlbum = { opened = it }) } } }
+
+        rule.onNodeWithText("Camera").performScrollTo().performClick()
+        assertEquals(1L, opened)
+    }
+
+    @Test fun library_placeCover_opensThePlace() {
+        var opened = 0
+        rule.setContent { MemoriaTheme { Surface { LibraryContent(library, onOpenPlace = { opened = it }) } } }
+
+        rule.onNodeWithText("Riverton").performScrollTo().performClick()
+        assertEquals(1, opened)
+    }
+
+    @Test fun library_reviewCard_fires() {
+        var review = false
+        rule.setContent { MemoriaTheme { Surface { LibraryContent(library, onHelpRecognize = { review = true }) } } }
+
+        rule.onNodeWithText("Review").performScrollTo().performClick()
+        assertTrue(review)
+    }
+
+    @Test fun library_shortcuts_fire() {
+        var favorites = false
+        var videos = false
+        var trash = false
+        rule.setContent {
+            MemoriaTheme { Surface {
+                LibraryContent(library, onOpenFavorites = { favorites = true }, onOpenVideos = { videos = true }, onOpenTrash = { trash = true })
+            } }
+        }
+
+        rule.onNodeWithText("Favorites").performScrollTo().performClick()
+        assertTrue(favorites)
+        rule.onNodeWithText("Videos").performScrollTo().performClick()
+        assertTrue(videos)
+        rule.onNodeWithText("Trash").performScrollTo().performClick()
+        assertTrue(trash)
+    }
+
+    @Test fun library_devTools_fires() {
+        var dev = false
+        rule.setContent { MemoriaTheme { Surface { LibraryContent(library, onDev = { dev = true }) } } }
+
+        rule.onNodeWithText("Dev tools").performScrollTo().performClick()
+        assertTrue(dev)
+    }
+
+    @Test fun library_indexPause_fires() {
+        var pause = false
+        rule.setContent {
+            MemoriaTheme { Surface {
+                LibraryContent(library, indexing = true, indexed = 3, onPauseIndex = { pause = true })
+            } }
+        }
+
+        rule.onNodeWithText("Pause").performClick()
+        assertTrue(pause)
+    }
+
+    @Test fun library_indexResume_fires() {
+        var resume = false
+        rule.setContent {
+            MemoriaTheme { Surface {
+                LibraryContent(library, paused = true, indexed = 3, onResumeIndex = { resume = true })
+            } }
+        }
+
+        rule.onNodeWithText("Resume").performClick()
+        assertTrue(resume)
     }
 }
