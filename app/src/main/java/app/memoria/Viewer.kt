@@ -17,6 +17,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -38,7 +40,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -52,6 +53,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateMapOf
@@ -64,21 +66,28 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.lerp
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -92,7 +101,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import kotlin.math.roundToInt
+import kotlin.math.max
 
 private val onViewer = Color(0xFFF4ECE1)
 private val viewerBg = Color(0xFF120E0A)
@@ -110,49 +119,71 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
         LaunchedEffect(Unit) { onBack() }
         return
     }
-    BackHandler(onBack = onBack)
     var details by remember { mutableStateOf(false) }
     // Tap the photo: the bars and the system bars hide, so only the photo is left. Tap again brings them back.
     var barsVisible by remember { mutableStateOf(true) }
     // Light bar icons on the dark viewer, dark again when it closes or when the light details sheet is up
     val window = (LocalView.current.context as Activity).window
     val barIcons = APPEARANCE_LIGHT_STATUS_BARS or APPEARANCE_LIGHT_NAVIGATION_BARS
-    LaunchedEffect(details, barsVisible) {
+    // 0: the photo sits in its grid tile, 1: full screen. It grows on open and shrinks back on close.
+    val shown = remember { Animatable(0f) }
+    LaunchedEffect(Unit) { shown.animateTo(1f, tween(300, easing = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f))) }
+    // false: no tile on screen to grow from or land in (or the photo is zoomed), so the photo fades instead
+    var fly by remember { mutableStateOf(onScreen(start)) }
+    var closing by remember { mutableStateOf(false) }
+    // The downward pull follows the finger and shrinks the photo, then springs back or closes
+    val dragY = remember { Animatable(0f) }
+    val screenH = with(LocalDensity.current) { LocalConfiguration.current.screenHeightDp.dp.toPx() }
+    // The grid shows through as the photo leaves
+    val backdrop = { shown.value * (1f - (dragY.value / (screenH / 2f)).coerceIn(0f, 1f)) }
+    val dark by remember { derivedStateOf { backdrop() > 0.5f } }
+    LaunchedEffect(details, barsVisible, dark, closing) {
         val controller = window.insetsController ?: return@LaunchedEffect
-        controller.setSystemBarsAppearance(if (details) barIcons else 0, barIcons)
+        controller.setSystemBarsAppearance(if (details || !dark) barIcons else 0, barIcons)
         // the details sheet is light: its system bars never hide
-        if (details || barsVisible) controller.show(WindowInsets.Type.systemBars())
+        if (details || barsVisible || closing) controller.show(WindowInsets.Type.systemBars())
         else controller.hide(WindowInsets.Type.systemBars())
     }
     DisposableEffect(Unit) {
         onDispose {
             window.insetsController?.setSystemBarsAppearance(barIcons, barIcons)
             window.insetsController?.show(WindowInsets.Type.systemBars())
+            viewerTile = null
+            viewerEdits++ // Edit in… may have saved a new copy
         }
     }
     val pager = rememberPagerState(tiles.indexOfFirst { it.id == start }.coerceAtLeast(0)) { list.size }
     // coerce: after trashing the last photo the pager is one frame behind the shorter list
     val tile = list[pager.currentPage.coerceAtMost(list.lastIndex)]
+    LaunchedEffect(tile.id) { viewerTile = tile.id }
     // Swipe down to close: track the drag, dismiss only past a threshold
     val dismissAt = with(LocalDensity.current) { 120.dp.toPx() }
-    // Swipe down far enough and the photo slides off this far before the viewer closes
-    val screenH = with(LocalDensity.current) { LocalConfiguration.current.screenHeightDp.dp.toPx() }
     // Swipe up: a much shorter pull is enough, the remaining gesture belongs to the sheet
     val openAt = with(LocalDensity.current) { 48.dp.toPx() }
-    // The downward pull follows the finger, then springs back or slides the photo off to close
-    val dragY = remember { Animatable(0f) }
     // The upward pull only counts towards the details threshold; the photo itself stays put
     var pullUp by remember { mutableFloatStateOf(0f) }
     val scope = rememberCoroutineScope()
     // A zoomed photo owns every finger, so the pager and the vertical swipes wait. Reset when the page changes.
     var zoomed by remember { mutableStateOf(false) }
     LaunchedEffect(pager.currentPage) { zoomed = false }
+    fun close() {
+        if (closing) return
+        closing = true
+        fly = !zoomed && onScreen(tile.id)
+        scope.launch {
+            // no tile to land in: a dragged photo slides off, a still one fades
+            if (!fly && dragY.value > 0f) dragY.animateTo(screenH, tween(200))
+            else shown.animateTo(0f, tween(250, easing = FastOutSlowInEasing))
+            onBack()
+        }
+    }
+    BackHandler { close() }
     // Favorites: our override wins over the timeline, MediaStore is the source of truth on the next open
     val favorites = remember { mutableStateMapOf<Long, Boolean>() }
     var pending by remember { mutableStateOf<Pair<Long, Boolean>?>(null) }
     val consent = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         pending?.let { (id, favorite) ->
-            if (result.resultCode == Activity.RESULT_OK) favorites[id] = favorite
+            if (result.resultCode == Activity.RESULT_OK) { favorites[id] = favorite; viewerEdits++ }
             pending = null
         }
     }
@@ -161,14 +192,14 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
     var trashing by remember { mutableStateOf<Long?>(null) }
     val trashAsk = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         trashing?.let { id ->
-            if (result.resultCode == Activity.RESULT_OK) { list = list.filterNot { it.id == id }; forgetTile(id) }
+            if (result.resultCode == Activity.RESULT_OK) { list = list.filterNot { it.id == id }; forgetTile(id); viewerEdits++ }
             trashing = null
         }
     }
     // Move to album: the sheet picks a folder, Android asks for consent when the file belongs to another app.
     // A photo opened from an album leaves it on a move, so the viewer shows the next one (same as trashing).
     var moving by remember { mutableStateOf(false) }
-    fun afterMove(id: Long) { if (!showInAlbum) list = list.filterNot { it.id == id } }
+    fun afterMove(id: Long) { if (!showInAlbum) list = list.filterNot { it.id == id }; viewerEdits++ }
     var movePending by remember { mutableStateOf<Pair<Long, String>?>(null) }
     val moveAsk = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         movePending?.let { (id, path) ->
@@ -188,13 +219,12 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
     // Photo fills the whole screen, the bars float on it (transparent gradient, see ViewerChrome)
     val zone = Instant.ofEpochMilli(tile.date).atZone(ZoneId.systemDefault())
     val dayPattern = if (zone.year == LocalDate.now().year) "EEE, d MMM" else "EEE, d MMM yyyy"
-    // Static dark backdrop: on a dismiss the photo (and the bars) slide over it, so no window gap shows.
-    Box(Modifier.fillMaxSize().background(viewerBg)) {
+    // The photo moves alone (ViewerPage); this dark backdrop only fades, so the screen under shows through.
+    Box(Modifier.fillMaxSize().drawBehind { drawRect(viewerBg, alpha = backdrop()) }) {
         Box(
             Modifier.fillMaxSize()
                 // Only a downward drag moves the photo (closing it). On an upward drag the photo stays
                 // put: a short pull opens the details and the sheet is the feedback.
-                .offset { IntOffset(0, dragY.value.roundToInt()) }
                 .draggable(
                     orientation = Orientation.Vertical,
                     state = rememberDraggableState { delta ->
@@ -206,31 +236,32 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
                             scope.launch { dragY.snapTo((dragY.value + delta).coerceAtLeast(0f)) }
                         }
                     },
-                    enabled = !zoomed,
+                    enabled = !zoomed && !closing,
                     onDragStopped = {
                         pullUp = 0f
-                        scope.launch {
-                            if (dragY.value > dismissAt) {
-                                // let go past the threshold: slide the photo off, then close
-                                dragY.animateTo(screenH, tween(200))
-                                onBack()
-                            } else {
-                                // under the threshold: ease back into place instead of snapping
-                                dragY.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow))
-                            }
-                        }
+                        // past the threshold the photo goes back to its tile; under it, it eases back into place
+                        if (dragY.value > dismissAt) close()
+                        else scope.launch { dragY.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow)) }
                     },
                 ),
         ) {
-            HorizontalPager(pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1, userScrollEnabled = !zoomed, key = { list[it].id }) {
-                ViewerPage(list[it], { zoomed = it }, onTap = { barsVisible = !barsVisible })
+            HorizontalPager(pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1, userScrollEnabled = !zoomed, key = { list[it].id }) { i ->
+                val current = i == pager.currentPage
+                ViewerPage(
+                    list[i], { zoomed = it }, onTap = { barsVisible = !barsVisible },
+                    shown = if (current) ({ shown.value }) else ({ 1f }),
+                    dragY = if (current) ({ dragY.value }) else ({ 0f }),
+                    fly = fly,
+                )
             }
+            // the bars step aside while the photo moves
+            val still by remember { derivedStateOf { shown.value == 1f && dragY.value == 0f && !closing } }
             ViewerChrome(
-                visible = barsVisible,
+                visible = barsVisible && still,
                 title = DateTimeFormatter.ofPattern(dayPattern).format(zone),
                 subtitle = DateTimeFormatter.ofPattern("HH:mm").format(zone),
                 favorite = favorite,
-                onBack = onBack,
+                onBack = { close() },
                 onShare = {
                     val send = Intent(Intent.ACTION_SEND).setType(context.contentResolver.getType(tile.uri))
                         .putExtra(Intent.EXTRA_STREAM, tile.uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -242,6 +273,7 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
                         setFavorite(context, tile, next) // our own photos need no dialog
                         favorites[tile.id] = next
                         updateTile(tile.copy(favorite = next))
+                        viewerEdits++
                     } catch (e: SecurityException) {
                         // someone else's photo: Android asks the user once, then remembers
                         pending = tile.id to next
@@ -355,8 +387,30 @@ internal fun fitSize(imageWidth: Int, imageHeight: Int, boxWidth: Int, boxHeight
 private fun fitSize(bitmap: Bitmap?, box: IntSize): Size =
     if (bitmap == null) Size(0f, 0f) else fitSize(bitmap.width, bitmap.height, box.width, box.height)
 
+/** True when the photo's grid tile is at least partly on screen. */
+private fun onScreen(id: Long): Boolean = tileSpots[id]?.takeIf { it.isAttached }?.boundsInWindow()?.isEmpty == false
+
+/**
+ * Where the photo is drawn and what part of it shows, between its grid [tile] ([t] = 0, cropped to the
+ * tile's [visible] part) and full screen ([t] = 1). [dragY] pulls the full-screen photo down and shrinks it.
+ */
+internal fun photoMotion(fit: Size, screen: Size, tile: Rect?, visible: Rect?, t: Float, dragY: Float): Pair<Rect, Rect?> {
+    fun scaled(center: Offset, k: Float) = Rect(center - Offset(fit.width * k / 2f, fit.height * k / 2f), fit * k)
+    val dragged = scaled(Offset(screen.width / 2f, screen.height / 2f + dragY), 1f - 0.3f * (dragY / (screen.height / 2f)).coerceIn(0f, 1f))
+    if (tile == null || visible == null || t >= 1f) return dragged to null
+    val crop = scaled(tile.center, max(tile.width / fit.width, tile.height / fit.height))
+    return lerp(crop, dragged, t) to lerp(visible, dragged, t)
+}
+
 @Composable
-fun ViewerPage(tile: Tile, onZoomed: (Boolean) -> Unit, onTap: () -> Unit = {}) {
+fun ViewerPage(
+    tile: Tile,
+    onZoomed: (Boolean) -> Unit,
+    onTap: () -> Unit = {},
+    shown: () -> Float = { 1f },
+    dragY: () -> Float = { 0f },
+    fly: Boolean = false,
+) {
     val context = LocalContext.current
     // Grid thumbnail first, then a screen-size decode
     val image by produceState(thumbs.get(tile.id), tile.id) {
@@ -387,8 +441,38 @@ fun ViewerPage(tile: Tile, onZoomed: (Boolean) -> Unit, onTap: () -> Unit = {}) 
         else Offset((pan.value.x + panChange.x).coerceIn(-roomX, roomX), (pan.value.y + panChange.y).coerceIn(-roomY, roomY))
         zoom.floatValue = next
     }
-    // clipToBounds: pager pages do not clip, so a zoomed photo would spill over its neighbours
-    Box(Modifier.fillMaxSize().clipToBounds().onSizeChanged { box.value = it }, contentAlignment = Alignment.Center) {
+    var page by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    // The photo's rect and clip right now. No clip: no tile to fly from, so it fades with [shown].
+    fun motion(fit: Size, screen: Size): Pair<Rect, Rect?> {
+        val spot = tileSpots[tile.id]?.takeIf { fly && it.isAttached }
+        val here = page?.takeIf { it.isAttached }
+        val visible = if (spot != null && here != null) here.localBoundingBoxOf(spot, clipBounds = true) else Rect.Zero
+        if (visible.isEmpty) return photoMotion(fit, screen, null, null, 1f, dragY())
+        return photoMotion(fit, screen, here!!.localBoundingBoxOf(spot!!, clipBounds = false), visible, shown(), dragY())
+    }
+    Box(
+        Modifier.fillMaxSize()
+            .onPlaced { page = it }
+            .drawWithContent {
+                val fit = fitSize(image, IntSize(size.width.toInt(), size.height.toInt()))
+                val clip = if (fit.width == 0f) null else motion(fit, size).second
+                if (clip == null) drawContent() else clipRect(clip.left, clip.top, clip.right, clip.bottom) { this@drawWithContent.drawContent() }
+            }
+            .graphicsLayer {
+                val fit = fitSize(image, IntSize(size.width.toInt(), size.height.toInt()))
+                if (fit.width == 0f) { alpha = shown(); return@graphicsLayer }
+                val (rect, clip) = motion(fit, size)
+                alpha = if (clip != null) 1f else shown()
+                scaleX = rect.width / fit.width
+                scaleY = scaleX
+                translationX = rect.center.x - size.width / 2f
+                translationY = rect.center.y - size.height / 2f
+            }
+            // clipToBounds: pager pages do not clip, so a zoomed photo would spill over its neighbours
+            .clipToBounds()
+            .onSizeChanged { box.value = it },
+        contentAlignment = Alignment.Center,
+    ) {
         Box(
             Modifier.fillMaxSize()
                 // pointerInput must sit OUTSIDE graphicsLayer: inside it Compose hands out deltas

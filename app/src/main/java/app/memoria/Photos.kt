@@ -57,6 +57,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
@@ -72,12 +73,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -214,6 +218,15 @@ fun forgetTile(id: Long) {
     lastFavorites = lastFavorites?.filterNot { it is Tile && it.id == id }
 }
 
+/** Goes up when the viewer changes a photo or closes, so the screen under it reloads in place. */
+var viewerEdits by mutableIntStateOf(0)
+
+/** Where each grid tile is on screen, so the viewer can grow a photo out of it and shrink it back in. */
+val tileSpots = HashMap<Long, LayoutCoordinates>()
+
+/** The photo open in the viewer; its tile stays empty, since the viewer draws it. */
+var viewerTile by mutableStateOf<Long?>(null)
+
 /**
  * Writes MediaStore's own favorite flag. Throws SecurityException for photos the app does not own:
  * the caller then asks the user once through MediaStore.createFavoriteRequest.
@@ -281,7 +294,7 @@ fun rememberPick(): Pick {
     fun confirm(request: PendingIntent, onOk: () -> Unit) { then = onOk; ask.launch(IntentSenderRequest.Builder(request.intentSender).build()) }
     fun done() { ids = null; changes++ }
     return Pick(
-        ids, size, changes, set = { ids = it },
+        ids, size, changes + viewerEdits, set = { ids = it },
         share = { picked ->
             if (picked.isNotEmpty()) {
                 val send = Intent(Intent.ACTION_SEND_MULTIPLE).setType("*/*").putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(picked.map { it.uri }))
@@ -667,8 +680,11 @@ private fun Modifier.selectDrag(grid: LazyGridState, tilesById: Map<Long, Tile>,
 
 @Composable
 fun TileImage(tile: Tile, modifier: Modifier, selecting: Boolean = false, selected: Boolean = false, heart: Boolean = true) {
+    DisposableEffect(tile.id) { onDispose { tileSpots.remove(tile.id) } }
     Box(
         modifier.aspectRatio(1f)
+            .onPlaced { tileSpots[tile.id] = it }
+            .drawWithContent { if (viewerTile != tile.id) drawContent() }
             .then(if (selected) Modifier.border(3.dp, MaterialTheme.colorScheme.primary) else Modifier),
     ) {
         Thumb(tile, Modifier.fillMaxSize())
