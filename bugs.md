@@ -410,3 +410,14 @@ Failed once in a full `make layout` run (2026-10-18, no message), passed when ru
 Steps: `make layout`; if it fails, rerun the one test with `-Pandroid.testInstrumentationRunnerArguments.class=app.memoria.LayoutJumpTest#library_pauseResume_progressBarKeepsLength`.
 
 Fix ideas: run device tests only when no other session uses the emulator; if it fails again alone, wait for idle before reading the bar.
+
+## Timeline month slider is taller than the mockup
+
+The Photos month slider looks a bit taller than the mockup. The slider fills the whole grid area (`fillMaxSize()` with a 10 dp pad, `Ui.kt` `MonthSlider`, given `Modifier.weight(1f)` in `Photos.kt`), while the mockup pins the rail between the bars (`docs/design.html`: `.slider { top: 104px; bottom: 92px }`). So the rail is longer and the knob travels farther than designed.
+
+Steps:
+1. Photos tab, scroll. Compare the rail with `docs/design.html` > "Timeline month slider".
+
+Fix ideas:
+- Inset the slider to the mockup's bar-to-bar region (rail starts under the top bar, ends above the bottom bar) instead of the full content height. Likely cause; measure the bar heights first.
+- Same in the Favorites / Album / Person grids once they get the slider (see `ROADMAP.md`).

@@ -121,6 +121,7 @@ Goal: no visible loss, not lossless (re-encoding always loses some).
   - [x] Moving or deleting the last photo of an album leaves an empty album page with no title. An album that becomes empty should close and go back. Fixed 2026-10-18 with `CloseWhenEmpty` (`Ui.kt`); see `bugs.md`.
   - [x] Check every page that shows a set that can run empty, after a move, delete, unfavorite, hide or merge: Album, Place, Person, Favorites, Videos, Trash, and the viewer when its last photo goes. Each should close or show its empty state, never a blank page. Done 2026-10-18: Album, Place, Videos and the open Person close; Favorites and Trash show their empty states; the viewer already closed. See `bugs.md`.
   - [ ] After Change cover, going back to Library shows the old face for a moment, then flips to the new one. Library starts from its cached data and only then reloads. Fix by updating the cache when the cover changes (or preloading), or at least a crossfade.
+  - [ ] Month slider on more screens. Only the Photos timeline has it (`MonthSlider`, `Photos.kt`). Album, Person and maybe other date-grouped lists (Favorites, Place, Videos) scroll by month too and should get the same slider. The mockup shows it for the timeline only, so design the others first (Phase 6 rule: design first, code second), then wire `MonthSlider` in.
 
 ## Phase 7: animations
 Goal: motion that feels finished, like a mature gallery app, before the first APK release. No motion design in the mockup: Claude checks each motion on the emulator, the user on the phone.
