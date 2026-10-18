@@ -21,6 +21,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.rememberSplineBasedDecay
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
@@ -40,12 +41,15 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -60,6 +64,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -73,6 +78,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
@@ -100,10 +106,11 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlin.math.abs
 import kotlin.math.max
 
-private val onViewer = Color(0xFFF4ECE1)
-private val viewerBg = Color(0xFF120E0A)
+internal val onViewer = Color(0xFFF4ECE1)
+internal val viewerBg = Color(0xFF120E0A)
 private const val maxZoom = 6f
 
 // Bars fade fast: the tap must feel immediate. Material's default fade is a spring (~400 ms).
@@ -118,10 +125,9 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
         LaunchedEffect(Unit) { onBack() }
         return
     }
-    var details by remember { mutableStateOf(false) }
     // Tap the photo: the bars and the system bars hide, so only the photo is left. Tap again brings them back.
     var barsVisible by remember { mutableStateOf(true) }
-    // Light bar icons on the dark viewer, dark again when it closes or when the light details sheet is up
+    // Light bar icons on the dark viewer, dark again when it closes
     val window = (LocalView.current.context as Activity).window
     val barIcons = APPEARANCE_LIGHT_STATUS_BARS or APPEARANCE_LIGHT_NAVIGATION_BARS
     // 0: the photo sits in its grid tile, 1: full screen. It grows on open and shrinks back on close.
@@ -136,10 +142,20 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
     // The grid shows through as the photo leaves
     val backdrop = { shown.value * (1f - (dragY.value / (screenH / 2f)).coerceIn(0f, 1f)) }
     val dark by remember { derivedStateOf { backdrop() > 0.5f } }
+    // Swipe up: the black details panel rides up from the bottom edge while the photo moves into a
+    // full-width square at the top (docs/design.html "Viewer, swiped up"). up = how far the panel is out, in px.
+    val up = remember { Animatable(0f, visibilityThreshold = 1f) } // 1 px: the spring's long tail would keep the bottom bar away
+    var detailsOpen by remember { mutableStateOf(false) } // where the panel settles
+    val details by remember { derivedStateOf { up.value > 0f || detailsOpen } }
+    // details longer than the panel: how far they are scrolled, and their full height
+    val listY = remember { Animatable(0f) }
+    var listH by remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(details) { if (!details) listY.snapTo(0f) }
+    val coast = rememberSplineBasedDecay<Float>()
     LaunchedEffect(details, barsVisible, dark, closing) {
         val controller = window.insetsController ?: return@LaunchedEffect
-        controller.setSystemBarsAppearance(if (details || !dark) barIcons else 0, barIcons)
-        // the details sheet is light: its system bars never hide
+        controller.setSystemBarsAppearance(if (!dark) barIcons else 0, barIcons)
+        // the details keep the top bar, so the system bars show too
         if (details || barsVisible || closing) controller.show(WindowInsets.Type.systemBars())
         else controller.hide(WindowInsets.Type.systemBars())
     }
@@ -157,18 +173,29 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
     LaunchedEffect(tile.id) { viewerTile = tile.id }
     // Swipe down to close: track the drag, dismiss only past a threshold
     val dismissAt = with(LocalDensity.current) { 120.dp.toPx() }
-    // Swipe up: a much shorter pull is enough, the remaining gesture belongs to the sheet
+    // A short pull opens or closes the details, a flick decides by its direction
     val openAt = with(LocalDensity.current) { 48.dp.toPx() }
-    // The upward pull only counts towards the details threshold; the photo itself stays put
-    var pullUp by remember { mutableFloatStateOf(0f) }
+    val flingAt = with(LocalDensity.current) { 400.dp.toPx() }
+    var view by remember { mutableStateOf(IntSize.Zero) }
+    // Open, the panel's rounded top overlaps the photo square by this much
+    val overlap = with(LocalDensity.current) { 28.dp.toPx() }
+    fun openUp() = (view.height - view.width + overlap).coerceAtLeast(0f)
+    // the list stops at its ends; they move when the details load after the panel opened
+    LaunchedEffect(listH, view) { listY.updateBounds(0f, (listH - openUp()).coerceAtLeast(0f)) }
     val scope = rememberCoroutineScope()
+    fun settle(open: Boolean) {
+        detailsOpen = open
+        scope.launch { up.animateTo(if (open) openUp() else 0f, spring(stiffness = Spring.StiffnessMediumLow)) }
+    }
     // A zoomed photo owns every finger, so the pager and the vertical swipes wait. Reset when the page changes.
     var zoomed by remember { mutableStateOf(false) }
     LaunchedEffect(pager.currentPage) { zoomed = false }
     fun close() {
         if (closing) return
         closing = true
-        fly = !zoomed && onScreen(tile.id)
+        // a photo in the details square fades, the panel slides down
+        fly = !zoomed && up.value == 0f && onScreen(tile.id)
+        if (up.value > 0f) scope.launch { up.animateTo(0f, tween(250)) }
         scope.launch {
             // no tile to land in: a dragged photo slides off, a still one fades
             if (!fly && dragY.value > 0f) dragY.animateTo(screenH, tween(200))
@@ -176,7 +203,7 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
             onBack()
         }
     }
-    BackHandler { close() }
+    BackHandler { if (detailsOpen) settle(false) else close() }
     // Favorites: our override wins over the timeline, MediaStore is the source of truth on the next open
     val favorites = remember { mutableStateMapOf<Long, Boolean>() }
     var pending by remember { mutableStateOf<Pair<Long, Boolean>?>(null) }
@@ -219,44 +246,58 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
     val zone = Instant.ofEpochMilli(tile.date).atZone(ZoneId.systemDefault())
     val dayPattern = if (zone.year == LocalDate.now().year) "EEE, d MMM" else "EEE, d MMM yyyy"
     // The photo moves alone (ViewerPage); this dark backdrop only fades, so the screen under shows through.
-    Box(Modifier.fillMaxSize().drawBehind { drawRect(viewerBg, alpha = backdrop()) }) {
+    Box(Modifier.fillMaxSize().onSizeChanged { view = it }.drawBehind { drawRect(viewerBg, alpha = backdrop()) }) {
         Box(
             Modifier.fillMaxSize()
-                // Only a downward drag moves the photo (closing it). On an upward drag the photo stays
-                // put: a short pull opens the details and the sheet is the feedback.
+                // One vertical drag drives it all. Up: the details panel rises, then its list scrolls.
+                // Down: the list scrolls back, then the panel lowers, then the plain photo pulls down to close.
                 .draggable(
                     orientation = Orientation.Vertical,
                     state = rememberDraggableState { delta ->
-                        if (delta < 0f) {
-                            // upward: only the threshold matters, the photo does not move
-                            pullUp -= delta
-                            if (pullUp > openAt && !details) { details = true; pullUp = 0f }
-                        } else {
-                            scope.launch { dragY.snapTo((dragY.value + delta).coerceAtLeast(0f)) }
+                        val open = openUp()
+                        when {
+                            dragY.value > 0f -> scope.launch { dragY.snapTo((dragY.value + delta).coerceAtLeast(0f)) }
+                            delta < 0f && up.value < open -> scope.launch { up.snapTo((up.value - delta).coerceAtMost(open)) }
+                            delta < 0f || listY.value > 0f -> scope.launch { listY.snapTo(listY.value - delta) }
+                            up.value > 0f -> scope.launch { up.snapTo((up.value - delta).coerceAtLeast(0f)) }
+                            else -> { detailsOpen = false; scope.launch { dragY.snapTo(delta.coerceAtLeast(0f)) } }
                         }
                     },
                     enabled = !zoomed && !closing,
-                    onDragStopped = {
-                        pullUp = 0f
-                        // past the threshold the photo goes back to its tile; under it, it eases back into place
-                        if (dragY.value > dismissAt) close()
-                        else scope.launch { dragY.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow)) }
+                    onDragStopped = { velocity ->
+                        when {
+                            // past the threshold the photo goes back to its tile; under it, it eases back into place
+                            dragY.value > dismissAt -> close()
+                            dragY.value > 0f -> scope.launch { dragY.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow)) }
+                            up.value >= openUp() -> {
+                                detailsOpen = true
+                                // a flick keeps the list going and it coasts to a stop, at the latest at either end
+                                scope.launch { listY.animateDecay(-velocity, coast) }
+                            }
+                            up.value > 0f -> settle(
+                                if (abs(velocity) > flingAt) velocity < 0f
+                                else if (detailsOpen) up.value > openUp() - openAt else up.value > openAt,
+                            )
+                            else -> detailsOpen = false // the panel was dragged all the way down
+                        }
                     },
                 ),
         ) {
-            HorizontalPager(pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1, userScrollEnabled = !zoomed, key = { list[it].id }) { i ->
+            HorizontalPager(pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1, userScrollEnabled = !zoomed && !details, key = { list[it].id }) { i ->
                 val current = i == pager.currentPage
                 ViewerPage(
-                    list[i], { zoomed = it }, onTap = { barsVisible = !barsVisible },
+                    list[i], { zoomed = it }, onTap = { if (details) settle(false) else barsVisible = !barsVisible },
                     shown = if (current) ({ shown.value }) else ({ 1f }),
                     dragY = if (current) ({ dragY.value }) else ({ 0f }),
+                    details = if (current) ({ if (openUp() > 0f) (up.value / openUp()).coerceIn(0f, 1f) else 0f }) else ({ 0f }),
                     fly = fly,
                 )
             }
             // the bars step aside while the photo moves
             val still by remember { derivedStateOf { shown.value == 1f && dragY.value == 0f && !closing } }
             ViewerChrome(
-                visible = barsVisible && still,
+                visible = (barsVisible || details) && still,
+                bottom = !details,
                 title = DateTimeFormatter.ofPattern(dayPattern).format(zone),
                 subtitle = DateTimeFormatter.ofPattern("HH:mm").format(zone),
                 favorite = favorite,
@@ -280,7 +321,7 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
                         consent.launch(IntentSenderRequest.Builder(ask.intentSender).build())
                     }
                 },
-                onInfo = { details = true },
+                onInfo = { settle(true) },
                 onDelete = {
                     trashing = tile.id
                     val ask = MediaStore.createTrashRequest(context.contentResolver, listOf(tile.uri), true)
@@ -293,9 +334,23 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
                     add(MenuItem(R.drawable.ic_move, "Move to album", dividerBefore = true) { moving = true })
                 },
             )
+            // the panel is as tall as its open spot and slides up from under the bottom edge
+            if (details) Box(
+                Modifier.fillMaxWidth().height(with(LocalDensity.current) { openUp().toDp() })
+                    .graphicsLayer { translationY = view.height - up.value }
+                    .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+                    .background(viewerBg)
+                    .pointerInput(Unit) {}, // a tap on the panel's empty space must not reach the photo under it
+            ) {
+                DetailsPanel(
+                    tile,
+                    Modifier.wrapContentHeight(Alignment.Top, unbounded = true)
+                        .onSizeChanged { listH = it.height.toFloat() }
+                        .graphicsLayer { translationY = -listY.value },
+                )
+            }
         }
     }
-    if (details) DetailsSheet(tile, onDismiss = { details = false })
     if (moving) MoveToAlbumSheet(tile, onDismiss = { moving = false }, onMove = { path -> moving = false; applyMove(tile.id, path) })
 }
 
@@ -317,6 +372,7 @@ fun ViewerChrome(
     onInfo: () -> Unit,
     onDelete: () -> Unit,
     menuItems: List<MenuItem> = emptyList(),
+    bottom: Boolean = true, // false: the details panel is up and covers the bottom bar
 ) {
     var menu by remember { mutableStateOf(false) }
     Box(Modifier.fillMaxSize()) {
@@ -338,7 +394,7 @@ fun ViewerChrome(
                 }
             }
         }
-        AnimatedVisibility(visible, Modifier.align(Alignment.BottomCenter), enter = fadeIn(tween(barsFadeMillis)), exit = fadeOut(tween(barsFadeMillis))) {
+        AnimatedVisibility(visible && bottom, Modifier.align(Alignment.BottomCenter), enter = fadeIn(tween(barsFadeMillis)), exit = fadeOut(tween(barsFadeMillis))) {
             Row(
                 Modifier.fillMaxWidth()
                     .background(Brush.verticalGradient(listOf(Color.Transparent, viewerBg.copy(alpha = 0.62f))))
@@ -408,6 +464,7 @@ fun ViewerPage(
     onTap: () -> Unit = {},
     shown: () -> Float = { 1f },
     dragY: () -> Float = { 0f },
+    details: () -> Float = { 0f },
     fly: Boolean = false,
 ) {
     val context = LocalContext.current
@@ -435,17 +492,26 @@ fun ViewerPage(
     LaunchedEffect(image, box.value) { fit.value = fitSize(image, box.value) }
     // snapshotFlow, not LaunchedEffect(zoom): reporting must not recompose the viewer on every pinch event
     LaunchedEffect(Unit) { snapshotFlow { zoom.floatValue > 1f }.distinctUntilChanged().collect(onZoomed) }
+    // The details square shows the photo at 1x: opening them drops a zoom, and pinching waits until they close
+    val detailsNow by rememberUpdatedState(details)
     fun transform(zoomChange: Float, panChange: Offset) {
-        val next = (zoom.floatValue * zoomChange).coerceIn(1f, maxZoom)
+        val next = if (detailsNow() > 0f) 1f else (zoom.floatValue * zoomChange).coerceIn(1f, maxZoom)
         val roomX = ((fit.value.width * next - box.value.width) / 2f).coerceAtLeast(0f)
         val roomY = ((fit.value.height * next - box.value.height) / 2f).coerceAtLeast(0f)
         pan.value = if (next == 1f) Offset.Zero
         else Offset((pan.value.x + panChange.x).coerceIn(-roomX, roomX), (pan.value.y + panChange.y).coerceIn(-roomY, roomY))
         zoom.floatValue = next
     }
+    LaunchedEffect(Unit) { snapshotFlow { detailsNow() > 0f }.collect { if (it) transform(1f, Offset.Zero) } }
     var page by remember { mutableStateOf<LayoutCoordinates?>(null) }
     // The photo's rect and clip right now. No clip: no tile to fly from, so it fades with [shown].
     fun motion(fit: Size, screen: Size): Pair<Rect, Rect?> {
+        // details out: the photo moves into a full-width square at the top, zoomed to fill it
+        val d = details()
+        if (d > 0f) {
+            val square = Rect(0f, 0f, screen.width, screen.width)
+            return photoMotion(fit, screen, square, square, 1f - d, 0f)
+        }
         val spot = tileSpots[tile.id]?.takeIf { fly && it.isAttached }
         val here = page?.takeIf { it.isAttached }
         // localBoundingBoxOf throws when the two nodes do not share a hierarchy. The tile can leave the
@@ -470,7 +536,8 @@ fun ViewerPage(
                 val fit = fitSize(image, IntSize(size.width.toInt(), size.height.toInt()))
                 if (fit.width == 0f) { alpha = shown(); return@graphicsLayer }
                 val (rect, clip) = motion(fit, size)
-                alpha = if (clip != null) 1f else shown()
+                // a clip means the photo flies from its tile, unless the details made it (then it fades on close)
+                alpha = if (clip != null && details() == 0f) 1f else shown()
                 scaleX = rect.width / fit.width
                 scaleY = scaleX
                 translationX = rect.center.x - size.width / 2f

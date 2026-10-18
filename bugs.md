@@ -400,3 +400,11 @@ Steps:
 1. Open a photo, swipe through a few. Crash is a race, so not every time.
 
 2026-10-18: fixed. `motion()` now guards the two `localBoundingBoxOf` calls (`Viewer.kt`, `bounds()` helper) and falls back to the no-tile fade path when the tile's node is gone: no fly-from-tile, no crash.
+
+## Flaky layout test: library_pauseResume_progressBarKeepsLength
+
+Failed once in a full `make layout` run (2026-10-18, no message), passed when run alone. Another session was driving the same emulator at the time, which may be the cause.
+
+Steps: `make layout`; if it fails, rerun the one test with `-Pandroid.testInstrumentationRunnerArguments.class=app.memoria.LayoutJumpTest#library_pauseResume_progressBarKeepsLength`.
+
+Fix ideas: run device tests only when no other session uses the emulator; if it fails again alone, wait for idle before reading the bar.

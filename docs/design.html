@@ -193,9 +193,11 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .phone.viewer > .actions { margin-top: auto; }
 /* Viewer, tapped: the bars and the system bars hide, so the whole photo shows with nothing over it */
 .viewer-full { position: absolute; inset: 0; }
-.crop { flex: none; height: 270px; position: relative; }
-.crop .vbar { position: absolute; inset: 0 0 auto; color: #fff; }
-.info { position: relative; margin-top: -28px; padding-bottom: 20px; border-radius: 28px 28px 0 0; background: var(--bg); color: var(--fg); }
+.photo-top { flex: none; height: 360px; position: relative; }
+.photo-top::before { content: ""; position: absolute; inset: 0 0 auto; height: 120px; background: linear-gradient(rgba(18, 14, 10, .62), transparent); }
+.photo-top > * { position: relative; }
+.info { flex: 1; min-height: 0; margin-top: -28px; border-radius: 28px 28px 0 0; position: relative; overflow-y: auto; scrollbar-width: none; padding-bottom: 20px; --bg: var(--viewer); --fg: var(--on-viewer); --muted: rgba(244, 236, 225, .62); background: var(--bg); color: var(--fg); }
+.info::-webkit-scrollbar { display: none; }
 .grab { width: 32px; height: 4px; margin: 10px auto 0; border-radius: 2px; background: var(--muted); opacity: .4; }
 .date { display: grid; padding: 12px 16px 0; }
 .date b { font: 700 20px/1.25 var(--display); }
@@ -552,34 +554,32 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
     </figure>
     <figure>
       <div class="phone dark">
-        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
-        <div class="scroll">
-          <div class="crop" data-shot>
-            <div class="vbar">
-              <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
-              <div class="when"></div>
-              <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
-            </div>
-          </div>
-          <div class="info">
-            <div class="grab"></div>
-            <div class="date"><b>Saturday, 11 October 2026</b><span>14:32 · GMT+1</span></div>
-  
-            <div class="head"><h3>People</h3><span class="hint">Tap a face to fix it</span></div>
-            <div class="row" id="viewer-people"></div>
-  
-            <div class="head"><h3>Place</h3></div>
-            <div class="line"><svg class="i"><use href="#i-pin"/></svg><div><b>Riverton</b></div></div>
-  
-            <div class="head"><h3>Details</h3></div>
-            <div class="line"><svg class="i"><use href="#i-camera"/></svg><div><b>Pixel 8</b><span>f/1.6 · 1/120 s · ISO 100 · 23 mm</span></div></div>
-            <div class="line"><svg class="i"><use href="#i-photo"/></svg><div><b>IMG_20261011_143212.jpg</b><span>12.6 MP · 4096 × 3072 · 3.8 MB</span></div></div>
-            <div class="line"><svg class="i"><use href="#i-folder"/></svg><div><b>Camera</b><span>DCIM/Camera</span></div></div>
+        <div class="photo-top" data-shot>
+          <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+          <div class="vbar">
+            <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+            <div class="when">Sat, 11 Oct<span>14:32</span></div>
+            <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
           </div>
         </div>
-        <div class="gesture light"><div class="handle"></div></div>
+        <div class="info">
+          <div class="grab"></div>
+          <div class="date"><b>Saturday, 11 October 2026</b><span>14:32 · GMT+1</span></div>
+
+          <div class="head"><h3>People</h3><span class="hint">Tap a face to fix it</span></div>
+          <div class="row" id="viewer-people"></div>
+
+          <div class="head"><h3>Place</h3></div>
+          <div class="line"><svg class="i"><use href="#i-pin"/></svg><div><b>Riverton</b></div></div>
+
+          <div class="head"><h3>Details</h3></div>
+          <div class="line"><svg class="i"><use href="#i-camera"/></svg><div><b>Pixel 8</b><span>f/1.6 · 1/120 s · ISO 100 · 23 mm</span></div></div>
+          <div class="line"><svg class="i"><use href="#i-photo"/></svg><div><b>IMG_20261011_143212.jpg</b><span>12.6 MP · 4096 × 3072 · 3.8 MB</span></div></div>
+          <div class="line"><svg class="i"><use href="#i-folder"/></svg><div><b>Camera</b><span>DCIM/Camera</span></div></div>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Viewer, swiped up: people (only if the photo has faces, left to right), place (only if the photo has GPS: the nearest town, never coordinates), details. A named face or a face with no person opens Who is this?; "Add name" on an unnamed person's face opens Name this person (names the whole person)</figcaption>
+      <figcaption>Viewer, swiped up: the photo moves to the top as a full-width square, zoomed to fill it, and only the panel's rounded edge covers it. The details sit under it on the viewer's black, with rounded top corners that overlap the photo a little, and scroll inside the space left when they are longer. People (only if the photo has faces, left to right), place (only if the photo has GPS: the nearest town, never coordinates), details. A named face or a face with no person opens Who is this?; "Add name" on an unnamed person's face opens Name this person (names the whole person)</figcaption>
     </figure>
   </div>
 </section>

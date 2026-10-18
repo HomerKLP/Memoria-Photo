@@ -277,7 +277,7 @@ fun FavoritesLoading() = MemoriaTheme { Surface { FavoritesContent(null) } }
 @Preview(widthDp = 360, heightDp = 760)
 @Composable
 fun DetailsView() = MemoriaTheme {
-    Surface {
+    Surface(color = viewerBg) {
         DetailsContent(
             tile = Tile(1, android.net.Uri.parse("content://media/external/images/media/1"), 1_700_000_000_000L, null),
             info = PhotoInfo("IMG_20261011_143201.jpg", "DCIM/Camera", 3_500_000, 4032, 3024, "Mountain View", "Pixel 9", "f/1.8 · 1/120 s · ISO 64 · 24 mm"),

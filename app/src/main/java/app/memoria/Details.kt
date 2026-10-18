@@ -4,9 +4,11 @@ import android.content.Context
 import android.media.ExifInterface
 import android.media.MediaMetadataRetriever
 import android.provider.MediaStore
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,12 +18,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -47,7 +50,7 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import kotlin.math.abs
 
-/** What the details sheet shows. [place] is the nearest town; coordinates are never shown. */
+/** What the details panel shows. [place] is the nearest town; coordinates are never shown. */
 class PhotoInfo(
     val name: String,
     val folder: String,
@@ -136,19 +139,17 @@ internal fun zoneLabel(offset: ZoneOffset): String {
 }
 
 /**
- * Viewer details, per docs/design.html (viewer swiped up): date, people, place, details.
+ * Viewer details, per docs/design.html "Viewer, swiped up": the panel under the photo.
  * A face of a named person or of no one opens Who is this?; a face of an unnamed person ("Add name") names that person.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DetailsSheet(tile: Tile, onDismiss: () -> Unit) {
+fun DetailsPanel(tile: Tile, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val db = remember { Db.get(context) }
     var info by remember(tile.id) { mutableStateOf<PhotoInfo?>(null) }
     var faces by remember(tile.id) { mutableStateOf(emptyList<FaceVec>()) }
     var people by remember(tile.id) { mutableStateOf(emptyList<Person>()) }
-    var loaded by remember(tile.id) { mutableStateOf(false) }
     var fixing by remember(tile.id) { mutableStateOf<FaceVec?>(null) }
     var reload by remember { mutableIntStateOf(0) }
     LaunchedEffect(tile.id, reload) {
@@ -163,7 +164,6 @@ fun DetailsSheet(tile: Tile, onDismiss: () -> Unit) {
                     .sortedWith(compareBy({ it.name.isNullOrBlank() }, { -it.photos })),
             )
         }.let { (i, f, p) -> info = i; faces = f; people = p }
-        loaded = true
     }
     // closes the sheet at once, then writes and reloads the row
     val fix: (suspend () -> Unit) -> Unit = { write -> fixing = null; scope.launch { withContext(Dispatchers.IO) { write() }; reload++ } }
@@ -178,14 +178,10 @@ fun DetailsSheet(tile: Tile, onDismiss: () -> Unit) {
             onRemove = p?.let { { fix { removeTag(db, f, it) } } },
         ) { name -> fix { newPerson(db, f, p, name) } }
     }
-    // open only once loaded: a sheet that grows after it opens jumps
-    if (!loaded) return
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.background) {
-        DetailsContent(tile, info, faces, people, onFixFace = { fixing = it })
-    }
+    DetailsContent(tile, info, faces, people, onFixFace = { fixing = it }, modifier)
 }
 
-/** The sheet's body, split from the load and the sheet so previews and layout tests can render it. */
+/** The panel's body, split from the load so previews and layout tests can render it. Light text for the viewer's black. */
 @Composable
 fun DetailsContent(
     tile: Tile,
@@ -193,22 +189,26 @@ fun DetailsContent(
     faces: List<FaceVec>,
     people: List<Person>,
     onFixFace: (FaceVec) -> Unit = {},
+    modifier: Modifier = Modifier,
 ) {
     val time = Instant.ofEpochMilli(tile.date).atZone(ZoneId.systemDefault())
-    Column(Modifier.navigationBarsPadding().padding(bottom = 24.dp)) {
+    CompositionLocalProvider(LocalContentColor provides onViewer) { Column(modifier.navigationBarsPadding().padding(bottom = 24.dp)) {
+        Box(
+            Modifier.padding(top = 10.dp).size(32.dp, 4.dp).align(Alignment.CenterHorizontally)
+                .background(detailsMuted.copy(alpha = 0.4f), RoundedCornerShape(2.dp)),
+        )
         Text(
             DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy").format(time),
             style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp),
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp),
         )
         Text(
             "${DateTimeFormatter.ofPattern("HH:mm").format(time)} · ${zoneLabel(time.offset)}",
-            color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp,
+            color = detailsMuted, fontSize = 13.sp,
             modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 2.dp),
         )
         if (faces.isNotEmpty()) {
             Section("People", "Tap a face to fix it")
-            val muted = MaterialTheme.colorScheme.onSurfaceVariant
             Row(
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -217,7 +217,7 @@ fun DetailsContent(
                     val name = people.firstOrNull { it.id == f.personId }?.name?.takeIf { it.isNotBlank() }
                     Column(Modifier.width(72.dp).clickable { onFixFace(f) }, horizontalAlignment = Alignment.CenterHorizontally) {
                         FaceImage(f, Modifier.size(72.dp).clip(CircleShape))
-                        Text(name ?: "Add name", Modifier.padding(top = 6.dp), fontSize = 13.sp, color = if (name == null) muted else Color.Unspecified, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(name ?: "Add name", Modifier.padding(top = 6.dp), fontSize = 13.sp, color = if (name == null) detailsMuted else Color.Unspecified, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
@@ -239,14 +239,16 @@ fun DetailsContent(
             }
             if (i.folder.isNotEmpty()) Line(R.drawable.ic_folder, i.folder.substringAfterLast('/'), i.folder)
         }
-    }
+    } }
 }
+
+private val detailsMuted = onViewer.copy(alpha = 0.62f)
 
 @Composable
 private fun Section(title: String, hint: String? = null) {
     Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 22.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
-        if (hint != null) Text(hint, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (hint != null) Text(hint, fontSize = 12.sp, color = detailsMuted)
     }
 }
 
@@ -257,10 +259,10 @@ private fun Line(icon: Int, title: String, subtitle: String? = null) {
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        Icon(painterResource(icon), null, Modifier.padding(top = 2.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Icon(painterResource(icon), null, Modifier.padding(top = 2.dp), tint = detailsMuted)
         Column {
             Text(title)
-            subtitle?.takeIf { it.isNotEmpty() }?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp) }
+            subtitle?.takeIf { it.isNotEmpty() }?.let { Text(it, color = detailsMuted, fontSize = 13.sp) }
         }
     }
 }
