@@ -361,6 +361,21 @@ point stays under the finger, clamped to the photo's pan room. Zooming back out
 5 unit tests in `ViewerFitTest` (center, right, clamped near an edge, zoom-out,
 and that the tapped point lands back under the finger).
 
+## Viewer: stutter when swiping to neighbours fast
+
+Swiping to the next/previous photo in the viewer stutters, but only on a fast
+swipe. A slow swipe feels fine.
+
+Steps:
+1. Open a photo in the viewer.
+2. Swipe to a neighbour quickly, a few times in a row.
+
+Fix ideas:
+- The two neighbour pages decode at the same time as the open one; on a fast
+  swipe the next page may not be ready and starts its decode during the
+  animation. Decode ahead / keep a small window decoded.
+- Check whether the page gets built during the fling (`Viewer.kt` `HorizontalPager`).
+
 # Known issues and bad patterns
 
 Found while reading the code, not seen on the phone yet. No steps, just the risk.

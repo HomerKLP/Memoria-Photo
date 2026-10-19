@@ -495,28 +495,35 @@ fun FavoritesContent(
         }
         val grid = rememberLazyGridState()
         FollowViewer(grid, f?.all.orEmpty())
-        LazyVerticalGrid(
-            GridCells.Fixed(3), Modifier.weight(1f).testTag("favoritesGrid"), state = grid,
-            horizontalArrangement = Arrangement.spacedBy(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp),
-        ) {
-            f?.months?.forEach { (month, tiles) ->
-                stickyHeader(key = month) {
-                    // background: the pinned month covers the tiles passing under it
-                    Text(
-                        month, Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(start = 16.dp, top = 20.dp, bottom = 10.dp),
-                        style = MaterialTheme.typography.titleLarge,
-                    )
-                }
-                items(tiles, key = { it.id }) { t ->
-                    val on = sel != null && t.id in sel
-                    TileImage(
-                        t,
-                        Modifier.combinedClickable(
-                            onClick = { if (sel == null) onOpen(f.all, t) else pick.set(if (on) sel - t.id else sel + t.id) },
-                            onLongClick = { pick.set(sel.orEmpty() + t.id) },
-                        ).testTag("tile-${t.id}"),
-                        selecting = sel != null, selected = on, heart = false,
-                    )
+        // one (grid item index, month name) per month heading, so the slider can jump to it
+        val months = remember(f) {
+            var i = 0
+            f?.months?.map { (m, tiles) -> (i to m).also { i += 1 + tiles.size } }.orEmpty()
+        }
+        MonthSliderBox(grid = grid, months = months, enabled = sel == null, top = monthHeadingHeight(below = 10.dp), modifier = Modifier.weight(1f)) {
+            LazyVerticalGrid(
+                GridCells.Fixed(3), Modifier.testTag("favoritesGrid"), state = grid,
+                horizontalArrangement = Arrangement.spacedBy(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                f?.months?.forEach { (month, tiles) ->
+                    stickyHeader(key = month) {
+                        // background: the pinned month covers the tiles passing under it
+                        Text(
+                            month, Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(start = 16.dp, top = 20.dp, bottom = 10.dp),
+                            style = MaterialTheme.typography.titleLarge,
+                        )
+                    }
+                    items(tiles, key = { it.id }) { t ->
+                        val on = sel != null && t.id in sel
+                        TileImage(
+                            t,
+                            Modifier.combinedClickable(
+                                onClick = { if (sel == null) onOpen(f.all, t) else pick.set(if (on) sel - t.id else sel + t.id) },
+                                onLongClick = { pick.set(sel.orEmpty() + t.id) },
+                            ).testTag("tile-${t.id}"),
+                            selecting = sel != null, selected = on, heart = false,
+                        )
+                    }
                 }
             }
         }

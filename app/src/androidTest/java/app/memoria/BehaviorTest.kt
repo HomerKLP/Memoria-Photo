@@ -706,6 +706,38 @@ class BehaviorTest {
         rule.onNodeWithTag("monthRail").assertExists()
     }
 
+    /** Videos: the month slider shows once the months scroll by. */
+    @Test fun videos_scrollingMonths_showsTheMonthSlider() {
+        val months = linkedMapOf<String, List<Tile>>()
+        for ((m, name) in listOf("October 2026", "September 2026", "August 2026").withIndex()) {
+            months[name] = (1L..20L).map { tile(m * 100L + it) }
+        }
+        val all = months.values.flatten()
+        rule.setContent { MemoriaTheme { Surface { VideosContent(Videos(months, all, 0L)) } } }
+        rule.mainClock.autoAdvance = false
+
+        rule.onNodeWithTag("monthRail").assertDoesNotExist()
+        rule.onNodeWithTag("videosGrid").performScrollToIndex(30)
+        rule.mainClock.advanceTimeBy(500)
+        rule.onNodeWithTag("monthRail").assertExists()
+    }
+
+    /** Favorites: the month slider shows once the months scroll by. */
+    @Test fun favorites_scrollingMonths_showsTheMonthSlider() {
+        val months = linkedMapOf<String, List<Tile>>()
+        for ((m, name) in listOf("October 2026", "September 2026", "August 2026").withIndex()) {
+            months[name] = (1L..20L).map { tile(m * 100L + it) }
+        }
+        val all = months.values.flatten()
+        rule.setContent { MemoriaTheme { Surface { FavoritesContent(Favorites(months, all)) } } }
+        rule.mainClock.autoAdvance = false
+
+        rule.onNodeWithTag("monthRail").assertDoesNotExist()
+        rule.onNodeWithTag("favoritesGrid").performScrollToIndex(30)
+        rule.mainClock.advanceTimeBy(500)
+        rule.onNodeWithTag("monthRail").assertExists()
+    }
+
     @Test fun person_selectAll_picksEveryPhoto() {
         val photos = (101L..106L).map { tile(it) }
         var ids by mutableStateOf<Set<Long>?>(setOf(101L))
