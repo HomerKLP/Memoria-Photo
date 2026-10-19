@@ -439,12 +439,21 @@ Fix ideas: run device tests only when no other session uses the emulator; if it 
 Open again 2026-10-19. The 24 dp rail inset was built (`sliderPad`, `Ui.kt`), but the user did not
 like the mockup change and it was reverted. The rail also ran through the pinned month heading.
 Mockup now: `.slider` top 104 -> 150 px (under the heading), `z-index: 3` (a heading that scrolls
-past no longer cuts the rail), bottom unchanged. Approved by the user 2026-10-19. Still to do:
-match `sliderPad` and the top start in `Ui.kt` to the mockup. Place got the same slider (see `decisions.md`).
+past no longer cuts the rail), bottom unchanged. Approved by the user 2026-10-19. Fixed in code the
+same day (`Ui.kt`): `sliderPad` 10 dp, box ends 33 dp above the grid's bottom, starts 3 dp under the
+pinned heading (`monthHeadingHeight`). Test: `monthSlider_rail_startsUnderPinnedHeading`. Checked on
+the phone (Photos). Place and Album use it too (see `decisions.md`).
+
+## Month slider knob stops above the rail's end at the bottom of a list
+
+Fixed 2026-10-19. The knob follows the first month on screen. At the end of a list the last months
+can be shorter than the screen, so the knob stayed a few ticks above the rail's bottom end (seen on
+the phone, album "Restored"). Now it goes to the last month once the grid can't scroll forward
+(`MonthSliderBox`, `Ui.kt`). Test: `monthSlider_atTheEnd_knobReachesTheRailBottom` (red before, green
+after).
 
 ## Month slider on a date-grouped list other than the timeline
 
 Fixed 2026-10-19 for Place: `MonthSliderBox` (`Ui.kt`) now holds the shared fade-in/out and drag
-state, so a second screen gets the slider with no copy. Album and Person are designed in the mockup
-(2026-10-19): both get month headings and the slider; code not built. Videos and Favorites need their
-mockup first; see `ROADMAP.md`.
+state, so a second screen gets the slider with no copy. Album and Person are built (2026-10-19): both
+get month headings and the slider. Videos and Favorites need their mockup first; see `ROADMAP.md`.

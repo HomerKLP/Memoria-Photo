@@ -628,6 +628,7 @@ fun PhotosContent(
             months = months,
             // always on for the timeline (Favorites has its own screen and no slider)
             enabled = !selecting,
+            top = monthHeadingHeight(below = 2.dp),
             modifier = Modifier.weight(1f),
         ) {
             FollowViewer(grid, photos)

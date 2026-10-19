@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -470,8 +471,11 @@ fun MonthSliderPreview() = MemoriaTheme {
                 visible = true,
                 onDragging = {},
                 onJump = {},
+                top = monthHeadingHeight(below = 2.dp),
             ) {
-                Box(Modifier.fillMaxSize().background(Color(0xFFE9D8B8)))
+                Box(Modifier.fillMaxSize().background(Color(0xFFE9D8B8))) {
+                    Text("September 2026", Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(start = 16.dp, top = 20.dp, bottom = 2.dp), style = MaterialTheme.typography.titleLarge)
+                }
             }
         }
     }

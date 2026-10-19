@@ -3,14 +3,23 @@ package app.memoria
 import android.net.Uri
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -21,9 +30,11 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -860,5 +871,87 @@ class BehaviorTest {
 
         rule.onNodeWithText("Resume").performClick()
         assertTrue(resume)
+    }
+
+    // --- Month slider --------------------------------------------------------------------------
+
+    /** Hidden at the top, fades in when the grid scrolls, and fades out 2 s after the scroll stops. */
+    @Test fun monthSlider_showsOnScroll_hidesTwoSecondsAfterStop() {
+        val months = (0 until 6).map { (it * 13) to "Month $it" } // a heading plus 12 tiles each
+        rule.setContent {
+            MemoriaTheme { Surface {
+                val grid = rememberLazyGridState()
+                MonthSliderBox(grid, months) {
+                    LazyVerticalGrid(GridCells.Fixed(4), Modifier.testTag("grid"), state = grid) {
+                        months.forEach { (_, m) ->
+                            stickyHeader { Text(m) }
+                            items(12) { Text("$m $it", Modifier.height(80.dp)) }
+                        }
+                    }
+                }
+            } }
+        }
+        rule.mainClock.autoAdvance = false
+
+        rule.onNodeWithTag("monthRail").assertDoesNotExist()
+        rule.onNodeWithTag("grid").performScrollToIndex(30)
+        rule.mainClock.advanceTimeBy(500)
+        rule.onNodeWithTag("monthRail").assertExists()
+        rule.mainClock.advanceTimeBy(1000) // 1.5 s after the stop: still there
+        rule.onNodeWithTag("monthRail").assertExists()
+        rule.mainClock.advanceTimeBy(1200) // 2.7 s: the 2 s wait and the fade are over
+        rule.onNodeWithTag("monthRail").assertDoesNotExist()
+    }
+
+    /** A header above the months (Person): resting inside it keeps the slider hidden; it shows once the months have started. */
+    @Test fun monthSlider_headerAbove_hiddenUntilTheMonthsStart() {
+        val months = (0 until 6).map { (3 + it * 13) to "Month $it" } // 3 header items, then a heading plus 12 tiles each
+        rule.setContent {
+            MemoriaTheme { Surface {
+                val grid = rememberLazyGridState()
+                MonthSliderBox(grid, months) {
+                    LazyVerticalGrid(GridCells.Fixed(4), Modifier.testTag("grid"), state = grid) {
+                        items(3, span = { GridItemSpan(maxLineSpan) }) { Text("header $it", Modifier.height(80.dp)) }
+                        months.forEach { (_, m) ->
+                            stickyHeader { Text(m) }
+                            items(12) { Text("$m $it", Modifier.height(80.dp)) }
+                        }
+                    }
+                }
+            } }
+        }
+        rule.mainClock.autoAdvance = false
+
+        rule.onNodeWithTag("grid").performScrollToIndex(2)
+        rule.mainClock.advanceTimeBy(500)
+        rule.onNodeWithTag("monthRail").assertDoesNotExist()
+        rule.onNodeWithTag("grid").performScrollToIndex(20)
+        rule.mainClock.advanceTimeBy(500)
+        rule.onNodeWithTag("monthRail").assertExists()
+    }
+
+    /** At the end of the list the knob sits on the rail's bottom end, even when the last months are shorter than the screen. */
+    @Test fun monthSlider_atTheEnd_knobReachesTheRailBottom() {
+        val months = (0 until 6).map { (it * 13) to "Month $it" } // a heading plus 12 tiles each
+        rule.setContent {
+            MemoriaTheme { Surface {
+                val grid = rememberLazyGridState()
+                MonthSliderBox(grid, months) {
+                    LazyVerticalGrid(GridCells.Fixed(4), Modifier.testTag("grid"), state = grid) {
+                        months.forEach { (_, m) ->
+                            stickyHeader { Text(m) }
+                            items(12) { Text("$m $it", Modifier.height(80.dp)) }
+                        }
+                    }
+                }
+            } }
+        }
+        rule.mainClock.autoAdvance = false
+
+        rule.onNodeWithTag("grid").performScrollToIndex(77)
+        rule.mainClock.advanceTimeBy(500)
+        val rail = rule.onNodeWithTag("monthRail").getUnclippedBoundsInRoot()
+        val knob = rule.onNodeWithTag("monthKnob").getUnclippedBoundsInRoot()
+        assertEquals(rail.bottom.value, (knob.top.value + knob.bottom.value) / 2, 1f)
     }
 }
