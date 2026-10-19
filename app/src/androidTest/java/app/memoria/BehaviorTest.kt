@@ -40,6 +40,7 @@ import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -944,12 +945,64 @@ class BehaviorTest {
         assertTrue(trash)
     }
 
-    @Test fun library_devTools_fires() {
+    @Test fun settings_devTools_fires() {
         var dev = false
-        rule.setContent { MemoriaTheme { Surface { LibraryContent(library, onDev = { dev = true }) } } }
+        rule.setContent { MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", onDev = { dev = true }) } } }
 
         rule.onNodeWithText("Dev tools").performScrollTo().performClick()
         assertTrue(dev)
+    }
+
+    @Test fun settings_withoutOnDev_hasNoDeveloperSection() {
+        rule.setContent { MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1") } } }
+
+        rule.onNodeWithText("Developer").assertDoesNotExist()
+        rule.onNodeWithText("Dev tools").assertDoesNotExist()
+    }
+
+    @Test fun devTools_rows_fireTheirCallbacks() {
+        var cpu = false
+        var npu = false
+        var folder = false
+        var back = false
+        rule.setContent {
+            MemoriaTheme { Surface {
+                DevToolsContent(
+                    busy = false, numbers = null, log = "Index SUCCEEDED",
+                    onBack = { back = true }, onRunCpu = { cpu = true }, onRunNpu = { npu = true }, onIndexTest = { folder = true },
+                )
+            } }
+        }
+
+        rule.onNodeWithText("Run on CPU").performClick()
+        assertTrue(cpu)
+        rule.onNodeWithText("Run on NPU").performClick()
+        assertTrue(npu)
+        rule.onNodeWithText("Index test folder").performClick()
+        assertTrue(folder)
+        rule.onNodeWithContentDescription("Back").performClick()
+        assertTrue(back)
+    }
+
+    @Test fun devTools_busy_runRowsDoNothing_indexStillWorks() {
+        var cpu = false
+        var npu = false
+        var folder = false
+        rule.setContent {
+            MemoriaTheme { Surface {
+                DevToolsContent(
+                    busy = true, numbers = null, log = "",
+                    onRunCpu = { cpu = true }, onRunNpu = { npu = true }, onIndexTest = { folder = true },
+                )
+            } }
+        }
+
+        rule.onNodeWithText("Run on CPU").performClick()
+        rule.onNodeWithText("Run on NPU").performClick()
+        assertFalse(cpu)
+        assertFalse(npu)
+        rule.onNodeWithText("Index test folder").performClick()
+        assertTrue(folder)
     }
 
     @Test fun library_indexPause_fires() {

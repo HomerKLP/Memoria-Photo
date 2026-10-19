@@ -17,8 +17,6 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -27,13 +25,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationItemIconPosition
@@ -48,6 +41,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -56,25 +50,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.work.WorkManager
+import androidx.work.WorkInfo
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -173,12 +163,12 @@ fun App(dir: File) {
         Box(if (viewing != null) Modifier.clearAndSetSemantics {} else Modifier) {
             when (screen) {
                 "dev" -> {
-                    BackHandler { screen = "library" }
-                    TestScreen(dir) { screen = "people" }
+                    BackHandler { screen = "settings" }
+                    TestScreen(dir) { screen = "settings" }
                 }
                 "settings" -> {
                     BackHandler { screen = "library" }
-                    SettingsScreen(onBack = { screen = "library" }, onHidden = { screen = "hidden" })
+                    SettingsScreen(onBack = { screen = "library" }, onHidden = { screen = "hidden" }, onDev = { screen = "dev" })
                 }
                 "hidden" -> {
                     val close = { tabs.removeState("hidden"); openPerson = null; screen = "settings" }
@@ -341,7 +331,6 @@ fun App(dir: File) {
                                 onOpenTrash = { screen = "trash" },
                                 onHelpRecognize = { recognizeFor = null; recognizeFrom = "library"; screen = "recognize" },
                                 onOpenSettings = { screen = "settings" },
-                                onDev = { screen = "dev" },
                             )
                         }
                     }
@@ -377,24 +366,20 @@ fun Shortcut(icon: Int, name: String, info: String, modifier: Modifier, onClick:
 
 /** Runs models from <app files>/models on photos in <app files>/test, writes results_cpu/npu.json. */
 @Composable
-fun TestScreen(dir: File, onPeople: () -> Unit) {
+fun TestScreen(dir: File, onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     var log by remember { mutableStateOf("Photos: ${dir.path}") }
     var preview by remember { mutableStateOf<Pair<Bitmap, List<Face>>?>(null) }
     var busy by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val dao = remember { Db.get(context).index() }
-    val kinds by remember { dao.kinds() }.collectAsState(emptyMap())
-    val faces by remember { dao.faceCount() }.collectAsState(0)
     val work by remember { WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow("index") }.collectAsState(emptyList())
-    var total by remember { mutableStateOf(0) }
-    var testOnly by remember { mutableStateOf(true) }
+    // read again when a run starts or ends, not on every photo
+    val running = work.any { it.state == WorkInfo.State.RUNNING }
+    val numbers by produceState<DevNumbers?>(null, running) { value = withContext(Dispatchers.IO) { devNumbers(dao) } }
     val photos = Manifest.permission.READ_MEDIA_IMAGES
     val index = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
-        if (granted[photos] == true) {
-            total = if (testOnly) testPhotos(context).size else libraryPhotoCount(context)
-            IndexControl.start(context, testOnly)
-        } else log += "\nNo photo permission"
+        if (granted[photos] == true) IndexControl.start(context, testOnly = true) else log += "\nNo photo permission"
     }
     val start = { npu: Boolean ->
         busy = true
@@ -407,44 +392,16 @@ fun TestScreen(dir: File, onPeople: () -> Unit) {
             busy = false
         }
     }
-    Column(Modifier.fillMaxSize().safeDrawingPadding().padding(16.dp).verticalScroll(rememberScrollState())) {
-        Row {
-            Button(onClick = { start(false) }, enabled = !busy) { Text("Run on CPU") }
-            Button(onClick = { start(true) }, enabled = !busy, modifier = Modifier.padding(start = 8.dp)) { Text("Run on NPU") }
-        }
-        Button(onClick = {
-            testOnly = true
-            index.launch(arrayOf(photos, Manifest.permission.POST_NOTIFICATIONS))
-        }) { Text("Index test folder") }
-        Button(onClick = {
-            testOnly = false
-            index.launch(arrayOf(photos, Manifest.permission.POST_NOTIFICATIONS))
-        }) { Text("Index all photos") }
-        Button(onClick = {
-            scope.launch(Dispatchers.IO) {
-                dao.clearFaces(); dao.clearAnswers(); dao.clearMerges(); dao.clearPhotos(); dao.deletePeople(); dao.clearPersonIds()
-                IndexProgress.finish(context)
-            }
-        }) { Text("Clear index") }
-        Row {
-            Button(onClick = { IndexControl.pause(context) }) { Text("Pause") }
-            Button(onClick = { IndexControl.resume(context) }, modifier = Modifier.padding(start = 8.dp)) { Text("Resume") }
-        }
-        Button(onClick = onPeople) { Text("People") }
-        Text("Index ${work.firstOrNull()?.state ?: "-"}: ${kinds.values.sum()} / $total photos $kinds, $faces faces")
-        preview?.let { (bitmap, faces) ->
-            Box(Modifier.padding(vertical = 8.dp)) {
-                Image(bitmap.asImageBitmap(), null, Modifier.fillMaxWidth())
-                Canvas(Modifier.matchParentSize()) {
-                    val s = size.width / bitmap.width
-                    for (f in faces) {
-                        drawRect(Color.Green, Offset(f.box[0] * s, f.box[1] * s), Size((f.box[2] - f.box[0]) * s, (f.box[3] - f.box[1]) * s), style = Stroke(3f))
-                    }
-                }
-            }
-        }
-        Text(log, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
-    }
+    DevToolsContent(
+        busy = busy,
+        numbers = numbers,
+        log = "Index ${work.firstOrNull()?.state ?: "-"}\n$log",
+        preview = preview,
+        onBack = onBack,
+        onRunCpu = { start(false) },
+        onRunNpu = { start(true) },
+        onIndexTest = { index.launch(arrayOf(photos, Manifest.permission.POST_NOTIFICATIONS)) },
+    )
 }
 
 fun runTest(dir: File, npu: Boolean, log: (String) -> Unit, show: (Pair<Bitmap, List<Face>>) -> Unit) {

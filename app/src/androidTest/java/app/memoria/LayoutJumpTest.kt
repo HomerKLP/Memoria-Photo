@@ -132,6 +132,26 @@ class LayoutJumpTest {
         assertSame("Export face data", exportBefore, rule.onNodeWithText("Export face data").top())
     }
 
+    @Test fun devTools_numbersLoaded_logStaysPut() {
+        var numbers by mutableStateOf<DevNumbers?>(null)
+        rule.setContent { MemoriaTheme { Surface { DevToolsContent(busy = false, numbers = numbers, log = "Index SUCCEEDED") } } }
+
+        val logBefore = rule.onNodeWithText("Log").top()
+        rule.runOnIdle { numbers = DevNumbers(1402, 180, 124, 2870, 685, 9, 33, 2, 1480, 226) }
+        assertSame("Log head", logBefore, rule.onNodeWithText("Log").top())
+    }
+
+    @Test fun devTools_busy_rowsStayPut() {
+        var busy by mutableStateOf(false)
+        rule.setContent { MemoriaTheme { Surface { DevToolsContent(busy = busy, numbers = null, log = "") } } }
+
+        val folderBefore = rule.onNodeWithText("Index test folder").top()
+        val cpuBefore = rule.onNodeWithText("Run on CPU").top()
+        rule.runOnIdle { busy = true }
+        assertSame("Index test folder", folderBefore, rule.onNodeWithText("Index test folder").top())
+        assertSame("Run on CPU", cpuBefore, rule.onNodeWithText("Run on CPU").top())
+    }
+
     @Test fun library_emptyToPeople_peopleRowStaysSameHeight() {
         var data by mutableStateOf(library(people = emptyList()))
         rule.setContent { MemoriaTheme { Surface { LibraryContent(data) } } }

@@ -270,6 +270,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .set b { font-weight: 500; }
 .set div > span { color: var(--muted); font-size: 13px; }
 .set:last-child { margin-bottom: 16px; }
+.log { margin: 0 16px 16px; color: var(--muted); font: 11px/1.45 ui-monospace, Menlo, monospace; white-space: pre-wrap; word-break: break-all; }
 .switch { width: 52px; height: 32px; flex: none; border-radius: 16px; background: var(--accent); position: relative; }
 .switch::after { content: ""; position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; border-radius: 50%; background: #fff; }
 .switch.off { background: var(--surface); box-shadow: inset 0 0 0 2px var(--muted); }
@@ -399,7 +400,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 <header class="top">
   <h1>Memoria Photo</h1>
   <p class="lede">Light theme, Honey palette. Photos and faces are placeholders, names and places are made up.</p>
-  <nav class="toc"><a href="#page-photos">Photos</a><a href="#page-search">Search</a><a href="#page-viewer">Viewer</a><a href="#page-library">Library</a><a href="#page-albums">Albums</a><a href="#page-places">Places</a><a href="#page-people">People</a><a href="#page-settings">Settings</a><a href="#parts">Shared parts</a><a href="#app-icon">App icon</a></nav>
+  <nav class="toc"><a href="#page-photos">Photos</a><a href="#page-search">Search</a><a href="#page-viewer">Viewer</a><a href="#page-library">Library</a><a href="#favorites">Favorites</a><a href="#page-albums">Albums</a><a href="#page-places">Places</a><a href="#page-people">People</a><a href="#page-settings">Settings</a><a href="#devtools">Dev tools</a><a href="#parts">Shared parts</a><a href="#app-icon">App icon</a></nav>
 </header>
 
 <main>
@@ -1211,10 +1212,12 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="set"><svg class="i"><use href="#i-upload"/></svg><div><b>Import face data</b><span>From an export file</span></div></div>
           <div class="head"><h3>About</h3></div>
           <div class="set"><svg class="i"><use href="#i-info"/></svg><div><b>Memoria Photo 0.1</b><span>Open source, GPL-3.0 · Licenses</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
+          <div class="head"><h3>Developer</h3><span class="hint">Debug builds only</span></div>
+          <div class="set"><svg class="i"><use href="#i-settings"/></svg><div><b>Dev tools</b><span>Test the models, index the test folder</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Settings: opens from the gear on Library. Face search, hidden people, face data backup, about. With "Only while charging" on battery, the progress row reads "Waiting for charger · 412 of 1,706 photos" and keeps Pause</figcaption>
+      <figcaption>Settings: opens from the gear on Library. Face search, hidden people, face data backup, about. With "Only while charging" on battery, the progress row reads "Waiting for charger · 412 of 1,706 photos" and keeps Pause. The Developer section is last and only in debug builds; a release build has no such section</figcaption>
     </figure>
     <figure id="rescan">
       <div class="phone modal" id="rescan-phone">
@@ -1257,6 +1260,32 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <div class="gesture"><div class="handle"></div></div>
       </div>
       <figcaption>Hidden people, empty: no note and no grid, just the hint</figcaption>
+    </figure>
+    <figure id="devtools">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="title"><b>Dev tools</b><span>Debug builds only</span></div>
+        </div>
+        <div class="scroll">
+          <div class="head"><h3>Models</h3></div>
+          <div class="set"><svg class="i"><use href="#i-play"/></svg><div><b>Run on CPU</b><span>Time the models on the test photos</span></div></div>
+          <div class="set"><svg class="i"><use href="#i-bolt"/></svg><div><b>Run on NPU</b><span>Same photos, on the NPU</span></div></div>
+          <div class="head"><h3>Index</h3></div>
+          <div class="set"><svg class="i"><use href="#i-folder"/></svg><div><b>Index test folder</b><span>Pictures/MemoriaTest only</span></div></div>
+          <div class="head"><h3>Numbers</h3></div>
+          <div class="log">Photos  camera 1402 · other 180 · skip 124
+Faces   sure 2870 · unsure 685
+People  named 9 · unnamed 33 · hidden 2
+Places  with town 1480 · without 226</div>
+          <div class="head"><h3>Log</h3></div>
+          <div class="log">Index SUCCEEDED
+Photos: …/files/test</div>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Dev tools: opens from Settings > Developer, debug builds only. Only what no other screen does: the model speed test and indexing the test folder. Clear index, Index all photos, Pause / Resume and People are gone (Settings, auto-index and Library have them). Numbers are read-only text, always four lines (… while loading), so nothing moves when they fill in. The Run rows grey out while a run is going. The log and, after a run, the test photo with face boxes sit last, so they never move what is above</figcaption>
     </figure>
   </div>
 </section>
