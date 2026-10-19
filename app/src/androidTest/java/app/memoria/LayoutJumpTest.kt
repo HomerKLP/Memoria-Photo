@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationItemIconPosition
@@ -419,6 +420,33 @@ class LayoutJumpTest {
         assertSame("grid top", gridBefore, rule.onNodeWithTag("photosGrid").top())
         assertSame("day header", dayBefore, rule.onNodeWithText("Sat, 11 Oct").top())
         assertSame("day header height", headerBefore, rule.onNodeWithTag("dayHeader").height())
+    }
+
+    /** New photos arrive while the user is scrolled down: they land above, and the tile on screen stays put. */
+    @Test fun photos_newPhotosArriving_scrolledDown_keepsTilePut() {
+        val old = (1L..80L).map { tile(it) }
+        val oldItems: List<Any> = listOf(Header("m1", "October 2026", true), Header("d1", "Sat, 11 Oct", false)) + old
+        var items by mutableStateOf(oldItems)
+        val grid = LazyGridState()
+        rule.setContent { MemoriaTheme { Surface { PhotosContent(items, grid = grid) } } }
+
+        rule.onNodeWithTag("photosGrid").performScrollToIndex(40)
+        rule.waitForIdle()
+        val id = grid.layoutInfo.visibleItemsInfo.first { it.contentType == "tile" }.key as Long
+        val before = rule.onNodeWithTag("tile-$id").top()
+        rule.runOnIdle { items = listOf(Header("m1", "October 2026", true), Header("d2", "Sun, 12 Oct", false), tile(100), tile(101)) + oldItems.drop(1) }
+        assertSame("tile on screen", before, rule.onNodeWithTag("tile-$id").top())
+    }
+
+    /** New photos arrive while the grid is at the top (a new month too): they show, the grid does not stay on the old first month. */
+    @Test fun photos_newPhotosArriving_atTop_showsThem() {
+        val old: List<Any> = listOf(Header("m1", "October 2026", true), Header("d1", "Sat, 11 Oct", false)) + (1L..9L).map { tile(it) }
+        var items by mutableStateOf(old)
+        rule.setContent { MemoriaTheme { Surface { PhotosContent(items) } } }
+
+        rule.runOnIdle { items = listOf(Header("m2", "November 2026", true), Header("d2", "Sun, 2 Nov", false), tile(100)) + old }
+        rule.onNodeWithText("November 2026").assertIsDisplayed()
+        rule.onNodeWithTag("tile-100").assertIsDisplayed()
     }
 
     /** Photos select mode: the Select bar takes the tabs' place and must have exactly the same height. */

@@ -11,9 +11,12 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
+import android.database.ContentObserver
 import android.net.Uri
 import android.os.Bundle
 import android.os.CancellationSignal
+import android.os.Handler
+import android.os.Looper
 import android.provider.MediaStore
 import android.provider.MediaStore.Files.FileColumns
 import android.util.LruCache
@@ -404,7 +407,25 @@ fun PhotosScreen(
     val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted = media.all(::has) }
     LaunchedEffect(Unit) { if (!perms.all(::has)) ask.launch(perms) }
     val pick = rememberPick() // Favorites only, the timeline has its own select mode
-    val items by produceState(if (favoritesOnly) lastFavorites else lastTimeline, granted, reload, pick.changes) {
+    // New photos while the tab is open: reload once the burst of changes has been quiet for a second
+    var mediaChanges by remember { mutableIntStateOf(0) }
+    DisposableEffect(context) {
+        val handler = Handler(Looper.getMainLooper())
+        val bump = Runnable { mediaChanges++ }
+        val observer = object : ContentObserver(handler) {
+            override fun onChange(selfChange: Boolean) {
+                handler.removeCallbacks(bump)
+                handler.postDelayed(bump, 1000)
+            }
+        }
+        context.contentResolver.registerContentObserver(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, true, observer)
+        context.contentResolver.registerContentObserver(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, true, observer)
+        onDispose {
+            context.contentResolver.unregisterContentObserver(observer)
+            handler.removeCallbacks(bump)
+        }
+    }
+    val items by produceState(if (favoritesOnly) lastFavorites else lastTimeline, granted, reload, pick.changes, mediaChanges) {
         if (granted) value = withContext(Dispatchers.IO) { timeline(context, favoritesOnly) }
             .also { if (favoritesOnly) lastFavorites = it else lastTimeline = it }
     }
@@ -659,7 +680,7 @@ fun PhotosContent(
                         val day = dayTiles[x.key].orEmpty()
                         val all = selecting && day.isNotEmpty() && day.all { it.id in selectedIds }
                         // the circle is an overlay: the header keeps its height, so the photos under it never move
-                        Box(Modifier.fillMaxWidth().testTag("dayHeader")) {
+                        Box(Modifier.fillMaxWidth().testTag("dayHeader").animateItem()) {
                             Text(x.text, Modifier.padding(start = 16.dp, top = 12.dp, bottom = 6.dp), style = MaterialTheme.typography.titleSmall)
                             if (selecting) DayCircle(all, Modifier.align(Alignment.CenterEnd).padding(end = 16.dp)) {
                                 if (all) selection?.remove(day.map { it.id }) else selection?.addAll(day)
@@ -672,7 +693,7 @@ fun PhotosContent(
                             (if (tabs) Modifier.combinedClickable(
                                 onClick = { if (selecting) selection?.toggle(x) else onOpen(photos, x) },
                                 onLongClick = { selection?.start(x) },
-                            ) else Modifier.clickable { onOpen(photos, x) }).testTag("tile-${x.id}"),
+                            ) else Modifier.clickable { onOpen(photos, x) }).testTag("tile-${x.id}").animateItem(),
                             selecting = selecting,
                             selected = x.id in selectedIds,
                         )
