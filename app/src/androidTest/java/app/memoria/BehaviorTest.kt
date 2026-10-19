@@ -488,6 +488,14 @@ class BehaviorTest {
         assertTrue(next)
     }
 
+    @Test fun newAlbum_name_dropsSlashes() {
+        var name by mutableStateOf("")
+        rule.setContent { MemoriaTheme { Surface { NewAlbumContent(name, { name = it }, false, {}, {}) } } }
+
+        rule.onNode(hasSetTextAction()).performTextInput("a/b")
+        assertEquals("ab", name)
+    }
+
     @Test fun newAlbumPick_moveHereOffUntilPicked() {
         val selection = PhotoSelection()
         rule.setContent {

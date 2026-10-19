@@ -107,7 +107,8 @@ private fun canReadPhotos(context: Context): Boolean {
     return context.checkSelfPermission(Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED
 }
 
-private fun modelsReady(context: Context) = File(File(context.getExternalFilesDir(null), "models"), "detector.onnx").exists()
+private fun modelsReady(context: Context) =
+    listOf("detector", "recognizer", "quality").all { File(File(context.getExternalFilesDir(null), "models"), "$it.onnx").exists() }
 
 /** A run is going, queued or blocked. On any doubt (WorkManager throws) treat it as busy, so we never double-start. */
 private fun indexBusy(context: Context): Boolean = runCatching {
