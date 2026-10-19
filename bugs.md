@@ -436,11 +436,15 @@ Fix ideas: run device tests only when no other session uses the emulator; if it 
 
 ## Timeline month slider is taller than the mockup
 
-The Photos month slider looks a bit taller than the mockup. The slider fills the whole grid area (`fillMaxSize()` with a 10 dp pad, `Ui.kt` `MonthSlider`, given `Modifier.weight(1f)` in `Photos.kt`), while the mockup pins the rail between the bars (`docs/design.html`: `.slider { top: 104px; bottom: 92px }`). So the rail is longer and the knob travels farther than designed.
+Open again 2026-10-19. The 24 dp rail inset was built (`sliderPad`, `Ui.kt`), but the user did not
+like the mockup change and it was reverted. The rail also ran through the pinned month heading.
+Mockup now: `.slider` top 104 -> 150 px (under the heading), `z-index: 3` (a heading that scrolls
+past no longer cuts the rail), bottom unchanged. Approved by the user 2026-10-19. Still to do:
+match `sliderPad` and the top start in `Ui.kt` to the mockup. Place got the same slider (see `decisions.md`).
 
-Steps:
-1. Photos tab, scroll. Compare the rail with `docs/design.html` > "Timeline month slider".
+## Month slider on a date-grouped list other than the timeline
 
-Fix ideas:
-- Inset the slider to the mockup's bar-to-bar region (rail starts under the top bar, ends above the bottom bar) instead of the full content height. Likely cause; measure the bar heights first.
-- Same in the Favorites / Album / Person grids once they get the slider (see `ROADMAP.md`).
+Fixed 2026-10-19 for Place: `MonthSliderBox` (`Ui.kt`) now holds the shared fade-in/out and drag
+state, so a second screen gets the slider with no copy. Album and Person are designed in the mockup
+(2026-10-19): both get month headings and the slider; code not built. Videos and Favorites need their
+mockup first; see `ROADMAP.md`.
