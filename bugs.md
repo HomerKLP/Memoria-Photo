@@ -490,3 +490,19 @@ Steps:
 Fix ideas:
 - Pin the zone in the preview (UTC), then `make screenshots`.
 - Look for other previews that show a date or time.
+
+## Back from an opened screen stutters (Library)
+
+Going back from Albums, People, Places and the other screens opened from Library slides out with 2-5 slow frames.
+
+Steps:
+1. Release build, Library tab, tap a "See all".
+2. Press Back. Opening is smooth, back is not.
+
+Measured 2026-10-19 (release, `dumpsys gfxinfo`, 3 runs): open median 6 ms; back 90th percentile 32-42 ms, 2-5 janky frames of 18.
+
+Cause: opening a screen drops the tab from composition, so Back builds Library again and reloads people, albums and places while the slide runs (`MainActivity.kt` `App`, `LibraryScreen`).
+
+Fix ideas:
+- Keep the tab composed under the opened screen: the tab is always the base, the opened screen is an overlay (`AnimatedContent` on the opened screen only). Block touches on the overlay and hide the base from TalkBack.
+- Or skip the reload on return when the cached data is fresh.

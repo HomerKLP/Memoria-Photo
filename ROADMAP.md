@@ -6,19 +6,18 @@ Hardest part first, UI last. Phases are the order of work; Later and Ideas at th
 
 **Index upgrades:** a new index step (search labels, OCR, video towns) fills in only what an existing index is missing, like `recutThumbs` does for face pictures. Never re-index from scratch, so names, merges, hidden people, covers and answers stay.
 
-**Next step:** Phase 6 (design and UI polish) is current; Phase 2 (face pipeline) is paused and its index / grouping follow-ups wait until the UI is mostly finished. UI items to pick from: the UX pass list in Phase 6. Phase 1 leftovers (tuning limits, more Takeout parts) wait until the user asks.
-
-## Phase 1: face pipeline quality (done, leftovers later)
+**Next step:** Phase 6 (design and UI polish) is current; Phase 2 (face pipeline) is paused and its index / grouping follow-ups wait until the UI is mostly finished. UI items to pick from: the UX pass list in Phase 6.
+## Phase 1: face pipeline quality (done)
 Pick the best models on real photos before writing app code. Details: `docs/face-pipeline.md`.
 - [x] Python bench: `bench/bench.py` (detect, group).
 - [x] Test photos in `testdata/photos/` (Google Takeout part 1).
 - [x] Compare detectors: YOLOv5m-face 640 wins.
 - [x] Compare recognizers: AdaFace IR101 wins.
 - [x] Labeled set: Google Photos tags, `bench.py eval`.
-- [ ] Try LVFace if AdaFace/ArcFace are not good enough (not in UniFace).
-- [ ] Rerun eval with more Takeout parts (more people, more labels).
-- [ ] Tune quality cut for starting groups.
-- [ ] Check AdaFace weights license (YOLOv5-face is GPL-3.0).
+- [x] LVFace: skipped, AdaFace is good enough on all photos.
+- [x] Rerun eval with more Takeout parts (more people, more labels). Tested on all photos, good.
+- [x] Quality cut for starting groups: 0.4.
+- [x] AdaFace weights license: no license found, used as is (decision 2026-10-19).
 
 ## Phase 2: face pipeline on Android (paused, UI first)
 Paused while the UI comes first (Phase 6). The index and grouping follow-ups in this phase (small-decode shakedown, blurry face pictures, group/matching tuning, main face) get rechecked once the UI is mostly finished. Working items: see `## Phase 6`.
@@ -139,9 +138,9 @@ Goal: motion that feels finished, like a mature gallery app, before the first AP
 ## Phase 8: release
 Items marked **Important** must be done before the first public release. The Licenses screen (Phase 2) is one of them.
 - [x] GPL-3.0 LICENSE file.
-- [ ] **Important:** turn telemetry off. ONNX Runtime's Android package adds the INTERNET permission and a provider that starts a Microsoft telemetry client at launch (seen in the built APK, 2026-10-19; we never call `setTelemetry(false)`). Remove both in the manifest (`tools:node="remove"`) and call `setTelemetry(false)`. Then `aapt2 dump permissions` on the release APK must show no INTERNET. The OTA item below brings the permission back, scoped to the update check; the provider stays removed.
+- [x] **Important:** turn telemetry off. ONNX Runtime's Android package added the INTERNET permission and a provider that starts a Microsoft telemetry client at launch. Done 2026-10-19: both removed in the manifest (`tools:node="remove"`), and `ortEnv()` (`Faces.kt`) calls `setTelemetry(false)` at every place the app opens the environment. `aapt2 dump permissions` on the release APK shows no INTERNET, and the provider is gone. `setTelemetry(false)` is not run on a device yet: check the next index run. The OTA item below brings the permission back, scoped to the update check; the provider stays removed.
 - [ ] **Important:** release signing key. `make release` signs with Android's public debug key, so that APK must never be published. Make one release keystore (name `CN=Memoria Photo`, no real name), keep it and its passwords outside the repo, back it up in two places, and read both from environment variables in a `signingConfigs.release` block (`app/build.gradle.kts`). Write where it lives in `decisions.md` (not tracked). Never change the key later: users would have to uninstall and lose their face data. A phone with the debug-key build can't update to the release key for the same reason, so test the release APK on the emulator. Before every release, `apksigner verify --print-certs` must not say `Android Debug`.
-- [ ] **Important:** `README.md`. What the app is, the privacy promise, how to install the APK, how to build it, the license. The APK has no face models and the app has no internet, so say how to make them (`bench/fp16.py`) and push them to the phone, and which phones work (NPU libs for the Snapdragon 8 Elite only). Check each model's license first (Phase 1) and keep the models out of the release until "ship the models" (Phase 2) is decided.
+- [ ] **Important:** `README.md`. What the app is, the privacy promise, how to install the APK, how to build it, the license. The APK has no face models and the app has no internet, so say how to make them (`bench/fp16.py`) and push them to the phone, and which phones work (NPU libs for the Snapdragon 8 Elite only). Keep the models out of the release until "ship the models" (Phase 2) is decided.
 - [ ] **Important:** `android:allowBackup="false"` in the manifest. Without it Android's cloud backup may copy the face database to the user's Google account. Names and faces leave the phone only through our own Export.
 - [x] Dev tools moved to Settings > Developer, shown only in debug builds (`FLAG_DEBUGGABLE`), gone from release. Built 2026-10-19 to the mockup (`DevTools.kt`): Run on CPU / NPU, Index test folder, Numbers, Log. Library has no Dev tools button. Not checked on the phone.
 - [x] Disable the buttons that do nothing yet: Locked folder (Library), Folders to skip, Export / Import face data and Licenses (Settings). Done 2026-10-19: 38% opacity, not clickable (`Shortcut`, `SettingRow`); no mockup part, no tests (the user's call). Not checked on the phone. Other screens not scanned for taps with no action. Turn each back on when its screen is built.

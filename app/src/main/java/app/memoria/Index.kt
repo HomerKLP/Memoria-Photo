@@ -1,6 +1,5 @@
 package app.memoria
 
-import ai.onnxruntime.OrtEnvironment
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -366,7 +365,7 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         var count = 0
         var nextSave = start + 30_000_000_000L
         try {
-            FacePipeline(OrtEnvironment.getEnvironment(), File(models, "detector.onnx").path, File(models, "recognizer.onnx").path, File(models, "quality.onnx").path) { npuSession(OrtEnvironment.getEnvironment(), File(it), npuCache) }.use { pipeline ->
+            FacePipeline(ortEnv(), File(models, "detector.onnx").path, File(models, "recognizer.onnx").path, File(models, "quality.onnx").path) { npuSession(ortEnv(), File(it), npuCache) }.use { pipeline ->
                 Log.i("Memoria", "models loaded in ${(System.nanoTime() - start) / 1_000_000} ms")
                 for (photo in todo) {
                     if (isStopped) break
