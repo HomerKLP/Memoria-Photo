@@ -48,6 +48,7 @@ IJB-C TAR at FAR=1e-4 (higher is better).
 - Immich, the biggest open-source photo app, uses non-commercial InsightFace models (buffalo_l) by default.
 - Model files are separate from our GPL code and keep their own license note.
 - For private testing, license does not matter. Decide how to ship after the pick.
+- Checked 2026-10-19 (public GitHub pages only). The UniFace weights come from `yakhyo/adaface-onnx` (code MIT, exported from the official AdaFace weights, IR101 trained on WebFace12M) and `yakhyo/face-image-quality-assessment` (code MIT, exported from the official eDifFIQA weights). Neither page gives a license for the weights. The AdaFace repo (code MIT) gives none either. I found no official WebFace terms or eDifFIQA weights license online (face-benchmark.org would not load), so the weights are unconfirmed. Decision 2026-10-19: no license means free to use, for a non-commercial open-source app. Use as is.
 
 ### Best on paper
 - Detectors: on faces big enough to recognize (WIDER easy/medium) all candidates are within 1-2%. Paper leaders (TinaFace, multi-scale RetinaFace) win only on tiny faces and are too heavy for a phone. Bigger YOLOv5-face (l6, x6) are a bit better than m, not in UniFace.

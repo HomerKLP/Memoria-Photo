@@ -26,7 +26,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -84,7 +83,6 @@ fun LibraryScreen(
     onOpenTrash: () -> Unit,
     onHelpRecognize: () -> Unit,
     onOpenSettings: () -> Unit,
-    onDev: () -> Unit,
 ) {
     val context = LocalContext.current
     val dao = remember { Db.get(context).index() }
@@ -138,7 +136,6 @@ fun LibraryScreen(
         onOpenTrash = onOpenTrash,
         onHelpRecognize = onHelpRecognize,
         onOpenSettings = onOpenSettings,
-        onDev = onDev,
     )
 }
 
@@ -166,7 +163,6 @@ fun LibraryContent(
     onOpenTrash: () -> Unit = {},
     onHelpRecognize: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
-    onDev: () -> Unit = {},
 ) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -191,7 +187,6 @@ fun LibraryContent(
         PlaceRow(data?.places, onOpenPlace)
 
         Shortcuts(onOpenFavorites, onOpenVideos, onOpenTrash, data?.favorites ?: 0, data?.videos ?: 0, data?.trash ?: 0)
-        TextButton(onDev, Modifier.padding(start = 8.dp, bottom = 12.dp)) { Text("Dev tools") }
     }
 }
 
@@ -401,13 +396,13 @@ fun CoverTile(cover: Tile?, label: String, note: String, modifier: Modifier = Mo
 /** Favorites, Videos, Locked folder, Trash. */
 @Composable
 fun Shortcuts(onOpenFavorites: () -> Unit, onOpenVideos: () -> Unit, onOpenTrash: () -> Unit, favorites: Int, videos: Int, trash: Int) {
-    Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 28.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 28.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Shortcut(R.drawable.ic_favorite, "Favorites", favorites.toString(), Modifier.weight(1f), onOpenFavorites)
             Shortcut(R.drawable.ic_video, "Videos", videos.toString(), Modifier.weight(1f), onOpenVideos)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Shortcut(R.drawable.ic_lock, "Locked folder", "Private", Modifier.weight(1f)) {}
+            Shortcut(R.drawable.ic_lock, "Locked folder", "Private", Modifier.weight(1f), null) // not built yet
             Shortcut(R.drawable.ic_trash, "Trash", if (trash == 0) "Empty" else trash.toString(), Modifier.weight(1f), onOpenTrash)
         }
     }

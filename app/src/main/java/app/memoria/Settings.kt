@@ -1,6 +1,7 @@
 package app.memoria
 
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.net.Uri
 import android.os.PowerManager
 import android.provider.Settings
@@ -34,6 +35,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -46,8 +48,9 @@ import kotlinx.coroutines.withContext
 
 /** Settings from the Library gear. Folders to skip, backup and licenses wait for their design. */
 @Composable
-fun SettingsScreen(onBack: () -> Unit, onHidden: () -> Unit) {
+fun SettingsScreen(onBack: () -> Unit, onHidden: () -> Unit, onDev: () -> Unit) {
     val context = LocalContext.current
+    val debug = (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
     val dao = remember { Db.get(context).index() }
     val scope = rememberCoroutineScope()
     var reload by remember { mutableStateOf(0) }
@@ -79,6 +82,7 @@ fun SettingsScreen(onBack: () -> Unit, onHidden: () -> Unit) {
         onRescan = { rescan = true },
         onHidden = onHidden,
         skipped = remember { IndexProgress.skipped(context).size },
+        onDev = onDev.takeIf { debug },
     )
 
     if (rescan) AlertDialog(
@@ -119,6 +123,7 @@ fun SettingsContent(
     onRescan: () -> Unit = {},
     onHidden: () -> Unit = {},
     skipped: Int = 0,
+    onDev: (() -> Unit)? = null, // null: a release build, no Developer section
 ) {
     Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
         TopBar("Settings", null, onBack = onBack)
@@ -154,14 +159,18 @@ fun SettingsContent(
         SettingRow(R.drawable.ic_upload, "Import face data", "From an export file")
         SectionHead("About")
         SettingRow(R.drawable.ic_info, "Memoria Photo $version", "Open source, GPL-3.0 · Licenses") { Chevron() }
+        if (onDev != null) {
+            SectionHead("Developer", hint = "Debug builds only")
+            SettingRow(R.drawable.ic_settings, "Dev tools", "Test the models, index the test folder", onDev) { Chevron() }
+        }
     }
 }
 
-/** Mockup `.set`: icon, title, one muted line, then a switch or a chevron. No [onClick]: not built yet. */
+/** Mockup `.set`: icon, title, one muted line, then a switch or a chevron. No [onClick]: not built yet, greyed out. */
 @Composable
-private fun SettingRow(icon: Int, title: String, info: String, onClick: (() -> Unit)? = null, trailing: @Composable () -> Unit = {}) {
+fun SettingRow(icon: Int, title: String, info: String, onClick: (() -> Unit)? = null, trailing: @Composable () -> Unit = {}) {
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(enabled = onClick != null) { onClick?.invoke() }
+        Modifier.fillMaxWidth().alpha(if (onClick == null) 0.38f else 1f).heightIn(min = 56.dp).clickable(enabled = onClick != null) { onClick?.invoke() }
             .padding(horizontal = 16.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically,
     ) {

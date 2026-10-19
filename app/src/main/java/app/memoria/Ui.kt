@@ -376,6 +376,7 @@ fun MonthSlider(
  * Wraps a date-grouped grid in a [MonthSlider]: [months] is one (grid item index, name) per month
  * heading. The slider fades in while scrolling and out 2 s after the last step, stays hidden at the
  * top, and a drag jumps the grid to that month's heading. Shared by the timeline and Place.
+ * With fewer than three months there is nothing worth jumping to, so it never shows.
  * [top] is the pinned heading's height, see [monthHeadingHeight].
  */
 @Composable
@@ -423,7 +424,7 @@ fun MonthSliderBox(
             }
         },
         onJump = { i -> drag = i; scope.launch { grid.scrollToItem(starts.getOrElse(i) { 0 }) } },
-        modifier = modifier, enabled = enabled, top = top, content = content,
+        modifier = modifier, enabled = enabled && starts.size >= 3, top = top, content = content,
     )
 }
 

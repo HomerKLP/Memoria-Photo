@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasSetTextAction
@@ -35,8 +36,11 @@ import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeDown
+import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -102,6 +106,56 @@ class BehaviorTest {
         rule.onNodeWithTag("tile-2").performClick()
         assertEquals(setOf(1L, 2L), selection.ids)
         rule.onNodeWithTag("tile-2").performClick()
+        assertEquals(setOf(1L), selection.ids)
+    }
+
+    private val longTimeline: List<Any> = listOf(
+        Header("m1", "October 2026", true),
+        Header("d1", "Sat, 11 Oct", false),
+    ) + (1L..80L).map { tile(it) }
+
+    @Test fun photos_scrollDown_hidesTheTopBar_scrollUpAwayFromTop_keepsItHidden() {
+        rule.setContent { MemoriaTheme { Surface { PhotosContent(longTimeline, selection = PhotoSelection()) } } }
+
+        rule.onNodeWithContentDescription("Search").assertIsDisplayed()
+        rule.onNodeWithTag("photosGrid").performTouchInput { swipeUp() }
+        rule.waitForIdle()
+        rule.onNodeWithContentDescription("Search").assertIsNotDisplayed()
+        rule.onNodeWithTag("photosGrid").performTouchInput { swipeDown(startY = height * 0.3f, endY = height * 0.5f) }
+        rule.waitForIdle()
+        rule.onNodeWithContentDescription("Search").assertIsNotDisplayed()
+    }
+
+    @Test fun photos_dragBackUpToTheTop_bringsTheTopBarBack() {
+        rule.setContent { MemoriaTheme { Surface { PhotosContent(longTimeline, selection = PhotoSelection()) } } }
+
+        rule.onNodeWithTag("photosGrid").performTouchInput { swipeUp() }
+        rule.waitForIdle()
+        repeat(4) { rule.onNodeWithTag("photosGrid").performTouchInput { swipeDown() } }
+        rule.waitForIdle()
+        rule.onNodeWithContentDescription("Search").assertIsDisplayed()
+    }
+
+    @Test fun photos_backAtTheTop_showsTheTopBarAgain() {
+        rule.setContent { MemoriaTheme { Surface { PhotosContent(longTimeline, selection = PhotoSelection()) } } }
+
+        rule.onNodeWithTag("photosGrid").performTouchInput { swipeUp() }
+        rule.waitForIdle()
+        rule.onNodeWithContentDescription("Search").assertIsNotDisplayed()
+        rule.onNodeWithTag("photosGrid").performScrollToIndex(0)
+        rule.waitForIdle()
+        rule.onNodeWithContentDescription("Search").assertIsDisplayed()
+    }
+
+    @Test fun photos_topBarHidden_tapOnSelectBar_doesNotReachTheTilesUnderIt() {
+        val selection = PhotoSelection()
+        rule.setContent { MemoriaTheme { Surface { PhotosContent(longTimeline, selection = selection) } } }
+
+        rule.onNodeWithTag("photosGrid").performTouchInput { swipeUp() }
+        rule.waitForIdle()
+        rule.runOnIdle { selection.start(tile(1)) }
+        rule.waitForIdle()
+        rule.onNodeWithText("1 selected").performClick()
         assertEquals(setOf(1L), selection.ids)
     }
 
@@ -706,6 +760,38 @@ class BehaviorTest {
         rule.onNodeWithTag("monthRail").assertExists()
     }
 
+    /** Videos: the month slider shows once the months scroll by. */
+    @Test fun videos_scrollingMonths_showsTheMonthSlider() {
+        val months = linkedMapOf<String, List<Tile>>()
+        for ((m, name) in listOf("October 2026", "September 2026", "August 2026").withIndex()) {
+            months[name] = (1L..20L).map { tile(m * 100L + it) }
+        }
+        val all = months.values.flatten()
+        rule.setContent { MemoriaTheme { Surface { VideosContent(Videos(months, all, 0L)) } } }
+        rule.mainClock.autoAdvance = false
+
+        rule.onNodeWithTag("monthRail").assertDoesNotExist()
+        rule.onNodeWithTag("videosGrid").performScrollToIndex(30)
+        rule.mainClock.advanceTimeBy(500)
+        rule.onNodeWithTag("monthRail").assertExists()
+    }
+
+    /** Favorites: the month slider shows once the months scroll by. */
+    @Test fun favorites_scrollingMonths_showsTheMonthSlider() {
+        val months = linkedMapOf<String, List<Tile>>()
+        for ((m, name) in listOf("October 2026", "September 2026", "August 2026").withIndex()) {
+            months[name] = (1L..20L).map { tile(m * 100L + it) }
+        }
+        val all = months.values.flatten()
+        rule.setContent { MemoriaTheme { Surface { FavoritesContent(Favorites(months, all)) } } }
+        rule.mainClock.autoAdvance = false
+
+        rule.onNodeWithTag("monthRail").assertDoesNotExist()
+        rule.onNodeWithTag("favoritesGrid").performScrollToIndex(30)
+        rule.mainClock.advanceTimeBy(500)
+        rule.onNodeWithTag("monthRail").assertExists()
+    }
+
     @Test fun person_selectAll_picksEveryPhoto() {
         val photos = (101L..106L).map { tile(it) }
         var ids by mutableStateOf<Set<Long>?>(setOf(101L))
@@ -859,12 +945,64 @@ class BehaviorTest {
         assertTrue(trash)
     }
 
-    @Test fun library_devTools_fires() {
+    @Test fun settings_devTools_fires() {
         var dev = false
-        rule.setContent { MemoriaTheme { Surface { LibraryContent(library, onDev = { dev = true }) } } }
+        rule.setContent { MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", onDev = { dev = true }) } } }
 
         rule.onNodeWithText("Dev tools").performScrollTo().performClick()
         assertTrue(dev)
+    }
+
+    @Test fun settings_withoutOnDev_hasNoDeveloperSection() {
+        rule.setContent { MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1") } } }
+
+        rule.onNodeWithText("Developer").assertDoesNotExist()
+        rule.onNodeWithText("Dev tools").assertDoesNotExist()
+    }
+
+    @Test fun devTools_rows_fireTheirCallbacks() {
+        var cpu = false
+        var npu = false
+        var folder = false
+        var back = false
+        rule.setContent {
+            MemoriaTheme { Surface {
+                DevToolsContent(
+                    busy = false, numbers = null, log = "Index SUCCEEDED",
+                    onBack = { back = true }, onRunCpu = { cpu = true }, onRunNpu = { npu = true }, onIndexTest = { folder = true },
+                )
+            } }
+        }
+
+        rule.onNodeWithText("Run on CPU").performClick()
+        assertTrue(cpu)
+        rule.onNodeWithText("Run on NPU").performClick()
+        assertTrue(npu)
+        rule.onNodeWithText("Index test folder").performClick()
+        assertTrue(folder)
+        rule.onNodeWithContentDescription("Back").performClick()
+        assertTrue(back)
+    }
+
+    @Test fun devTools_busy_runRowsDoNothing_indexStillWorks() {
+        var cpu = false
+        var npu = false
+        var folder = false
+        rule.setContent {
+            MemoriaTheme { Surface {
+                DevToolsContent(
+                    busy = true, numbers = null, log = "",
+                    onRunCpu = { cpu = true }, onRunNpu = { npu = true }, onIndexTest = { folder = true },
+                )
+            } }
+        }
+
+        rule.onNodeWithText("Run on CPU").performClick()
+        rule.onNodeWithText("Run on NPU").performClick()
+        assertFalse(cpu)
+        assertFalse(npu)
+        rule.onNodeWithText("Index test folder").performClick()
+        assertTrue(folder)
     }
 
     @Test fun library_indexPause_fires() {
@@ -971,5 +1109,49 @@ class BehaviorTest {
         val rail = rule.onNodeWithTag("monthRail").getUnclippedBoundsInRoot()
         val knob = rule.onNodeWithTag("monthKnob").getUnclippedBoundsInRoot()
         assertEquals(rail.bottom.value, (knob.top.value + knob.bottom.value) / 2, 1f)
+    }
+
+    /** One month has nothing to jump to: the slider never shows, however far the grid scrolls. */
+    @Test fun monthSlider_oneMonth_neverShows() {
+        val months = listOf(0 to "Month 0")
+        rule.setContent {
+            MemoriaTheme { Surface {
+                val grid = rememberLazyGridState()
+                MonthSliderBox(grid, months) {
+                    LazyVerticalGrid(GridCells.Fixed(4), Modifier.testTag("grid"), state = grid) {
+                        stickyHeader { Text("Month 0") }
+                        items(40) { Text("Month 0 $it", Modifier.height(80.dp)) }
+                    }
+                }
+            } }
+        }
+        rule.mainClock.autoAdvance = false
+
+        rule.onNodeWithTag("grid").performScrollToIndex(30)
+        rule.mainClock.advanceTimeBy(500)
+        rule.onNodeWithTag("monthRail").assertDoesNotExist()
+    }
+
+    /** Two months are a short scroll: no slider either. */
+    @Test fun monthSlider_twoMonths_neverShows() {
+        val months = listOf(0 to "Month 0", 41 to "Month 1")
+        rule.setContent {
+            MemoriaTheme { Surface {
+                val grid = rememberLazyGridState()
+                MonthSliderBox(grid, months) {
+                    LazyVerticalGrid(GridCells.Fixed(4), Modifier.testTag("grid"), state = grid) {
+                        months.forEach { (_, m) ->
+                            stickyHeader { Text(m) }
+                            items(40) { Text("$m $it", Modifier.height(80.dp)) }
+                        }
+                    }
+                }
+            } }
+        }
+        rule.mainClock.autoAdvance = false
+
+        rule.onNodeWithTag("grid").performScrollToIndex(60)
+        rule.mainClock.advanceTimeBy(500)
+        rule.onNodeWithTag("monthRail").assertDoesNotExist()
     }
 }

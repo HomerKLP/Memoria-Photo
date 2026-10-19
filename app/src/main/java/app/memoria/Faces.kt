@@ -31,6 +31,9 @@ fun loadPhoto(source: ImageDecoder.Source, side: Int = 4096): Bitmap = ImageDeco
     decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE // getPixels needs a CPU bitmap
 }
 
+/** The shared ONNX Runtime environment, with Microsoft telemetry off. */
+fun ortEnv(): OrtEnvironment = OrtEnvironment.getEnvironment().also { it.setTelemetry(false) }
+
 /** Snapdragon NPU (QNN HTP) in fp16. */
 fun npuOptions() = OrtSession.SessionOptions().apply {
     addQnn(mapOf("backend_path" to "libQnnHtp.so", "htp_performance_mode" to "burst", "enable_htp_fp16_precision" to "1"))

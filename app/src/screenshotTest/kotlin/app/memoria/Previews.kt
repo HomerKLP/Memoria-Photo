@@ -326,6 +326,25 @@ fun SettingsPage() = MemoriaTheme { Surface { SettingsContent(charging = false, 
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 900)
 @Composable
+fun SettingsDeveloper() = MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", onDev = {}) } }
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 900)
+@Composable
+fun DevToolsLoading() = MemoriaTheme { Surface { DevToolsContent(busy = false, numbers = null, log = "Index -\nPhotos: …/files/test") } }
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 900)
+@Composable
+fun DevTools() = MemoriaTheme {
+    Surface {
+        DevToolsContent(busy = false, numbers = DevNumbers(1402, 180, 124, 2870, 685, 9, 33, 2, 1480, 226), log = "Index SUCCEEDED\nPhotos: …/files/test")
+    }
+}
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 900)
+@Composable
 fun PeopleLoading() = MemoriaTheme { Surface { PeopleContent(data = null) } }
 
 @PreviewTest

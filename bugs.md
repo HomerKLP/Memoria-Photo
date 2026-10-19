@@ -49,18 +49,20 @@ a `scrollBy` there and back in one frame, `Thumb` decoding paused while it runs 
 `decisions.md`). `jumpToTop` and `ScrollToTopTest` are gone. `make check` and all
 androidTests green; release checked on the emulator (real scroll at 10x) and the phone.
 
-2026-10-18: NOT fixed. The user still finds it sloppy: scrolled to the middle of the real
-library (much farther than my 25-swipe test) and tapped — it stutters, then the rest of
-the way it snaps up instantly. The 350 ms cap means one frame moves an enormous distance,
-so the grid composes a fresh viewport every frame and the tail of the tween lands as a
-jump. Left for later (the user's call, 2026-10-18). Ideas: cap the per-frame move and
-teleport the far part like Compose's own `animateScrollToItem` does, or scroll in chunks
-with a total time budget.
+2026-10-18: NOT fixed. The user still found it sloppy: from the middle of the real library
+it stuttered, then snapped the rest of the way up.
+
+Fixed 2026-10-19. Real cause, measured on the phone's release build from the deepest point
+(~6400 items, 730 000 px): the "distance to the top" measure (`scrollBy(-1e9f)`) composes every
+row it passes, so it froze the app for 1070 ms (+139 ms to scroll back), and the 350 ms tween
+then ran as 3 frames of 500-800 ms (2.4 s in all). `gfxinfo` showed only ~1% janky, so it hid
+this. Now, if the grid is more than three screens down, it jumps to three screens below the top
+first (`scrollToItem`), then measures and animates only that part: measure 8 ms, 31 frames of
+~11 ms, done in 355 ms.
 
 Fix ideas:
 - Done: one continuous scroll, capped at `tabScrollToTopMs`, no decode for tiles that only
-  fly by.
-- Open: stop the far-distance stutter-then-snap (see above).
+  fly by, and a jump to three screens below the top first when far down.
 
 ## Library tab feels laggy
 
@@ -359,6 +361,21 @@ point stays under the finger, clamped to the photo's pan room. Zooming back out
 5 unit tests in `ViewerFitTest` (center, right, clamped near an edge, zoom-out,
 and that the tapped point lands back under the finger).
 
+## Viewer: stutter when swiping to neighbours fast
+
+Swiping to the next/previous photo in the viewer stutters, but only on a fast
+swipe. A slow swipe feels fine.
+
+Steps:
+1. Open a photo in the viewer.
+2. Swipe to a neighbour quickly, a few times in a row.
+
+Fix ideas:
+- The two neighbour pages decode at the same time as the open one; on a fast
+  swipe the next page may not be ready and starts its decode during the
+  animation. Decode ahead / keep a small window decoded.
+- Check whether the page gets built during the fling (`Viewer.kt` `HorizontalPager`).
+
 # Known issues and bad patterns
 
 Found while reading the code, not seen on the phone yet. No steps, just the risk.
@@ -461,3 +478,31 @@ get month headings and the slider. Videos and Favorites are designed in the mock
 ## Month slider tick marks
 
 Removed 2026-10-19 (the user did not like them): the slider is the rail and the knob only, in the mockup and in `Ui.kt`.
+
+## Screenshot baselines depend on the recording machine's time zone
+
+The `DetailsView` baseline shows the date and zone of the machine that recorded it (`Details.kt` uses `ZoneId.systemDefault()`). `make shot-check` fails on a machine in another zone.
+
+Steps:
+1. Run `TZ=UTC make shot-check`.
+2. `DetailsView` differs from its baseline.
+
+Fix ideas:
+- Pin the zone in the preview (UTC), then `make screenshots`.
+- Look for other previews that show a date or time.
+
+## Back from an opened screen stutters (Library)
+
+Going back from Albums, People, Places and the other screens opened from Library slides out with 2-5 slow frames.
+
+Steps:
+1. Release build, Library tab, tap a "See all".
+2. Press Back. Opening is smooth, back is not.
+
+Measured 2026-10-19 (release, `dumpsys gfxinfo`, 3 runs): open median 6 ms; back 90th percentile 32-42 ms, 2-5 janky frames of 18.
+
+Cause: opening a screen drops the tab from composition, so Back builds Library again and reloads people, albums and places while the slide runs (`MainActivity.kt` `App`, `LibraryScreen`).
+
+Fix ideas:
+- Keep the tab composed under the opened screen: the tab is always the base, the opened screen is an overlay (`AnimatedContent` on the opened screen only). Block touches on the overlay and hide the base from TalkBack.
+- Or skip the reload on return when the cached data is fresh.

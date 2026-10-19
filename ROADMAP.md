@@ -6,19 +6,18 @@ Hardest part first, UI last. Phases are the order of work; Later and Ideas at th
 
 **Index upgrades:** a new index step (search labels, OCR, video towns) fills in only what an existing index is missing, like `recutThumbs` does for face pictures. Never re-index from scratch, so names, merges, hidden people, covers and answers stay.
 
-**Next step:** Phase 6 (design and UI polish) is current; Phase 2 (face pipeline) is paused and its index / grouping follow-ups wait until the UI is mostly finished. UI items to pick from: the UX pass list in Phase 6. Phase 1 leftovers (tuning limits, more Takeout parts) wait until the user asks.
-
-## Phase 1: face pipeline quality (done, leftovers later)
+**Next step:** Phase 6 (design and UI polish) is current; Phase 2 (face pipeline) is paused and its index / grouping follow-ups wait until the UI is mostly finished. UI items to pick from: the UX pass list in Phase 6.
+## Phase 1: face pipeline quality (done)
 Pick the best models on real photos before writing app code. Details: `docs/face-pipeline.md`.
 - [x] Python bench: `bench/bench.py` (detect, group).
 - [x] Test photos in `testdata/photos/` (Google Takeout part 1).
 - [x] Compare detectors: YOLOv5m-face 640 wins.
 - [x] Compare recognizers: AdaFace IR101 wins.
 - [x] Labeled set: Google Photos tags, `bench.py eval`.
-- [ ] Try LVFace if AdaFace/ArcFace are not good enough (not in UniFace).
-- [ ] Rerun eval with more Takeout parts (more people, more labels).
-- [ ] Tune quality cut for starting groups.
-- [ ] Check AdaFace weights license (YOLOv5-face is GPL-3.0).
+- [x] LVFace: skipped, AdaFace is good enough on all photos.
+- [x] Rerun eval with more Takeout parts (more people, more labels). Tested on all photos, good.
+- [x] Quality cut for starting groups: 0.4.
+- [x] AdaFace weights license: no license found, used as is (decision 2026-10-19).
 
 ## Phase 2: face pipeline on Android (paused, UI first)
 Paused while the UI comes first (Phase 6). The index and grouping follow-ups in this phase (small-decode shakedown, blurry face pictures, group/matching tuning, main face) get rechecked once the UI is mostly finished. Working items: see `## Phase 6`.
@@ -49,7 +48,7 @@ Paused while the UI comes first (Phase 6). The index and grouping follow-ups in 
 - [x] People and Person screens built to the mockup: People = top bar + search, Help recognize card, index progress, 4-column grid, one list: named people first, then unnamed (no label), each by photo count. Library row same order. Person = face chips, "Faces" row, "Unsure faces" card, 3-column photo grid; tap a photo opens the viewer. Merge with / Change cover / Hide person are placeholders (no screens yet).
 - [x] Merge with (one person at a time, most alike first) and Hide person, both survive regroups (DB v7). Hidden people opens from Settings. Checked on the phone.
 - [x] Settings from the Library gear: Only while charging, Background work, Find faces again, Hidden people. Folders to skip, Export / Import face data and Licenses are shown but wait for design or decisions. Checked on the phone.
-- [ ] Licenses screen (Settings > About, mockup first). Must credit GeoNames (CC BY 4.0: credit, the license, and what we changed: towns of 1000+ only, no districts), and list the fonts (OFL 1.1), ONNX Runtime (MIT), Qualcomm QNN libs, AndroidX / Compose / Kotlin / Material icons (Apache 2.0), and the face models once the app ships them. License texts live inside the app (no internet).
+- [ ] **Important, blocks the first release:** Licenses screen (Settings > About, mockup first). The APK already ships the GeoNames towns, so the credit is a must. Until the screen is built, a `THIRD_PARTY.md` in the repo holds the same list. Must credit GeoNames (CC BY 4.0: credit, the license, and what we changed: towns of 1000+ only, no districts), and list the fonts (OFL 1.1), ONNX Runtime (MIT), Qualcomm QNN libs, AndroidX / Compose / Kotlin / Material icons (Apache 2.0), and the face models once the app ships them. License texts live inside the app (no internet).
 - [ ] Fixes, per-person tuning. Change cover built (mockup "Change cover"): the chip on the person screen opens a sheet with the person's sure faces, clearest first, current cover on top; picking one saves it and it survives re-index (DB v8). A new person starts from a face only ("Who is this?" > New person), never from an empty card. Full stable people: still group all faces without a person (old ones too), so 5 old photos plus 1 new one can form a person.
 - [x] Start gate: only camera faces with quality 0.4+ (EDifFIQA-T on the phone) start a person. Junk groups gone.
 - [x] A person needs starting faces from 6+ photos.
@@ -70,7 +69,8 @@ Goal: keep screenshots, memes and documents out of face search.
 - [x] Honey theme (`Theme.kt`, Bricolage Grotesque font in the APK) and two bottom tabs. Test screen moved to Library > Dev tools.
 - [x] Photos tab: timeline from MediaStore, month and day headers, 4-column grid, video length. Thumbnails from MediaStore `loadThumbnail`.
 - [ ] Photos tab: pinch to resize the grid.
-- [ ] Photos tab: refresh when new photos arrive (now only when the tab opens). Place names in day headers (needs offline geocoding).
+- [x] Photos tab: refresh when new photos arrive. A MediaStore observer reloads the timeline 1 s after the last change; tiles and day headers use `animateItem`, so new photos fade in and the rest slide. Scrolled down, nothing moves. Checked on the emulator; the phone's release build is not checked yet.
+- [ ] Photos tab: place name in the day header (mockup "Photos": `Sun, 28 Sep` + the town, muted). Offline geocoding is already done (`photo.town`), so this only reads it into the header. Photos only, videos have no town yet.
 - [ ] Test photos with no EXIF date and no date in the name land on the push day. Set their file time from the sidecar `photoTakenTime` before pushing, if it gets in the way. (Full plan and decisions: `docs/library-unification.md`.)
 - [x] Viewer: swipe between photos, date on top, share. Videos show a sharp frame and open in the phone's own player.
 - [x] Viewer: zoom (pinch 1-6x, double tap), pan while zoomed, favorite. Swipe down and pager are off while zoomed.
@@ -94,6 +94,7 @@ Goal: keep screenshots, memes and documents out of face search.
 - [ ] Later: spots inside a place (a lake or park near a town shows inside that town's Place). Not designed; see Open questions.
 - [x] Videos screen from the Library card: all videos by month (month pinned), 3-column grid, count and total size on top.
 - [ ] Media3 video player.
+- [ ] Open a photo from another app (`ACTION_VIEW` filter in the manifest, the viewer takes a single URI). Later: be a photo picker for other apps (`ACTION_PICK` / `GET_CONTENT`).
 - [x] Search screen (mockup "Search", `Search.kt`): from the Photos icon and the Library bar. Empty field: named people, Videos / Favorites / Screenshots chips (Screenshots opens the phone's Screenshots album, hidden without one), Recent. Typing finds word starts in people, places, albums, years and months; each hit opens a screen we have, and back returns to Search. A year or month opens the Photos tab at that month. Checked on the phone. Later: two people at once, free text, a results grid.
 
 ## Phase 5: video compression
@@ -120,8 +121,9 @@ Goal: no visible loss, not lossless (re-encoding always loses some).
 - [ ] UX pass: find and fix what feels broken in use, page by page. Known so far:
   - [x] Moving or deleting the last photo of an album leaves an empty album page with no title. An album that becomes empty should close and go back. Fixed 2026-10-18 with `CloseWhenEmpty` (`Ui.kt`); see `bugs.md`.
   - [x] Check every page that shows a set that can run empty, after a move, delete, unfavorite, hide or merge: Album, Place, Person, Favorites, Videos, Trash, and the viewer when its last photo goes. Each should close or show its empty state, never a blank page. Done 2026-10-18: Album, Place, Videos and the open Person close; Favorites and Trash show their empty states; the viewer already closed. See `bugs.md`.
-  - [ ] After Change cover, going back to Library shows the old face for a moment, then flips to the new one. Library starts from its cached data and only then reloads. Fix by updating the cache when the cover changes (or preloading), or at least a crossfade.
-  - [x] Month slider on more screens. `MonthSliderBox` (`Ui.kt`) holds the shared fade/drag state, lifted out of `PhotosContent`. Place has it: the "Place" mockup shows the slider and `PlaceContent` wraps its grid (one entry per sticky month heading). The rail position is open again: the mockup change was reverted and redone, approved and built 2026-10-19 for Photos, Place, Album and Person (Album and Person now have month headings, `bugs.md`). Videos and Favorites are designed in the mockup (2026-10-19), code not built.
+  - [x] After Change cover, going back to Library showed the old face for a moment, then flipped to the new one. Fixed 2026-10-18: Change cover updates the Library and People caches in place (`updateCached`, `Ui.kt`; `CoverCacheTest`). Checked on the phone.
+  - [x] Month slider on more screens. `MonthSliderBox` (`Ui.kt`) holds the shared fade/drag state, lifted out of `PhotosContent`. Place has it: the "Place" mockup shows the slider and `PlaceContent` wraps its grid (one entry per sticky month heading). The rail position is open again: the mockup change was reverted and redone, approved and built 2026-10-19 for Photos, Place, Album and Person (Album and Person now have month headings, `bugs.md`). Videos and Favorites got it too (2026-10-19, `VideosContent`, `FavoritesContent`).
+  - [x] Main grid (Photos): the top bar hides as you scroll down, so the grid gets more room. It comes back only at the very top (changed 2026-10-19: first it also came back on any scroll up). Built 2026-10-19 (`PhotosContent`; figures "Photos tab, at the very top", "Photos tab, scrolled" and "Photos, selecting while the top bar is hidden"). The wordmark, month and day headings share one 16 dp left edge. Select while the bar is hidden: the select bar comes in over the pinned month, the grid does not move. Tested on the emulator only; the feel on the phone is not checked yet.
 
 ## Phase 7: animations
 Goal: motion that feels finished, like a mature gallery app, before the first APK release. No motion design in the mockup: Claude checks each motion on the emulator, the user on the phone.
@@ -134,16 +136,22 @@ Goal: motion that feels finished, like a mature gallery app, before the first AP
 - [ ] Rules: the no-layout-jump rule still holds; short motions; follow Android's "Remove animations" setting; check on a release build that nothing stutters.
 
 ## Phase 8: release
+Items marked **Important** must be done before the first public release. The Licenses screen (Phase 2) is one of them.
 - [x] GPL-3.0 LICENSE file.
+- [x] **Important:** turn telemetry off. ONNX Runtime's Android package added the INTERNET permission and a provider that starts a Microsoft telemetry client at launch. Done 2026-10-19: both removed in the manifest (`tools:node="remove"`), and `ortEnv()` (`Faces.kt`) calls `setTelemetry(false)` at every place the app opens the environment. `aapt2 dump permissions` on the release APK shows no INTERNET, and the provider is gone. `setTelemetry(false)` is not run on a device yet: check the next index run. The OTA item below brings the permission back, scoped to the update check; the provider stays removed.
+- [ ] **Important:** release signing key. `make release` signs with Android's public debug key, so that APK must never be published. Make one release keystore (name `CN=Memoria Photo`, no real name), keep it and its passwords outside the repo, back it up in two places, and read both from environment variables in a `signingConfigs.release` block (`app/build.gradle.kts`). Write where it lives in `decisions.md` (not tracked). Never change the key later: users would have to uninstall and lose their face data. A phone with the debug-key build can't update to the release key for the same reason, so test the release APK on the emulator. Before every release, `apksigner verify --print-certs` must not say `Android Debug`.
+- [ ] **Important:** `README.md`. What the app is, the privacy promise, how to install the APK, how to build it, the license. The APK has no face models and the app has no internet, so say how to make them (`bench/fp16.py`) and push them to the phone, and which phones work (NPU libs for the Snapdragon 8 Elite only). Keep the models out of the release until "ship the models" (Phase 2) is decided.
+- [ ] **Important:** `android:allowBackup="false"` in the manifest. Without it Android's cloud backup may copy the face database to the user's Google account. Names and faces leave the phone only through our own Export.
+- [x] Dev tools moved to Settings > Developer, shown only in debug builds (`FLAG_DEBUGGABLE`), gone from release. Built 2026-10-19 to the mockup (`DevTools.kt`): Run on CPU / NPU, Index test folder, Numbers, Log. Library has no Dev tools button. Not checked on the phone.
+- [x] Disable the buttons that do nothing yet: Locked folder (Library), Folders to skip, Export / Import face data and Licenses (Settings). Done 2026-10-19: 38% opacity, not clickable (`Shortcut`, `SettingRow`); no mockup part, no tests (the user's call). Not checked on the phone. Other screens not scanned for taps with no action. Turn each back on when its screen is built.
 - [ ] GitHub releases: tag each build, attach the signed APK, keep a changelog.
 - [ ] OTA updates from GitHub release APKs: the app notices a newer release, downloads the APK, and installs it through Android's own installer (PackageInstaller, `REQUEST_INSTALL_PACKAGES`). Needs its own screen (mockup first) and an INTERNET permission scoped to the update check (see Open questions).
 
 ## Phase 9: tests (regression)
 - [x] Unit tests (`app/src/test/`, `./gradlew :app:testDebugUnitTest`): pure logic. `fallbackDate`, `groupFaces` (6-photo gate, quality cut, camera-only, small faces), `etaMillis` / `formatEta`, `zoneLabel`, `monthAt` / `trackY`, NN-chain grouping = the old closest-pair-first loop. 23 tests. First win: `DetailsZoneTest` caught the "GMT-" bug (now fixed).
 - [x] Migration test (`MigrationTest`, androidTest): a v7 DB with a named, hidden person, an answer and a merge opens with the app's migrations and keeps them. Schemas are saved in `app/schemas/`; a missing migration fails the test and crashes the app instead of wiping it.
-- [ ] Room tests (in-memory DB): DAO queries.
+- [x] Room tests (`DaoTest`, androidTest, in-memory DB): the join, group and EXISTS queries: `faceVecs`, `photoFaces`, `taggedFaces`, `kinds`, `notFace`, `movePerson`, places, answers. 8 tests.
 - [x] Compose layout tests (`app/src/androidTest/`, `./gradlew :app:connectedDebugAndroidTest`): `LayoutJumpTest` states the "nothing else may move" rule as an assertion. Library loading->loaded, Pause/Resume bar length, unnamed People row height, Trash selecting, TopBar empty subtitle. Runs on a 360 dp emulator (`wm density 480`), not the phone. Mutation-checked: removing the unnamed name line fails the row-height test.
-- [ ] Compose flow tests: tabs open, grid shows, tap a tile opens the viewer, People list loads.
 - [x] `LayoutJumpTest` cases for the People screen: loading -> loaded, cards in a row the same height.
 - [x] Screenshot tests (the built-in `com.android.compose.screenshot`, JVM, no phone): `./gradlew :app:updateDebugScreenshotTest` records, `:app:validateDebugScreenshotTest` compares. One preview per state (loading / indexing / paused / empty), paired with `LayoutJumpTest`.
 - [ ] Keep phone checks for the rest: stutter, blurry viewer, NPU, foreground worker. Tests can't cover these.

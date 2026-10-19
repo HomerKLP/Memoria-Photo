@@ -270,6 +270,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .set b { font-weight: 500; }
 .set div > span { color: var(--muted); font-size: 13px; }
 .set:last-child { margin-bottom: 16px; }
+.log { margin: 0 16px 16px; color: var(--muted); font: 11px/1.45 ui-monospace, Menlo, monospace; white-space: pre-wrap; word-break: break-all; }
 .switch { width: 52px; height: 32px; flex: none; border-radius: 16px; background: var(--accent); position: relative; }
 .switch::after { content: ""; position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; border-radius: 50%; background: #fff; }
 .switch.off { background: var(--surface); box-shadow: inset 0 0 0 2px var(--muted); }
@@ -399,7 +400,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 <header class="top">
   <h1>Memoria Photo</h1>
   <p class="lede">Light theme, Honey palette. Photos and faces are placeholders, names and places are made up.</p>
-  <nav class="toc"><a href="#page-photos">Photos</a><a href="#page-search">Search</a><a href="#page-viewer">Viewer</a><a href="#page-library">Library</a><a href="#page-albums">Albums</a><a href="#page-places">Places</a><a href="#page-people">People</a><a href="#page-settings">Settings</a><a href="#parts">Shared parts</a><a href="#app-icon">App icon</a></nav>
+  <nav class="toc"><a href="#page-photos">Photos</a><a href="#page-search">Search</a><a href="#page-viewer">Viewer</a><a href="#page-library">Library</a><a href="#favorites">Favorites</a><a href="#page-albums">Albums</a><a href="#page-places">Places</a><a href="#page-people">People</a><a href="#page-settings">Settings</a><a href="#devtools">Dev tools</a><a href="#parts">Shared parts</a><a href="#app-icon">App icon</a></nav>
 </header>
 
 <main>
@@ -407,14 +408,28 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
   <h2>Photos</h2>
   <div class="phones">
     <figure>
-      <div class="phone has-slider">
+      <div class="phone">
         <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
-        <div class="appbar">
+        <div class="appbar" style="padding-left:16px">
           <div class="wordmark">Memoria <span>Photo</span></div>
           <button class="icon-btn" aria-label="Search"><svg class="i"><use href="#i-search"/></svg></button>
         </div>
         <div class="scroll" id="timeline"></div>
-        <div class="slider on" aria-hidden="true">
+        <div class="bottom">
+          <nav>
+            <button class="tab on"><span class="pill"><svg class="i"><use href="#i-photo"/></svg>Photos</span></button>
+            <button class="tab"><span class="pill"><svg class="i"><use href="#i-library"/></svg>Library</span></button>
+          </nav>
+          <div class="handle"></div>
+        </div>
+      </div>
+      <figcaption>Photos tab, at the very top: the top bar shows here and only here. The wordmark, the month heading and the day headings start on one left edge (16 px). The month slider is hidden at the top; see the next figure for scrolling</figcaption>
+    </figure>
+    <figure id="photos-hidden-bar">
+      <div class="phone has-slider">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="scroll" id="timeline-hidden"></div>
+        <div class="slider on" style="top:90px" aria-hidden="true">
           <span class="rail"></span>
           <span class="knob" style="top:calc(10px + (100% - 20px) * .2)"></span>
         </div>
@@ -426,7 +441,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="handle"></div>
         </div>
       </div>
-      <figcaption>Photos tab, scrolled: the month heading stays pinned while its photos pass under it, and the month slider has faded in (it hides again a moment after you stop). Drag the slider to jump to a month; it starts under the pinned month heading and never covers it or the bottom bar</figcaption>
+      <figcaption>Photos tab, scrolled: the top bar has gone up with the list, so the pinned month sits right under the status bar and the grid gets that room. The month stays pinned while its photos pass under it, and the month slider has faded in (it hides again a moment after you stop). Scrolling back up does not bring the bar: it returns only when you reach the very top. The slider starts under the pinned month heading and never covers it or the bottom bar. The bottom tabs stay</figcaption>
     </figure>
     <figure id="photos-select">
       <div class="phone">
@@ -446,6 +461,27 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         </div>
       </div>
       <figcaption>Photos, selecting: long press a photo to start, drag to add the ones you pass, tap a day's circle for the whole day. The top bar and the tabs swap in place at the same height, so the grid never moves. Delete sends all to the phone's trash with one Android confirm. Favorite reads Unfavorite when all picked are favorites. The circle covers the heart while selecting. Back or X leaves</figcaption>
+    </figure>
+    <figure id="photos-select-hidden">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div style="position:relative; flex:1; display:flex; flex-direction:column; min-height:0">
+          <div class="scroll" id="timeline-select-hidden"></div>
+          <div class="subbar" style="position:absolute; top:0; left:0; right:0; z-index:3; background:var(--bg)">
+            <button class="icon-btn" aria-label="Close"><svg class="i"><use href="#i-close"/></svg></button>
+            <div class="title"><b>6 selected</b><span>18.4 MB</span></div>
+          </div>
+        </div>
+        <div class="bottom picking">
+          <nav>
+            <button class="tab"><span class="pill"><svg class="i"><use href="#i-share"/></svg>Share</span></button>
+            <button class="tab"><span class="pill"><svg class="i"><use href="#i-heart-line"/></svg>Favorite</span></button>
+            <button class="tab danger"><span class="pill"><svg class="i"><use href="#i-trash-line"/></svg>Delete</span></button>
+          </nav>
+          <div class="handle"></div>
+        </div>
+      </div>
+      <figcaption>Photos, selecting while the top bar is hidden: the select bar comes in over the pinned month, so the grid stays where it is under your finger. Back or X closes it, and the top bar stays hidden until you scroll back to the very top</figcaption>
     </figure>
   </div>
 </section>
@@ -1176,10 +1212,12 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="set"><svg class="i"><use href="#i-upload"/></svg><div><b>Import face data</b><span>From an export file</span></div></div>
           <div class="head"><h3>About</h3></div>
           <div class="set"><svg class="i"><use href="#i-info"/></svg><div><b>Memoria Photo 0.1</b><span>Open source, GPL-3.0 · Licenses</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
+          <div class="head"><h3>Developer</h3><span class="hint">Debug builds only</span></div>
+          <div class="set"><svg class="i"><use href="#i-settings"/></svg><div><b>Dev tools</b><span>Test the models, index the test folder</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Settings: opens from the gear on Library. Face search, hidden people, face data backup, about. With "Only while charging" on battery, the progress row reads "Waiting for charger · 412 of 1,706 photos" and keeps Pause</figcaption>
+      <figcaption>Settings: opens from the gear on Library. Face search, hidden people, face data backup, about. With "Only while charging" on battery, the progress row reads "Waiting for charger · 412 of 1,706 photos" and keeps Pause. The Developer section is last and only in debug builds; a release build has no such section</figcaption>
     </figure>
     <figure id="rescan">
       <div class="phone modal" id="rescan-phone">
@@ -1222,6 +1260,32 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <div class="gesture"><div class="handle"></div></div>
       </div>
       <figcaption>Hidden people, empty: no note and no grid, just the hint</figcaption>
+    </figure>
+    <figure id="devtools">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="title"><b>Dev tools</b><span>Debug builds only</span></div>
+        </div>
+        <div class="scroll">
+          <div class="head"><h3>Models</h3></div>
+          <div class="set"><svg class="i"><use href="#i-play"/></svg><div><b>Run on CPU</b><span>Time the models on the test photos</span></div></div>
+          <div class="set"><svg class="i"><use href="#i-bolt"/></svg><div><b>Run on NPU</b><span>Same photos, on the NPU</span></div></div>
+          <div class="head"><h3>Index</h3></div>
+          <div class="set"><svg class="i"><use href="#i-folder"/></svg><div><b>Index test folder</b><span>Pictures/MemoriaTest only</span></div></div>
+          <div class="head"><h3>Numbers</h3></div>
+          <div class="log">Photos  camera 1402 · other 180 · skip 124
+Faces   sure 2870 · unsure 685
+People  named 9 · unnamed 33 · hidden 2
+Places  with town 1480 · without 226</div>
+          <div class="head"><h3>Log</h3></div>
+          <div class="log">Index SUCCEEDED
+Photos: …/files/test</div>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Dev tools: opens from Settings > Developer, debug builds only. Only what no other screen does: the model speed test and indexing the test folder. Clear index, Index all photos, Pause / Resume and People are gone (Settings, auto-index and Library have them). Numbers are read-only text, always four lines (… while loading), so nothing moves when they fill in. The Run rows grey out while a run is going. The log and, after a run, the test photo with face boxes sit last, so they never move what is above</figcaption>
     </figure>
   </div>
 </section>
@@ -1317,7 +1381,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <span class="bubble" style="top:calc(10px + (100% - 20px) * .2)">September 2026</span>
       </div>
     </div>
-    <p>A thin rail on the right edge of the timeline with a knob on the month on screen. No tick marks: with a real library they would pile up into a dotted chain over the photos. Hidden at the top, it fades in once you scroll and fades out about two seconds after you stop. Drag anywhere on the strip to jump to a month: a short buzz per month and a bubble with the month name while you drag. It sits over the grid, so only drags are caught there, plain taps still reach the tile.</p>
+    <p>A thin rail on the right edge of the timeline with a knob on the month on screen. No tick marks: with a real library they would pile up into a dotted chain over the photos. Hidden at the top, it fades in once you scroll and fades out about two seconds after you stop. Drag anywhere on the strip to jump to a month: a short buzz per month and a bubble with the month name while you drag. It sits over the grid, so only drags are caught there, plain taps still reach the tile. With fewer than three months it never shows: one month has nothing to jump to, and two are a short scroll.</p>
   </article>
 
   <article class="part">
@@ -1433,9 +1497,12 @@ for (const x of days) {
       x.v?.includes(i) ? `<span class="dur">${durs[i % durs.length]}<svg class="i"><use href="#i-play"/></svg></span>` : ""
     }</div>`).join("")}</div>`);
 }
-// The Photos tab is shown scrolled: September is pinned at the top and the slider has faded in.
+// The first Photos figure is the very top; the scrolled one is filled below.
 const secs = timeline.querySelectorAll(".month-sec");
-if (secs[1]) timeline.scrollTop = secs[1].offsetTop + 150;
+// Photos, scrolled: same list, no top bar, September pinned and the slider faded in.
+const timelineHidden = document.getElementById("timeline-hidden");
+timelineHidden.innerHTML = timeline.innerHTML;
+if (secs[1]) timelineHidden.scrollTop = secs[1].offsetTop + 150;
 
 const faces = ["#D9A27F", "#B9876B", "#E0B48A", "#A88C7A", "#C99A86", "#BFA27E", "#D4A99A"];
 const face = (i, s = 72) => `<div class="face" style="--s:${s}px;background:linear-gradient(160deg, ${faces[i]}, ${faces[(i + 3) % faces.length]})"><svg class="i"><use href="#i-person"/></svg></div>`;
@@ -1541,6 +1608,10 @@ fill("timeline-select", `<section class="month-sec"><h3 class="month">October 20
     Array.from({ length: x.n }, (_, i) => `<div class="tile${on.includes(i) ? " on" : ""}" style="background:${photo()}"><span class="sel">${on.includes(i) ? check : ""}</span>${
       x.v?.includes(i) ? `<span class="dur">${durs[i % durs.length]}<svg class="i"><use href="#i-play"/></svg></span>` : ""}</div>`).join("")}</div>`;
 }).join("")}</section>`);
+// Photos, selecting while the top bar is hidden: same list, scrolled so October is pinned under the select bar.
+const selectHidden = document.getElementById("timeline-select-hidden");
+selectHidden.innerHTML = document.getElementById("timeline-select").innerHTML;
+selectHidden.scrollTop = 120;
 // Places and Place: filled last so the photos above keep their colors.
 fill("place-grid", [["Riverton", "642"], ["Northport", "118"], ["Harborview", "87"], ["Eastfield", "64"], ["Lakemoor", "52"], ["Westbrook", "41"],
   ["Pinecrest", "33"], ["Stonebridge", "27"], ["Ashford", "19"], ["Oakvale", "12"], ["Millbrook", "8"], ["Fairhaven", "5"]]
