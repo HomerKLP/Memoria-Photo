@@ -288,20 +288,13 @@ private val sliderTopGap = 3.dp
 fun monthHeadingHeight(below: Dp): Dp =
     20.dp + with(LocalDensity.current) { MaterialTheme.typography.titleLarge.lineHeight.toDp() } + below
 
-/**
- * Ticks are drawn only while they fit this far apart. A real library has over a hundred months, and
- * one tick each would sit 4 dp apart and read as a dotted chain down the whole edge. Below the gap
- * the rail keeps only the knob and the month on screen.
- */
-private val sliderTickGap = 8.dp
-
-/** Where the month at [index] of the rail sits. The ticks run from [pad] to height - [pad]. */
+/** Where the month at [index] of the rail sits. The months run from [pad] to height - [pad]. */
 internal fun trackY(months: Int, index: Int, height: Dp, pad: Dp): Dp {
     val track = (height - pad * 2).coerceAtLeast(0.dp)
     return pad + track * (if (months < 2) 0.5f else index.toFloat() / (months - 1))
 }
 
-/** Which month the finger at [y] points at, the same rounding the ticks are drawn with. */
+/** Which month the finger at [y] points at, the same rounding the knob is placed with. */
 internal fun monthAt(y: Float, height: Int, pad: Float, months: Int): Int {
     if (months < 2) return 0
     val track = (height - pad * 2).coerceAtLeast(1f)
@@ -310,8 +303,8 @@ internal fun monthAt(y: Float, height: Int, pad: Float, months: Int): Int {
 
 /**
  * Timeline month slider (mockup: "Timeline month slider"). [content] is the timeline; the slider
- * sits over its right edge: one tick per month, the month on screen in the accent, a knob, and a
- * bubble with the month while [dragging] (the month index under the finger, null when not dragging).
+ * sits over its right edge: a thin rail, a knob on the month on screen, and a bubble with the
+ * month while [dragging] (the month index under the finger, null when not dragging).
  * Show it only while scrolling: [visible] fades it in and out, the caller owns the timing. [top] is
  * the pinned month heading's height: the slider starts just under it and ends clear of the bottom bar.
  *
@@ -334,7 +327,6 @@ fun MonthSlider(
     val haptics = LocalHapticFeedback.current
     val accent = MaterialTheme.colorScheme.primary
     val line = MaterialTheme.colorScheme.outlineVariant
-    val muted = MaterialTheme.colorScheme.onSurfaceVariant
     val on = enabled && (visible || dragging != null)
     val alpha by animateFloatAsState(if (on) 1f else 0f, tween(250), label = "monthSlider")
     Box(
@@ -349,30 +341,12 @@ fun MonthSlider(
         // keep it composed while it fades out, and leave it out entirely when the slider is off
         if (alpha > 0.01f) BoxWithConstraints(Modifier.fillMaxSize().padding(top = top + sliderTopGap, bottom = sliderBottom).alpha(alpha)) {
             val now = dragging ?: current
-            // one tick per month only while they fit (see sliderTickGap), else just the month on screen
-            val gap = if (months.size < 2) 0.dp else (maxHeight - sliderPad * 2).coerceAtLeast(0.dp) / (months.size - 1)
-            val ticks = months.size > 1 && gap >= sliderTickGap
             // rail
             Box(
                 Modifier.align(Alignment.TopEnd).offset(y = sliderPad).padding(end = 12.dp)
                     .width(3.dp).height((maxHeight - sliderPad * 2).coerceAtLeast(0.dp))
                     .testTag("monthRail")
                     .background(line, RoundedCornerShape(2.dp))
-            )
-            if (ticks) months.forEachIndexed { i, _ ->
-                val on = i == now
-                Box(
-                    Modifier.align(Alignment.TopEnd)
-                        .offset(y = trackY(months.size, i, maxHeight, sliderPad) - if (on) 3.dp else 1.5.dp)
-                        .padding(end = if (on) 6.dp else 9.dp)
-                        .width(if (on) 15.dp else 9.dp).height(if (on) 6.dp else 3.dp)
-                        .background(if (on) accent else muted.copy(alpha = 0.55f), RoundedCornerShape(2.dp))
-                )
-            } else Box(
-                Modifier.align(Alignment.TopEnd)
-                    .offset(y = trackY(months.size, now, maxHeight, sliderPad) - 3.dp)
-                    .padding(end = 6.dp).width(15.dp).height(6.dp)
-                    .background(accent, RoundedCornerShape(2.dp))
             )
             // knob: an 18 dp accent dot in a 3 dp white ring (24 dp total), per the mockup
             Box(

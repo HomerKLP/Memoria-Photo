@@ -457,7 +457,7 @@ fun NewAlbumPickPreview() = MemoriaTheme {
     }
 }
 
-/** The timeline month slider (Ui.kt shared part): rail, ticks, the month on screen and the knob. */
+/** The timeline month slider (Ui.kt shared part): the rail and the knob on the month on screen. */
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 480)
 @Composable

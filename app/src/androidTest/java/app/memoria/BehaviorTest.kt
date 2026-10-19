@@ -24,6 +24,7 @@ import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -686,6 +687,23 @@ class BehaviorTest {
         rule.onNodeWithTag("tile-103").performClick()
         assertEquals(103L, opened?.id)
         assertEquals(6, openedList?.size)
+    }
+
+    /** Person: the photos are grouped by month, and the month slider shows once the months scroll by. */
+    @Test fun person_scrollingPhotos_showsTheMonthSlider() {
+        val photos = (1L..60L).map { Tile(it, Uri.parse("content://media/external/images/media/$it"), 1_700_000_000_000L - it * 31L * 86_400_000L, null) }
+        rule.setContent {
+            MemoriaTheme { Surface {
+                PersonDetail(person(1, "Dana"), onBack = {}, onName = {}, onOpen = { _, _ -> }, loadPhotos = { photos })
+            } }
+        }
+        rule.waitUntil(5_000) { rule.onAllNodesWithTag("tile-1").fetchSemanticsNodes().isNotEmpty() }
+        rule.mainClock.autoAdvance = false
+
+        rule.onNodeWithTag("monthRail").assertDoesNotExist()
+        rule.onNodeWithTag("personPhotos").performScrollToIndex(40)
+        rule.mainClock.advanceTimeBy(500)
+        rule.onNodeWithTag("monthRail").assertExists()
     }
 
     @Test fun person_selectAll_picksEveryPhoto() {

@@ -82,8 +82,6 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .slider { position: absolute; top: 150px; bottom: 92px; right: 0; width: 28px; z-index: 3; opacity: 0; transition: opacity .25s ease; touch-action: none; }
 .slider.on { opacity: 1; }
 .slider .rail { position: absolute; right: 12px; top: 10px; bottom: 10px; width: 3px; border-radius: 2px; background: var(--line); }
-.slider i { position: absolute; right: 9px; width: 9px; height: 3px; margin-top: -1.5px; border-radius: 2px; background: var(--muted); opacity: .55; }
-.slider i.now { right: 6px; width: 15px; height: 6px; background: var(--accent); opacity: 1; }
 .slider .knob { position: absolute; right: 4px; width: 18px; height: 18px; margin-top: -9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px rgba(255, 255, 255, .85), 0 2px 6px rgba(0, 0, 0, .3); }
 .slider .bubble { position: absolute; right: 30px; transform: translateY(-50%); height: 32px; padding: 0 14px; border-radius: 16px; background: var(--accent); color: #fff; display: flex; align-items: center; white-space: nowrap; font-weight: 500; font-size: 13px; box-shadow: 0 6px 16px -6px rgba(70, 45, 20, .6); }
 
@@ -418,12 +416,6 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <div class="scroll" id="timeline"></div>
         <div class="slider on" aria-hidden="true">
           <span class="rail"></span>
-          <i style="top:calc(10px + (100% - 20px) * 0)"></i>
-          <i class="now" style="top:calc(10px + (100% - 20px) * .2)"></i>
-          <i style="top:calc(10px + (100% - 20px) * .4)"></i>
-          <i style="top:calc(10px + (100% - 20px) * .6)"></i>
-          <i style="top:calc(10px + (100% - 20px) * .8)"></i>
-          <i style="top:calc(10px + (100% - 20px) * 1)"></i>
           <span class="knob" style="top:calc(10px + (100% - 20px) * .2)"></span>
         </div>
         <div class="bottom">
@@ -635,16 +627,20 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
       <figcaption>Library while indexing: no people yet (one muted item at a face's size, see Empty) with the progress row under it. People and the Help recognize card appear only once a run has finished, when the progress row is gone.</figcaption>
     </figure>
     <figure>
-      <div class="phone">
+      <div class="phone has-slider">
         <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
         <div class="subbar">
           <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
           <div class="title"><b>Videos</b><span>538 videos · 14.2 GB</span></div>
         </div>
         <div class="scroll vids" id="videos"></div>
+        <div class="slider on" aria-hidden="true" style="top:158px; bottom:47px">
+          <span class="rail"></span>
+          <span class="knob" style="top:calc(10px + (100% - 20px) * .2)"></span>
+        </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Videos: opens from the Library card. Every video, newest first, by month; the month stays pinned. Tap opens the viewer, long press selects. The size is for video compression later</figcaption>
+      <figcaption>Videos: opens from the Library card. Every video, newest first, by month; the month stays pinned. Tap opens the viewer, long press selects. The month slider works like on the Photos tab: it fades in once you scroll, starts under the pinned month, and hides in select mode. The size is for video compression later</figcaption>
     </figure>
     <figure id="videos-select">
       <div class="phone">
@@ -667,16 +663,20 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
       <figcaption>Videos, selecting: same as an album, without Move</figcaption>
     </figure>
     <figure id="favorites">
-      <div class="phone">
+      <div class="phone has-slider">
         <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
         <div class="subbar">
           <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
           <div class="title"><b>Favorites</b><span>34 photos · 4 videos</span></div>
         </div>
         <div class="scroll vids" id="favorites-grid"></div>
+        <div class="slider on" aria-hidden="true" style="top:158px; bottom:47px">
+          <span class="rail"></span>
+          <span class="knob" style="top:calc(10px + (100% - 20px) * .2)"></span>
+        </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Favorites: opens from the Library card. Like Videos: newest first, by month, the month pinned, no day headings (with a few favorites a day, each one got its own date). No hearts on the tiles: they are all favorites. Tap opens the viewer, long press selects, like an album</figcaption>
+      <figcaption>Favorites: opens from the Library card. Like Videos: newest first, by month, the month pinned, no day headings (with a few favorites a day, each one got its own date). No hearts on the tiles: they are all favorites. Tap opens the viewer, long press selects, like an album. The month slider works like on the Photos tab: it fades in once you scroll, starts under the pinned month, and hides in select mode</figcaption>
     </figure>
     <figure id="favorites-select">
       <div class="phone">
@@ -778,12 +778,6 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <div class="scroll vids" id="album-photos"></div>
         <div class="slider on" aria-hidden="true" style="top:158px; bottom:47px">
           <span class="rail"></span>
-          <i style="top:calc(10px + (100% - 20px) * 0)"></i>
-          <i class="now" style="top:calc(10px + (100% - 20px) * .2)"></i>
-          <i style="top:calc(10px + (100% - 20px) * .4)"></i>
-          <i style="top:calc(10px + (100% - 20px) * .6)"></i>
-          <i style="top:calc(10px + (100% - 20px) * .8)"></i>
-          <i style="top:calc(10px + (100% - 20px) * 1)"></i>
           <span class="knob" style="top:calc(10px + (100% - 20px) * .2)"></span>
         </div>
         <div class="gesture"><div class="handle"></div></div>
@@ -1011,12 +1005,6 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <div class="scroll vids" id="person-scrolled-list"></div>
         <div class="slider on" aria-hidden="true" style="top:158px; bottom:47px">
           <span class="rail"></span>
-          <i style="top:calc(10px + (100% - 20px) * 0)"></i>
-          <i class="now" style="top:calc(10px + (100% - 20px) * .2)"></i>
-          <i style="top:calc(10px + (100% - 20px) * .4)"></i>
-          <i style="top:calc(10px + (100% - 20px) * .6)"></i>
-          <i style="top:calc(10px + (100% - 20px) * .8)"></i>
-          <i style="top:calc(10px + (100% - 20px) * 1)"></i>
           <span class="knob" style="top:calc(10px + (100% - 20px) * .2)"></span>
         </div>
         <div class="gesture"><div class="handle"></div></div>
@@ -1325,27 +1313,11 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
     <div style="position:relative; height:230px; border-radius:12px; overflow:hidden; background:linear-gradient(160deg,#9CC3E6,#E9D8B8)">
       <div class="slider on" style="top:0; bottom:0">
         <span class="rail"></span>
-        <i style="top:calc(10px + (100% - 20px) * 0)"></i>
-        <i class="now" style="top:calc(10px + (100% - 20px) * .2)"></i>
-        <i style="top:calc(10px + (100% - 20px) * .4)"></i>
-        <i style="top:calc(10px + (100% - 20px) * .6)"></i>
-        <i style="top:calc(10px + (100% - 20px) * .8)"></i>
-        <i style="top:calc(10px + (100% - 20px) * 1)"></i>
         <span class="knob" style="top:calc(10px + (100% - 20px) * .2)"></span>
         <span class="bubble" style="top:calc(10px + (100% - 20px) * .2)">September 2026</span>
       </div>
     </div>
-    <p>A thin rail on the right edge of the timeline, one tick per month, the month on screen in the accent. Hidden at the top, it fades in once you scroll and fades out about two seconds after you stop. Drag anywhere on the strip to jump to a month: a short buzz per month and a bubble with the month name while you drag. It sits over the grid, so only drags are caught there, plain taps still reach the tile.</p>
-
-    <h3 style="margin-top:18px">Timeline month slider, many months</h3>
-    <div style="position:relative; height:230px; border-radius:12px; overflow:hidden; background:linear-gradient(160deg,#9CC3E6,#E9D8B8)">
-      <div class="slider on" style="top:0; bottom:0">
-        <span class="rail"></span>
-        <i class="now" style="top:calc(10px + (100% - 20px) * .42)"></i>
-        <span class="knob" style="top:calc(10px + (100% - 20px) * .42)"></span>
-      </div>
-    </div>
-    <p>One tick per month only works while the months fit the rail: 6 months are 40 px apart, a real library has over a hundred of them and they would sit 4 px apart, a dotted chain down the whole edge that covers the photos. So the ticks are drawn only while they are at least 8 px apart. Below that the rail keeps the knob and the month on screen in the accent, and nothing else. The drag behaves the same; only the ticks go.</p>
+    <p>A thin rail on the right edge of the timeline with a knob on the month on screen. No tick marks: with a real library they would pile up into a dotted chain over the photos. Hidden at the top, it fades in once you scroll and fades out about two seconds after you stop. Drag anywhere on the strip to jump to a month: a short buzz per month and a bubble with the month name while you drag. It sits over the grid, so only drags are caught there, plain taps still reach the tile.</p>
   </article>
 
   <article class="part">
@@ -1506,7 +1478,9 @@ fill("album-photos", [["October 2026", 5, [4], [0]], ["September 2026", 6, [], [
   + keepSeed(() => [["July 2026", 6, [], []]]
   .map(([m, n, v, f]) => `<section class="month-sec"><h3 class="month">${m}</h3><div class="grid big">${tiles(n, v, f)}</div></section>`).join("")));
 fill("videos", [["October 2026", 5], ["September 2026", 7], ["August 2026", 6]]
-  .map(([m, n]) => `<section class="month-sec"><h3 class="month">${m}</h3><div class="grid big">${tiles(n, [...Array(n).keys()], [1])}</div></section>`).join(""));
+  .map(([m, n]) => `<section class="month-sec"><h3 class="month">${m}</h3><div class="grid big">${tiles(n, [...Array(n).keys()], [1])}</div></section>`).join("")
+  + keepSeed(() => [["July 2026", 6]]
+  .map(([m, n]) => `<section class="month-sec"><h3 class="month">${m}</h3><div class="grid big">${tiles(n, [...Array(n).keys()], [1])}</div></section>`).join("")));
 fill("albums", [["Camera", "1,412"], ["Screenshots", "214"], ["Telegram", "96"], ["WhatsApp Images", "58"], ["Downloads", "33"], ["Instagram", "21"]]
   .map(([n, c]) => cover(n, c)).join(""));
 fill("places", [["Riverton", "642"], ["Northport", "118"], ["Harborview", "87"]].map(([n, c]) => cover(n, c)).join(""));
@@ -1592,10 +1566,10 @@ fill("favorites-picked", pickMonths([["October 2026", 4, [0, 2]], ["August 2026"
 fill("place-picked", pickMonths([["October 2026", 5, [1]], ["September 2026", 8, [0, 3]]], () => [2]));
 fill("person-picked", document.querySelector("#person .scroll").innerHTML);
 document.querySelector("#person-picked #person-photos").innerHTML = pickMonths([["October 2026", 5, [0, 4]], ["August 2026", 4, [0]], ["March 2026", 3, []]], n => n == 5 ? [3] : n == 4 ? [2] : []);
-// Album and Person, scrolled: the second month is pinned and the slider has faded in, like the Photos tab.
+// Album, Person, Videos and Favorites, scrolled: the second month is pinned and the slider has faded in, like the Photos tab.
 fill("person-scrolled-avatar", face(2, 40));
 fill("person-scrolled-list", document.querySelector("#person .scroll").innerHTML);
-for (const id of ["album-photos", "person-scrolled-list"]) {
+for (const id of ["album-photos", "person-scrolled-list", "videos", "favorites-grid"]) {
   const list = document.getElementById(id), secs = list.querySelectorAll(".month-sec");
   list.scrollTop = secs[1].offsetTop - list.offsetTop + 120; // one tile row gone: the next row starts right under the pinned month
 }

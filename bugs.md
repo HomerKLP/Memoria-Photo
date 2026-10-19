@@ -456,4 +456,8 @@ after).
 
 Fixed 2026-10-19 for Place: `MonthSliderBox` (`Ui.kt`) now holds the shared fade-in/out and drag
 state, so a second screen gets the slider with no copy. Album and Person are built (2026-10-19): both
-get month headings and the slider. Videos and Favorites need their mockup first; see `ROADMAP.md`.
+get month headings and the slider. Videos and Favorites are designed in the mockup, code not built; see `ROADMAP.md`.
+
+## Month slider tick marks
+
+Removed 2026-10-19 (the user did not like them): the slider is the rail and the knob only, in the mockup and in `Ui.kt`.
