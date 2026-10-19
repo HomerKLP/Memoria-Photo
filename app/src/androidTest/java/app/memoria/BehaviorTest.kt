@@ -1057,4 +1057,48 @@ class BehaviorTest {
         val knob = rule.onNodeWithTag("monthKnob").getUnclippedBoundsInRoot()
         assertEquals(rail.bottom.value, (knob.top.value + knob.bottom.value) / 2, 1f)
     }
+
+    /** One month has nothing to jump to: the slider never shows, however far the grid scrolls. */
+    @Test fun monthSlider_oneMonth_neverShows() {
+        val months = listOf(0 to "Month 0")
+        rule.setContent {
+            MemoriaTheme { Surface {
+                val grid = rememberLazyGridState()
+                MonthSliderBox(grid, months) {
+                    LazyVerticalGrid(GridCells.Fixed(4), Modifier.testTag("grid"), state = grid) {
+                        stickyHeader { Text("Month 0") }
+                        items(40) { Text("Month 0 $it", Modifier.height(80.dp)) }
+                    }
+                }
+            } }
+        }
+        rule.mainClock.autoAdvance = false
+
+        rule.onNodeWithTag("grid").performScrollToIndex(30)
+        rule.mainClock.advanceTimeBy(500)
+        rule.onNodeWithTag("monthRail").assertDoesNotExist()
+    }
+
+    /** Two months are a short scroll: no slider either. */
+    @Test fun monthSlider_twoMonths_neverShows() {
+        val months = listOf(0 to "Month 0", 41 to "Month 1")
+        rule.setContent {
+            MemoriaTheme { Surface {
+                val grid = rememberLazyGridState()
+                MonthSliderBox(grid, months) {
+                    LazyVerticalGrid(GridCells.Fixed(4), Modifier.testTag("grid"), state = grid) {
+                        months.forEach { (_, m) ->
+                            stickyHeader { Text(m) }
+                            items(40) { Text("$m $it", Modifier.height(80.dp)) }
+                        }
+                    }
+                }
+            } }
+        }
+        rule.mainClock.autoAdvance = false
+
+        rule.onNodeWithTag("grid").performScrollToIndex(60)
+        rule.mainClock.advanceTimeBy(500)
+        rule.onNodeWithTag("monthRail").assertDoesNotExist()
+    }
 }
