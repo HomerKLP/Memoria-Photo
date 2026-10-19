@@ -70,7 +70,8 @@ Goal: keep screenshots, memes and documents out of face search.
 - [x] Honey theme (`Theme.kt`, Bricolage Grotesque font in the APK) and two bottom tabs. Test screen moved to Library > Dev tools.
 - [x] Photos tab: timeline from MediaStore, month and day headers, 4-column grid, video length. Thumbnails from MediaStore `loadThumbnail`.
 - [ ] Photos tab: pinch to resize the grid.
-- [ ] Photos tab: refresh when new photos arrive (now only when the tab opens). Place names in day headers (needs offline geocoding).
+- [x] Photos tab: refresh when new photos arrive. A MediaStore observer reloads the timeline 1 s after the last change; tiles and day headers use `animateItem`, so new photos fade in and the rest slide. Scrolled down, nothing moves. Checked on the emulator; the phone's release build is not checked yet.
+- [ ] Photos tab: place name in the day header (mockup "Photos": `Sun, 28 Sep` + the town, muted). Offline geocoding is already done (`photo.town`), so this only reads it into the header. Photos only, videos have no town yet.
 - [ ] Test photos with no EXIF date and no date in the name land on the push day. Set their file time from the sidecar `photoTakenTime` before pushing, if it gets in the way. (Full plan and decisions: `docs/library-unification.md`.)
 - [x] Viewer: swipe between photos, date on top, share. Videos show a sharp frame and open in the phone's own player.
 - [x] Viewer: zoom (pinch 1-6x, double tap), pan while zoomed, favorite. Swipe down and pager are off while zoomed.
@@ -122,6 +123,7 @@ Goal: no visible loss, not lossless (re-encoding always loses some).
   - [x] Check every page that shows a set that can run empty, after a move, delete, unfavorite, hide or merge: Album, Place, Person, Favorites, Videos, Trash, and the viewer when its last photo goes. Each should close or show its empty state, never a blank page. Done 2026-10-18: Album, Place, Videos and the open Person close; Favorites and Trash show their empty states; the viewer already closed. See `bugs.md`.
   - [ ] After Change cover, going back to Library shows the old face for a moment, then flips to the new one. Library starts from its cached data and only then reloads. Fix by updating the cache when the cover changes (or preloading), or at least a crossfade.
   - [x] Month slider on more screens. `MonthSliderBox` (`Ui.kt`) holds the shared fade/drag state, lifted out of `PhotosContent`. Place has it: the "Place" mockup shows the slider and `PlaceContent` wraps its grid (one entry per sticky month heading). The rail position is open again: the mockup change was reverted and redone, approved and built 2026-10-19 for Photos, Place, Album and Person (Album and Person now have month headings, `bugs.md`). Videos and Favorites got it too (2026-10-19, `VideosContent`, `FavoritesContent`).
+  - [ ] Main grid (Photos): the top bar hides as you scroll down, so the grid gets more room. It comes back as soon as you scroll up, and on the very top it is always visible. Mockup first ("Photos" figure), then code; a layout change, so `LayoutJumpTest` plus screenshots. Check how it reads against the pinned month header and the month slider.
 
 ## Phase 7: animations
 Goal: motion that feels finished, like a mature gallery app, before the first APK release. No motion design in the mockup: Claude checks each motion on the emulator, the user on the phone.
