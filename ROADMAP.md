@@ -151,9 +151,8 @@ Items marked **Important** must be done before the first public release. The Lic
 ## Phase 9: tests (regression)
 - [x] Unit tests (`app/src/test/`, `./gradlew :app:testDebugUnitTest`): pure logic. `fallbackDate`, `groupFaces` (6-photo gate, quality cut, camera-only, small faces), `etaMillis` / `formatEta`, `zoneLabel`, `monthAt` / `trackY`, NN-chain grouping = the old closest-pair-first loop. 23 tests. First win: `DetailsZoneTest` caught the "GMT-" bug (now fixed).
 - [x] Migration test (`MigrationTest`, androidTest): a v7 DB with a named, hidden person, an answer and a merge opens with the app's migrations and keeps them. Schemas are saved in `app/schemas/`; a missing migration fails the test and crashes the app instead of wiping it.
-- [ ] Room tests (in-memory DB): DAO queries.
+- [x] Room tests (`DaoTest`, androidTest, in-memory DB): the join, group and EXISTS queries: `faceVecs`, `photoFaces`, `taggedFaces`, `kinds`, `notFace`, `movePerson`, places, answers. 8 tests.
 - [x] Compose layout tests (`app/src/androidTest/`, `./gradlew :app:connectedDebugAndroidTest`): `LayoutJumpTest` states the "nothing else may move" rule as an assertion. Library loading->loaded, Pause/Resume bar length, unnamed People row height, Trash selecting, TopBar empty subtitle. Runs on a 360 dp emulator (`wm density 480`), not the phone. Mutation-checked: removing the unnamed name line fails the row-height test.
-- [ ] Compose flow tests: tabs open, grid shows, tap a tile opens the viewer, People list loads.
 - [x] `LayoutJumpTest` cases for the People screen: loading -> loaded, cards in a row the same height.
 - [x] Screenshot tests (the built-in `com.android.compose.screenshot`, JVM, no phone): `./gradlew :app:updateDebugScreenshotTest` records, `:app:validateDebugScreenshotTest` compares. One preview per state (loading / indexing / paused / empty), paired with `LayoutJumpTest`.
 - [ ] Keep phone checks for the rest: stutter, blurry viewer, NPU, foreground worker. Tests can't cover these.
