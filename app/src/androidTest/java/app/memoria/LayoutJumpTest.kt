@@ -31,6 +31,8 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollToIndex
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertEquals
@@ -420,6 +422,36 @@ class LayoutJumpTest {
         assertSame("grid top", gridBefore, rule.onNodeWithTag("photosGrid").top())
         assertSame("day header", dayBefore, rule.onNodeWithText("Sat, 11 Oct").top())
         assertSame("day header height", headerBefore, rule.onNodeWithTag("dayHeader").height())
+    }
+
+    /** The wordmark, the month heading and the day heading start on one left edge. */
+    @Test fun photos_wordmarkMonthAndDay_shareTheLeftEdge() {
+        val items: List<Any> = listOf(Header("m1", "October 2026", true), Header("d1", "Sat, 11 Oct", false)) + (1L..9L).map { tile(it) }
+        rule.setContent { MemoriaTheme { Surface { PhotosContent(items) } } }
+
+        val left = rule.onNodeWithText("Memoria Photo").getUnclippedBoundsInRoot().left
+        assertSame("month heading", left, rule.onNodeWithText("October 2026").getUnclippedBoundsInRoot().left)
+        assertSame("day heading", left, rule.onNodeWithText("Sat, 11 Oct").getUnclippedBoundsInRoot().left)
+    }
+
+    /** The top bar is hidden by scrolling: select mode puts its bar over the pinned month, and the grid must not move. */
+    @Test fun photos_topBarHidden_selecting_keepsGridPut() {
+        val tiles = (1L..80L).map { tile(it) }
+        val items: List<Any> = listOf(Header("m1", "October 2026", true), Header("d1", "Sat, 11 Oct", false)) + tiles
+        val selection = PhotoSelection()
+        val grid = LazyGridState()
+        rule.setContent { MemoriaTheme { Surface { PhotosContent(items, grid = grid, selection = selection) } } }
+
+        rule.onNodeWithTag("photosGrid").performTouchInput { swipeUp() }
+        rule.waitForIdle()
+        val id = grid.layoutInfo.visibleItemsInfo.first { it.contentType == "tile" }.key as Long
+        val gridBefore = rule.onNodeWithTag("photosGrid").top()
+        val tileBefore = rule.onNodeWithTag("tile-$id").top()
+        rule.runOnIdle { selection.start(tiles.first()) }
+        rule.waitForIdle()
+        assertSame("grid top", gridBefore, rule.onNodeWithTag("photosGrid").top())
+        assertSame("tile", tileBefore, rule.onNodeWithTag("tile-$id").top())
+        rule.onNodeWithText("1 selected").assertIsDisplayed()
     }
 
     /** New photos arrive while the user is scrolled down: they land above, and the tile on screen stays put. */

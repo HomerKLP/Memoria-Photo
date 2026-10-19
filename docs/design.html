@@ -407,14 +407,28 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
   <h2>Photos</h2>
   <div class="phones">
     <figure>
-      <div class="phone has-slider">
+      <div class="phone">
         <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
-        <div class="appbar">
+        <div class="appbar" style="padding-left:16px">
           <div class="wordmark">Memoria <span>Photo</span></div>
           <button class="icon-btn" aria-label="Search"><svg class="i"><use href="#i-search"/></svg></button>
         </div>
         <div class="scroll" id="timeline"></div>
-        <div class="slider on" aria-hidden="true">
+        <div class="bottom">
+          <nav>
+            <button class="tab on"><span class="pill"><svg class="i"><use href="#i-photo"/></svg>Photos</span></button>
+            <button class="tab"><span class="pill"><svg class="i"><use href="#i-library"/></svg>Library</span></button>
+          </nav>
+          <div class="handle"></div>
+        </div>
+      </div>
+      <figcaption>Photos tab, at the very top: the top bar shows here and only here. The wordmark, the month heading and the day headings start on one left edge (16 px). The month slider is hidden at the top; see the next figure for scrolling</figcaption>
+    </figure>
+    <figure id="photos-hidden-bar">
+      <div class="phone has-slider">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="scroll" id="timeline-hidden"></div>
+        <div class="slider on" style="top:90px" aria-hidden="true">
           <span class="rail"></span>
           <span class="knob" style="top:calc(10px + (100% - 20px) * .2)"></span>
         </div>
@@ -426,7 +440,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="handle"></div>
         </div>
       </div>
-      <figcaption>Photos tab, scrolled: the month heading stays pinned while its photos pass under it, and the month slider has faded in (it hides again a moment after you stop). Drag the slider to jump to a month; it starts under the pinned month heading and never covers it or the bottom bar</figcaption>
+      <figcaption>Photos tab, scrolled: the top bar has gone up with the list, so the pinned month sits right under the status bar and the grid gets that room. The month stays pinned while its photos pass under it, and the month slider has faded in (it hides again a moment after you stop). Scrolling back up does not bring the bar: it returns only when you reach the very top. The slider starts under the pinned month heading and never covers it or the bottom bar. The bottom tabs stay</figcaption>
     </figure>
     <figure id="photos-select">
       <div class="phone">
@@ -446,6 +460,27 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         </div>
       </div>
       <figcaption>Photos, selecting: long press a photo to start, drag to add the ones you pass, tap a day's circle for the whole day. The top bar and the tabs swap in place at the same height, so the grid never moves. Delete sends all to the phone's trash with one Android confirm. Favorite reads Unfavorite when all picked are favorites. The circle covers the heart while selecting. Back or X leaves</figcaption>
+    </figure>
+    <figure id="photos-select-hidden">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div style="position:relative; flex:1; display:flex; flex-direction:column; min-height:0">
+          <div class="scroll" id="timeline-select-hidden"></div>
+          <div class="subbar" style="position:absolute; top:0; left:0; right:0; z-index:3; background:var(--bg)">
+            <button class="icon-btn" aria-label="Close"><svg class="i"><use href="#i-close"/></svg></button>
+            <div class="title"><b>6 selected</b><span>18.4 MB</span></div>
+          </div>
+        </div>
+        <div class="bottom picking">
+          <nav>
+            <button class="tab"><span class="pill"><svg class="i"><use href="#i-share"/></svg>Share</span></button>
+            <button class="tab"><span class="pill"><svg class="i"><use href="#i-heart-line"/></svg>Favorite</span></button>
+            <button class="tab danger"><span class="pill"><svg class="i"><use href="#i-trash-line"/></svg>Delete</span></button>
+          </nav>
+          <div class="handle"></div>
+        </div>
+      </div>
+      <figcaption>Photos, selecting while the top bar is hidden: the select bar comes in over the pinned month, so the grid stays where it is under your finger. Back or X closes it, and the top bar stays hidden until you scroll back to the very top</figcaption>
     </figure>
   </div>
 </section>
@@ -1433,9 +1468,12 @@ for (const x of days) {
       x.v?.includes(i) ? `<span class="dur">${durs[i % durs.length]}<svg class="i"><use href="#i-play"/></svg></span>` : ""
     }</div>`).join("")}</div>`);
 }
-// The Photos tab is shown scrolled: September is pinned at the top and the slider has faded in.
+// The first Photos figure is the very top; the scrolled one is filled below.
 const secs = timeline.querySelectorAll(".month-sec");
-if (secs[1]) timeline.scrollTop = secs[1].offsetTop + 150;
+// Photos, scrolled: same list, no top bar, September pinned and the slider faded in.
+const timelineHidden = document.getElementById("timeline-hidden");
+timelineHidden.innerHTML = timeline.innerHTML;
+if (secs[1]) timelineHidden.scrollTop = secs[1].offsetTop + 150;
 
 const faces = ["#D9A27F", "#B9876B", "#E0B48A", "#A88C7A", "#C99A86", "#BFA27E", "#D4A99A"];
 const face = (i, s = 72) => `<div class="face" style="--s:${s}px;background:linear-gradient(160deg, ${faces[i]}, ${faces[(i + 3) % faces.length]})"><svg class="i"><use href="#i-person"/></svg></div>`;
@@ -1541,6 +1579,10 @@ fill("timeline-select", `<section class="month-sec"><h3 class="month">October 20
     Array.from({ length: x.n }, (_, i) => `<div class="tile${on.includes(i) ? " on" : ""}" style="background:${photo()}"><span class="sel">${on.includes(i) ? check : ""}</span>${
       x.v?.includes(i) ? `<span class="dur">${durs[i % durs.length]}<svg class="i"><use href="#i-play"/></svg></span>` : ""}</div>`).join("")}</div>`;
 }).join("")}</section>`);
+// Photos, selecting while the top bar is hidden: same list, scrolled so October is pinned under the select bar.
+const selectHidden = document.getElementById("timeline-select-hidden");
+selectHidden.innerHTML = document.getElementById("timeline-select").innerHTML;
+selectHidden.scrollTop = 120;
 // Places and Place: filled last so the photos above keep their colors.
 fill("place-grid", [["Riverton", "642"], ["Northport", "118"], ["Harborview", "87"], ["Eastfield", "64"], ["Lakemoor", "52"], ["Westbrook", "41"],
   ["Pinecrest", "33"], ["Stonebridge", "27"], ["Ashford", "19"], ["Oakvale", "12"], ["Millbrook", "8"], ["Fairhaven", "5"]]

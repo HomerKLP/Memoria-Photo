@@ -28,6 +28,7 @@ import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
@@ -46,6 +47,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
@@ -67,6 +69,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -78,16 +81,22 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
@@ -110,6 +119,7 @@ import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 /** A photo or video in the timeline. duration is set for videos only. favorite is MediaStore's own flag. */
 data class Tile(val id: Long, val uri: Uri, val date: Long, val duration: Long?, val favorite: Boolean = false)
@@ -615,93 +625,139 @@ fun PhotosContent(
     }
     val tilesById = remember(photos) { photos.associateBy { it.id } }
     if (selecting) BackHandler { onSelectBack?.invoke() ?: selection?.clear() }
-    Column {
-        // The wordmark and the select top bar share one Box: the select bar is drawn over the wordmark,
-        // so swapping them never changes the height and the grid under it never moves.
-        Box(Modifier.fillMaxWidth()) {
-            if (onBack != null) Row(Modifier.padding(start = 4.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onBack) { Icon(painterResource(R.drawable.ic_back), "Back") }
-                Text("Favorites", Modifier.padding(start = 4.dp), style = MaterialTheme.typography.titleLarge)
-            } else Row(Modifier.fillMaxWidth().padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(buildAnnotatedString {
-                    append("Memoria ")
-                    withStyle(SpanStyle(MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)) { append("Photo") }
-                }, Modifier.weight(1f).padding(start = 20.dp, top = 18.dp, bottom = 18.dp), style = MaterialTheme.typography.titleLarge)
-                IconButton(onSearch) { Icon(painterResource(R.drawable.ic_search), "Search") }
+    val density = LocalDensity.current
+    // The top bar scrolls away with the list and comes back only at the very top (mockup "Photos, scrolled").
+    // barOffset is 0 with the bar shown and -barPx with it hidden. Going down the bar takes the scroll first;
+    // going up the grid does, and the bar takes what is left once the grid is at its top. Either way the grid
+    // follows the finger while the bar slides.
+    val collapses = onBack == null
+    val barH = maxOf(48.dp, 36.dp + with(density) { MaterialTheme.typography.titleLarge.lineHeight.toDp() })
+    val barPx = with(density) { barH.toPx() }
+    var barOffset by remember { mutableFloatStateOf(0f) }
+    val selectingNow by rememberUpdatedState(selecting)
+    val hideBar = remember(barPx, collapses) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset =
+                if (available.y < 0f) slide(available.y) else Offset.Zero
+
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset =
+                if (available.y > 0f) slide(available.y) else Offset.Zero
+
+            private fun slide(dy: Float): Offset {
+                if (!collapses || selectingNow) return Offset.Zero
+                val was = barOffset
+                barOffset = (was + dy).coerceIn(-barPx, 0f)
+                return Offset(0f, barOffset - was)
             }
-            // fade the select bar in over the wordmark instead of cutting to it
-            Crossfade(selecting, Modifier.matchParentSize(), animationSpec = tween(150), label = "selectBar") { on ->
-                if (on) Row(
-                    Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface).padding(start = 4.dp, end = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    IconButton({ onSelectBack?.invoke() ?: selection?.clear() }) { Icon(painterResource(R.drawable.ic_close), "Cancel") }
-                    Column(Modifier.weight(1f)) {
-                        // The picker shows "Add to <name>" with the count under it; the tab shows "N selected"
-                        Text(titleWhileSelecting ?: "${selectedIds.size} selected", style = MaterialTheme.typography.titleLarge)
-                        Text(
-                            if (titleWhileSelecting != null) "${selectedIds.size} selected · ${formatBytes(pickedSize)}" else formatBytes(pickedSize),
-                            fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+        }
+    }
+    // When the scroll stops the bar settles to the nearest end. At the very top it always shows: a jump or
+    // the tab-tap scroll gets there without a drag.
+    LaunchedEffect(grid, barPx) {
+        snapshotFlow { grid.isScrollInProgress to (grid.firstVisibleItemIndex == 0 && grid.firstVisibleItemScrollOffset == 0) }
+            .collectLatest { (scrolling, top) ->
+                if (scrolling) return@collectLatest
+                val to = if (top || barOffset > -barPx / 2) 0f else -barPx
+                if (barOffset != to) animate(barOffset, to, animationSpec = tween(150)) { v, _ -> barOffset = v }
+            }
+    }
+    Box(Modifier.nestedScroll(hideBar)) {
+        Column {
+            // The wordmark slides away with barOffset. The select bar is an overlay (below), not part of this
+            // Box, so it can show over the pinned month while the wordmark is hidden, and the grid never moves.
+            Box(
+                Modifier.fillMaxWidth().then(
+                    if (collapses) Modifier.clipToBounds().layout { m, c ->
+                        val p = m.measure(c)
+                        layout(p.width, (p.height + barOffset).roundToInt().coerceAtLeast(0)) { p.place(0, barOffset.roundToInt()) }
+                    } else Modifier,
+                ),
+            ) {
+                if (onBack != null) Row(Modifier.padding(start = 4.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onBack) { Icon(painterResource(R.drawable.ic_back), "Back") }
+                    Text("Favorites", Modifier.padding(start = 4.dp), style = MaterialTheme.typography.titleLarge)
+                } else Row(Modifier.fillMaxWidth().height(barH).padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(buildAnnotatedString {
+                        append("Memoria ")
+                        withStyle(SpanStyle(MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)) { append("Photo") }
+                    }, Modifier.weight(1f).padding(start = 16.dp, top = 18.dp, bottom = 18.dp), style = MaterialTheme.typography.titleLarge)
+                    IconButton(onSearch) { Icon(painterResource(R.drawable.ic_search), "Search") }
                 }
             }
-        }
-        if (!granted) {
-            // ponytail: after two denials Android stops asking, then the user has to allow it in system settings
-            Column(Modifier.padding(horizontal = 20.dp)) {
-                Text("Memoria needs access to your photos and videos.")
-                Button(onAsk, Modifier.padding(top = 12.dp)) { Text("Allow access") }
+            if (!granted) {
+                // ponytail: after two denials Android stops asking, then the user has to allow it in system settings
+                Column(Modifier.padding(horizontal = 20.dp)) {
+                    Text("Memoria needs access to your photos and videos.")
+                    Button(onAsk, Modifier.padding(top = 12.dp)) { Text("Allow access") }
+                }
+                return@Column
             }
-            return@Column
-        }
-        MonthSliderBox(
-            grid = grid,
-            months = months,
-            // always on for the timeline (Favorites has its own screen and no slider)
-            enabled = !selecting,
-            top = monthHeadingHeight(below = 2.dp),
-            modifier = Modifier.weight(1f),
-        ) {
-            FollowViewer(grid, photos)
-            LazyVerticalGrid(
-                GridCells.Fixed(4), state = grid,
-                modifier = (if (tabs) Modifier.selectDrag(grid, tilesById, selection!!) else Modifier).testTag("photosGrid"),
-                horizontalArrangement = Arrangement.spacedBy(2.dp), verticalArrangement = Arrangement.spacedBy(2.dp),
-                userScrollEnabled = !selecting || scrollWhileSelecting,
+            MonthSliderBox(
+                grid = grid,
+                months = months,
+                // always on for the timeline (Favorites has its own screen and no slider)
+                enabled = !selecting,
+                top = monthHeadingHeight(below = 2.dp),
+                modifier = Modifier.weight(1f),
             ) {
-                for (x in list) when (x) {
-                    is Header -> if (x.month) {
-                        // pinned while its month is on screen, background so photos scroll under it (mockup "Sticky month header")
-                        stickyHeader(key = x.key) {
-                            Text(x.text, Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(start = 16.dp, top = 20.dp, bottom = 2.dp), style = MaterialTheme.typography.titleLarge)
-                        }
-                    } else item(key = x.key, span = { GridItemSpan(maxLineSpan) }, contentType = "header") {
-                        val day = dayTiles[x.key].orEmpty()
-                        val all = selecting && day.isNotEmpty() && day.all { it.id in selectedIds }
-                        // the circle is an overlay: the header keeps its height, so the photos under it never move
-                        Box(Modifier.fillMaxWidth().testTag("dayHeader").animateItem()) {
-                            Text(x.text, Modifier.padding(start = 16.dp, top = 12.dp, bottom = 6.dp), style = MaterialTheme.typography.titleSmall)
-                            if (selecting) DayCircle(all, Modifier.align(Alignment.CenterEnd).padding(end = 16.dp)) {
-                                if (all) selection?.remove(day.map { it.id }) else selection?.addAll(day)
+                FollowViewer(grid, photos)
+                LazyVerticalGrid(
+                    GridCells.Fixed(4), state = grid,
+                    modifier = (if (tabs) Modifier.selectDrag(grid, tilesById, selection!!) else Modifier).testTag("photosGrid"),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp), verticalArrangement = Arrangement.spacedBy(2.dp),
+                    userScrollEnabled = !selecting || scrollWhileSelecting,
+                ) {
+                    for (x in list) when (x) {
+                        is Header -> if (x.month) {
+                            // pinned while its month is on screen, background so photos scroll under it (mockup "Sticky month header")
+                            stickyHeader(key = x.key) {
+                                Text(x.text, Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(start = 16.dp, top = 20.dp, bottom = 2.dp), style = MaterialTheme.typography.titleLarge)
+                            }
+                        } else item(key = x.key, span = { GridItemSpan(maxLineSpan) }, contentType = "header") {
+                            val day = dayTiles[x.key].orEmpty()
+                            val all = selecting && day.isNotEmpty() && day.all { it.id in selectedIds }
+                            // the circle is an overlay: the header keeps its height, so the photos under it never move
+                            Box(Modifier.fillMaxWidth().testTag("dayHeader").animateItem()) {
+                                Text(x.text, Modifier.padding(start = 16.dp, top = 12.dp, bottom = 6.dp), style = MaterialTheme.typography.titleSmall)
+                                if (selecting) DayCircle(all, Modifier.align(Alignment.CenterEnd).padding(end = 16.dp)) {
+                                    if (all) selection?.remove(day.map { it.id }) else selection?.addAll(day)
+                                }
                             }
                         }
-                    }
-                    is Tile -> item(key = x.id, contentType = "tile") {
-                        TileImage(
-                            x,
-                            (if (tabs) Modifier.combinedClickable(
-                                onClick = { if (selecting) selection?.toggle(x) else onOpen(photos, x) },
-                                onLongClick = { selection?.start(x) },
-                            ) else Modifier.clickable { onOpen(photos, x) }).testTag("tile-${x.id}").animateItem(),
-                            selecting = selecting,
-                            selected = x.id in selectedIds,
-                        )
+                        is Tile -> item(key = x.id, contentType = "tile") {
+                            TileImage(
+                                x,
+                                (if (tabs) Modifier.combinedClickable(
+                                    onClick = { if (selecting) selection?.toggle(x) else onOpen(photos, x) },
+                                    onLongClick = { selection?.start(x) },
+                                ) else Modifier.clickable { onOpen(photos, x) }).testTag("tile-${x.id}").animateItem(),
+                                selecting = selecting,
+                                selected = x.id in selectedIds,
+                            )
+                        }
                     }
                 }
             }
+            footer?.invoke()
         }
-        footer?.invoke()
+        // fade the select bar in over the wordmark, or over the pinned month when the wordmark is hidden
+        Crossfade(selecting, Modifier.fillMaxWidth().height(if (collapses) barH else 60.dp), animationSpec = tween(150), label = "selectBar") { on ->
+            if (on) Row(
+                // the empty pointerInput keeps a tap on the bar from reaching the tiles under it
+                Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface).padding(start = 4.dp, end = 8.dp).pointerInput(Unit) {},
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton({ onSelectBack?.invoke() ?: selection?.clear() }) { Icon(painterResource(R.drawable.ic_close), "Cancel") }
+                Column(Modifier.weight(1f)) {
+                    // The picker shows "Add to <name>" with the count under it; the tab shows "N selected"
+                    Text(titleWhileSelecting ?: "${selectedIds.size} selected", style = MaterialTheme.typography.titleLarge)
+                    Text(
+                        if (titleWhileSelecting != null) "${selectedIds.size} selected · ${formatBytes(pickedSize)}" else formatBytes(pickedSize),
+                        fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
     }
 }
 

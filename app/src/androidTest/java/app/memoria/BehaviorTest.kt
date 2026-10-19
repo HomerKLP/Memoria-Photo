@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasSetTextAction
@@ -35,6 +36,8 @@ import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeDown
+import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -102,6 +105,56 @@ class BehaviorTest {
         rule.onNodeWithTag("tile-2").performClick()
         assertEquals(setOf(1L, 2L), selection.ids)
         rule.onNodeWithTag("tile-2").performClick()
+        assertEquals(setOf(1L), selection.ids)
+    }
+
+    private val longTimeline: List<Any> = listOf(
+        Header("m1", "October 2026", true),
+        Header("d1", "Sat, 11 Oct", false),
+    ) + (1L..80L).map { tile(it) }
+
+    @Test fun photos_scrollDown_hidesTheTopBar_scrollUpAwayFromTop_keepsItHidden() {
+        rule.setContent { MemoriaTheme { Surface { PhotosContent(longTimeline, selection = PhotoSelection()) } } }
+
+        rule.onNodeWithContentDescription("Search").assertIsDisplayed()
+        rule.onNodeWithTag("photosGrid").performTouchInput { swipeUp() }
+        rule.waitForIdle()
+        rule.onNodeWithContentDescription("Search").assertIsNotDisplayed()
+        rule.onNodeWithTag("photosGrid").performTouchInput { swipeDown(startY = height * 0.3f, endY = height * 0.5f) }
+        rule.waitForIdle()
+        rule.onNodeWithContentDescription("Search").assertIsNotDisplayed()
+    }
+
+    @Test fun photos_dragBackUpToTheTop_bringsTheTopBarBack() {
+        rule.setContent { MemoriaTheme { Surface { PhotosContent(longTimeline, selection = PhotoSelection()) } } }
+
+        rule.onNodeWithTag("photosGrid").performTouchInput { swipeUp() }
+        rule.waitForIdle()
+        repeat(4) { rule.onNodeWithTag("photosGrid").performTouchInput { swipeDown() } }
+        rule.waitForIdle()
+        rule.onNodeWithContentDescription("Search").assertIsDisplayed()
+    }
+
+    @Test fun photos_backAtTheTop_showsTheTopBarAgain() {
+        rule.setContent { MemoriaTheme { Surface { PhotosContent(longTimeline, selection = PhotoSelection()) } } }
+
+        rule.onNodeWithTag("photosGrid").performTouchInput { swipeUp() }
+        rule.waitForIdle()
+        rule.onNodeWithContentDescription("Search").assertIsNotDisplayed()
+        rule.onNodeWithTag("photosGrid").performScrollToIndex(0)
+        rule.waitForIdle()
+        rule.onNodeWithContentDescription("Search").assertIsDisplayed()
+    }
+
+    @Test fun photos_topBarHidden_tapOnSelectBar_doesNotReachTheTilesUnderIt() {
+        val selection = PhotoSelection()
+        rule.setContent { MemoriaTheme { Surface { PhotosContent(longTimeline, selection = selection) } } }
+
+        rule.onNodeWithTag("photosGrid").performTouchInput { swipeUp() }
+        rule.waitForIdle()
+        rule.runOnIdle { selection.start(tile(1)) }
+        rule.waitForIdle()
+        rule.onNodeWithText("1 selected").performClick()
         assertEquals(setOf(1L), selection.ids)
     }
 
