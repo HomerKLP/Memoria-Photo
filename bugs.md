@@ -478,3 +478,15 @@ get month headings and the slider. Videos and Favorites are designed in the mock
 ## Month slider tick marks
 
 Removed 2026-10-19 (the user did not like them): the slider is the rail and the knob only, in the mockup and in `Ui.kt`.
+
+## Screenshot baselines depend on the recording machine's time zone
+
+The `DetailsView` baseline shows the date and zone of the machine that recorded it (`Details.kt` uses `ZoneId.systemDefault()`). `make shot-check` fails on a machine in another zone.
+
+Steps:
+1. Run `TZ=UTC make shot-check`.
+2. `DetailsView` differs from its baseline.
+
+Fix ideas:
+- Pin the zone in the preview (UTC), then `make screenshots`.
+- Look for other previews that show a date or time.
