@@ -561,6 +561,10 @@ fun PhotosContent(
         if (scrollToTop == 0) return@LaunchedEffect
         fastScrolling = true
         try {
+            // Far down, a scroll composes every row it passes (a second per thousand rows), so first jump
+            // to about three screens below the top and scroll only the rest.
+            val shown = grid.layoutInfo.visibleItemsInfo.size
+            if (grid.firstVisibleItemIndex > shown * 3) grid.scrollToItem(shown * 3)
             // The exact pixel distance to the top, measured with a scroll there and back inside one
             // frame: the two scrolls happen before the next draw, so the jump is never shown.
             val back = grid.scrollBy(-1e9f)

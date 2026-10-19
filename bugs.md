@@ -49,18 +49,20 @@ a `scrollBy` there and back in one frame, `Thumb` decoding paused while it runs 
 `decisions.md`). `jumpToTop` and `ScrollToTopTest` are gone. `make check` and all
 androidTests green; release checked on the emulator (real scroll at 10x) and the phone.
 
-2026-10-18: NOT fixed. The user still finds it sloppy: scrolled to the middle of the real
-library (much farther than my 25-swipe test) and tapped — it stutters, then the rest of
-the way it snaps up instantly. The 350 ms cap means one frame moves an enormous distance,
-so the grid composes a fresh viewport every frame and the tail of the tween lands as a
-jump. Left for later (the user's call, 2026-10-18). Ideas: cap the per-frame move and
-teleport the far part like Compose's own `animateScrollToItem` does, or scroll in chunks
-with a total time budget.
+2026-10-18: NOT fixed. The user still found it sloppy: from the middle of the real library
+it stuttered, then snapped the rest of the way up.
+
+Fixed 2026-10-19. Real cause, measured on the phone's release build from the deepest point
+(~6400 items, 730 000 px): the "distance to the top" measure (`scrollBy(-1e9f)`) composes every
+row it passes, so it froze the app for 1070 ms (+139 ms to scroll back), and the 350 ms tween
+then ran as 3 frames of 500-800 ms (2.4 s in all). `gfxinfo` showed only ~1% janky, so it hid
+this. Now, if the grid is more than three screens down, it jumps to three screens below the top
+first (`scrollToItem`), then measures and animates only that part: measure 8 ms, 31 frames of
+~11 ms, done in 355 ms.
 
 Fix ideas:
 - Done: one continuous scroll, capped at `tabScrollToTopMs`, no decode for tiles that only
-  fly by.
-- Open: stop the far-distance stutter-then-snap (see above).
+  fly by, and a jump to three screens below the top first when far down.
 
 ## Library tab feels laggy
 
