@@ -63,13 +63,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -97,7 +95,6 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
@@ -558,25 +555,6 @@ fun PhotosContent(
     val selectedIds = selection?.ids.orEmpty()
     // One entry per month header: the grid item a month starts at, and its name for the slider
     val months = remember(items) { list.mapIndexedNotNull { i, x -> if (x is Header && x.month) i to x.text else null } }
-    val monthStarts = months.map { it.first }
-    val monthNames = months.map { it.second }
-    val month by remember(grid, monthStarts) {
-        derivedStateOf { monthStarts.indexOfLast { it <= grid.firstVisibleItemIndex }.coerceAtLeast(0) }
-    }
-    val scope = rememberCoroutineScope()
-    var sliderOn by remember { mutableStateOf(false) } // fades in while scrolling, out two seconds later
-    var sliderTick by remember { mutableIntStateOf(0) } // bumped on scroll activity, restarts the hide timer
-    var dragMonth by remember { mutableStateOf<Int?>(null) }
-    LaunchedEffect(grid) {
-        snapshotFlow { grid.firstVisibleItemIndex to grid.isScrollInProgress }.collect { (index, scrolling) ->
-            if (dragMonth != null) return@collect
-            if (index == 0 && !scrolling) sliderOn = false // hidden at the top, where there is nothing to jump to
-            else if (scrolling || index > 0) { sliderOn = true; sliderTick++ }
-        }
-    }
-    LaunchedEffect(sliderTick) {
-        if (sliderTick > 0) { delay(2000); if (dragMonth == null) sliderOn = false }
-    }
     // Tab tap to the top, Immich style: one continuous scroll, capped at tabScrollToTopMs whatever the
     // distance, and no thumbnail decode for the tiles that only fly by (Thumb waits on fastScrolling).
     LaunchedEffect(scrollToTop) {
@@ -645,23 +623,9 @@ fun PhotosContent(
             }
             return@Column
         }
-        MonthSlider(
-            months = monthNames,
-            current = month,
-            dragging = dragMonth,
-            visible = sliderOn,
-            onDragging = { dragging ->
-                if (dragging) sliderOn = true
-                else {
-                    dragMonth = null
-                    // a drag that ended at the first month hides it, like a scroll that reached the top
-                    if (grid.firstVisibleItemIndex > 0) { sliderOn = true; sliderTick++ } else sliderOn = false
-                }
-            },
-            onJump = { i ->
-                dragMonth = i
-                scope.launch { grid.scrollToItem(monthStarts.getOrElse(i) { 0 }) }
-            },
+        MonthSliderBox(
+            grid = grid,
+            months = months,
             // always on for the timeline (Favorites has its own screen and no slider)
             enabled = !selecting,
             modifier = Modifier.weight(1f),

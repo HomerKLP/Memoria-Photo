@@ -38,10 +38,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -60,6 +65,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 /**
@@ -266,8 +273,8 @@ fun EmptyState(icon: Int, title: String, text: String, modifier: Modifier = Modi
 /** The slider strip: this much of the right edge catches drags (mockup: `.slider` width 28px). */
 private val sliderWidth = 28.dp
 
-/** The rail keeps this gap at the top and the bottom, so the first and last tick are not on the edge. */
-private val sliderPad = 10.dp
+/** The rail keeps this gap at the top and the bottom, so it never runs edge to edge between the bars. */
+private val sliderPad = 24.dp
 
 /**
  * Ticks are drawn only while they fit this far apart. A real library has over a hundred months, and
@@ -373,6 +380,53 @@ fun MonthSlider(
             }
         }
     }
+}
+
+/**
+ * Wraps a date-grouped grid in a [MonthSlider]: [months] is one (grid item index, name) per month
+ * heading. The slider fades in while scrolling and out 2 s after the last step, stays hidden at the
+ * top, and a drag jumps the grid to that month's heading. Shared by the timeline and Place.
+ */
+@Composable
+fun MonthSliderBox(
+    grid: androidx.compose.foundation.lazy.grid.LazyGridState,
+    months: List<Pair<Int, String>>,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    content: @Composable () -> Unit,
+) {
+    val starts = remember(months) { months.map { it.first } }
+    val names = remember(months) { months.map { it.second } }
+    val current by remember(grid, starts) {
+        derivedStateOf { starts.indexOfLast { it <= grid.firstVisibleItemIndex }.coerceAtLeast(0) }
+    }
+    val scope = rememberCoroutineScope()
+    var on by remember { mutableStateOf(false) } // fades in while scrolling, out two seconds later
+    var tick by remember { mutableIntStateOf(0) } // bumped on scroll activity, restarts the hide timer
+    var drag by remember { mutableStateOf<Int?>(null) }
+    LaunchedEffect(grid) {
+        snapshotFlow { grid.firstVisibleItemIndex to grid.isScrollInProgress }.collect { (index, scrolling) ->
+            if (drag != null) return@collect
+            if (index == 0 && !scrolling) on = false // hidden at the top, where there is nothing to jump to
+            else if (scrolling || index > 0) { on = true; tick++ }
+        }
+    }
+    LaunchedEffect(tick) {
+        if (tick > 0) { delay(2000); if (drag == null) on = false }
+    }
+    MonthSlider(
+        months = names, current = current, dragging = drag, visible = on,
+        onDragging = { dragging ->
+            if (dragging) on = true
+            else {
+                drag = null
+                // a drag that ended at the first month hides it, like a scroll that reached the top
+                if (grid.firstVisibleItemIndex > 0) { on = true; tick++ } else on = false
+            }
+        },
+        onJump = { i -> drag = i; scope.launch { grid.scrollToItem(starts.getOrElse(i) { 0 }) } },
+        modifier = modifier, enabled = enabled, content = content,
+    )
 }
 
 /** Drags that start on the right [sliderWidth] strip jump to a month; all other touches go to the content. */
