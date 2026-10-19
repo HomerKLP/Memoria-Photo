@@ -96,10 +96,11 @@ fun LibraryScreen(
     val saved by peopleSaved.collectAsState()
     val data by cachedProduceState("library", saved) {
         withContext(Dispatchers.IO) {
-            val faces = dao.faceVecs()
+            // Faces without vectors: the row only shows covers. Merge with loads the vectors when it opens.
+            val faces = dao.taggedFaces()
             val byId = faces.associateBy { it.id }
-            val byPerson = faces.filter { it.personId != null }.groupBy { it.personId!! }
-            val people = dao.people().filter { !it.hidden }.mapNotNull { p -> byId[p.mainFaceId]?.let { m -> Person(byPerson[p.id] ?: listOf(m), m, p.id, p.name, false, p.coverFaceId) } }
+            val byPerson = faces.groupBy { it.personId }
+            val people = dao.people().filter { !it.hidden }.mapNotNull { p -> byId[p.mainFaceId]?.let { m -> Person((byPerson[p.id] ?: listOf(m)).map { it.toVec() }, m.toVec(), p.id, p.name, false, p.coverFaceId) } }
                 .sortedWith(compareBy({ it.name.isNullOrBlank() }, { -it.photos })) // named first, then by photo count
             val albums = albums(context)
             val all = albums.flatMap { it.tiles }

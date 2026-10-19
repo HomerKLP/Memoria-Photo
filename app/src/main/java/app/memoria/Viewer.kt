@@ -19,6 +19,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.rememberSplineBasedDecay
@@ -99,6 +100,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -112,6 +114,8 @@ import kotlin.math.max
 internal val onViewer = Color(0xFFF4ECE1)
 internal val viewerBg = Color(0xFF120E0A)
 private const val maxZoom = 6f
+// Double-tap zoom: short, eased, in the viewer only
+private const val zoomMillis = 250
 
 // Bars fade fast: the tap must feel immediate. Material's default fade is a spring (~400 ms).
 private const val barsFadeMillis = 120
@@ -442,6 +446,19 @@ internal fun fitSize(imageWidth: Int, imageHeight: Int, boxWidth: Int, boxHeight
 private fun fitSize(bitmap: Bitmap?, box: IntSize): Size =
     if (bitmap == null) Size(0f, 0f) else fitSize(bitmap.width, bitmap.height, box.width, box.height)
 
+/**
+ * Pan that keeps the double-tapped [focus] point under the finger while zooming to [target] (from the
+ * centered 1x photo). Pan is measured from the centered photo (0 = centered), so a tap right of center
+ * pans left to bring that side in. Clamped to the photo's pan room, so a tap near an edge is fine.
+ */
+internal fun zoomToFocusPan(fit: Size, box: Size, target: Float, focus: Offset): Offset {
+    if (target <= 1f) return Offset.Zero
+    val d = focus - Offset(box.width / 2f, box.height / 2f)
+    val roomX = ((fit.width * target - box.width) / 2f).coerceAtLeast(0f)
+    val roomY = ((fit.height * target - box.height) / 2f).coerceAtLeast(0f)
+    return Offset((d.x * (1f - target)).coerceIn(-roomX, roomX), (d.y * (1f - target)).coerceIn(-roomY, roomY))
+}
+
 /** True when the photo's grid tile is at least partly on screen. */
 private fun onScreen(id: Long): Boolean = tileSpots[id]?.takeIf { it.isAttached }?.boundsInWindow()?.isEmpty == false
 
@@ -487,6 +504,8 @@ fun ViewerPage(
     // Zoom state lives here: a zoomed photo cannot be swiped away, so the page is never stale.
     val zoom = remember { mutableFloatStateOf(1f) }
     val pan = remember { mutableStateOf(Offset.Zero) }
+    val scope = rememberCoroutineScope()
+    var zoomJob by remember { mutableStateOf<Job?>(null) }
     val box = remember { mutableStateOf(IntSize.Zero) }
     val fit = remember { mutableStateOf(Size.Zero) }
     LaunchedEffect(image, box.value) { fit.value = fitSize(image, box.value) }
@@ -495,6 +514,10 @@ fun ViewerPage(
     // The details square shows the photo at 1x: opening them drops a zoom, and pinching waits until they close
     val detailsNow by rememberUpdatedState(details)
     fun transform(zoomChange: Float, panChange: Offset) {
+        // A real pinch or pan takes over from a running double-tap zoom. A bare tap (no movement) must
+        // not: its down and up both land here just to clamp the pan, and cancelling would kill the
+        // zoom-out animation the same tap just started.
+        if (zoomChange != 1f || panChange != Offset.Zero) zoomJob?.cancel()
         val next = if (detailsNow() > 0f) 1f else (zoom.floatValue * zoomChange).coerceIn(1f, maxZoom)
         val roomX = ((fit.value.width * next - box.value.width) / 2f).coerceAtLeast(0f)
         val roomY = ((fit.value.height * next - box.value.height) / 2f).coerceAtLeast(0f)
@@ -502,7 +525,22 @@ fun ViewerPage(
         else Offset((pan.value.x + panChange.x).coerceIn(-roomX, roomX), (pan.value.y + panChange.y).coerceIn(-roomY, roomY))
         zoom.floatValue = next
     }
-    LaunchedEffect(Unit) { snapshotFlow { detailsNow() > 0f }.collect { if (it) transform(1f, Offset.Zero) } }
+    // Double tap eases to the target, and slides the pan to keep the tapped point under the finger.
+    // Zooming back out (target 1x) returns the pan to center.
+    fun animateZoomTo(target: Float, focus: Offset?) {
+        zoomJob?.cancel()
+        val startZoom = zoom.floatValue
+        val startPan = pan.value
+        val endPan = if (target <= 1f || focus == null) Offset.Zero
+        else zoomToFocusPan(fit.value, Size(box.value.width.toFloat(), box.value.height.toFloat()), target, focus)
+        zoomJob = scope.launch {
+            animate(0f, 1f, animationSpec = tween(zoomMillis, easing = FastOutSlowInEasing)) { t, _ ->
+                zoom.floatValue = startZoom + (target - startZoom) * t
+                pan.value = startPan + (endPan - startPan) * t
+            }
+        }
+    }
+    LaunchedEffect(Unit) { snapshotFlow { detailsNow() > 0f }.collect { if (it) { zoomJob?.cancel(); transform(1f, Offset.Zero) } } }
     var page by remember { mutableStateOf<LayoutCoordinates?>(null) }
     // The photo's rect and clip right now. No clip: no tile to fly from, so it fades with [shown].
     fun motion(fit: Size, screen: Size): Pair<Rect, Rect?> {
@@ -568,9 +606,9 @@ fun ViewerPage(
                 .pointerInput(tile.id) {
                     detectTapGestures(
                         onTap = { onTap() },
-                        onDoubleTap = {
-                            // 1x -> 2.5x, then back out. Center anchored: good enough, keeps the maths short.
-                            if (zoom.floatValue > 1f) transform(1f / zoom.floatValue, Offset.Zero) else transform(2.5f, Offset.Zero)
+                        onDoubleTap = { offset ->
+                            // 1x -> 2.5x zoomed toward the tapped point; 2.5x -> 1x back to center
+                            if (zoom.floatValue > 1f) animateZoomTo(1f, offset) else animateZoomTo(2.5f, offset)
                         },
                     )
                 }

@@ -207,6 +207,16 @@ fun AlbumContent(
 ) {
     val a = album
     val videos = a?.tiles?.count { it.duration != null } ?: 0
+    val month = DateTimeFormatter.ofPattern("LLLL yyyy")
+    val zone = ZoneId.systemDefault()
+    val groups = remember(a?.tiles) {
+        a?.tiles.orEmpty().groupBy { month.format(Instant.ofEpochMilli(it.date).atZone(zone)) }.entries.toList()
+    }
+    // one (grid item index, month name) per month heading, so the slider can jump to it
+    val months = remember(groups) {
+        var i = 0
+        groups.map { (m, tiles) -> (i to m).also { i += 1 + tiles.size } }
+    }
     var more by remember { mutableStateOf(false) }
     var asking by remember { mutableStateOf(false) }
     if (selected != null) BackHandler { onSelect(null) }
@@ -224,20 +234,31 @@ fun AlbumContent(
             }
             val grid = rememberLazyGridState()
             FollowViewer(grid, a?.tiles.orEmpty())
-            LazyVerticalGrid(
-                GridCells.Fixed(3), Modifier.weight(1f).testTag("albumGrid"), state = grid,
-                horizontalArrangement = Arrangement.spacedBy(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp),
-            ) {
-                items(a?.tiles.orEmpty(), key = { it.id }) { t ->
-                    val on = selected != null && t.id in selected
-                    TileImage(
-                        t,
-                        Modifier.combinedClickable(
-                            onClick = { if (selected == null) onOpen(a!!.tiles, t) else onSelect(if (on) selected - t.id else selected + t.id) },
-                            onLongClick = { onSelect(selected.orEmpty() + t.id) },
-                        ).testTag("tile-${t.id}"),
-                        selecting = selected != null, selected = on,
-                    )
+            MonthSliderBox(grid = grid, months = months, enabled = selected == null, top = monthHeadingHeight(below = 10.dp), modifier = Modifier.weight(1f)) {
+                LazyVerticalGrid(
+                    GridCells.Fixed(3), Modifier.testTag("albumGrid"), state = grid,
+                    horizontalArrangement = Arrangement.spacedBy(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp),
+                ) {
+                    groups.forEach { (m, tiles) ->
+                        stickyHeader(key = m) {
+                            // background: the pinned month covers the tiles passing under it
+                            Text(
+                                m, Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(start = 16.dp, top = 20.dp, bottom = 10.dp),
+                                style = MaterialTheme.typography.titleLarge,
+                            )
+                        }
+                        items(tiles, key = { it.id }) { t ->
+                            val on = selected != null && t.id in selected
+                            TileImage(
+                                t,
+                                Modifier.combinedClickable(
+                                    onClick = { if (selected == null) onOpen(a!!.tiles, t) else onSelect(if (on) selected - t.id else selected + t.id) },
+                                    onLongClick = { onSelect(selected.orEmpty() + t.id) },
+                                ).testTag("tile-${t.id}"),
+                                selecting = selected != null, selected = on,
+                            )
+                        }
+                    }
                 }
             }
             if (selected != null) {

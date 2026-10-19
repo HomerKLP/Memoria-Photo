@@ -26,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -147,6 +148,14 @@ fun PlaceContent(place: Place?, onBack: () -> Unit = {}, onOpen: (List<Tile>, Ti
     if (sel != null) BackHandler { pick.set(null) }
     val month = DateTimeFormatter.ofPattern("LLLL yyyy")
     val zone = ZoneId.systemDefault()
+    // one (grid item index, month name) per month heading, so the slider can jump to it
+    val groups = remember(p?.tiles) {
+        p?.tiles.orEmpty().groupBy { month.format(Instant.ofEpochMilli(it.date).atZone(zone)) }.entries.toList()
+    }
+    val months = remember(groups) {
+        var i = 0
+        groups.map { (m, tiles) -> (i to m).also { i += 1 + tiles.size } }
+    }
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         if (sel != null) TopBar(
             "${sel.size} selected", "${p?.name} · ${formatBytes(pick.size)}",
@@ -157,29 +166,32 @@ fun PlaceContent(place: Place?, onBack: () -> Unit = {}, onOpen: (List<Tile>, Ti
         // " " while loading: an empty title may measure to nothing and the grid would jump
         else TopBar(p?.name?.ifEmpty { " " } ?: " ", p?.let { "${it.tiles.size} photos" }, onBack = onBack)
         val grid = rememberLazyGridState()
-        FollowViewer(grid, p?.tiles.orEmpty())
-        LazyVerticalGrid(
-            GridCells.Fixed(3), Modifier.weight(1f).testTag("placeGrid"), state = grid,
-            horizontalArrangement = Arrangement.spacedBy(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp),
-        ) {
-            p?.tiles?.groupBy { month.format(Instant.ofEpochMilli(it.date).atZone(zone)) }?.forEach { (m, tiles) ->
-                stickyHeader(key = m) {
-                    // background: the pinned month covers the tiles passing under it
-                    Text(
-                        m, Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(start = 16.dp, top = 20.dp, bottom = 10.dp),
-                        style = MaterialTheme.typography.titleLarge,
-                    )
-                }
-                items(tiles, key = { it.id }) { t ->
-                    val on = sel != null && t.id in sel
-                    TileImage(
-                        t,
-                        Modifier.combinedClickable(
-                            onClick = { if (sel == null) onOpen(p.tiles, t) else pick.set(if (on) sel - t.id else sel + t.id) },
-                            onLongClick = { pick.set(sel.orEmpty() + t.id) },
-                        ).testTag("tile-${t.id}"),
-                        selecting = sel != null, selected = on,
-                    )
+        val allTiles = p?.tiles.orEmpty()
+        FollowViewer(grid, allTiles)
+        MonthSliderBox(grid = grid, months = months, enabled = sel == null, top = monthHeadingHeight(below = 10.dp), modifier = Modifier.weight(1f)) {
+            LazyVerticalGrid(
+                GridCells.Fixed(3), Modifier.testTag("placeGrid"), state = grid,
+                horizontalArrangement = Arrangement.spacedBy(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                groups.forEach { (m, tiles) ->
+                    stickyHeader(key = m) {
+                        // background: the pinned month covers the tiles passing under it
+                        Text(
+                            m, Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(start = 16.dp, top = 20.dp, bottom = 10.dp),
+                            style = MaterialTheme.typography.titleLarge,
+                        )
+                    }
+                    items(tiles, key = { it.id }) { t ->
+                        val on = sel != null && t.id in sel
+                        TileImage(
+                            t,
+                            Modifier.combinedClickable(
+                                onClick = { if (sel == null) onOpen(allTiles, t) else pick.set(if (on) sel - t.id else sel + t.id) },
+                                onLongClick = { pick.set(sel.orEmpty() + t.id) },
+                            ).testTag("tile-${t.id}"),
+                            selecting = sel != null, selected = on,
+                        )
+                    }
                 }
             }
         }

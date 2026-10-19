@@ -102,6 +102,8 @@ interface IndexDao {
     @Query("SELECT kind, COUNT(*) AS n FROM photo GROUP BY kind")
     fun kinds(): Flow<Map<@MapColumn("kind") String, @MapColumn("n") Int>>
     @Query("SELECT COUNT(*) FROM face") fun faceCount(): Flow<Int>
+    /** Faces the user did not mark "Not a face", for the People summary; the display reads no vectors. */
+    @Query("SELECT COUNT(*) FROM face WHERE NOT notFace") suspend fun faceTotal(): Int
     @Query(
         "SELECT f.id, f.photoId, f.box, f.vector, f.quality, p.kind, f.personId, " +
             "EXISTS(SELECT 1 FROM answer a WHERE a.faceId = f.id AND a.yes) AS yes, " +

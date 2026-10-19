@@ -81,6 +81,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -269,15 +272,16 @@ fun PeopleScreen(
     val saved by peopleSaved.collectAsState()
     val result by cachedProduceState("people", reload, saved) {
         withContext(Dispatchers.IO) {
-            val faces = dao.faceVecs()
-            val byPerson = faces.filter { it.personId != null }.groupBy { it.personId!! }
+            // Faces without vectors: the grid only shows pictures. Merge with ranks by distance, so it loads them itself.
+            val faces = dao.taggedFaces()
+            val byPerson = faces.groupBy { it.personId }
             // getValue would crash on a person with no faces (stopped index, manual edit); skip it
-            val people = dao.people().mapNotNull { p -> byPerson[p.id]?.let { fs -> Person(fs, fs.firstOrNull { it.id == p.mainFaceId } ?: fs.first(), p.id, p.name, p.hidden, p.coverFaceId) } }
+            val people = dao.people().mapNotNull { p -> byPerson[p.id]?.let { fs -> Person(fs.map { it.toVec() }, (fs.firstOrNull { it.id == p.mainFaceId } ?: fs.first()).toVec(), p.id, p.name, p.hidden, p.coverFaceId) } }
                 .sortedWith(compareBy({ it.name.isNullOrBlank() }, { -it.photos })) // named first, then by photo count
             // hidden people stay in the list, so one opened from Hidden people still shows
             val shown = people.filter { !it.hidden }
             val unsure = shown.flatMap { p -> p.faces.filter { !it.sure } }.sortedBy { it.quality }
-            PeopleData("${shown.size} people · ${faces.size} faces", people, unsure, libraryPhotoCount(context))
+            PeopleData("${shown.size} people · ${dao.faceTotal()} faces", people, unsure, libraryPhotoCount(context))
         }
     }
     BackHandler { if (naming != null) naming = null else if (openId != null) onPersonBack() else onBack() }
@@ -551,6 +555,18 @@ fun PersonDetail(
     // an unnamed person reads badly in a sentence ("11 may be No name"), so use "this person" there
     val who = p.name ?: "this person"
     val shownPhotos = photos.orEmpty()
+    val month = DateTimeFormatter.ofPattern("LLLL yyyy")
+    val zone = ZoneId.systemDefault()
+    val groups = remember(shownPhotos) {
+        shownPhotos.groupBy { month.format(Instant.ofEpochMilli(it.date).atZone(zone)) }.entries.toList()
+    }
+    // one (grid item index, month name) per month heading, so the slider can jump to it; the items
+    // before the first month are the chips, the Faces head and row, the Unsure card (if any), the Photos head
+    val lead = if (unsure.isNotEmpty()) 5 else 4
+    val months = remember(groups, lead) {
+        var i = lead
+        groups.map { (m, tiles) -> (i to m).also { i += 1 + tiles.size } }
+    }
     // own Column: the Select bar goes under the grid
     Column(Modifier.fillMaxSize()) {
         if (sel != null) TopBar(
@@ -570,46 +586,57 @@ fun PersonDetail(
         )
         val grid = rememberLazyGridState()
         FollowViewer(grid, shownPhotos)
-        LazyVerticalGrid(
-            GridCells.Fixed(3), modifier = Modifier.weight(1f).testTag("personPhotos"), state = grid,
-            contentPadding = PaddingValues(bottom = 24.dp),
-            horizontalArrangement = Arrangement.spacedBy(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp),
-        ) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                Row(
-                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Chip(if (p.name.isNullOrBlank()) "Add name" else "Rename", R.drawable.ic_person, onName)
-                    Chip("Merge with", R.drawable.ic_person_add, onMerge)
-                    Chip("Change cover", R.drawable.ic_photo, onCover)
-                    if (p.hidden) Chip("Show person", R.drawable.ic_eye, onHide) else Chip("Hide person", R.drawable.ic_block, onHide)
+        MonthSliderBox(grid = grid, months = months, enabled = sel == null, top = monthHeadingHeight(below = 10.dp), modifier = Modifier.weight(1f)) {
+            LazyVerticalGrid(
+                GridCells.Fixed(3), modifier = Modifier.testTag("personPhotos"), state = grid,
+                contentPadding = PaddingValues(bottom = 24.dp),
+                horizontalArrangement = Arrangement.spacedBy(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Chip(if (p.name.isNullOrBlank()) "Add name" else "Rename", R.drawable.ic_person, onName)
+                        Chip("Merge with", R.drawable.ic_person_add, onMerge)
+                        Chip("Change cover", R.drawable.ic_photo, onCover)
+                        if (p.hidden) Chip("Show person", R.drawable.ic_eye, onHide) else Chip("Hide person", R.drawable.ic_block, onHide)
+                    }
                 }
-            }
-            item(span = { GridItemSpan(maxLineSpan) }) { SectionHead("Faces", hint = "These faces match $who") }
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                Row(
-                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 2.dp),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                ) {
-                    sure.take(30).forEach { FaceImage(it, Modifier.size(44.dp).clip(CircleShape)) }
+                item(span = { GridItemSpan(maxLineSpan) }) { SectionHead("Faces", hint = "These faces match $who") }
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        sure.take(30).forEach { FaceImage(it, Modifier.size(44.dp).clip(CircleShape)) }
+                    }
                 }
-            }
-            if (unsure.isNotEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
-                // "may be this person" wraps next to the face stack
-                ReviewCard(unsure, onReview, title = "Unsure faces", note = if (p.name.isNullOrBlank()) "${unsure.size} to check" else "${unsure.size} may be ${p.name}")
-            }
-            item(span = { GridItemSpan(maxLineSpan) }) { SectionHead("Photos", hint = "${p.photos} · by date") }
-            items(shownPhotos, key = { it.id }) { t ->
-                val on = sel != null && t.id in sel
-                TileImage(
-                    t,
-                    Modifier.combinedClickable(
-                        onClick = { if (sel == null) onOpen(shownPhotos, t) else pick.set(if (on) sel - t.id else sel + t.id) },
-                        onLongClick = { pick.set(sel.orEmpty() + t.id) },
-                    ).testTag("tile-${t.id}"),
-                    selecting = sel != null, selected = on,
-                )
+                if (unsure.isNotEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
+                    // "may be this person" wraps next to the face stack
+                    ReviewCard(unsure, onReview, title = "Unsure faces", note = if (p.name.isNullOrBlank()) "${unsure.size} to check" else "${unsure.size} may be ${p.name}")
+                }
+                item(span = { GridItemSpan(maxLineSpan) }) { SectionHead("Photos", hint = "${p.photos} · by date") }
+                groups.forEach { (m, tiles) ->
+                    stickyHeader(key = m) {
+                        // background: the pinned month covers the tiles passing under it
+                        Text(
+                            m, Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(start = 16.dp, top = 20.dp, bottom = 10.dp),
+                            style = MaterialTheme.typography.titleLarge,
+                        )
+                    }
+                    items(tiles, key = { it.id }) { t ->
+                        val on = sel != null && t.id in sel
+                        TileImage(
+                            t,
+                            Modifier.combinedClickable(
+                                onClick = { if (sel == null) onOpen(shownPhotos, t) else pick.set(if (on) sel - t.id else sel + t.id) },
+                                onLongClick = { pick.set(sel.orEmpty() + t.id) },
+                            ).testTag("tile-${t.id}"),
+                            selecting = sel != null, selected = on,
+                        )
+                    }
+                }
             }
         }
         if (sel != null) {
@@ -647,12 +674,21 @@ suspend fun mergePeople(db: Db, into: Person, other: Person) = db.withTransactio
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MergeSheet(person: Person, people: List<Person>, onDismiss: () -> Unit, onMerge: (Person) -> Unit) {
+    val context = LocalContext.current
+    val dao = remember { Db.get(context).index() }
+    // The list's people carry no vectors (see PeopleScreen); "most alike first" needs them, so load them
+    // once here when the sheet opens, not on every People open.
+    var means by remember { mutableStateOf<Map<Long, FloatArray>>(emptyMap()) }
+    LaunchedEffect(person.id, people) {
+        val byPerson = withContext(Dispatchers.IO) { dao.faceVecs().filter { it.personId != null }.groupBy { it.personId!! } }
+        means = byPerson.mapValues { mean(it.value) }
+    }
     val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var text by remember { mutableStateOf("") }
     var picked by remember { mutableStateOf<Person?>(null) }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet, containerColor = MaterialTheme.colorScheme.background) {
         // body split out: a ModalBottomSheet renders blank in the screenshot tests (see NamePersonContent)
-        MergeContent(person, people, text, { text = it }, picked, { picked = it }, onDismiss, onMerge)
+        MergeContent(person, people, text, { text = it }, picked, { picked = it }, onDismiss, onMerge, means)
     }
 }
 
@@ -667,11 +703,18 @@ fun MergeContent(
     onPick: (Person) -> Unit,
     onCancel: () -> Unit,
     onMerge: (Person) -> Unit,
+    means: Map<Long, FloatArray> = emptyMap(),
 ) {
-    // closest average face first; |m| is the same for all, so only the other person's length counts
-    val alike = remember(person, people) {
-        val m = mean(person.faces)
-        people.sortedByDescending { val o = mean(it.faces); dot(m, o) / sqrt(dot(o, o)) }
+    // closest average face first; |m| is the same for all, so only the other person's length counts.
+    // [means] is loaded by MergeSheet (the list's faces have no vectors); empty in tests/previews.
+    val alike = remember(person, people, means) {
+        if (means.isNotEmpty()) {
+            val m = means[person.id]
+            people.sortedByDescending { val o = means[it.id]; if (m == null || o == null) 0f else dot(m, o) / sqrt(dot(o, o)) }
+        } else {
+            val m = mean(person.faces)
+            people.sortedByDescending { val o = mean(it.faces); dot(m, o) / sqrt(dot(o, o)) }
+        }
     }
     val shown = alike.filter { it.name.orEmpty().contains(text.trim(), ignoreCase = true) }
     Column(Modifier.padding(bottom = 28.dp)) {

@@ -76,6 +76,8 @@ Steps:
 Fix ideas:
 - Load faces without vectors for Library and People (only grouping needs them).
 
+2026-10-18: fixed. Library and People read `taggedFaces()` (`LightFace`, no 512-float vector) and map with `toVec()`; the vector was never read on screen. Merge with is the only consumer (it ranks by the mean face), so `MergeSheet` loads `faceVecs()` once when its sheet opens and passes the means to `MergeContent` (empty in tests/previews, so they keep the old path). The People summary count now comes from a new `IndexDao.faceTotal()` (the old `faces.size` was the whole `faceVecs()` list). Emulator, debug, ~1.8k faces: People load ~100 -> ~50 ms and the ~3.6 MB of vectors per open are gone; Library's own number barely moved because albums/places dominate it. `Search.kt` still loads `faceVecs()` for its named-people list (same fix, not done). `make check`, `make layout` green.
+
 ## Viewer opens blurry, then sharpens
 
 The photo is blurry for a moment, then becomes full resolution. Cause:
@@ -336,6 +338,27 @@ Steps:
 Fix ideas:
 - Done: cache the last photo list per person so the first frame back is full.
 
+## Double-tap zoom always zooms to the center
+
+Double-tapping a photo in the viewer zooms to 2.5x around the center of the
+screen, not around the point the user tapped. On a photo with detail near an
+edge (a face in a corner), the tapped area drifts away and the user must pan to
+it.
+
+Steps:
+1. Open a photo in the viewer.
+2. Double-tap near a corner. The zoom centers the middle of the photo.
+
+2026-10-19: fixed. The double-tap offset was ignored (`animateZoomTo(target)`
+only changed the zoom and clamped the old pan). Now `onDoubleTap` passes the tap
+`offset`, and `animateZoomTo(target, focus)` slides the pan to
+`zoomToFocusPan(fit, box, target, focus)` (a new pure function) so the tapped
+point stays under the finger, clamped to the photo's pan room. Zooming back out
+(target 1x) returns the pan to center. Zoom and pan now animate together on one
+`tween` progress, so the focus stays put through the whole motion. Checked with
+5 unit tests in `ViewerFitTest` (center, right, clamped near an edge, zoom-out,
+and that the tapped point lands back under the finger).
+
 # Known issues and bad patterns
 
 Found while reading the code, not seen on the phone yet. No steps, just the risk.
@@ -347,7 +370,7 @@ Found while reading the code, not seen on the phone yet. No steps, just the risk
 - **Destructive migrations.** Fixed 2026-10-17: only v1-3 databases are wiped; a missing migration crashes on open, and `MigrationTest` fails first.
 - **Global mutable state.** `lastTimeline` and `thumbs` are top-level (`Photos.kt`); the Photos tab and the viewer both depend on them silently.
 - **Bitmap churn.** `detect` makes new full-size bitmaps per photo and never recycles (`Faces.kt`). Adds to load cost and heat.
-- **Details loads every face vector.** Fixed 2026-10-18. `Details.kt` called `dao.faceVecs()` for one photo, then filtered by `photoId`. Now `IndexDao.photoFaces(id)` reads that photo's faces (a handful of rows) and `IndexDao.taggedFaces()` reads the saved people's faces **without** their 512-float vectors (`LightFace`, `People.kt`) for the Who is this? sheet. Details never matches by distance, so no vector is needed. Same "faces without vectors" idea as Library (`People.kt` `MergeContent` still ranks by vector, so the People screen keeps the full load).
+- **Details loads every face vector.** Fixed 2026-10-18. `Details.kt` called `dao.faceVecs()` for one photo, then filtered by `photoId`. Now `IndexDao.photoFaces(id)` reads that photo's faces (a handful of rows) and `IndexDao.taggedFaces()` reads the saved people's faces **without** their 512-float vectors (`LightFace`, `People.kt`) for the Who is this? sheet. Details never matches by distance, so no vector is needed. Same "faces without vectors" idea as Library (2026-10-18: Library and People read `taggedFaces()` too; only Merge with loads `faceVecs()`, once, when its sheet opens — see the "Library tab feels laggy" entry).
 - **`libraryPhotos(context).size` scans all of MediaStore.** Fixed 2026-10-18. `Library.kt`, `People.kt` and `MainActivity.kt` built a `MediaPhoto` per row just to count. Now `libraryPhotoCount(context)` (`Index.kt`) reads the row count only, with the skipped-album filter in the query. The full `libraryPhotos` list is still built for an index run only.
 - **`groupFaces` holds an n×n float matrix in memory** (`People.kt`). Time is O(n²) since the NN-chain (2026-10-17), but memory is 17 MB at today's 2052 starting faces and ~400 MB at 10k. Store half of it (or float16) before libraries get that big.
 - **Dead `photo.path` column.** `PhotoRow.path` (`Index.kt`) is written on insert but no query reads it. Remove it when the schema is next touched (needs a migration).
@@ -410,3 +433,31 @@ Failed once in a full `make layout` run (2026-10-18, no message), passed when ru
 Steps: `make layout`; if it fails, rerun the one test with `-Pandroid.testInstrumentationRunnerArguments.class=app.memoria.LayoutJumpTest#library_pauseResume_progressBarKeepsLength`.
 
 Fix ideas: run device tests only when no other session uses the emulator; if it fails again alone, wait for idle before reading the bar.
+
+## Timeline month slider is taller than the mockup
+
+Open again 2026-10-19. The 24 dp rail inset was built (`sliderPad`, `Ui.kt`), but the user did not
+like the mockup change and it was reverted. The rail also ran through the pinned month heading.
+Mockup now: `.slider` top 104 -> 150 px (under the heading), `z-index: 3` (a heading that scrolls
+past no longer cuts the rail), bottom unchanged. Approved by the user 2026-10-19. Fixed in code the
+same day (`Ui.kt`): `sliderPad` 10 dp, box ends 33 dp above the grid's bottom, starts 3 dp under the
+pinned heading (`monthHeadingHeight`). Test: `monthSlider_rail_startsUnderPinnedHeading`. Checked on
+the phone (Photos). Place and Album use it too (see `decisions.md`).
+
+## Month slider knob stops above the rail's end at the bottom of a list
+
+Fixed 2026-10-19. The knob follows the first month on screen. At the end of a list the last months
+can be shorter than the screen, so the knob stayed a few ticks above the rail's bottom end (seen on
+the phone, album "Restored"). Now it goes to the last month once the grid can't scroll forward
+(`MonthSliderBox`, `Ui.kt`). Test: `monthSlider_atTheEnd_knobReachesTheRailBottom` (red before, green
+after).
+
+## Month slider on a date-grouped list other than the timeline
+
+Fixed 2026-10-19 for Place: `MonthSliderBox` (`Ui.kt`) now holds the shared fade-in/out and drag
+state, so a second screen gets the slider with no copy. Album and Person are built (2026-10-19): both
+get month headings and the slider. Videos and Favorites are designed in the mockup, code not built; see `ROADMAP.md`.
+
+## Month slider tick marks
+
+Removed 2026-10-19 (the user did not like them): the slider is the rail and the knob only, in the mockup and in `Ui.kt`.

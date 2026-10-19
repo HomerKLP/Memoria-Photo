@@ -41,4 +41,35 @@ class ViewerFitTest {
 
     @Test fun dragDownHalfTheScreenShrinksTo70Percent() =
         assertEquals(androidx.compose.ui.geometry.Rect(150f, 1825f, 850f, 2175f) to null, photoMotion(fit, screen, null, null, 1f, 1000f))
+
+    // zoomToFocusPan: a 1000x500 photo on a 1000x2000 screen (it fits by width, so it cannot pan up/down)
+    private val box = androidx.compose.ui.geometry.Size(1000f, 2000f)
+
+    private fun assertPan(x: Float, y: Float, pan: androidx.compose.ui.geometry.Offset) {
+        assertEquals("x", x, pan.x, 0.01f)
+        assertEquals("y", y, pan.y, 0.01f)
+    }
+
+    @Test fun doubleTapAtCenterKeepsPanZero() =
+        assertPan(0f, 0f, zoomToFocusPan(fit, box, 2.5f, androidx.compose.ui.geometry.Offset(500f, 1000f)))
+
+    @Test fun doubleTapRightZoomsTowardTheTap() =
+        assertPan(-450f, 0f, zoomToFocusPan(fit, box, 2.5f, androidx.compose.ui.geometry.Offset(800f, 1000f)))
+
+    @Test fun doubleTapNearTheEdgeClampsToThePanRoom() =
+        assertPan(-750f, 0f, zoomToFocusPan(fit, box, 2.5f, androidx.compose.ui.geometry.Offset(1000f, 1000f)))
+
+    @Test fun doubleTapOutResetsPanToCenter() =
+        assertPan(0f, 0f, zoomToFocusPan(fit, box, 1f, androidx.compose.ui.geometry.Offset(800f, 1000f)))
+
+    @Test fun tappedPointStaysUnderTheFinger() {
+        val focus = androidx.compose.ui.geometry.Offset(800f, 1000f)
+        val z = 2.5f
+        val pan = zoomToFocusPan(fit, box, z, focus)
+        // where the content point that was under the tap lands: center + d*z + pan
+        val d = focus - androidx.compose.ui.geometry.Offset(box.width / 2f, box.height / 2f)
+        val landed = androidx.compose.ui.geometry.Offset(box.width / 2f, box.height / 2f) + d * z + pan
+        assertEquals(focus.x, landed.x, 0.01f)
+        assertEquals(focus.y, landed.y, 0.01f)
+    }
 }

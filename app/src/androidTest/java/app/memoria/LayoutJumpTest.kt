@@ -5,8 +5,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationItemIconPosition
 import androidx.compose.material3.ShortNavigationBar
 import androidx.compose.material3.ShortNavigationBarItem
@@ -277,6 +279,31 @@ class LayoutJumpTest {
         val before = rule.onNodeWithText("anchor").top()
         rule.runOnIdle { visible = true }
         assertSame("content", before, rule.onNodeWithText("anchor").top())
+    }
+
+    /** The rail starts under the pinned month heading, never through it (mockup: slider top 3 dp under the heading). */
+    @Test fun monthSlider_rail_startsUnderPinnedHeading() {
+        rule.setContent {
+            MemoriaTheme {
+                Surface {
+                    MonthSlider(
+                        months = listOf("September 2026", "August 2026", "July 2026"),
+                        current = 1,
+                        dragging = null,
+                        visible = true,
+                        onDragging = {},
+                        onJump = {},
+                        top = monthHeadingHeight(below = 2.dp),
+                    ) {
+                        Text("September 2026", Modifier.padding(start = 16.dp, top = 20.dp, bottom = 2.dp), style = MaterialTheme.typography.titleLarge)
+                    }
+                }
+            }
+        }
+
+        val heading = rule.onNodeWithText("September 2026").getUnclippedBoundsInRoot()
+        val rail = rule.onNodeWithTag("monthRail").getUnclippedBoundsInRoot()
+        assertTrue("rail top ${rail.top} is above the heading bottom ${heading.bottom}", rail.top >= heading.bottom)
     }
 
     /** Viewer: the bars are an overlay, so hiding them (the tapped state) must not move or resize the photo behind. */
