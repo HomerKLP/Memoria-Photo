@@ -62,6 +62,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontFamily
@@ -360,9 +361,10 @@ fun App(dir: File) {
 
 /** Library shortcut card from the mockup (Favorites, Videos, Trash). One line each, so the two cards in a row stay the same height. */
 @Composable
-fun Shortcut(icon: Int, name: String, info: String, modifier: Modifier, onClick: () -> Unit) {
+fun Shortcut(icon: Int, name: String, info: String, modifier: Modifier, onClick: (() -> Unit)?) {
     Row(
-        modifier.clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceVariant).clickable(onClick = onClick).padding(14.dp),
+        modifier.alpha(if (onClick == null) 0.38f else 1f).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceVariant)
+            .clickable(enabled = onClick != null) { onClick?.invoke() }.padding(14.dp),
         Arrangement.spacedBy(12.dp), Alignment.CenterVertically,
     ) {
         Icon(painterResource(icon), null, tint = MaterialTheme.colorScheme.primary)

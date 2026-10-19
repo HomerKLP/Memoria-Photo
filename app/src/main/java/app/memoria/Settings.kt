@@ -34,6 +34,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -157,11 +158,11 @@ fun SettingsContent(
     }
 }
 
-/** Mockup `.set`: icon, title, one muted line, then a switch or a chevron. No [onClick]: not built yet. */
+/** Mockup `.set`: icon, title, one muted line, then a switch or a chevron. No [onClick]: not built yet, greyed out. */
 @Composable
 private fun SettingRow(icon: Int, title: String, info: String, onClick: (() -> Unit)? = null, trailing: @Composable () -> Unit = {}) {
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(enabled = onClick != null) { onClick?.invoke() }
+        Modifier.fillMaxWidth().alpha(if (onClick == null) 0.38f else 1f).heightIn(min = 56.dp).clickable(enabled = onClick != null) { onClick?.invoke() }
             .padding(horizontal = 16.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically,
     ) {

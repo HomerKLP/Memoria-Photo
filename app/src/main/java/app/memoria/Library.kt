@@ -407,7 +407,7 @@ fun Shortcuts(onOpenFavorites: () -> Unit, onOpenVideos: () -> Unit, onOpenTrash
             Shortcut(R.drawable.ic_video, "Videos", videos.toString(), Modifier.weight(1f), onOpenVideos)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Shortcut(R.drawable.ic_lock, "Locked folder", "Private", Modifier.weight(1f)) {}
+            Shortcut(R.drawable.ic_lock, "Locked folder", "Private", Modifier.weight(1f), null) // not built yet
             Shortcut(R.drawable.ic_trash, "Trash", if (trash == 0) "Empty" else trash.toString(), Modifier.weight(1f), onOpenTrash)
         }
     }
