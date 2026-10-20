@@ -428,6 +428,20 @@ The first run, right after indexing (warm phone), read 2-4x more janky frames. C
 | Viewer, open + 3 swipes | 408 | 0.5 | 6 | 11 |
 | Details, open | 83 | 1.2 | 5 | 13 |
 
+Correction 2026-10-20: the tables above never had the baseline profile. `perf.py` sent `INSTALL_BASELINE_PROFILE`, but the receiver's action is `INSTALL_PROFILE` (result 0, nothing installed), so `compile -m speed-profile` used only what the app had recorded while running. Fixed in `perf.py` and `make release` (result 1, `status=speed-profile`). Pairs measured in the same session still compare fairly.
+
+| 2026-10-20, grid + viewer fix, baseline profile really installed | frames | janky % | p90 ms | p99 ms |
+|---|---|---|---|---|
+| Cold start: first frame 123 ms, timeline 171 ms | | | | |
+| Photos, first scroll | 337 | 0.6 | 5 | 16 |
+| Photos, scroll | 311 | 0 | 6 | 7 |
+| Library, open + scroll | 112 | 2.7 | 6 | 18 |
+| People, open + scroll | 117 | 0.9 | 7 | 14 |
+| Viewer, open + 3 swipes | 398 | 0.5 | 6 | 11 |
+| Details, open | 83 | 1.2 | 5 | 15 |
+
+Cold start is 14-25 ms slower than with the profile the app recorded during an hour of use, so the shipped baseline profile may be out of date (regenerate on the emulator, `:app:generateReleaseBaselineProfile`). The phone was hot after an hour of tests, so read small gaps as noise.
+
 ## Grid and viewer feel slow, though frame times are fine
 
 Frame times are clean (table above), so the slowness is loading, not jank. Measured 2026-10-20 on the release build with perfetto and screencaps.
@@ -448,6 +462,8 @@ Causes found:
 Fix ideas: viewer decode with a power-of-two sample size near screen size and a hardware bitmap; grid `LazyLayoutCacheWindow` so tiles load ahead, shorter or no fade; a bigger thumb cache; sample-size decode for the fallback; R8 with keep rules for ONNX Runtime.
 
 2026-10-20, grid part done: the Photos grid builds tiles one screen ahead (`LazyLayoutCacheWindow(aheadFraction = 1f)`, `MainActivity.kt`), the thumb fade is gone, the thumb cache is `maxMemory / 2` (128 MB). Same cold-start fling test, 3 runs: no blank tiles in any screencap (before: up to 29% of the grid for ~1 s). `make perf` the same or a bit better: Photos scroll p90 5 ms / p99 7 ms, cold start 109 / 146 ms. Memory, native heap after 15 / 45 flings and 5 s idle: old cache 96 / 314 / 52 MB, new 328 / 465 / 155 MB. Most of the peak is old bitmaps waiting for GC, in both builds. The fallback decode was not changed: `ImageDecoder` already uses the fast scaled JPEG decode for an exact target size; the time is reading the whole file. Viewer and R8 still open.
+
+2026-10-20, viewer part done: `viewerPhoto` (`Viewer.kt`) halves the photo while its short side stays at least the screen's (`viewerSample`; 12 MP -> 2048x1536 instead of 2560x1920) and keeps the default allocator, so the bitmap is a hardware one, uploaded on Android's upload thread instead of the render thread. Closing the viewer reloads the screen under it only after Edit in… (favorite, trash and move bump `viewerEdits` themselves); every close used to reload the timeline and rebuild the grid (a 25-30 ms frame). Perfetto, release compiled with the profile, 3 runs: tap to sharp photo ~330 -> ~175 ms (decode 251 -> 135 ms), missed frames on open + 3 swipes + close 4 -> 1, worst swipe frame 13 -> 9 ms. Measure only after `cmd package compile -m speed-profile` (`make perf` does it): a fresh install runs uncompiled and every frame is ~2x slower. Not checked: zoom sharpness past ~1.5x (a bit lower than the old 2560 px). R8 still open.
 
 ## Empty album stays open after its last photo leaves
 

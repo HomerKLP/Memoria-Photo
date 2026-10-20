@@ -1,4 +1,4 @@
-"""Speed numbers from the phone: cold start and janky frames per screen, on the installed release build.
+"""Speed numbers from the phone: cold start, janky frames per screen, memory and blank grid tiles, on the installed release build.
 
 Only taps, swipes and dumpsys, nothing is installed or removed, so the app's data stays.
 Install the build first (`make release`). Usage: uv run bench/perf.py [--runs 3] [--serial ID]
@@ -65,6 +65,30 @@ def cold_start():
     return first, None
 
 
+def native_mb():
+    """The app's native heap (PSS, MB): thumbnails live there, so a bigger cache shows up here."""
+    m = re.search(r"Native Heap:\s+(\d+)", sh(f"dumpsys meminfo {PKG}"))
+    return round(int(m[1]) / 1024) if m else None
+
+
+def blank_grid(caps=16):
+    """Cold start, two fast flings, screencaps meanwhile: the worst share of the grid still blank (placeholder colour), in %.
+    The caps hold personal photos, so they stay in memory and are deleted from the phone."""
+    sh(f"am force-stop {PKG}")
+    sh(f"am start -W -n {PKG}/.MainActivity")
+    time.sleep(2.5)
+    swipe = f"input swipe {W // 2} {H * 4 // 5} {W // 2} {H // 5} 90"
+    sh(f"({swipe}; {swipe}) & for i in $(seq {caps}); do screencap /data/local/tmp/memoria_cap$i.raw; done; wait")
+    worst = 0.0
+    for i in range(1, caps + 1):
+        raw = subprocess.run([ADB, *DEV, "exec-out", "cat", f"/data/local/tmp/memoria_cap{i}.raw"], capture_output=True).stdout
+        top = len(raw) - W * H * 4  # header size differs between Android versions
+        grid = raw[top + W * 4 * (H * 15 // 100):top + W * 4 * (H * 88 // 100)]  # between the top heading and the bottom bar
+        worst = max(worst, grid.count(b"\xf3\xea\xda\xff") * 4 * 100 / len(grid))  # surfaceVariant, Theme.kt
+    sh("rm -f /data/local/tmp/memoria_cap*.raw")
+    return round(worst, 1)
+
+
 def open_viewer():
     """Tap the second tile under the first day header; True once the viewer's Details button shows."""
     m = re.search(r'text="\w{3}, \d+ \w{3}[^"]*"[^>]*?bounds="\[\d+,\d+\]\[\d+,(\d+)\]"', screen())
@@ -91,6 +115,7 @@ def run(rows):
 
     measure("Photos, first scroll", fling, reset=False)  # frames since launch: the first-load stutter
     measure("Photos, scroll", fling)
+    rows.setdefault("Memory after 8 flings", []).append({"native heap MB": native_mb()})
     measure("Library, open + scroll", lambda: (tap_text("Library"), fling(2)))
     fling(3, up=False)  # back to the top, where the first See all is People's
     measure("People, open + scroll", lambda: (tap_text("See all"), fling(2)))
@@ -109,6 +134,8 @@ def run(rows):
     measure("Viewer, open + 3 swipes", viewer)
     if len(rows.get("Viewer, open + 3 swipes", [])) > n:  # no Back after: the next run force-stops anyway
         measure("Details, open", lambda: sh(f"input swipe {W // 2} {H * 7 // 10} {W // 2} {H * 3 // 10} 250"))
+    # frame times miss slow loading, so also count tiles still blank while the grid flies by
+    rows.setdefault("Photos, blank on cold fling", []).append({"worst %": blank_grid()})
 
 
 def main():
@@ -128,7 +155,7 @@ def main():
 
     # compile with the baseline profile, as Android does a day after install, so every run starts the same
     sh(f"am start -W -n {PKG}/.MainActivity")
-    sh(f"am broadcast -a androidx.profileinstaller.action.INSTALL_BASELINE_PROFILE -n {PKG}/androidx.profileinstaller.ProfileInstallReceiver")
+    sh(f"am broadcast -a androidx.profileinstaller.action.INSTALL_PROFILE -n {PKG}/androidx.profileinstaller.ProfileInstallReceiver")
     print("compile:", sh(f"cmd package compile -f -m speed-profile {PKG}").strip())
 
     rows = {}

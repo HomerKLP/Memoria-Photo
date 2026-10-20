@@ -163,12 +163,14 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
         if (details || barsVisible || closing) controller.show(WindowInsets.Type.systemBars())
         else controller.hide(WindowInsets.Type.systemBars())
     }
+    // Edit in… may save a new copy, so the screen under reloads on close; a plain close skips the reload (a 30 ms frame)
+    var editedIn by remember { mutableStateOf(false) }
     DisposableEffect(Unit) {
         onDispose {
             window.insetsController?.setSystemBarsAppearance(barIcons, barIcons)
             window.insetsController?.show(WindowInsets.Type.systemBars())
             viewerTile = null
-            viewerEdits++ // Edit in… may have saved a new copy
+            if (editedIn) viewerEdits++
         }
     }
     val pager = rememberPagerState(tiles.indexOfFirst { it.id == start }.coerceAtLeast(0)) { list.size }
@@ -332,7 +334,7 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
                     trashAsk.launch(IntentSenderRequest.Builder(ask.intentSender).build())
                 },
                 menuItems = buildList {
-                    add(MenuItem(R.drawable.ic_edit, "Edit in…") { editIn(context, tile) })
+                    add(MenuItem(R.drawable.ic_edit, "Edit in…") { editedIn = true; editIn(context, tile) })
                     add(MenuItem(R.drawable.ic_wallpaper, "Use as…") { useAs(context, tile) })
                     if (showInAlbum) add(MenuItem(R.drawable.ic_folder, "Show in album") { onShowInAlbum(tile) })
                     add(MenuItem(R.drawable.ic_move, "Move to album", dividerBefore = true) { moving = true })
@@ -446,6 +448,24 @@ internal fun fitSize(imageWidth: Int, imageHeight: Int, boxWidth: Int, boxHeight
 private fun fitSize(bitmap: Bitmap?, box: IntSize): Size =
     if (bitmap == null) Size(0f, 0f) else fitSize(bitmap.width, bitmap.height, box.width, box.height)
 
+/** The photo's halving step for the viewer: the short side stays at least the [screen]'s, the long side within the 4096 px GPU limit. */
+internal fun viewerSample(w: Int, h: Int, screen: Int): Int {
+    var s = 1
+    while (minOf(w, h) / (s * 2) >= screen || maxOf(w, h) / s > 4096) s *= 2
+    return s
+}
+
+/**
+ * The photo at about screen size, as a hardware bitmap so it uploads here, not on the render thread mid-animation.
+ * Halving lets the JPEG decoder skip work; the old exact 2560 px decoded a 12 MP photo whole (250 ms).
+ * ponytail: zoom past ~1.5x is a bit softer than before; decode a sharper copy on zoom if it shows.
+ */
+private fun viewerPhoto(context: Context, tile: Tile): Bitmap =
+    ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, tile.uri)) { decoder, info, _ ->
+        val screen = context.resources.displayMetrics.let { minOf(it.widthPixels, it.heightPixels) }
+        decoder.setTargetSampleSize(viewerSample(info.size.width, info.size.height, screen))
+    }
+
 /**
  * Pan that keeps the double-tapped [focus] point under the finger while zooming to [target] (from the
  * centered 1x photo). Pan is measured from the centered photo (0 = centered), so a tap right of center
@@ -494,7 +514,7 @@ fun ViewerPage(
                 if (tile.duration != null) MediaMetadataRetriever().use {
                     it.setDataSource(context, tile.uri)
                     it.getScaledFrameAtTime(-1, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 1440, 1440)
-                } else loadPhoto(ImageDecoder.createSource(context.contentResolver, tile.uri), 2560)
+                } else viewerPhoto(context, tile)
             }.getOrNull()
         }
         if (full != null) value = full
