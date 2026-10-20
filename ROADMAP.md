@@ -33,6 +33,7 @@ Current again since 2026-10-20. Phase 6 is paused.
 - [x] Some face pictures looked blurry on the People screen: saved at 160 px, shown at up to 288 px. Now saved at 288 px, old ones cut again once. No upscale: ~90% of faces in people are 288 px or bigger in the photo.
 - [x] Remove verbose ONNX Runtime logging from the test screen.
 - [x] Decide how to ship the models in a release: download on first run, not in the APK (2026-10-20).
+- [ ] Tap on the index notification opens the app on the Library tab (progress is there). Today the notification has no tap action.
 - [ ] Face models download: Settings > Finding faces > Face models row (designed, mockup "Face models"). Saves to `files/models`, goes on after a stop, checks the files when done, then auto-index starts. Open: where the files are hosted (a GitHub release asset needs a public repo) and a first-run hint on Library.
 - [x] Background indexing with WorkManager, test folder `Pictures/MemoriaTest` only. Matches the Mac.
 - [x] Photo type from metadata: camera, other (downloads, messengers), skip (screenshots, GIFs, tiny).
@@ -96,7 +97,7 @@ Goal: keep screenshots, memes and documents out of face search.
 - [ ] Later: spots inside a place (a lake or park near a town shows inside that town's Place). Not designed; see Open questions.
 - [x] Videos screen from the Library card: all videos by month (month pinned), 3-column grid, count and total size on top.
 - [ ] Media3 video player.
-- [ ] Open a photo from another app (`ACTION_VIEW` filter in the manifest, the viewer takes a single URI). Later: be a photo picker for other apps (`ACTION_PICK` / `GET_CONTENT`).
+- [ ] Open a photo from another app (`ACTION_VIEW` filter in the manifest, the viewer takes a single URI). Checked 2026-10-21: the OnePlus camera's last-photo thumbnail sends `com.android.camera.action.REVIEW` straight to its own gallery (`pkg=com.oneplus.gallery`), so a filter will not catch it. Other apps that send `ACTION_VIEW` would still reach us; not tried. Later: be a photo picker for other apps (`ACTION_PICK` / `GET_CONTENT`).
 - [x] Search screen (mockup "Search", `Search.kt`): from the Photos icon and the Library bar. Empty field: named people, Videos / Favorites / Screenshots chips (Screenshots opens the phone's Screenshots album, hidden without one), Recent. Typing finds word starts in people, places, albums, years and months; each hit opens a screen we have, and back returns to Search. A year or month opens the Photos tab at that month. Checked on the phone. Later: two people at once, free text, a results grid.
 
 ## Phase 5: video compression
