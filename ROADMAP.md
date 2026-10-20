@@ -34,7 +34,7 @@ Current again since 2026-10-20. Phase 6 is paused.
 - [x] Remove verbose ONNX Runtime logging from the test screen.
 - [x] Decide how to ship the models in a release: download on first run, not in the APK (2026-10-20).
 - [ ] Tap on the index notification opens the app on the Library tab (progress is there). Today the notification has no tap action.
-- [ ] Face models download: Settings > Finding faces > Face models row (designed, mockup "Face models"). Saves to `files/models`, goes on after a stop, checks the files when done, then auto-index starts. Open: where the files are hosted (a GitHub release asset needs a public repo) and a first-run hint on Library.
+- [ ] Face models download: Settings > Finding faces > Face models row (designed, mockup "Face models"). Saves to `files/models`, goes on after a stop, checks the files when done, then auto-index starts. Hosted as a GitHub release asset (2026-10-21), so it waits until the repo is public. Open: a first-run hint on Library.
 - [x] Background indexing with WorkManager, test folder `Pictures/MemoriaTest` only. Matches the Mac.
 - [x] Photo type from metadata: camera, other (downloads, messengers), skip (screenshots, GIFs, tiny).
 - [x] Store photos, faces and face vectors in Room.
@@ -59,7 +59,7 @@ Current again since 2026-10-20. Phase 6 is paused.
 - [x] Viewer details People row: tap a face to fix it (Who is this?, Remove tag) or name an unnamed person. Checked on the phone.
 - [x] Yes faces help others match (2026-10-20): a face within 0.5 of a face you said Yes to (quality 0.3+) joins that person. The person's own face set stays the sharp starting faces. Phone regroup: 10 faces joined, none moved; you answered all 91 unsure faces Yes, all right.
 - [x] Fewer faces to check (2026-10-20): a face is also sure when the person's sharp or Yes faces vouch for it (closest within 0.5 and no other person 0.1 closer, or a Yes face within 0.3). One Yes in Help recognize settles its look-alikes at once. New column `face.nearSure` (DB v10). On the emulator with the old DB, 91 faces to check became 8; 83 of the 84 made sure were your own Yes answers, in the same person. Checked on the phone: migration and regroup only, nothing is left there to ask.
-- [ ] Check on the phone once new unsure faces exist: a Yes in Help recognize skips its look-alikes, and the faces made sure by neighbours (3 on the phone, 1 on the emulator) are the right people. The skip has no UI test (the screen loads from the DB); only `Person.twinsOf` is unit-tested.
+- [x] Checked on the phone (2026-10-21): a Yes in Help recognize skips its look-alikes, and the faces made sure by neighbours are the right people. The skip has no UI test (the screen loads from the DB); only `Person.twinsOf` is unit-tested.
 - [x] Main face: the sharpest starting face (highest quality score), 2026-10-21. Was the one closest to the person's average.
 
 ## Phase 3: photo type filter
@@ -185,6 +185,7 @@ Today perf is found only after someone feels it (`bugs.md` holds the numbers). N
 - Duplicates finder: exact copies, burst shots, very similar shots. Keep the best one (sharpest, open eyes, best faces); deleting the rest needs the user's OK.
 - Blurry and bad photo cleanup.
 - Index: decode only the face regions (`ImageDecoder.setCrop`) instead of the whole 4096 photo. Saves 10–25% of one index run, once; risk is silent vector drift. If it comes back, measure first (time, vector similarity vs the full decode).
+- NPU on other Snapdragon chips: the APK only has the 8 Elite lib (HTP V79), `jniLibs.excludes` in `app/build.gradle.kts` drops the rest. Remove the excludes for V73, V75 and V81 (about 50 MB raw) and the runtime picks the lib that fits the phone. Can't be tested here, only the OnePlus 13 is at hand. Until then those phones index on the CPU: ONNX Runtime drops to it when the NPU can't start (checked on the arm64 emulator, 44 photos indexed). Other makers (MediaTek, Samsung, Tensor) need their own SDK, LiteRT maybe.
 
 ## Ideas
 - Map of photos by GPS (offline map tiles, or tiles fetched when online).
