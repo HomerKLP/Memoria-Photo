@@ -191,7 +191,11 @@ fun App(dir: File) {
                         }
                         "settings" -> {
                             BackHandler { screen = "library" }
-                            SettingsScreen(onBack = { screen = "library" }, onHidden = { screen = "hidden" }, onDev = { screen = "dev" })
+                            SettingsScreen(onBack = { screen = "library" }, onHidden = { screen = "hidden" }, onLicenses = { screen = "licenses" }, onDev = { screen = "dev" })
+                        }
+                        "licenses" -> {
+                            BackHandler { screen = "settings" }
+                            LicensesScreen(onBack = { screen = "settings" })
                         }
                         "hidden" -> {
                             val close = { tabs.removeState("hidden"); openPerson = null; screen = "settings" }

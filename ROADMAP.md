@@ -17,7 +17,7 @@ Pick the best models on real photos before writing app code. Details: `docs/face
 - [x] LVFace: skipped, AdaFace is good enough on all photos.
 - [x] Rerun eval with more Takeout parts (more people, more labels). Tested on all photos, good.
 - [x] Quality cut for starting groups: 0.4.
-- [x] AdaFace weights license: no license found, used as is (decision 2026-10-19).
+- [x] AdaFace weights license: first no license found, used as is (decision 2026-10-19); MIT, found 2026-10-21.
 
 ## Phase 2: face pipeline on Android (current)
 Current again since 2026-10-20. Phase 6 is paused.
@@ -48,8 +48,8 @@ Current again since 2026-10-20. Phase 6 is paused.
 - [x] People and Person screens built to the mockup: People = top bar + search, Help recognize card, index progress, 4-column grid, one list: named people first, then unnamed (no label), each by photo count. Library row same order. Person = face chips, "Faces" row, "Unsure faces" card, 3-column photo grid; tap a photo opens the viewer. Merge with / Change cover / Hide person are placeholders (no screens yet).
 - [x] Merge with (one person at a time, most alike first) and Hide person, both survive regroups (DB v7). Hidden people opens from Settings. Checked on the phone.
 - [x] Settings from the Library gear: Only while charging, Background work, Find faces again, Hidden people. Folders to skip, Export / Import face data and Licenses are shown but wait for design or decisions. Checked on the phone.
-- [ ] **Important, blocks the first release:** Licenses screen (Settings > About, mockup first). The APK already ships the GeoNames towns, so the credit is a must. Until the screen is built, a `THIRD_PARTY.md` in the repo holds the same list. Must credit GeoNames (CC BY 4.0: credit, the license, and what we changed: towns of 1000+ only, no districts), and list the fonts (OFL 1.1), ONNX Runtime (MIT), Qualcomm QNN libs, AndroidX / Compose / Kotlin / Material icons (Apache 2.0), and the face models once the app ships them. License texts live inside the app (no internet).
-- [ ] Fixes, per-person tuning. Change cover built (mockup "Change cover"): the chip on the person screen opens a sheet with the person's sure faces, clearest first, current cover on top; picking one saves it and it survives re-index (DB v8). A new person starts from a face only ("Who is this?" > New person), never from an empty card. Full stable people: still group all faces without a person (old ones too), so 5 old photos plus 1 new one can form a person.
+- [x] Licenses screen (Settings > About, 2026-10-21): a plain list of what Memoria uses and each license, GeoNames row with the CC BY change notice. The last row opens `THIRD_PARTY.md` on GitHub in the browser, so no texts are bundled and the app stays offline. Open: the Qualcomm QNN license is unclear, and the link works once the repo is public.
+- [x] Fixes, per-person tuning. Change cover built (mockup "Change cover"): the chip on the person screen opens a sheet with the person's sure faces, clearest first, current cover on top; picking one saves it and it survives re-index (DB v8). A new person starts from a face only ("Who is this?" > New person), never from an empty card. Every regroup takes all faces, so old faces with no person can still form one.
 - [x] Start gate: only camera faces with quality 0.4+ (EDifFIQA-T on the phone) start a person. Junk groups gone.
 - [x] A person needs starting faces from 6+ photos.
 - [x] Sure-only matching: a face in a person is sure only with quality 0.4+. Unsure faces still join, but are faded and not counted.
@@ -59,7 +59,7 @@ Current again since 2026-10-20. Phase 6 is paused.
 - [x] Yes faces help others match (2026-10-20): a face within 0.5 of a face you said Yes to (quality 0.3+) joins that person. The person's own face set stays the sharp starting faces. Phone regroup: 10 faces joined, none moved; you answered all 91 unsure faces Yes, all right.
 - [x] Fewer faces to check (2026-10-20): a face is also sure when the person's sharp or Yes faces vouch for it (closest within 0.5 and no other person 0.1 closer, or a Yes face within 0.3). One Yes in Help recognize settles its look-alikes at once. New column `face.nearSure` (DB v10). On the emulator with the old DB, 91 faces to check became 8; 83 of the 84 made sure were your own Yes answers, in the same person. Checked on the phone: migration and regroup only, nothing is left there to ask.
 - [ ] Check on the phone once new unsure faces exist: a Yes in Help recognize skips its look-alikes, and the faces made sure by neighbours (3 on the phone, 1 on the emulator) are the right people. The skip has no UI test (the screen loads from the DB); only `Person.twinsOf` is unit-tested.
-- [ ] Main face: pick by quality score once a quality model runs on the phone (now: closest to the person's average face).
+- [x] Main face: the sharpest starting face (highest quality score), 2026-10-21. Was the one closest to the person's average.
 
 ## Phase 3: photo type filter
 Goal: keep screenshots, memes and documents out of face search.
@@ -138,7 +138,7 @@ Goal: motion that feels finished, like a mature gallery app, before the first AP
 - [ ] Rules: the no-layout-jump rule still holds; short motions; follow Android's "Remove animations" setting; check on a release build that nothing stutters.
 
 ## Phase 8: release
-Items marked **Important** must be done before the first public release. The Licenses screen (Phase 2) is one of them.
+Items marked **Important** must be done before the first public release.
 - [x] GPL-3.0 LICENSE file.
 - [x] **Important:** turn telemetry off. ONNX Runtime's Android package added the INTERNET permission and a provider that starts a Microsoft telemetry client at launch. Done 2026-10-19: both removed in the manifest (`tools:node="remove"`), and `ortEnv()` (`Faces.kt`) calls `setTelemetry(false)` at every place the app opens the environment. `aapt2 dump permissions` on the release APK shows no INTERNET, and the provider is gone. `setTelemetry(false)` is not run on a device yet: check the next index run. The OTA item below brings the permission back, scoped to the update check; the provider stays removed.
 - [ ] **Important:** release signing key. `make release` signs with Android's public debug key, so that APK must never be published. Make one release keystore (name `CN=Memoria Photo`, no real name), keep it and its passwords outside the repo, back it up in two places, and read both from environment variables in a `signingConfigs.release` block (`app/build.gradle.kts`). Write where it lives in `decisions.md` (not tracked). Never change the key later: users would have to uninstall and lose their face data. A phone with the debug-key build can't update to the release key for the same reason, so test the release APK on the emulator. Before every release, `apksigner verify --print-certs` must not say `Android Debug`.

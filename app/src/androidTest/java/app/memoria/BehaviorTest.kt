@@ -982,6 +982,28 @@ class BehaviorTest {
         rule.onNodeWithText("Dev tools").assertDoesNotExist()
     }
 
+    @Test fun settings_aboutRow_opensLicenses() {
+        var licenses = false
+        rule.setContent { MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", onLicenses = { licenses = true }) } } }
+
+        rule.onNodeWithText("Memoria Photo 0.1").performScrollTo().performClick()
+        assertTrue(licenses)
+    }
+
+    @Test fun licenses_onlyTheFullTextsRowFires() {
+        var back = false
+        var texts = 0
+        rule.setContent { MemoriaTheme { Surface { LicensesContent(onBack = { back = true }, onFullTexts = { texts++ }) } } }
+
+        rule.onNodeWithContentDescription("Back").performClick()
+        assertTrue(back)
+        rule.onNodeWithText("GeoNames").performClick()
+        rule.onNodeWithText("ONNX Runtime").performClick()
+        assertEquals(0, texts)
+        rule.onNodeWithText("Full license texts").performScrollTo().performClick()
+        assertEquals(1, texts)
+    }
+
     @Test fun devTools_rows_fireTheirCallbacks() {
         var cpu = false
         var npu = false
