@@ -101,14 +101,15 @@ fun HelpRecognizeScreen(personId: Long?, onBack: () -> Unit) {
     }
     var pos by remember { mutableIntStateOf(0) }
     var skipped by remember { mutableIntStateOf(0) }
+    var done by remember { mutableStateOf(emptySet<Long>()) } // look-alikes of a face answered Yes: settled with it, not asked
     var picking by remember { mutableStateOf(false) }
     var added by remember { mutableStateOf(emptyList<Person>()) } // made here by New person, so the next face can pick them
     val q = queue
-    val current = q?.getOrNull(pos)
-    val at = pos // a fast double tap must not jump over the next face
+    val at = q?.let { l -> (pos until l.size).firstOrNull { l[it].first.id !in done } ?: l.size } ?: 0 // a fast double tap must not jump over the next face
+    val current = q?.getOrNull(at)
     val answer: (suspend () -> Unit) -> Unit = { write -> scope.launch(Dispatchers.IO) { write() }; pos = at + 1 }
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-        TopBar("Help recognize", q?.let { "${min(pos + 1, it.size)} of ${it.size}" }, onBack = onBack) {
+        TopBar("Help recognize", q?.let { "${min(at + 1, it.size)} of ${it.size}" }, onBack = onBack) {
             if (current != null) TextButton({ skipped++; pos = at + 1 }) { Text("Skip") }
         }
         if (q != null && current == null) EmptyState(
@@ -143,7 +144,11 @@ fun HelpRecognizeScreen(personId: Long?, onBack: () -> Unit) {
             }
             ActionBar(
                 "No", R.drawable.ic_close, { answer { dao.answer(AnswerRow(face.id, person.main.id, false)); dao.leavePerson(face.id) } },
-                "Yes", R.drawable.ic_check, { answer { dao.answer(AnswerRow(face.id, person.main.id, true)) } },
+                "Yes", R.drawable.ic_check, {
+                    val twins = person.twinsOf(face).map { it.id }
+                    done += twins
+                    answer { dao.answer(AnswerRow(face.id, person.main.id, true)); if (twins.isNotEmpty()) dao.setNearSure(twins) }
+                },
                 Modifier.padding(top = 8.dp),
                 danger = false,
             )

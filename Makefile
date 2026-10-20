@@ -15,7 +15,7 @@ DENSITY ?= 480
 
 help:
 	@echo "make install     build debug, install on the phone over USB, open the app (stops if the build fails)"
-	@echo "make release     build release, sign with the debug key, install, open (for speed checks, keeps the data)"
+	@echo "make release     build release, sign with the debug key, install, compile with the profile, open (for speed checks, keeps the data)"
 	@echo "make pull-db     copy the debug app's DB (+ -wal, -shm) to testdata/out/db/; the last copy moves to db/prev-<time>/"
 	@echo "make test        unit tests (pure logic, no device); one class: make test T=DetailsGpsTest"
 	@echo "make screenshots refresh screenshot baselines (no device)"
@@ -37,6 +37,10 @@ release:
 	PATH="$(JAVA_HOME)/bin:$$PATH" $(APKSIGNER) sign --ks $(HOME)/.android/debug.keystore --ks-pass pass:android \
 		--out app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/app-release-unsigned.apk
 	$(ADB) -d install -r app/build/outputs/apk/release/app-release.apk
+	# A fresh install runs uncompiled, every frame ~2x slower, until Android compiles it overnight; compile it now with the profile.
+	$(ADB) -d shell am start -W -n app.memoria/.MainActivity
+	$(ADB) -d shell am broadcast -a androidx.profileinstaller.action.INSTALL_PROFILE -n app.memoria/androidx.profileinstaller.ProfileInstallReceiver
+	$(ADB) -d shell cmd package compile -f -m speed-profile app.memoria
 	$(ADB) -d shell am start -n app.memoria/.MainActivity
 
 # run-as only works on a debug build; checked first so a failed read never overwrites the local copy.

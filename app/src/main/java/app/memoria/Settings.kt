@@ -72,6 +72,7 @@ fun SettingsScreen(onBack: () -> Unit, onHidden: () -> Unit, onDev: () -> Unit) 
 
     SettingsContent(
         charging, allowed, hidden, version,
+        modelsReady = remember { modelsReady(context) },
         onBack = onBack,
         onCharging = setCharging,
         onBackgroundWork = {
@@ -117,6 +118,7 @@ fun SettingsContent(
     allowed: Boolean,
     hidden: Int?,
     version: String?,
+    modelsReady: Boolean = true,
     onBack: () -> Unit = {},
     onCharging: (Boolean) -> Unit = {},
     onBackgroundWork: () -> Unit = {},
@@ -128,6 +130,11 @@ fun SettingsContent(
     Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
         TopBar("Settings", null, onBack = onBack)
         SectionHead("Finding faces")
+        // The download is not built yet: no onClick greys the row, and the button is off
+        SettingRow(
+            if (modelsReady) R.drawable.ic_check else R.drawable.ic_download, "Face models",
+            if (modelsReady) "Ready · 169 MB" else "Not downloaded · 169 MB",
+        ) { if (!modelsReady) PillButton("Download", {}, enabled = false) }
         SettingRow(R.drawable.ic_bolt, "Only while charging", "Pause face search on battery", { onCharging(!charging) }) {
             Switch(
                 charging, onCharging,

@@ -132,6 +132,19 @@ class LayoutJumpTest {
         assertSame("Export face data", exportBefore, rule.onNodeWithText("Export face data").top())
     }
 
+    @Test fun settings_modelsReadyToMissing_rowsStayPut() {
+        var ready by mutableStateOf(true)
+        rule.setContent { MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", modelsReady = ready) } } }
+
+        val modelsBefore = rule.onNodeWithText("Face models").top()
+        val chargingBefore = rule.onNodeWithText("Only while charging").top()
+        val exportBefore = rule.onNodeWithText("Export face data").top()
+        rule.runOnIdle { ready = false }
+        assertSame("Face models", modelsBefore, rule.onNodeWithText("Face models").top())
+        assertSame("Only while charging", chargingBefore, rule.onNodeWithText("Only while charging").top())
+        assertSame("Export face data", exportBefore, rule.onNodeWithText("Export face data").top())
+    }
+
     @Test fun devTools_numbersLoaded_logStaysPut() {
         var numbers by mutableStateOf<DevNumbers?>(null)
         rule.setContent { MemoriaTheme { Surface { DevToolsContent(busy = false, numbers = numbers, log = "Index SUCCEEDED") } } }

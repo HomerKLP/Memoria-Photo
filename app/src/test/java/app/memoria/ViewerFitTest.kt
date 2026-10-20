@@ -23,6 +23,15 @@ class ViewerFitTest {
 
     @Test fun zeroSizeImageIsZero() = assertSize(0f, 0f, fitSize(0, 2000, 1000, 1000))
 
+    // viewerSample on a 1080 px wide screen
+    @Test fun twelveMegapixelPhotoIsHalvedOnce() = assertEquals(2, viewerSample(4080, 3060, 1080))
+
+    @Test fun fiftyMegapixelPhotoIsHalvedTwice() = assertEquals(4, viewerSample(8160, 6120, 1080))
+
+    @Test fun screenshotKeepsFullSize() = assertEquals(1, viewerSample(1080, 2376, 1080))
+
+    @Test fun panoramaIsHalvedToFitTheGpuLimit() = assertEquals(2, viewerSample(8000, 1500, 1080))
+
     // photoMotion: a 2:1 photo on a 1000x2000 screen, its tile a 200 px square at (100, 300)
     private val fit = androidx.compose.ui.geometry.Size(1000f, 500f)
     private val screen = androidx.compose.ui.geometry.Size(1000f, 2000f)

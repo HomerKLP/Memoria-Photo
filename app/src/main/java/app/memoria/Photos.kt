@@ -29,7 +29,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animate
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -79,7 +78,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithContent
@@ -295,7 +293,9 @@ fun setFavorite(context: Context, tile: Tile, favorite: Boolean) {
     context.contentResolver.update(tile.uri, ContentValues().apply { put(MediaStore.MediaColumns.IS_FAVORITE, if (favorite) 1 else 0) }, null, null)
 }
 
-val thumbs = object : LruCache<Long, Bitmap>((Runtime.getRuntime().maxMemory() / 8).toInt()) {
+// Bitmap pixels live outside the Java heap, so half its limit (128 MB here, ~15 screens of tiles) is safe.
+// ponytail: never trimmed on low memory, add onTrimMemory -> thumbs.trimToSize if Android kills the app for it
+val thumbs = object : LruCache<Long, Bitmap>((Runtime.getRuntime().maxMemory() / 2).toInt()) {
     override fun sizeOf(key: Long, value: Bitmap) = value.allocationByteCount
 }
 
@@ -534,7 +534,7 @@ fun FavoritesContent(
         MonthSliderBox(grid = grid, months = months, enabled = sel == null, top = monthHeadingHeight(below = 10.dp), modifier = Modifier.weight(1f)) {
             LazyVerticalGrid(
                 GridCells.Fixed(3), Modifier.testTag("favoritesGrid"), state = grid,
-                horizontalArrangement = Arrangement.spacedBy(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp),
+                horizontalArrangement = Arrangement.spacedBy(1.dp), verticalArrangement = Arrangement.spacedBy(1.dp),
             ) {
                 f?.months?.forEach { (month, tiles) ->
                     stickyHeader(key = month) {
@@ -702,9 +702,9 @@ fun PhotosContent(
             ) {
                 FollowViewer(grid, photos)
                 LazyVerticalGrid(
-                    GridCells.Fixed(4), state = grid,
+                    GridCells.Fixed(3), state = grid,
                     modifier = (if (tabs) Modifier.selectDrag(grid, tilesById, selection!!) else Modifier).testTag("photosGrid"),
-                    horizontalArrangement = Arrangement.spacedBy(2.dp), verticalArrangement = Arrangement.spacedBy(2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(1.dp), verticalArrangement = Arrangement.spacedBy(1.dp),
                     userScrollEnabled = !selecting || scrollWhileSelecting,
                 ) {
                     for (x in list) when (x) {
@@ -855,10 +855,8 @@ fun Thumb(tile: Tile, modifier: Modifier) {
         // The tile left the screen: stop its load
         awaitDispose { signal.cancel() }
     }
-    // A freshly decoded thumb fades in; a cached one is already there on the first frame (no flash)
-    val alpha by animateFloatAsState(if (image != null) 1f else 0f, tween(180), label = "thumb")
     Box(modifier.background(MaterialTheme.colorScheme.surfaceVariant)) {
-        image?.let { Image(it.asImageBitmap(), null, Modifier.fillMaxSize().alpha(alpha), contentScale = ContentScale.Crop) }
+        image?.let { Image(it.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
         tile.duration?.let { ms ->
             val s = ms / 1000
             val shadow = TextStyle(color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium, shadow = Shadow(Color.Black.copy(alpha = 0.5f), Offset(0f, 1f), 2f))

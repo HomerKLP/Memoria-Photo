@@ -89,13 +89,21 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
-/** A saved face with the kind of its photo. [yes]: the user said it is its person. [rejected]: the user said no to some person. */
+/**
+ * A saved face with the kind of its photo. [yes]: the user said it is its person. [rejected]: the user said no to some person.
+ * [nearSure]: its person's sharp or Yes faces vouch for it (set by [groupFaces], saved at regroup).
+ */
 class FaceVec(
     val id: Long, val photoId: Long, val box: FloatArray, val vector: FloatArray, val quality: Float, val kind: String, val personId: Long?,
-    val yes: Boolean = false, val rejected: Boolean = false,
+    val yes: Boolean = false, val rejected: Boolean = false, val nearSure: Boolean = false,
 ) {
     /** Unsure faces wait in Help recognize. A face moved off a person by a no landed by distance, so it is asked again. */
-    val sure get() = yes || (quality >= 0.4f && !rejected)
+    val sure get() = yes || (!rejected && (nearSure || quality >= 0.4f))
+
+    /** Cosine distance: 0 is the same face. */
+    fun distanceTo(o: FaceVec) = 1 - dot(vector, o.vector)
+
+    fun withNearSure(v: Boolean) = FaceVec(id, photoId, box, vector, quality, kind, personId, yes, rejected, v)
 }
 
 /**
@@ -104,12 +112,15 @@ class FaceVec(
  */
 class LightFace(
     val id: Long, val photoId: Long, val box: FloatArray, val quality: Float, val kind: String, val personId: Long,
-    val yes: Boolean = false, val rejected: Boolean = false,
+    val yes: Boolean = false, val rejected: Boolean = false, val nearSure: Boolean = false,
 ) {
-    fun toVec() = FaceVec(id, photoId, box, FloatArray(0), quality, kind, personId, yes, rejected)
+    fun toVec() = FaceVec(id, photoId, box, FloatArray(0), quality, kind, personId, yes, rejected, nearSure)
 }
 
 class Person(val faces: List<FaceVec>, val main: FaceVec, val id: Long = 0, val name: String? = null, val hidden: Boolean = false, val coverFaceId: Long? = null) {
+    /** The unsure faces of this person that look like [face] (0.3 or closer): one Yes on [face] settles them too. */
+    fun twinsOf(face: FaceVec) = faces.filter { !it.sure && it.id != face.id && it.distanceTo(face) <= 0.3f }
+
     /** Distinct photos the person appears in. */
     val photos get() = faces.map { it.photoId }.distinct().size
 
@@ -144,7 +155,7 @@ private fun mean(faces: List<FaceVec>) = FloatArray(512).also { m -> faces.forEa
  * Like bench.py group: average linkage on cosine distance, cut at 0.68, faces from 40 px.
  * Only camera faces with quality 0.4+ start a person (lower ones were cats, masks, backs of heads),
  * other faces join the closest person under the cut. Joined faces under 0.4 are unsure: they wait for the user's yes / no.
- * [answers]: a yes keeps the face with that person, a no rules that person out.
+ * [answers]: a yes keeps the face with that person and lets faces within 0.5 of it join too, a no rules that person out.
  * [merges]: the groups that hold both main faces of a Merge with become one.
  */
 // ponytail: O(n³) merge loop, fine for a few thousand faces; NN-chain for a full library
@@ -204,17 +215,46 @@ fun groupFaces(all: List<FaceVec>, answers: List<AnswerRow> = emptyList(), merge
     val no = answers.filter { !it.yes }.groupBy({ it.faceId }, { it.personFace })
     // average distance to a group's faces = distance to the sum of its vectors / size: one dot per group, not per face
     val sums = groups.map { mean(it) }
+    // A face close to a face the user said Yes to joins that person, even when the person's average is too far (side views, old photos).
+    // Only the user's Yes faces count (quality 0.3+), never faces that joined this way. The person's own face set stays the sharp starting faces.
+    // ponytail: refs × faces dot products, fine for a few hundred Yes faces; index by person if it grows
+    val refs = others.filter { it.quality >= 0.3f }.mapNotNull { r ->
+        val i = yes[r.id]?.let { p -> ids.indexOfFirst { p in it } } ?: -1
+        if (i >= 0 && parts[i].second) i to r.vector else null
+    }
     for (f in others) {
         if (f.id in own) continue
         val kept = yes[f.id]?.let { p -> ids.indexOfFirst { p in it } } ?: -1
         if (kept >= 0) { joined[kept].add(f); continue }
         val ruledOut = no[f.id].orEmpty()
+        val near = refs.filter { (i, _) -> ruledOut.none { it in ids[i] } }.map { (i, v) -> i to 1.0 - dot(v, f.vector) }.filter { it.second <= 0.5 }.minByOrNull { it.second }
+        if (near != null) { joined[near.first].add(f); continue }
         val (i, dist) = groups.indices.filter { i -> parts[i].second && ruledOut.none { it in ids[i] } }
             .map { i -> i to 1.0 - dot(sums[i], f.vector) / groups[i].size }.minByOrNull { it.second } ?: continue
         if (dist <= cut) joined[i].add(f)
     }
+    // A joined face the quality line leaves unsure is still sure when the person's sharp or Yes faces vouch for it: the closest one
+    // (within 0.5) is this person's and no other person's is 0.1 closer, or a Yes face of this person is within 0.3.
+    // Faces made sure here are never anchors, so this cannot chain.
+    // ponytail: unsure faces × all anchors dot products, fine for a few thousand faces; index by person if it grows
+    val anchors = groups.indices.flatMap { i ->
+        (groups[i] + joined[i]).filter { (it.quality >= 0.4f && !it.rejected) || (it.id in yes && it.quality >= 0.3f) }.map { i to it }
+    }
+    val vouched = groups.indices.map { i ->
+        joined[i].map { f ->
+            val v = !(f.quality >= 0.4f || f.id in yes || f.rejected) && run {
+                var own = 2f; var other = 2f; var twin = 2f
+                for ((j, a) in anchors) {
+                    val d = f.distanceTo(a)
+                    if (j != i) other = min(other, d) else { own = min(own, d); if (a.id in yes) twin = min(twin, d) }
+                }
+                twin <= 0.3f || (own <= 0.5f && other >= own + 0.1f)
+            }
+            if (v == f.nearSure) f else f.withNearSure(v)
+        }
+    }
     return groups.indices.map { i ->
-        Person(groups[i] + joined[i], groups[i].maxBy { dot(it.vector, sums[i]) })
+        Person(groups[i] + vouched[i], groups[i].maxBy { dot(it.vector, sums[i]) })
     }.sortedByDescending { it.faces.size }
 }
 
@@ -590,7 +630,7 @@ fun PersonDetail(
             LazyVerticalGrid(
                 GridCells.Fixed(3), modifier = Modifier.testTag("personPhotos"), state = grid,
                 contentPadding = PaddingValues(bottom = 24.dp),
-                horizontalArrangement = Arrangement.spacedBy(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp),
+                horizontalArrangement = Arrangement.spacedBy(1.dp), verticalArrangement = Arrangement.spacedBy(1.dp),
             ) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Row(

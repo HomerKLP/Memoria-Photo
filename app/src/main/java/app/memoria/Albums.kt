@@ -237,7 +237,7 @@ fun AlbumContent(
             MonthSliderBox(grid = grid, months = months, enabled = selected == null, top = monthHeadingHeight(below = 10.dp), modifier = Modifier.weight(1f)) {
                 LazyVerticalGrid(
                     GridCells.Fixed(3), Modifier.testTag("albumGrid"), state = grid,
-                    horizontalArrangement = Arrangement.spacedBy(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp),
+                    horizontalArrangement = Arrangement.spacedBy(1.dp), verticalArrangement = Arrangement.spacedBy(1.dp),
                 ) {
                     groups.forEach { (m, tiles) ->
                         stickyHeader(key = m) {
@@ -352,7 +352,7 @@ fun VideosContent(videos: Videos?, onBack: () -> Unit = {}, onOpen: (List<Tile>,
         MonthSliderBox(grid = grid, months = months, enabled = sel == null, top = monthHeadingHeight(below = 10.dp), modifier = Modifier.weight(1f)) {
             LazyVerticalGrid(
                 GridCells.Fixed(3), Modifier.testTag("videosGrid"), state = grid,
-                horizontalArrangement = Arrangement.spacedBy(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp),
+                horizontalArrangement = Arrangement.spacedBy(1.dp), verticalArrangement = Arrangement.spacedBy(1.dp),
             ) {
                 v?.months?.forEach { (month, tiles) ->
                     stickyHeader(key = month) {

@@ -1,12 +1,12 @@
 # Roadmap
 
-Open-source Android gallery. All photo processing and AI runs on the phone: photos and face data never leave it, models ship inside the app, no accounts, ads, trackers or analytics. The internet is used only for optional comfort features — map tiles for the photo map, and update checks — never to upload or analyze photos. Face data stays in a local DB, with export and import for backup.
+Open-source Android gallery. All photo processing and AI runs on the phone: photos and face data never leave it, the face models download once on first run, no accounts, ads, trackers or analytics. The internet is used only for optional comfort features — map tiles for the photo map, update checks, and that one-time model download — never to upload or analyze photos. Face data stays in a local DB, with export and import for backup.
 
 Hardest part first, UI last. Phases are the order of work; Later and Ideas at the bottom have no phase yet.
 
 **Index upgrades:** a new index step (search labels, OCR, video towns) fills in only what an existing index is missing, like `recutThumbs` does for face pictures. Never re-index from scratch, so names, merges, hidden people, covers and answers stay.
 
-**Next step:** Phase 6 (design and UI polish) is current; Phase 2 (face pipeline) is paused and its index / grouping follow-ups wait until the UI is mostly finished. UI items to pick from: the UX pass list in Phase 6.
+**Next step:** Phase 2 (face pipeline) is current; Phase 6 (design and UI polish) is paused and its UX pass list stays open. Items to pick from: the unchecked ones in Phase 2.
 ## Phase 1: face pipeline quality (done)
 Pick the best models on real photos before writing app code. Details: `docs/face-pipeline.md`.
 - [x] Python bench: `bench/bench.py` (detect, group).
@@ -19,8 +19,8 @@ Pick the best models on real photos before writing app code. Details: `docs/face
 - [x] Quality cut for starting groups: 0.4.
 - [x] AdaFace weights license: no license found, used as is (decision 2026-10-19).
 
-## Phase 2: face pipeline on Android (paused, UI first)
-Paused while the UI comes first (Phase 6). The index and grouping follow-ups in this phase (small-decode shakedown, blurry face pictures, group/matching tuning, main face) get rechecked once the UI is mostly finished. Working items: see `## Phase 6`.
+## Phase 2: face pipeline on Android (current)
+Current again since 2026-10-20. Phase 6 is paused.
 - [x] Install Android Studio and SDK on the Mac, turn on USB debugging on the test phone.
 - [x] Half-size (fp16) YOLOv5m-face and AdaFace .onnx files, match fp32.
 - [x] Gradle project, Kotlin, Compose (`app/`).
@@ -31,9 +31,9 @@ Paused while the UI comes first (Phase 6). The index and grouping follow-ups in 
 - [x] Small decode kept as the right way: detect on a 640 decode, and only photos with faces pay the big decode (4096 on the long side). The gain is small (~6%) and results drift a little from the Mac (7 lost, 4 new faces of 362, mostly small or borderline), but the approach is sound and other galleries avoid decoding the original for detection too. No recheck.
 - [x] Face pictures (160 px WebP) saved in Room while indexing, People screen no longer decodes photos.
 - [x] Some face pictures looked blurry on the People screen: saved at 160 px, shown at up to 288 px. Now saved at 288 px, old ones cut again once. No upscale: ~90% of faces in people are 288 px or bigger in the photo.
-- [ ] Decode only the face regions instead of the whole photo. When faces are found, the app decodes the photo at 4096 on the long side (`loadPhoto`) just to embed the faces and cut their 288 px thumbs; only a few small tiles are needed. `ImageDecoder.setCrop` on each face box would decode a tiny bitmap per face, no 12 MP frame. Not on the bench path, so it may drift from the Mac; measure it. May also sharpen the blurry face pictures above.
 - [x] Remove verbose ONNX Runtime logging from the test screen.
-- [ ] Decide how to ship the models in a release (APK size vs download).
+- [x] Decide how to ship the models in a release: download on first run, not in the APK (2026-10-20).
+- [ ] Face models download: Settings > Finding faces > Face models row (designed, mockup "Face models"). Saves to `files/models`, goes on after a stop, checks the files when done, then auto-index starts. Open: where the files are hosted (a GitHub release asset needs a public repo) and a first-run hint on Library.
 - [x] Background indexing with WorkManager, test folder `Pictures/MemoriaTest` only. Matches the Mac.
 - [x] Photo type from metadata: camera, other (downloads, messengers), skip (screenshots, GIFs, tiny).
 - [x] Store photos, faces and face vectors in Room.
@@ -56,7 +56,9 @@ Paused while the UI comes first (Phase 6). The index and grouping follow-ups in 
 - [x] "Help recognize": one unsure face at a time, Yes / No / Not a face / Skip. Opens from Library and People (all faces) and a person's Unsure faces card (that person only). Answers survive re-index (`answer` table, see `docs/face-pipeline.md`).
 - [x] Help recognize: Someone else opens the Who is this? sheet: pick a named person or start a New person from the face. Checked on the phone.
 - [x] Viewer details People row: tap a face to fix it (Who is this?, Remove tag) or name an unnamed person. Checked on the phone.
-- [ ] Yes faces do not change how others match yet (the person's face vector set is still its starting faces).
+- [x] Yes faces help others match (2026-10-20): a face within 0.5 of a face you said Yes to (quality 0.3+) joins that person. The person's own face set stays the sharp starting faces. Phone regroup: 10 faces joined, none moved; you answered all 91 unsure faces Yes, all right.
+- [x] Fewer faces to check (2026-10-20): a face is also sure when the person's sharp or Yes faces vouch for it (closest within 0.5 and no other person 0.1 closer, or a Yes face within 0.3). One Yes in Help recognize settles its look-alikes at once. New column `face.nearSure` (DB v10). On the emulator with the old DB, 91 faces to check became 8; 83 of the 84 made sure were your own Yes answers, in the same person. Checked on the phone: migration and regroup only, nothing is left there to ask.
+- [ ] Check on the phone once new unsure faces exist: a Yes in Help recognize skips its look-alikes, and the faces made sure by neighbours (3 on the phone, 1 on the emulator) are the right people. The skip has no UI test (the screen loads from the DB); only `Person.twinsOf` is unit-tested.
 - [ ] Main face: pick by quality score once a quality model runs on the phone (now: closest to the person's average face).
 
 ## Phase 3: photo type filter
@@ -67,7 +69,7 @@ Goal: keep screenshots, memes and documents out of face search.
 
 ## Phase 4: gallery basics (paused, basics done)
 - [x] Honey theme (`Theme.kt`, Bricolage Grotesque font in the APK) and two bottom tabs. Test screen moved to Library > Dev tools.
-- [x] Photos tab: timeline from MediaStore, month and day headers, 4-column grid, video length. Thumbnails from MediaStore `loadThumbnail`.
+- [x] Photos tab: timeline from MediaStore, month and day headers, 3-column grid, video length. Thumbnails from MediaStore `loadThumbnail`.
 - [ ] Photos tab: pinch to resize the grid.
 - [x] Photos tab: refresh when new photos arrive. A MediaStore observer reloads the timeline 1 s after the last change; tiles and day headers use `animateItem`, so new photos fade in and the rest slide. Scrolled down, nothing moves. Checked on the emulator; the phone's release build is not checked yet.
 - [ ] Photos tab: place name in the day header (mockup "Photos": `Sun, 28 Sep` + the town, muted). Offline geocoding is already done (`photo.town`), so this only reads it into the header. Photos only, videos have no town yet.
@@ -104,7 +106,7 @@ Goal: no visible loss, not lossless (re-encoding always loses some).
 - [ ] Skip videos that are already small.
 - [ ] Later: auto mode, compress new videos at night while charging (opt-in). AV1 where a hardware encoder exists.
 
-## Phase 6: design and UI polish (current)
+## Phase 6: design and UI polish (paused, UX pass open)
 - [x] Mockup, Honey palette: Photos, Library, viewer, Help recognize (link in `decisions.md`).
 - [x] Redesign the People screen: the user didn't like how it looked (2026-10-17), even when the app matched the mockup. Mockup first, then code. The user likes the result (2026-10-18).
   - [x] Mockup (2026-10-18): "Named" 96 dp faces, 3 a row, name 6 dp under the face, count right under; "No name yet" 56 dp faces, 5 a row, no text.
@@ -140,6 +142,7 @@ Items marked **Important** must be done before the first public release. The Lic
 - [x] GPL-3.0 LICENSE file.
 - [x] **Important:** turn telemetry off. ONNX Runtime's Android package added the INTERNET permission and a provider that starts a Microsoft telemetry client at launch. Done 2026-10-19: both removed in the manifest (`tools:node="remove"`), and `ortEnv()` (`Faces.kt`) calls `setTelemetry(false)` at every place the app opens the environment. `aapt2 dump permissions` on the release APK shows no INTERNET, and the provider is gone. `setTelemetry(false)` is not run on a device yet: check the next index run. The OTA item below brings the permission back, scoped to the update check; the provider stays removed.
 - [ ] **Important:** release signing key. `make release` signs with Android's public debug key, so that APK must never be published. Make one release keystore (name `CN=Memoria Photo`, no real name), keep it and its passwords outside the repo, back it up in two places, and read both from environment variables in a `signingConfigs.release` block (`app/build.gradle.kts`). Write where it lives in `decisions.md` (not tracked). Never change the key later: users would have to uninstall and lose their face data. A phone with the debug-key build can't update to the release key for the same reason, so test the release APK on the emulator. Before every release, `apksigner verify --print-certs` must not say `Android Debug`.
+- [ ] R8 on release builds: `isMinifyEnabled = true` in `buildTypes.release` (`app/build.gradle.kts`, beside the signing config). Release now ships 24.6 MB of unshrunk dex, and Compose expects R8 (smaller APK, faster start). ONNX Runtime calls Java from native code, so add keep rules and check an index run (CPU and NPU) on the phone. Keep each release's mapping file to read crash traces.
 - [ ] **Important:** `README.md`. What the app is, the privacy promise, how to install the APK, how to build it, the license. The APK has no face models and the app has no internet, so say how to make them (`bench/fp16.py`) and push them to the phone, and which phones work (NPU libs for the Snapdragon 8 Elite only). Keep the models out of the release until "ship the models" (Phase 2) is decided.
 - [ ] **Important:** `android:allowBackup="false"` in the manifest. Without it Android's cloud backup may copy the face database to the user's Google account. Names and faces leave the phone only through our own Export.
 - [x] Dev tools moved to Settings > Developer, shown only in debug builds (`FLAG_DEBUGGABLE`), gone from release. Built 2026-10-19 to the mockup (`DevTools.kt`): Run on CPU / NPU, Index test folder, Numbers, Log. Library has no Dev tools button. Not checked on the phone.
@@ -165,8 +168,9 @@ Today perf is found only after someone feels it (`bugs.md` holds the numbers). N
 - [x] Baseline profiles: `androidx.profileinstaller` + `app/src/main/baseline-prof.txt` (generated, 1376 app classes merged into the APK). `<profileable android:shell="true"/>` so release can be traced. A release build no longer runs cold/JIT.
 - [x] `:baselineprofile` module (Macrobenchmark): generates the profile. Its Gradle runs uninstall the app (data loss), and the emulator has no library, so it is not the perf gauge.
 - [x] `make perf` (`bench/perf.py`): cold start (first frame, timeline shown) and janky frames for Photos, Library, People, viewer, Details, on the phone's release build. Taps and dumpsys only, data stays. First numbers in `bugs.md`: every screen under 3% janky frames.
-- [ ] Fix the known load costs, by measured impact. They do not show as janky frames; if a screen still feels slow, measure how long its data takes to show first. Done 2026-10-18: Details reads only its photo's faces and the people's vectorless faces (`photoFaces` + `taggedFaces`); Library/People count with `libraryPhotoCount` instead of building a `MediaPhoto` per row. Left: thumbnails start only when a screen opens (warm the visible ones after `timeline()`); the viewer decodes full size then sharpens (`Viewer.kt`); `Search.kt` still loads full `faceVecs()` for its named-people list.
-- [ ] Load time in `make perf`: ms from opening a screen until its data shows (Library, People, Person, Details, the viewer's sharp photo), like the cold start's timeline time.
+- [ ] Fix the known load costs, by measured impact. They do not show as janky frames; if a screen still feels slow, measure how long its data takes to show first. Done 2026-10-18: Details reads only its photo's faces and the people's vectorless faces (`photoFaces` + `taggedFaces`); Library/People count with `libraryPhotoCount` instead of building a `MediaPhoto` per row. Done 2026-10-20: the Photos grid loads a screen ahead with no fade and a 128 MB thumb cache (no blank tiles on a cold fling, was up to 29%); the viewer decodes at about screen size into a hardware bitmap (tap to sharp ~330 -> ~175 ms). Left: `Search.kt` still loads full `faceVecs()` for its named-people list.
+- [ ] Load time in `make perf`: ms from opening a screen until its data shows (Library, People, Person, Details, the viewer's sharp photo), like the cold start's timeline time. Started 2026-10-20: `make perf` reports the worst blank share on a cold fling.
+- [ ] Regenerate the baseline profile on the emulator. With it really installed (2026-10-20), cold start was 15-25 ms slower than with the profile the app records in use.
 - [x] Perf line in `AGENTS.md` (Commands): `make release`, pause indexing, `make perf`.
 
 ## Later
@@ -179,6 +183,7 @@ Today perf is found only after someone feels it (`bugs.md` holds the numbers). N
 - "On this day" memories.
 - Duplicates finder: exact copies, burst shots, very similar shots. Keep the best one (sharpest, open eyes, best faces); deleting the rest needs the user's OK.
 - Blurry and bad photo cleanup.
+- Index: decode only the face regions (`ImageDecoder.setCrop`) instead of the whole 4096 photo. Saves 10–25% of one index run, once; risk is silent vector drift. If it comes back, measure first (time, vector similarity vs the full decode).
 
 ## Ideas
 - Map of photos by GPS (offline map tiles, or tiles fetched when online).

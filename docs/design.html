@@ -70,7 +70,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .month-sec { display: block; }
 .day { position: relative; display: flex; gap: 8px; align-items: baseline; padding: 12px 16px 8px; font-weight: 500; }
 .day small { color: var(--muted); font-weight: 400; font-size: 13px; }
-.grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; }
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; }
 .tile { aspect-ratio: 1; max-width: 100%; position: relative; }
 .dur { position: absolute; top: 5px; right: 6px; display: flex; align-items: center; gap: 1px; color: #fff; font-weight: 500; font-size: 11px; text-shadow: 0 1px 2px rgba(0, 0, 0, .5); }
 .dur svg.i { width: 14px; height: 14px; }
@@ -156,7 +156,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .place.new svg.i { margin: auto; color: var(--accent); }
 
 /* Grid with fewer, bigger tiles (album, person, videos) */
-.grid.big { grid-template-columns: repeat(3, 1fr); gap: 3px; }
+.grid.big { grid-template-columns: repeat(3, 1fr); gap: 1px; }
 .vids .month { padding-bottom: 10px; }
 
 /* Bottom nav and gesture bar */
@@ -275,6 +275,11 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .switch::after { content: ""; position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; border-radius: 50%; background: #fff; }
 .switch.off { background: var(--surface); box-shadow: inset 0 0 0 2px var(--muted); }
 .switch.off::after { top: 8px; right: auto; left: 8px; width: 16px; height: 16px; background: var(--muted); }
+/* Face models row: as tall as the other rows. The bar sits on its bottom edge and the button keeps its width in every state, so nothing moves */
+.set.models { position: relative; }
+.set.models .track { position: absolute; left: 56px; right: 120px; bottom: 4px; }
+.set.models .track.off { visibility: hidden; }
+.set.models .pill-btn { flex: none; width: 88px; padding: 0; }
 
 /* Confirm dialog */
 .phone.modal { position: relative; }
@@ -1201,6 +1206,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         </div>
         <div class="scroll">
           <div class="head"><h3>Finding faces</h3></div>
+          <div class="set models"><svg class="i"><use href="#i-check"/></svg><div><b>Face models</b><span>Ready · 169 MB</span><div class="track off"><div></div></div></div></div>
           <div class="set"><svg class="i"><use href="#i-bolt"/></svg><div><b>Only while charging</b><span>Pause face search on battery</span></div><span class="switch off" role="switch" aria-checked="false"></span></div>
           <div class="set"><svg class="i"><use href="#i-battery"/></svg><div><b>Background work</b><span>Not allowed. The phone may stop face search</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
           <div class="set"><svg class="i"><use href="#i-folder"/></svg><div><b>Folders to skip</b><span>None, all photos are searched</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
@@ -1217,7 +1223,19 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Settings: opens from the gear on Library. Face search, hidden people, face data backup, about. With "Only while charging" on battery, the progress row reads "Waiting for charger · 412 of 1,706 photos" and keeps Pause. The Developer section is last and only in debug builds; a release build has no such section</figcaption>
+      <figcaption>Settings: opens from the gear on Library. Face models (shown ready, see the next three), face search, hidden people, face data backup, about. With "Only while charging" on battery, the progress row reads "Waiting for charger · 412 of 1,706 photos" and keeps Pause. The Developer section is last and only in debug builds; a release build has no such section</figcaption>
+    </figure>
+    <figure id="models-missing">
+      <div class="phone" id="models-missing-phone"></div>
+      <figcaption>Face models, not downloaded: the first row of Finding faces. The size is in the row, so the tap is the OK. Until they are here, face search does not start. The row is as tall as every other Settings row, and the button keeps its width in every state. The bar sits on the row's bottom edge (hidden here), so nothing moves</figcaption>
+    </figure>
+    <figure id="models-downloading">
+      <div class="phone" id="models-downloading-phone"></div>
+      <figcaption>Face models, downloading: MB so far, the bar fills, Cancel stops it. The files are checked when done, then the row turns to Ready and face search starts by itself. The app may be closed meanwhile, the download goes on</figcaption>
+    </figure>
+    <figure id="models-stopped">
+      <div class="phone" id="models-stopped-phone"></div>
+      <figcaption>Face models, stopped: no connection, the server failed, or the files were damaged. The bar stays where it stopped, Retry goes on from there. The same row after Cancel</figcaption>
     </figure>
     <figure id="rescan">
       <div class="phone modal" id="rescan-phone">
@@ -1584,6 +1602,17 @@ document.querySelectorAll("[data-shot]").forEach(el => el.style.background = sho
 document.querySelectorAll("[data-photo]").forEach(el => el.style.background = photo());
 document.getElementById("dim").style.background = `linear-gradient(rgba(0,0,0,.55), rgba(0,0,0,.55)), ${shot}`;
 document.getElementById("move-dim").style.background = document.getElementById("dim").style.background;
+// Settings with the Face models row in each state: the same screen, only that row changes.
+const modelRows = {
+  "models-missing": ["download", "Not downloaded · 169 MB", "off", 0, "Download"],
+  "models-downloading": ["download", "Downloading · 74 of 169 MB", "", 44, "Cancel"],
+  "models-stopped": ["download", "Stopped · 74 of 169 MB", "", 44, "Retry"],
+};
+for (const [id, [icon, sub, off, pct, btn]] of Object.entries(modelRows)) {
+  const phone = document.getElementById(id + "-phone");
+  phone.prepend(...[...document.querySelector("#settings .phone").children].map(n => n.cloneNode(true)));
+  phone.querySelector(".set.models").innerHTML = `<svg class="i"><use href="#i-${icon}"/></svg><div><b>Face models</b><span>${sub}</span><div class="track ${off}"><div style="width:${pct}%"></div></div></div><button class="pill-btn">${btn}</button>`;
+}
 const rescan = document.getElementById("rescan-phone");
 rescan.prepend(...[...document.querySelector("#settings .phone").children].map(n => n.cloneNode(true)));
 document.getElementById("hide-phone").prepend(...[...document.querySelector("#person .phone").children].map(n => n.cloneNode(true)));

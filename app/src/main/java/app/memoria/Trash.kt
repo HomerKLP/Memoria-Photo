@@ -125,7 +125,7 @@ fun TrashContent(
             )
             else -> LazyVerticalGrid(
                 GridCells.Fixed(3), Modifier.weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp),
+                horizontalArrangement = Arrangement.spacedBy(1.dp), verticalArrangement = Arrangement.spacedBy(1.dp),
             ) {
                 items(items, key = { it.tile.id }) { t ->
                     TrashTile(

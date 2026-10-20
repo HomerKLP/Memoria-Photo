@@ -120,7 +120,7 @@ internal fun AlbumNameField(name: String, onName: (String) -> Unit, modifier: Mo
     ) {
         if (name.isEmpty()) Text("Album name", color = MaterialTheme.colorScheme.onSurfaceVariant)
         BasicTextField(
-            name, onName, singleLine = true,
+            name, { onName(it.replace("/", "")) }, singleLine = true, // a slash would make a nested folder
             modifier = Modifier.fillMaxWidth(),
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
             textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),

@@ -488,6 +488,14 @@ class BehaviorTest {
         assertTrue(next)
     }
 
+    @Test fun newAlbum_name_dropsSlashes() {
+        var name by mutableStateOf("")
+        rule.setContent { MemoriaTheme { Surface { NewAlbumContent(name, { name = it }, false, {}, {}) } } }
+
+        rule.onNode(hasSetTextAction()).performTextInput("a/b")
+        assertEquals("ab", name)
+    }
+
     @Test fun newAlbumPick_moveHereOffUntilPicked() {
         val selection = PhotoSelection()
         rule.setContent {
@@ -951,6 +959,20 @@ class BehaviorTest {
 
         rule.onNodeWithText("Dev tools").performScrollTo().performClick()
         assertTrue(dev)
+    }
+
+    @Test fun settings_modelsMissing_downloadIsOff() {
+        rule.setContent { MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", modelsReady = false) } } }
+
+        rule.onNodeWithText("Not downloaded · 169 MB").assertIsDisplayed()
+        rule.onNodeWithText("Download").assertIsNotEnabled()
+    }
+
+    @Test fun settings_modelsReady_hasNoDownloadButton() {
+        rule.setContent { MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", modelsReady = true) } } }
+
+        rule.onNodeWithText("Ready · 169 MB").assertIsDisplayed()
+        rule.onNodeWithText("Download").assertDoesNotExist()
     }
 
     @Test fun settings_withoutOnDev_hasNoDeveloperSection() {
