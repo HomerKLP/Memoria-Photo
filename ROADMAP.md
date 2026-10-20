@@ -1,6 +1,6 @@
 # Roadmap
 
-Open-source Android gallery. All photo processing and AI runs on the phone: photos and face data never leave it, models ship inside the app, no accounts, ads, trackers or analytics. The internet is used only for optional comfort features — map tiles for the photo map, and update checks — never to upload or analyze photos. Face data stays in a local DB, with export and import for backup.
+Open-source Android gallery. All photo processing and AI runs on the phone: photos and face data never leave it, the face models download once on first run, no accounts, ads, trackers or analytics. The internet is used only for optional comfort features — map tiles for the photo map, update checks, and that one-time model download — never to upload or analyze photos. Face data stays in a local DB, with export and import for backup.
 
 Hardest part first, UI last. Phases are the order of work; Later and Ideas at the bottom have no phase yet.
 
@@ -32,7 +32,8 @@ Current again since 2026-10-20. Phase 6 is paused.
 - [x] Face pictures (160 px WebP) saved in Room while indexing, People screen no longer decodes photos.
 - [x] Some face pictures looked blurry on the People screen: saved at 160 px, shown at up to 288 px. Now saved at 288 px, old ones cut again once. No upscale: ~90% of faces in people are 288 px or bigger in the photo.
 - [x] Remove verbose ONNX Runtime logging from the test screen.
-- [ ] Decide how to ship the models in a release (APK size vs download).
+- [x] Decide how to ship the models in a release: download on first run, not in the APK (2026-10-20).
+- [ ] Face models download: Settings > Finding faces > Face models row (designed, mockup "Face models"). Saves to `files/models`, goes on after a stop, checks the files when done, then auto-index starts. Open: where the files are hosted (a GitHub release asset needs a public repo) and a first-run hint on Library.
 - [x] Background indexing with WorkManager, test folder `Pictures/MemoriaTest` only. Matches the Mac.
 - [x] Photo type from metadata: camera, other (downloads, messengers), skip (screenshots, GIFs, tiny).
 - [x] Store photos, faces and face vectors in Room.

@@ -961,6 +961,20 @@ class BehaviorTest {
         assertTrue(dev)
     }
 
+    @Test fun settings_modelsMissing_downloadIsOff() {
+        rule.setContent { MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", modelsReady = false) } } }
+
+        rule.onNodeWithText("Not downloaded · 169 MB").assertIsDisplayed()
+        rule.onNodeWithText("Download").assertIsNotEnabled()
+    }
+
+    @Test fun settings_modelsReady_hasNoDownloadButton() {
+        rule.setContent { MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", modelsReady = true) } } }
+
+        rule.onNodeWithText("Ready · 169 MB").assertIsDisplayed()
+        rule.onNodeWithText("Download").assertDoesNotExist()
+    }
+
     @Test fun settings_withoutOnDev_hasNoDeveloperSection() {
         rule.setContent { MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1") } } }
 

@@ -273,11 +273,11 @@ fun IndexProgressRow(
 
 /** Small accent pill button, like the mockup's Review / Pause. */
 @Composable
-fun PillButton(text: String, onClick: () -> Unit) {
+fun PillButton(text: String, onClick: () -> Unit, enabled: Boolean = true) {
     Text(
         text,
         Modifier.clip(RoundedCornerShape(18.dp)).background(MaterialTheme.colorScheme.primary)
-            .clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 9.dp),
+            .clickable(enabled = enabled, onClick = onClick).padding(horizontal = 16.dp, vertical = 9.dp),
         // 18 sp line + 9 dp padding = the mockup's 36 dp; the default 24 sp line made it 42
         color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Medium, fontSize = 13.sp, lineHeight = 18.sp,
     )

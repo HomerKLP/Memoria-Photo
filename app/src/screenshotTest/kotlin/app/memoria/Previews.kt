@@ -326,6 +326,11 @@ fun SettingsPage() = MemoriaTheme { Surface { SettingsContent(charging = false, 
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 900)
 @Composable
+fun SettingsModelsMissing() = MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", modelsReady = false) } }
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 900)
+@Composable
 fun SettingsDeveloper() = MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", onDev = {}) } }
 
 @PreviewTest
