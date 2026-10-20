@@ -64,6 +64,7 @@ class FaceRow(
     val thumb: ByteArray,
     val personId: Long? = null,
     val notFace: Boolean = false, // the user said "Not a face": left out of everything
+    val nearSure: Boolean = false, // set at regroup: the person's sharp or Yes faces vouch for this face (see groupFaces)
 )
 
 /**
@@ -104,21 +105,21 @@ interface IndexDao {
     /** Faces the user did not mark "Not a face", for the People summary; the display reads no vectors. */
     @Query("SELECT COUNT(*) FROM face WHERE NOT notFace") suspend fun faceTotal(): Int
     @Query(
-        "SELECT f.id, f.photoId, f.box, f.vector, f.quality, p.kind, f.personId, " +
+        "SELECT f.id, f.photoId, f.box, f.vector, f.quality, p.kind, f.personId, f.nearSure, " +
             "EXISTS(SELECT 1 FROM answer a WHERE a.faceId = f.id AND a.yes) AS yes, " +
             "EXISTS(SELECT 1 FROM answer a WHERE a.faceId = f.id AND NOT a.yes) AS rejected FROM face f JOIN photo p ON p.id = f.photoId WHERE NOT f.notFace",
     )
     suspend fun faceVecs(): List<FaceVec>
     /** The faces of one photo, with vectors: a handful of rows instead of the whole [faceVecs]. */
     @Query(
-        "SELECT f.id, f.photoId, f.box, f.vector, f.quality, p.kind, f.personId, " +
+        "SELECT f.id, f.photoId, f.box, f.vector, f.quality, p.kind, f.personId, f.nearSure, " +
             "EXISTS(SELECT 1 FROM answer a WHERE a.faceId = f.id AND a.yes) AS yes, " +
             "EXISTS(SELECT 1 FROM answer a WHERE a.faceId = f.id AND NOT a.yes) AS rejected FROM face f JOIN photo p ON p.id = f.photoId WHERE NOT f.notFace AND f.photoId = :photoId",
     )
     suspend fun photoFaces(photoId: Long): List<FaceVec>
     /** The faces that belong to a saved person, without vectors: the viewer details panel never matches by distance. */
     @Query(
-        "SELECT f.id, f.photoId, f.box, f.quality, p.kind, f.personId, " +
+        "SELECT f.id, f.photoId, f.box, f.quality, p.kind, f.personId, f.nearSure, " +
             "EXISTS(SELECT 1 FROM answer a WHERE a.faceId = f.id AND a.yes) AS yes, " +
             "EXISTS(SELECT 1 FROM answer a WHERE a.faceId = f.id AND NOT a.yes) AS rejected FROM face f JOIN photo p ON p.id = f.photoId WHERE NOT f.notFace AND f.personId IS NOT NULL",
     )
@@ -126,7 +127,8 @@ interface IndexDao {
     @Query("SELECT * FROM person ORDER BY id") suspend fun people(): List<PersonRow>
     @Query("UPDATE person SET name = :name WHERE id = :id") suspend fun setName(id: Long, name: String?)
     @Query("DELETE FROM person") suspend fun deletePeople()
-    @Query("UPDATE face SET personId = NULL") suspend fun clearPersonIds()
+    @Query("UPDATE face SET personId = NULL, nearSure = 0") suspend fun clearPersonIds()
+    @Query("UPDATE face SET nearSure = 1 WHERE id IN (:faces)") suspend fun setNearSure(faces: List<Long>)
     @Insert suspend fun insertPerson(person: PersonRow)
     @Query("UPDATE face SET personId = :person WHERE id IN (:faces)") suspend fun setPerson(faces: List<Long>, person: Long)
     @Query("SELECT thumb FROM face WHERE id = :id") suspend fun thumb(id: Long): ByteArray?
@@ -150,7 +152,7 @@ interface IndexDao {
     suspend fun setPlace(id: Long, lat: Double?, lon: Double?, townId: Int, town: String?)
 }
 
-@Database(entities = [PhotoRow::class, FaceRow::class, PersonRow::class, AnswerRow::class, MergeRow::class], version = 9)
+@Database(entities = [PhotoRow::class, FaceRow::class, PersonRow::class, AnswerRow::class, MergeRow::class], version = 10)
 @TypeConverters(Converters::class)
 abstract class Db : RoomDatabase() {
     abstract fun index(): IndexDao
@@ -184,7 +186,11 @@ abstract class Db : RoomDatabase() {
                 for (col in listOf("lat REAL", "lon REAL", "townId INTEGER", "town TEXT")) db.execSQL("ALTER TABLE photo ADD COLUMN $col")
             }
         }
-        internal val MIGRATIONS = arrayOf(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+        /** v10: face.nearSure, faces the person's sharp or Yes faces vouch for; set at the next regroup. */
+        private val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) = db.execSQL("ALTER TABLE face ADD COLUMN nearSure INTEGER NOT NULL DEFAULT 0")
+        }
+        internal val MIGRATIONS = arrayOf(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
         private var db: Db? = null
         @Synchronized fun get(context: Context) =
             db ?: // a missing migration crashes instead of wiping names; MigrationTest checks each bump
@@ -479,6 +485,8 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                 // the cover follows the person only while its face is still with them; else the app picks one again (main face)
                 dao.insertPerson(PersonRow(pid, p.main.id, match?.name, match?.hidden ?: false, match?.coverFaceId?.takeIf { it in ids }))
                 dao.setPerson(ids, pid)
+                val near = p.faces.filter { it.nearSure }.map { it.id }
+                if (near.isNotEmpty()) dao.setNearSure(near)
             }
             people.size to taken.size
         }

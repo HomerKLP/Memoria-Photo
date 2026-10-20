@@ -241,3 +241,10 @@ YOLOv5m-640 finds the most faces at every size, is faster than RetinaFace, and i
 ### 2026-10-17: saved NPU builds
 - Every run built all three models for the NPU before the first photo: 10.5 s, while one photo takes ~0.2 s (decode 92 ms, detect 53 ms, embed 27 ms per face).
 - ONNX Runtime's QNN EP context cache saves the built models (`npuSession` in `Faces.kt`). Load 10.5 s -> 0.55 s. 20 photos, 37 faces: boxes, vectors and quality identical to the plain load.
+
+### 2026-10-20: Yes faces as references (`groupFaces`)
+- Before: a Yes kept its own face with the person, but other faces still matched only the person's starting faces, so one Yes taught nothing.
+- Now: a face within cosine distance 0.5 of a Yes face (quality 0.3+) joins that person, even when its average distance to the person is over the cut. Only the user's Yes faces count. Faces that joined this way never become references, and a no still rules a person out. The person's own face set, main face and cover do not change.
+- Measured on the phone DB copy (3356 faces, 1513 with no person, 31 Yes answers, all quality 0.26-0.39): at 0.4 one new face joins, at 0.5 eleven join and no sure face of another person is touched, at 0.6 twenty-four join but five sure faces of other people are touched. So 0.5. The floor barely matters here (2 of 31 Yes faces are under 0.3), 0.3 is a guess.
+- The new faces are not checked by eye, and 31 Yes answers is a small set. Tests: `aFaceNearAYesFaceJoinsItsPerson`, `aYesFaceUnderTheQualityFloorIsNoReference`, `aNoAnswerStopsTheJoinThroughAYesFace` (`PeopleLogicTest`). `bench/people.py` still does not read answers.
+- Phone run (regroup through Dev tools > Index test folder, 2 s): 10 faces joined a person, 0 left, 0 moved to another person, all 38 people kept their id and all 7 names stayed. All 10 are unsure (quality 0.23-0.35): 9 went to a person with 21 Yes answers, 1 to a person with 11. Nine of the ten were over the 0.68 average, so only the Yes rule brought them in. Library "faces to check" went 81 to 91. Checked by eye: not yet.

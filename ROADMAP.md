@@ -6,7 +6,7 @@ Hardest part first, UI last. Phases are the order of work; Later and Ideas at th
 
 **Index upgrades:** a new index step (search labels, OCR, video towns) fills in only what an existing index is missing, like `recutThumbs` does for face pictures. Never re-index from scratch, so names, merges, hidden people, covers and answers stay.
 
-**Next step:** Phase 6 (design and UI polish) is current; Phase 2 (face pipeline) is paused and its index / grouping follow-ups wait until the UI is mostly finished. UI items to pick from: the UX pass list in Phase 6.
+**Next step:** Phase 2 (face pipeline) is current; Phase 6 (design and UI polish) is paused and its UX pass list stays open. Items to pick from: the unchecked ones in Phase 2.
 ## Phase 1: face pipeline quality (done)
 Pick the best models on real photos before writing app code. Details: `docs/face-pipeline.md`.
 - [x] Python bench: `bench/bench.py` (detect, group).
@@ -19,8 +19,8 @@ Pick the best models on real photos before writing app code. Details: `docs/face
 - [x] Quality cut for starting groups: 0.4.
 - [x] AdaFace weights license: no license found, used as is (decision 2026-10-19).
 
-## Phase 2: face pipeline on Android (paused, UI first)
-Paused while the UI comes first (Phase 6). The index and grouping follow-ups in this phase (small-decode shakedown, blurry face pictures, group/matching tuning, main face) get rechecked once the UI is mostly finished. Working items: see `## Phase 6`.
+## Phase 2: face pipeline on Android (current)
+Current again since 2026-10-20. Phase 6 is paused.
 - [x] Install Android Studio and SDK on the Mac, turn on USB debugging on the test phone.
 - [x] Half-size (fp16) YOLOv5m-face and AdaFace .onnx files, match fp32.
 - [x] Gradle project, Kotlin, Compose (`app/`).
@@ -31,7 +31,6 @@ Paused while the UI comes first (Phase 6). The index and grouping follow-ups in 
 - [x] Small decode kept as the right way: detect on a 640 decode, and only photos with faces pay the big decode (4096 on the long side). The gain is small (~6%) and results drift a little from the Mac (7 lost, 4 new faces of 362, mostly small or borderline), but the approach is sound and other galleries avoid decoding the original for detection too. No recheck.
 - [x] Face pictures (160 px WebP) saved in Room while indexing, People screen no longer decodes photos.
 - [x] Some face pictures looked blurry on the People screen: saved at 160 px, shown at up to 288 px. Now saved at 288 px, old ones cut again once. No upscale: ~90% of faces in people are 288 px or bigger in the photo.
-- [ ] Decode only the face regions instead of the whole photo. When faces are found, the app decodes the photo at 4096 on the long side (`loadPhoto`) just to embed the faces and cut their 288 px thumbs; only a few small tiles are needed. `ImageDecoder.setCrop` on each face box would decode a tiny bitmap per face, no 12 MP frame. Not on the bench path, so it may drift from the Mac; measure it. May also sharpen the blurry face pictures above.
 - [x] Remove verbose ONNX Runtime logging from the test screen.
 - [ ] Decide how to ship the models in a release (APK size vs download).
 - [x] Background indexing with WorkManager, test folder `Pictures/MemoriaTest` only. Matches the Mac.
@@ -56,7 +55,7 @@ Paused while the UI comes first (Phase 6). The index and grouping follow-ups in 
 - [x] "Help recognize": one unsure face at a time, Yes / No / Not a face / Skip. Opens from Library and People (all faces) and a person's Unsure faces card (that person only). Answers survive re-index (`answer` table, see `docs/face-pipeline.md`).
 - [x] Help recognize: Someone else opens the Who is this? sheet: pick a named person or start a New person from the face. Checked on the phone.
 - [x] Viewer details People row: tap a face to fix it (Who is this?, Remove tag) or name an unnamed person. Checked on the phone.
-- [ ] Yes faces do not change how others match yet (the person's face vector set is still its starting faces).
+- [x] Yes faces help others match (2026-10-20): a face within 0.5 of a face you said Yes to (quality 0.3+) joins that person. The person's own face set stays the sharp starting faces. Phone regroup: 10 faces joined (all unsure), none moved. Checking them by eye is open.
 - [ ] Main face: pick by quality score once a quality model runs on the phone (now: closest to the person's average face).
 
 ## Phase 3: photo type filter
@@ -67,7 +66,7 @@ Goal: keep screenshots, memes and documents out of face search.
 
 ## Phase 4: gallery basics (paused, basics done)
 - [x] Honey theme (`Theme.kt`, Bricolage Grotesque font in the APK) and two bottom tabs. Test screen moved to Library > Dev tools.
-- [x] Photos tab: timeline from MediaStore, month and day headers, 4-column grid, video length. Thumbnails from MediaStore `loadThumbnail`.
+- [x] Photos tab: timeline from MediaStore, month and day headers, 3-column grid, video length. Thumbnails from MediaStore `loadThumbnail`.
 - [ ] Photos tab: pinch to resize the grid.
 - [x] Photos tab: refresh when new photos arrive. A MediaStore observer reloads the timeline 1 s after the last change; tiles and day headers use `animateItem`, so new photos fade in and the rest slide. Scrolled down, nothing moves. Checked on the emulator; the phone's release build is not checked yet.
 - [ ] Photos tab: place name in the day header (mockup "Photos": `Sun, 28 Sep` + the town, muted). Offline geocoding is already done (`photo.town`), so this only reads it into the header. Photos only, videos have no town yet.
@@ -104,7 +103,7 @@ Goal: no visible loss, not lossless (re-encoding always loses some).
 - [ ] Skip videos that are already small.
 - [ ] Later: auto mode, compress new videos at night while charging (opt-in). AV1 where a hardware encoder exists.
 
-## Phase 6: design and UI polish (current)
+## Phase 6: design and UI polish (paused, UX pass open)
 - [x] Mockup, Honey palette: Photos, Library, viewer, Help recognize (link in `decisions.md`).
 - [x] Redesign the People screen: the user didn't like how it looked (2026-10-17), even when the app matched the mockup. Mockup first, then code. The user likes the result (2026-10-18).
   - [x] Mockup (2026-10-18): "Named" 96 dp faces, 3 a row, name 6 dp under the face, count right under; "No name yet" 56 dp faces, 5 a row, no text.
@@ -179,6 +178,7 @@ Today perf is found only after someone feels it (`bugs.md` holds the numbers). N
 - "On this day" memories.
 - Duplicates finder: exact copies, burst shots, very similar shots. Keep the best one (sharpest, open eyes, best faces); deleting the rest needs the user's OK.
 - Blurry and bad photo cleanup.
+- Index: decode only the face regions (`ImageDecoder.setCrop`) instead of the whole 4096 photo. Saves 10–25% of one index run, once; risk is silent vector drift. If it comes back, measure first (time, vector similarity vs the full decode).
 
 ## Ideas
 - Map of photos by GPS (offline map tiles, or tiles fetched when online).

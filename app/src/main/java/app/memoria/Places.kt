@@ -171,7 +171,7 @@ fun PlaceContent(place: Place?, onBack: () -> Unit = {}, onOpen: (List<Tile>, Ti
         MonthSliderBox(grid = grid, months = months, enabled = sel == null, top = monthHeadingHeight(below = 10.dp), modifier = Modifier.weight(1f)) {
             LazyVerticalGrid(
                 GridCells.Fixed(3), Modifier.testTag("placeGrid"), state = grid,
-                horizontalArrangement = Arrangement.spacedBy(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp),
+                horizontalArrangement = Arrangement.spacedBy(1.dp), verticalArrangement = Arrangement.spacedBy(1.dp),
             ) {
                 groups.forEach { (m, tiles) ->
                     stickyHeader(key = m) {

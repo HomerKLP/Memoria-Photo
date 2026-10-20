@@ -534,7 +534,7 @@ fun FavoritesContent(
         MonthSliderBox(grid = grid, months = months, enabled = sel == null, top = monthHeadingHeight(below = 10.dp), modifier = Modifier.weight(1f)) {
             LazyVerticalGrid(
                 GridCells.Fixed(3), Modifier.testTag("favoritesGrid"), state = grid,
-                horizontalArrangement = Arrangement.spacedBy(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp),
+                horizontalArrangement = Arrangement.spacedBy(1.dp), verticalArrangement = Arrangement.spacedBy(1.dp),
             ) {
                 f?.months?.forEach { (month, tiles) ->
                     stickyHeader(key = month) {
@@ -702,9 +702,9 @@ fun PhotosContent(
             ) {
                 FollowViewer(grid, photos)
                 LazyVerticalGrid(
-                    GridCells.Fixed(4), state = grid,
+                    GridCells.Fixed(3), state = grid,
                     modifier = (if (tabs) Modifier.selectDrag(grid, tilesById, selection!!) else Modifier).testTag("photosGrid"),
-                    horizontalArrangement = Arrangement.spacedBy(2.dp), verticalArrangement = Arrangement.spacedBy(2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(1.dp), verticalArrangement = Arrangement.spacedBy(1.dp),
                     userScrollEnabled = !selecting || scrollWhileSelecting,
                 ) {
                     for (x in list) when (x) {

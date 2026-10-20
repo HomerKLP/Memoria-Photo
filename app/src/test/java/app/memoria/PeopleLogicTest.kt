@@ -11,6 +11,71 @@ class PeopleLogicTest {
     private fun face(id: Long, photoId: Long, quality: Float = 0.9f, kind: String = "camera") =
         FaceVec(id, photoId, floatArrayOf(0f, 0f, 50f, 50f), FloatArray(512).also { it[0] = 1f }, quality, kind, null)
 
+    private fun at(id: Long, quality: Float, vararg x: Float) =
+        FaceVec(id, id, floatArrayOf(0f, 0f, 50f, 50f), FloatArray(512).also { v -> x.forEachIndexed { i, f -> v[i] = f } }, quality, "camera", null)
+
+    // Six starting faces on axis 0. Y (axis 1) is far from them. C is 0.4 from Y. D is 0.4 from C but 0.64 from Y.
+    private val seeds = (1L..6L).map { face(it, it) }
+    private val y = at(7, 0.35f, 0f, 1f)
+    private val c = at(8, 0.35f, 0f, 0.6f, 0.8f)
+    private val d = at(9, 0.35f, 0f, 0.36f, 0.48f, 0.8f)
+    private fun joined(faces: List<FaceVec>, answers: List<AnswerRow>) = groupFaces(seeds + faces, answers).single().faces.map { it.id }.toSet()
+
+    @Test fun aFaceNearAYesFaceJoinsItsPerson() {
+        assertEquals(setOf(1L, 2L, 3L, 4L, 5L, 6L), joined(listOf(y, c, d), emptyList()))
+        // C joins through Y; D does not, because C only joined and is no reference
+        assertEquals(setOf(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L), joined(listOf(y, c, d), listOf(AnswerRow(7, 1, true))))
+    }
+
+    @Test fun aYesFaceUnderTheQualityFloorIsNoReference() {
+        assertEquals(setOf(1L, 2L, 3L, 4L, 5L, 6L, 7L), joined(listOf(at(7, 0.2f, 0f, 1f), c), listOf(AnswerRow(7, 1, true))))
+    }
+
+    @Test fun aNoAnswerStopsTheJoinThroughAYesFace() {
+        assertEquals(setOf(1L, 2L, 3L, 4L, 5L, 6L, 7L), joined(listOf(y, c), listOf(AnswerRow(7, 1, true), AnswerRow(8, 1, false))))
+    }
+
+    private fun faceOf(faces: List<FaceVec>, id: Long, answers: List<AnswerRow> = emptyList()) =
+        groupFaces(seeds + faces, answers).single().faces.single { it.id == id }
+
+    @Test fun aBlurryFaceCloseToASharpOneIsSure() {
+        // 0.4 from the starting faces: joins, and the quality line alone would leave it unsure
+        assertTrue(faceOf(listOf(at(7, 0.3f, 0.6f, 0.8f)), 7).sure)
+    }
+
+    @Test fun aBlurryFaceFartherThanHalfStaysUnsure() {
+        // 0.6 from the starting faces: joins by the average, but nothing vouches for it
+        assertFalse(faceOf(listOf(at(7, 0.3f, 0.4f, 0.9165f)), 7).sure)
+    }
+
+    @Test fun aBlurryFaceStaysUnsureWhenAnotherPersonIsAlmostAsClose() {
+        // X is 0.40 from the first person and 0.45 from the second: a gap under 0.1
+        val second = (11L..16L).map { at(it, 0.9f, -0.338f, 0.941f) }
+        val people = groupFaces(seeds + second + at(7, 0.3f, 0.6f, 0.8f))
+        assertFalse(people.flatMap { it.faces }.single { it.id == 7L }.sure)
+    }
+
+    @Test fun aFaceTheUserRejectedIsNeverSureByNeighbours() {
+        assertFalse(faceOf(listOf(at(7, 0.3f, 0.6f, 0.8f).withRejected()), 7).sure)
+    }
+
+    @Test fun aYesFaceMakesItsLookAlikesSure() {
+        val answers = listOf(AnswerRow(7, 1, true))
+        val lookAlike = at(8, 0.3f, 0f, 0.96f, 0.28f)  // 0.04 from Y: through Y
+        val unvouched = at(9, 0.3f, 0.4f, 0f, 0.9165f) // 0.6 from the starting faces and 1.0 from Y: joins by the average only
+        val faces = listOf(y, lookAlike, unvouched)
+        assertTrue(faceOf(faces, 8, answers).sure)
+        assertFalse(faceOf(faces, 9, answers).sure)
+    }
+
+    @Test fun twinsAreTheUnsureFacesWithin03() {
+        val a = at(1, 0.3f, 1f)
+        val twin = at(2, 0.3f, 0.96f, 0.28f)
+        val far = at(3, 0.3f, 0.6f, 0.8f)
+        val sharp = at(4, 0.9f, 0.99f, 0.14f)
+        assertEquals(listOf(2L), Person(listOf(a, twin, far, sharp), a).twinsOf(a).map { it.id })
+    }
+
     @Test fun sureNeedsQualityOrAYes() {
         assertTrue(face(1, 1, quality = 0.4f).sure)
         assertFalse(face(1, 1, quality = 0.39f).sure)
