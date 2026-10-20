@@ -408,6 +408,47 @@ Release build, baseline profile compiled, full library after a re-index (~4400 p
 
 The first run, right after indexing (warm phone), read 2-4x more janky frames. Compare runs taken in the same state. These are frame times only; how long data takes to show on a screen is not measured yet.
 
+| 2026-10-20 (3 columns) | frames | janky % | p90 ms | p99 ms |
+|---|---|---|---|---|
+| Cold start: first frame 113 ms, timeline 157 ms | | | | |
+| Photos, first scroll | 338 | 0.6 | 6 | 11 |
+| Photos, scroll | 319 | 0 | 6 | 8 |
+| Library, open + scroll | 131 | 1.5 | 6 | 18 |
+| People, open + scroll | 118 | 1.7 | 6 | 13 |
+| Viewer, open + 3 swipes | 398 | 0.8 | 6 | 14 |
+| Details, open | 83 | 1.2 | 5 | 13 |
+
+| 2026-10-20, after the grid fix (load ahead, no fade, 128 MB cache) | frames | janky % | p90 ms | p99 ms |
+|---|---|---|---|---|
+| Cold start: first frame 109 ms, timeline 146 ms | | | | |
+| Photos, first scroll | 339 | 0.6 | 5 | 9 |
+| Photos, scroll | 314 | 0 | 5 | 7 |
+| Library, open + scroll | 120 | 1.7 | 5 | 13 |
+| People, open + scroll | 120 | 0 | 6 | 12 |
+| Viewer, open + 3 swipes | 408 | 0.5 | 6 | 11 |
+| Details, open | 83 | 1.2 | 5 | 13 |
+
+## Grid and viewer feel slow, though frame times are fine
+
+Frame times are clean (table above), so the slowness is loading, not jank. Measured 2026-10-20 on the release build with perfetto and screencaps.
+
+Steps:
+1. Cold start, fling Photos fast: the rows coming in at the bottom are blank, up to 29% of the grid, for about 1 s.
+2. Open a photo: it shows blurry, sharp only ~330 ms after the tap.
+
+Causes found:
+- **Viewer decode**: `ViewerPage` decodes 2560 px with `loadPhoto` (software bitmap, exact target size): 200-250 ms per photo. The render thread then uploads it (16 ms, a dropped frame when it turns sharp), and the two neighbour pages' uploads (6 ms each) drop 2-3 frames of the open animation.
+- **Grid loads late**: a tile starts its thumbnail only once composed (about one row ahead), then fades in for 180 ms, so incoming rows are blank or faded.
+- **Thumb cache is small**: `maxMemory / 8` = 32 MB, about 50-100 thumbs (3-5 screens). Bitmaps live outside the Java heap, so /8 is not the real limit. Scrolling back decodes and fades again.
+- **Old-photo fallback**: the full-photo decode at 480 px (`Thumb`, `small`) takes 15-43 ms; ~11% of tiles, about half of all grid decode time, every launch.
+- **No R8 in release**: no `buildTypes` block, 24.6 MB of dex, no mapping file. Compose expects R8.
+- Not ours: the test phone has a screen-mirroring accessibility service on, so Compose builds accessibility data every frame (~1.3 ms per frame).
+- Side note: `loadThumbnail(300x300)` returns 240x320 for 4:3 photos, stretched 1.5x into a 360 px tile.
+
+Fix ideas: viewer decode with a power-of-two sample size near screen size and a hardware bitmap; grid `LazyLayoutCacheWindow` so tiles load ahead, shorter or no fade; a bigger thumb cache; sample-size decode for the fallback; R8 with keep rules for ONNX Runtime.
+
+2026-10-20, grid part done: the Photos grid builds tiles one screen ahead (`LazyLayoutCacheWindow(aheadFraction = 1f)`, `MainActivity.kt`), the thumb fade is gone, the thumb cache is `maxMemory / 2` (128 MB). Same cold-start fling test, 3 runs: no blank tiles in any screencap (before: up to 29% of the grid for ~1 s). `make perf` the same or a bit better: Photos scroll p90 5 ms / p99 7 ms, cold start 109 / 146 ms. Memory, native heap after 15 / 45 flings and 5 s idle: old cache 96 / 314 / 52 MB, new 328 / 465 / 155 MB. Most of the peak is old bitmaps waiting for GC, in both builds. The fallback decode was not changed: `ImageDecoder` already uses the fast scaled JPEG decode for an exact target size; the time is reading the whole file. Viewer and R8 still open.
+
 ## Empty album stays open after its last photo leaves
 
 Moving or deleting the only photo of an album (album select, or the viewer opened from the album) leaves the album page open: no photos, title blank.

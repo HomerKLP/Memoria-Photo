@@ -32,7 +32,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.layout.LazyLayoutCacheWindow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationItemIconPosition
@@ -86,6 +88,7 @@ class MainActivity : ComponentActivity() {
 }
 
 /** Two tabs, Photos and Library. The test screen opens from Library. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun App(dir: File) {
     var screen by rememberSaveable { mutableStateOf("photos") }
@@ -97,7 +100,8 @@ fun App(dir: File) {
         onDispose { watcher.close() }
     }
     val tabs = rememberSaveableStateHolder() // keeps each tab's scroll while the other one is open
-    val photosGrid = rememberLazyGridState()
+    // tiles a screen below are built early, so their thumbnails load before they scroll in
+    val photosGrid = rememberLazyGridState(cacheWindow = LazyLayoutCacheWindow(aheadFraction = 1f))
     val scope = rememberCoroutineScope()
     var photosScrollTop by remember { mutableIntStateOf(0) } // bumped by a tab tap; the Photos tab reacts by scrolling to the top
     var viewing by rememberSaveable { mutableStateOf<Long?>(null) }
