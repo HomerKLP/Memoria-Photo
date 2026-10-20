@@ -12,6 +12,7 @@
     <!-- ONNX Runtime adds INTERNET only for its Microsoft telemetry; the app has no internet use -->
     <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
     <application
+        android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="Memoria"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
