@@ -254,7 +254,7 @@ fun groupFaces(all: List<FaceVec>, answers: List<AnswerRow> = emptyList(), merge
         }
     }
     return groups.indices.map { i ->
-        Person(groups[i] + vouched[i], groups[i].maxBy { dot(it.vector, sums[i]) })
+        Person(groups[i] + vouched[i], groups[i].maxBy { it.quality })
     }.sortedByDescending { it.faces.size }
 }
 
