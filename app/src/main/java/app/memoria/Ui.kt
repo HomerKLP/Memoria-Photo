@@ -91,6 +91,8 @@ fun <T : Any> cachedProduceState(
     load: suspend () -> T,
 ): State<T?> =
     produceState(cache[key] as T?, key, *keys) {
+        // a reload first shows what [updateCached] changed meanwhile (a new cover), then loads
+        (cache[key] as T?)?.let { if (value?.let(isEmpty) == false) value = it }
         val fresh = load()
         if (!isEmpty(fresh)) cache[key] = fresh
         value = fresh

@@ -41,14 +41,16 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.room.withTransaction
 import androidx.work.WorkManager
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** Settings from the Library gear. Folders to skip, backup and licenses wait for their design. */
+/** Settings from the Library gear. Folders to skip and backup wait for their design. */
 @Composable
-fun SettingsScreen(onBack: () -> Unit, onHidden: () -> Unit, onDev: () -> Unit) {
+fun SettingsScreen(onBack: () -> Unit, onHidden: () -> Unit, onLicenses: () -> Unit, onDev: () -> Unit) {
     val context = LocalContext.current
     val debug = (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
     val dao = remember { Db.get(context).index() }
@@ -82,6 +84,7 @@ fun SettingsScreen(onBack: () -> Unit, onHidden: () -> Unit, onDev: () -> Unit) 
         },
         onRescan = { rescan = true },
         onHidden = onHidden,
+        onLicenses = onLicenses,
         skipped = remember { IndexProgress.skipped(context).size },
         onDev = onDev.takeIf { debug },
     )
@@ -95,12 +98,15 @@ fun SettingsScreen(onBack: () -> Unit, onHidden: () -> Unit, onDev: () -> Unit) 
             TextButton({
                 rescan = false
                 scope.launch {
-                    withContext(Dispatchers.IO) {
+                    // NonCancellable and one transaction: a Back halfway never leaves photos marked done with no faces, or the index paused
+                    withContext(Dispatchers.IO + NonCancellable) {
                         IndexControl.pause(context)
-                        dao.clearFaces(); dao.clearAnswers(); dao.clearMerges(); dao.clearPhotos(); dao.deletePeople(); dao.clearPersonIds()
+                        Db.get(context).withTransaction {
+                            dao.clearFaces(); dao.clearAnswers(); dao.clearMerges(); dao.clearPhotos(); dao.deletePeople(); dao.clearPersonIds()
+                        }
                         IndexProgress.finish(context)
+                        IndexControl.start(context, testOnly = false)
                     }
-                    IndexControl.start(context, testOnly = false)
                     reload++
                 }
             }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Delete and scan") }
@@ -124,6 +130,7 @@ fun SettingsContent(
     onBackgroundWork: () -> Unit = {},
     onRescan: () -> Unit = {},
     onHidden: () -> Unit = {},
+    onLicenses: () -> Unit = {},
     skipped: Int = 0,
     onDev: (() -> Unit)? = null, // null: a release build, no Developer section
 ) {
@@ -165,7 +172,7 @@ fun SettingsContent(
         SettingRow(R.drawable.ic_download, "Export face data", "Save to a file")
         SettingRow(R.drawable.ic_upload, "Import face data", "From an export file")
         SectionHead("About")
-        SettingRow(R.drawable.ic_info, "Memoria Photo $version", "Open source, GPL-3.0 · Licenses") { Chevron() }
+        SettingRow(R.drawable.ic_info, "Memoria Photo $version", "Open source, GPL-3.0 · Licenses", onLicenses) { Chevron() }
         if (onDev != null) {
             SectionHead("Developer", hint = "Debug builds only")
             SettingRow(R.drawable.ic_settings, "Dev tools", "Test the models, index the test folder", onDev) { Chevron() }

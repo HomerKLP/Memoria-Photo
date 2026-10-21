@@ -26,8 +26,7 @@ The APK does not ship these today. They are pushed to the phone (`bench/fp16.py`
 | Model | Used for | Source | License |
 |---|---|---|---|
 | YOLOv5m-face | Finds faces | [deepcam-cn/yolov5-face](https://github.com/deepcam-cn/yolov5-face) | GPL-3.0 |
-| AdaFace IR101 (WebFace12M) | Face vector | [mk-minchul/AdaFace](https://github.com/mk-minchul/AdaFace) | Code MIT, weights: no license text found |
-| eDifFIQA-T | Face quality score | [LSIbabnikz/DifFIQA](https://github.com/LSIbabnikz/DifFIQA) | Weights: no license text found |
+| AdaFace IR101 (WebFace12M) | Face vector | [mk-minchul/AdaFace](https://github.com/mk-minchul/AdaFace) | MIT |
+| eDifFIQA-T | Face quality score | [LSIbabnikz/DifFIQA](https://github.com/LSIbabnikz/DifFIQA) | MIT |
 
 The ONNX files come from the [UniFace](https://github.com/yakhyo/uniface) mirrors (`yakhyo/*-onnx`, MIT code).
-Where no license text exists, we use the weights as is for this non-commercial, open-source app (`decisions.md`, 2026-10-19).

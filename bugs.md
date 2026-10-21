@@ -260,7 +260,7 @@ Fix:
 
 ## Viewer closes when the phone rotates
 
-Fixed 2026-10-17 (portrait lock in the manifest). Still open on large screens, where Android 16 ignores the lock (second fix idea below).
+Fixed 2026-10-17 (portrait lock in the manifest). Still open on large screens, where Android 16 ignores the lock (second fix idea below). Also still open for every other Activity restart: dark mode, wallpaper colours, font size, language, process death (found in the 2026-10-21 review, not checked on the phone).
 
 `App` keeps the open photo id in `rememberSaveable` but the tile list in plain
 `remember` (`MainActivity.kt`), and the manifest locks no orientation. On rotate the
@@ -563,3 +563,33 @@ Cause: opening a screen drops the tab from composition, so Back builds Library a
 Fix ideas:
 - Keep the tab composed under the opened screen: the tab is always the base, the opened screen is an overlay (`AnimatedContent` on the opened screen only). Block touches on the overlay and hide the base from TalkBack.
 - Or skip the reload on return when the cached data is fresh.
+
+Fixed 2026-10-21: the tab stays composed under an opened screen (`MainActivity.kt` `App`), so back only slides the screen away. Library reloads once you are back (`returns`). Release, 3 runs: See all back 0-1 janky of 16-17 frames, p90 8-20 ms; Settings back 1-2 janky of 16, p90 14-18 ms. The frame left is probably Library's reload landing during the slide; if it still shows, reload after the slide ends.
+
+After the back stack (2026-10-21, release, 3 runs): See all back 0-1 janky of 17-18 frames, p90 13-15 ms; Settings back 0 janky of 17-18, p90 11-13 ms.
+
+## Back from a person showed the People list while sliding out
+
+Fixed 2026-10-21 (user report). Close cleared the open person at once, so the leaving screen turned into the People list (Help recognize card) for the slide. The person is now set or cleared when People opens, not on close. Checked on the emulator with animations slowed 10x.
+
+## Help recognize card: text shifts left with fewer than 3 faces
+
+With 1 face to check the stack holds 1 face, so the title and count move left (seen on Library, 7 → 1 faces). The mockup only shows 3 faces.
+
+Steps:
+1. Answer Help recognize faces until 1 or 2 are left.
+2. Back to Library: the card's text starts further left than before.
+
+Fix ideas:
+- Keep the stack's 3-face width and leave the empty slots blank.
+
+## Photos tab reloads the whole timeline while the app is in the background
+
+The Photos tab's MediaStore observer (`PhotosScreen`, `Photos.kt`) stays registered after Home, and Compose keeps recomposing a stopped Activity (only animation frames pause). So each new photo or edit made in another app (camera, messenger) re-runs `timeline()` over the whole library 1 s later, with nobody looking. Found by reading the code and Compose's `Recomposer`, not measured on the phone.
+
+Steps:
+1. Open Memoria on the Photos tab, press Home.
+2. Take a few photos with the camera: each one starts a full timeline query in Memoria.
+
+Fix ideas:
+- While the app is stopped, only note that something changed; reload once on return (`LifecycleStartEffect`), like the auto-index watcher does now.

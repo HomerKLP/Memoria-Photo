@@ -88,6 +88,11 @@ class PeopleLogicTest {
         assertEquals(6, groupFaces((1L..6L).map { face(it, it) })[0].photos)
     }
 
+    @Test fun mainFaceIsTheSharpestStartingFace() {
+        val faces = (1L..6L).map { face(it, it, quality = 0.5f + it / 100f) }
+        assertEquals(6L, groupFaces(faces).single().main.id)
+    }
+
     @Test fun fivePhotosAreNotEnough() {
         assertTrue(groupFaces((1L..5L).map { face(it, it) }).isEmpty())
     }

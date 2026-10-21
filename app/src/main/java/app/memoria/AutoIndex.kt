@@ -9,6 +9,7 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore.Images.Media
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import java.io.Closeable
@@ -72,35 +73,35 @@ fun watchNewPhotos(context: Context, lifecycle: Lifecycle): Closeable {
             burst.change(System.currentTimeMillis())
         }
     }
-    context.contentResolver.registerContentObserver(Media.EXTERNAL_CONTENT_URI, true, observer)
     scope.launch {
-        var wasOpen = false
-        while (isActive) {
-            delay(1000)
-            // photos taken while the app was closed or away fire no change here, so each open counts as one
-            val open = lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
-            if (open && !wasOpen) burst.change(System.currentTimeMillis())
-            wasOpen = open
-            // wait for the burst to settle, and only act while the app is actually open
-            if (!burst.due(System.currentTimeMillis()) || !open) continue
-            // a going run listed its photos before this change, so keep the burst and try again when it ends
-            val busy = indexBusy(context)
-            if (busy) continue
-            burst.take()
-            val start = AutoIndex.shouldStart(
-                hasPermission = canReadPhotos(context),
-                modelsReady = modelsReady(context),
-                indexBusy = busy,
-                paused = IndexProgress.paused(context),
-                changedPhotos = changedPhotos(context),
-            )
-            if (start) IndexControl.start(context, testOnly = false)
+        // only while the app is open, so nothing wakes the phone in the background
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            context.contentResolver.registerContentObserver(Media.EXTERNAL_CONTENT_URI, true, observer)
+            try {
+                // photos taken while the app was closed or away fire no change here, so each open counts as one
+                burst.change(System.currentTimeMillis())
+                while (isActive) {
+                    delay(1000)
+                    if (!burst.due(System.currentTimeMillis())) continue
+                    // a going run listed its photos before this change, so keep the burst and try again when it ends
+                    val busy = indexBusy(context)
+                    if (busy) continue
+                    burst.take()
+                    val start = AutoIndex.shouldStart(
+                        hasPermission = canReadPhotos(context),
+                        modelsReady = modelsReady(context),
+                        indexBusy = busy,
+                        paused = IndexProgress.paused(context),
+                        changedPhotos = changedPhotos(context),
+                    )
+                    if (start) IndexControl.start(context, testOnly = false)
+                }
+            } finally {
+                context.contentResolver.unregisterContentObserver(observer)
+            }
         }
     }
-    return Closeable {
-        context.contentResolver.unregisterContentObserver(observer)
-        scope.cancel()
-    }
+    return Closeable { scope.cancel() }
 }
 
 private fun canReadPhotos(context: Context): Boolean {
@@ -117,9 +118,9 @@ private fun indexBusy(context: Context): Boolean = runCatching {
 }.getOrDefault(true)
 
 /** Photos the index has not seen yet, indexed photos deleted from the phone (a run forgets them), and photos with no GPS read yet. */
-private fun changedPhotos(context: Context): Int {
+private suspend fun changedPhotos(context: Context): Int {
     val dao = Db.get(context).index()
-    val indexed = kotlinx.coroutines.runBlocking { dao.photoIds() }.toHashSet()
+    val indexed = dao.photoIds().toHashSet()
     val phone = libraryPhotos(context).map { it.id }.toHashSet()
-    return phone.count { it !in indexed } + indexed.count { it !in phone } + kotlinx.coroutines.runBlocking { dao.unplaced() }.size
+    return phone.count { it !in indexed } + indexed.count { it !in phone } + dao.unplaced().size
 }

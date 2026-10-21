@@ -145,6 +145,16 @@ class LayoutJumpTest {
         assertSame("Export face data", exportBefore, rule.onNodeWithText("Export face data").top())
     }
 
+    @Test fun licenses_longestInfoLine_isOneLineLikeTheShortest() {
+        rule.setContent { MemoriaTheme { Surface { LicensesContent() } } }
+
+        val short = rule.onNodeWithText("GPL-3.0").height()
+        val long = rule.onNodeWithText("Runs the models on the NPU · Qualcomm's own license").height()
+        val geo = rule.onNodeWithText("Town names, towns of 1,000+ only · CC BY 4.0").height()
+        assertSame("Qualcomm info line", short, long)
+        assertSame("GeoNames info line", short, geo)
+    }
+
     @Test fun devTools_numbersLoaded_logStaysPut() {
         var numbers by mutableStateOf<DevNumbers?>(null)
         rule.setContent { MemoriaTheme { Surface { DevToolsContent(busy = false, numbers = numbers, log = "Index SUCCEEDED") } } }

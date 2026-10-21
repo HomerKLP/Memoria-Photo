@@ -79,11 +79,10 @@ fun SearchScreen(onBack: () -> Unit, onOpen: (Hit) -> Unit, onSeeAllPeople: () -
     var query by rememberSaveable { mutableStateOf("") }
     val data by cachedProduceState("search") {
         withContext(Dispatchers.IO) {
-            val faces = dao.faceVecs()
-            val byId = faces.associateBy { it.id }
-            val byPerson = faces.filter { it.personId != null }.groupBy { it.personId!! }
+            // no vectors: Search shows names, covers and counts only
+            val byPerson = dao.taggedFaces().groupBy { it.personId }
             val people = dao.people().filter { !it.hidden && !it.name.isNullOrBlank() }
-                .mapNotNull { p -> byId[p.mainFaceId]?.let { m -> Person(byPerson[p.id] ?: listOf(m), m, p.id, p.name, false, p.coverFaceId) } }
+                .mapNotNull { p -> byPerson[p.id]?.let { fs -> Person(fs.map { it.toVec() }, (fs.firstOrNull { it.id == p.mainFaceId } ?: fs.first()).toVec(), p.id, p.name, false, p.coverFaceId) } }
                 .sortedByDescending { it.photos }
             val albums = albums(context)
             val all = albums.flatMap { it.tiles }

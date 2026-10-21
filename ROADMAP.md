@@ -17,7 +17,7 @@ Pick the best models on real photos before writing app code. Details: `docs/face
 - [x] LVFace: skipped, AdaFace is good enough on all photos.
 - [x] Rerun eval with more Takeout parts (more people, more labels). Tested on all photos, good.
 - [x] Quality cut for starting groups: 0.4.
-- [x] AdaFace weights license: no license found, used as is (decision 2026-10-19).
+- [x] AdaFace weights license: first no license found, used as is (decision 2026-10-19); MIT, found 2026-10-21.
 
 ## Phase 2: face pipeline on Android (current)
 Current again since 2026-10-20. Phase 6 is paused.
@@ -33,7 +33,8 @@ Current again since 2026-10-20. Phase 6 is paused.
 - [x] Some face pictures looked blurry on the People screen: saved at 160 px, shown at up to 288 px. Now saved at 288 px, old ones cut again once. No upscale: ~90% of faces in people are 288 px or bigger in the photo.
 - [x] Remove verbose ONNX Runtime logging from the test screen.
 - [x] Decide how to ship the models in a release: download on first run, not in the APK (2026-10-20).
-- [ ] Face models download: Settings > Finding faces > Face models row (designed, mockup "Face models"). Saves to `files/models`, goes on after a stop, checks the files when done, then auto-index starts. Open: where the files are hosted (a GitHub release asset needs a public repo) and a first-run hint on Library.
+- [ ] Tap on the index notification opens the app on the Library tab (progress is there). Today the notification has no tap action.
+- [ ] Face models download: Settings > Finding faces > Face models row (designed, mockup "Face models"). Saves to `files/models`, goes on after a stop, checks the files when done, then auto-index starts. Hosted as a GitHub release asset (2026-10-21), so it waits until the repo is public. Open: a first-run hint on Library.
 - [x] Background indexing with WorkManager, test folder `Pictures/MemoriaTest` only. Matches the Mac.
 - [x] Photo type from metadata: camera, other (downloads, messengers), skip (screenshots, GIFs, tiny).
 - [x] Store photos, faces and face vectors in Room.
@@ -48,8 +49,8 @@ Current again since 2026-10-20. Phase 6 is paused.
 - [x] People and Person screens built to the mockup: People = top bar + search, Help recognize card, index progress, 4-column grid, one list: named people first, then unnamed (no label), each by photo count. Library row same order. Person = face chips, "Faces" row, "Unsure faces" card, 3-column photo grid; tap a photo opens the viewer. Merge with / Change cover / Hide person are placeholders (no screens yet).
 - [x] Merge with (one person at a time, most alike first) and Hide person, both survive regroups (DB v7). Hidden people opens from Settings. Checked on the phone.
 - [x] Settings from the Library gear: Only while charging, Background work, Find faces again, Hidden people. Folders to skip, Export / Import face data and Licenses are shown but wait for design or decisions. Checked on the phone.
-- [ ] **Important, blocks the first release:** Licenses screen (Settings > About, mockup first). The APK already ships the GeoNames towns, so the credit is a must. Until the screen is built, a `THIRD_PARTY.md` in the repo holds the same list. Must credit GeoNames (CC BY 4.0: credit, the license, and what we changed: towns of 1000+ only, no districts), and list the fonts (OFL 1.1), ONNX Runtime (MIT), Qualcomm QNN libs, AndroidX / Compose / Kotlin / Material icons (Apache 2.0), and the face models once the app ships them. License texts live inside the app (no internet).
-- [ ] Fixes, per-person tuning. Change cover built (mockup "Change cover"): the chip on the person screen opens a sheet with the person's sure faces, clearest first, current cover on top; picking one saves it and it survives re-index (DB v8). A new person starts from a face only ("Who is this?" > New person), never from an empty card. Full stable people: still group all faces without a person (old ones too), so 5 old photos plus 1 new one can form a person.
+- [x] Licenses screen (Settings > About, 2026-10-21): a plain list of what Memoria uses and each license, GeoNames row with the CC BY change notice. The last row opens `THIRD_PARTY.md` on GitHub in the browser, so no texts are bundled and the app stays offline. Open: the Qualcomm QNN license is unclear, and the link works once the repo is public.
+- [x] Fixes, per-person tuning. Change cover built (mockup "Change cover"): the chip on the person screen opens a sheet with the person's sure faces, clearest first, current cover on top; picking one saves it and it survives re-index (DB v8). A new person starts from a face only ("Who is this?" > New person), never from an empty card. Every regroup takes all faces, so old faces with no person can still form one.
 - [x] Start gate: only camera faces with quality 0.4+ (EDifFIQA-T on the phone) start a person. Junk groups gone.
 - [x] A person needs starting faces from 6+ photos.
 - [x] Sure-only matching: a face in a person is sure only with quality 0.4+. Unsure faces still join, but are faded and not counted.
@@ -58,8 +59,8 @@ Current again since 2026-10-20. Phase 6 is paused.
 - [x] Viewer details People row: tap a face to fix it (Who is this?, Remove tag) or name an unnamed person. Checked on the phone.
 - [x] Yes faces help others match (2026-10-20): a face within 0.5 of a face you said Yes to (quality 0.3+) joins that person. The person's own face set stays the sharp starting faces. Phone regroup: 10 faces joined, none moved; you answered all 91 unsure faces Yes, all right.
 - [x] Fewer faces to check (2026-10-20): a face is also sure when the person's sharp or Yes faces vouch for it (closest within 0.5 and no other person 0.1 closer, or a Yes face within 0.3). One Yes in Help recognize settles its look-alikes at once. New column `face.nearSure` (DB v10). On the emulator with the old DB, 91 faces to check became 8; 83 of the 84 made sure were your own Yes answers, in the same person. Checked on the phone: migration and regroup only, nothing is left there to ask.
-- [ ] Check on the phone once new unsure faces exist: a Yes in Help recognize skips its look-alikes, and the faces made sure by neighbours (3 on the phone, 1 on the emulator) are the right people. The skip has no UI test (the screen loads from the DB); only `Person.twinsOf` is unit-tested.
-- [ ] Main face: pick by quality score once a quality model runs on the phone (now: closest to the person's average face).
+- [x] Checked on the phone (2026-10-21): a Yes in Help recognize skips its look-alikes, and the faces made sure by neighbours are the right people. The skip has no UI test (the screen loads from the DB); only `Person.twinsOf` is unit-tested.
+- [x] Main face: the sharpest starting face (highest quality score), 2026-10-21. Was the one closest to the person's average.
 
 ## Phase 3: photo type filter
 Goal: keep screenshots, memes and documents out of face search.
@@ -70,7 +71,7 @@ Goal: keep screenshots, memes and documents out of face search.
 ## Phase 4: gallery basics (paused, basics done)
 - [x] Honey theme (`Theme.kt`, Bricolage Grotesque font in the APK) and two bottom tabs. Test screen moved to Library > Dev tools.
 - [x] Photos tab: timeline from MediaStore, month and day headers, 3-column grid, video length. Thumbnails from MediaStore `loadThumbnail`.
-- [ ] Photos tab: pinch to resize the grid.
+- [ ] Photos tab: pinch to resize the grid. Levels: days (never fewer than 3 photos a row), pinch out to months, then to years (the top level), with an animation between levels. Month and year views are not in the mockup yet: design first.
 - [x] Photos tab: refresh when new photos arrive. A MediaStore observer reloads the timeline 1 s after the last change; tiles and day headers use `animateItem`, so new photos fade in and the rest slide. Scrolled down, nothing moves. Checked on the emulator; the phone's release build is not checked yet.
 - [ ] Photos tab: place name in the day header (mockup "Photos": `Sun, 28 Sep` + the town, muted). Offline geocoding is already done (`photo.town`), so this only reads it into the header. Photos only, videos have no town yet.
 - [ ] Test photos with no EXIF date and no date in the name land on the push day. Set their file time from the sidecar `photoTakenTime` before pushing, if it gets in the way. (Full plan and decisions: `docs/library-unification.md`.)
@@ -96,7 +97,7 @@ Goal: keep screenshots, memes and documents out of face search.
 - [ ] Later: spots inside a place (a lake or park near a town shows inside that town's Place). Not designed; see Open questions.
 - [x] Videos screen from the Library card: all videos by month (month pinned), 3-column grid, count and total size on top.
 - [ ] Media3 video player.
-- [ ] Open a photo from another app (`ACTION_VIEW` filter in the manifest, the viewer takes a single URI). Later: be a photo picker for other apps (`ACTION_PICK` / `GET_CONTENT`).
+- [ ] Open a photo from another app (`ACTION_VIEW` filter in the manifest, the viewer takes a single URI). Checked 2026-10-21: the OnePlus camera's last-photo thumbnail sends `com.android.camera.action.REVIEW` straight to its own gallery (`pkg=com.oneplus.gallery`), so a filter will not catch it. Other apps that send `ACTION_VIEW` would still reach us; not tried. Later: be a photo picker for other apps (`ACTION_PICK` / `GET_CONTENT`).
 - [x] Search screen (mockup "Search", `Search.kt`): from the Photos icon and the Library bar. Empty field: named people, Videos / Favorites / Screenshots chips (Screenshots opens the phone's Screenshots album, hidden without one), Recent. Typing finds word starts in people, places, albums, years and months; each hit opens a screen we have, and back returns to Search. A year or month opens the Photos tab at that month. Checked on the phone. Later: two people at once, free text, a results grid.
 
 ## Phase 5: video compression
@@ -131,22 +132,27 @@ Goal: no visible loss, not lossless (re-encoding always loses some).
 Goal: motion that feels finished, like a mature gallery app, before the first APK release. No motion design in the mockup: Claude checks each motion on the emulator, the user on the phone.
 - [x] Opening and closing a photo: it grows out of its tile and shrinks back into it (swipe down or Back). The grid behind follows the photo you swipe to, so it always lands in a clear tile.
 - [x] Double tap in the viewer: the zoom animates in and out instead of jumping (tween, `Viewer.kt`).
-- [ ] Page changes: open and back between screens, and the tab switch.
+- [ ] Page changes: open and back between screens, and the tab switch. Settings and its pages push (2026-10-21): the tab slides out to the left as Settings comes in, Back reverses it. Other screens still slide in over the tab; the tab switch and screen to screen moves still cut.
 - [ ] Sheets, menus and dialogs: smooth in and out.
 - [ ] Select mode: the top bar and the Select bar swap smoothly.
 - [ ] Lists: photos and people that leave (delete, move, merge, hide) animate out instead of vanishing; new pictures fade in (thumbnails, covers).
+- [ ] Indexing: people that a regroup adds (Library row, People grid) animate in instead of popping up.
+- [ ] Index progress bar: animates in when a run starts and out when it ends, so it feels natural.
 - [ ] Rules: the no-layout-jump rule still holds; short motions; follow Android's "Remove animations" setting; check on a release build that nothing stutters.
 
 ## Phase 8: release
-Items marked **Important** must be done before the first public release. The Licenses screen (Phase 2) is one of them.
+Items marked **Important** must be done before the first public release.
 - [x] GPL-3.0 LICENSE file.
 - [x] **Important:** turn telemetry off. ONNX Runtime's Android package added the INTERNET permission and a provider that starts a Microsoft telemetry client at launch. Done 2026-10-19: both removed in the manifest (`tools:node="remove"`), and `ortEnv()` (`Faces.kt`) calls `setTelemetry(false)` at every place the app opens the environment. `aapt2 dump permissions` on the release APK shows no INTERNET, and the provider is gone. `setTelemetry(false)` is not run on a device yet: check the next index run. The OTA item below brings the permission back, scoped to the update check; the provider stays removed.
 - [ ] **Important:** release signing key. `make release` signs with Android's public debug key, so that APK must never be published. Make one release keystore (name `CN=Memoria Photo`, no real name), keep it and its passwords outside the repo, back it up in two places, and read both from environment variables in a `signingConfigs.release` block (`app/build.gradle.kts`). Write where it lives in `decisions.md` (not tracked). Never change the key later: users would have to uninstall and lose their face data. A phone with the debug-key build can't update to the release key for the same reason, so test the release APK on the emulator. Before every release, `apksigner verify --print-certs` must not say `Android Debug`.
 - [ ] R8 on release builds: `isMinifyEnabled = true` in `buildTypes.release` (`app/build.gradle.kts`, beside the signing config). Release now ships 24.6 MB of unshrunk dex, and Compose expects R8 (smaller APK, faster start). ONNX Runtime calls Java from native code, so add keep rules and check an index run (CPU and NPU) on the phone. Keep each release's mapping file to read crash traces.
 - [ ] **Important:** `README.md`. What the app is, the privacy promise, how to install the APK, how to build it, the license. The APK has no face models and the app has no internet, so say how to make them (`bench/fp16.py`) and push them to the phone, and which phones work (NPU libs for the Snapdragon 8 Elite only). Keep the models out of the release until "ship the models" (Phase 2) is decided.
-- [ ] **Important:** `android:allowBackup="false"` in the manifest. Without it Android's cloud backup may copy the face database to the user's Google account. Names and faces leave the phone only through our own Export.
+- [x] **Important:** `android:allowBackup="false"` in the manifest. Without it Android's cloud backup may copy the face database to the user's Google account. Names and faces leave the phone only through our own Export. Done 2026-10-21 (`AndroidManifest.xml`). Not built or checked on the phone.
 - [x] Dev tools moved to Settings > Developer, shown only in debug builds (`FLAG_DEBUGGABLE`), gone from release. Built 2026-10-19 to the mockup (`DevTools.kt`): Run on CPU / NPU, Index test folder, Numbers, Log. Library has no Dev tools button. Not checked on the phone.
 - [x] Disable the buttons that do nothing yet: Locked folder (Library), Folders to skip, Export / Import face data and Licenses (Settings). Done 2026-10-19: 38% opacity, not clickable (`Shortcut`, `SettingRow`); no mockup part, no tests (the user's call). Not checked on the phone. Other screens not scanned for taps with no action. Turn each back on when its screen is built.
+- [ ] Strings in `res/values/strings.xml`, with `pluralStringResource` for counts. All UI text is in Kotlin now and plurals are English only (`count()` in `Search.kt` adds "s"), so the app can't be translated. Cheaper before more screens are built.
+- [ ] Own monochrome notification icon. The index notification uses `android.R.drawable.ic_menu_gallery` (`Index.kt`), which phone makers can change.
+- [ ] No photo paths in release logs (`Log.w("Memoria", "index ${photo.path}")` in `Index.kt` and others).
 - [ ] GitHub releases: tag each build, attach the signed APK, keep a changelog.
 - [ ] OTA updates from GitHub release APKs: the app notices a newer release, downloads the APK, and installs it through Android's own installer (PackageInstaller, `REQUEST_INSTALL_PACKAGES`). Needs its own screen (mockup first) and an INTERNET permission scoped to the update check (see Open questions).
 
@@ -168,15 +174,25 @@ Today perf is found only after someone feels it (`bugs.md` holds the numbers). N
 - [x] Baseline profiles: `androidx.profileinstaller` + `app/src/main/baseline-prof.txt` (generated, 1376 app classes merged into the APK). `<profileable android:shell="true"/>` so release can be traced. A release build no longer runs cold/JIT.
 - [x] `:baselineprofile` module (Macrobenchmark): generates the profile. Its Gradle runs uninstall the app (data loss), and the emulator has no library, so it is not the perf gauge.
 - [x] `make perf` (`bench/perf.py`): cold start (first frame, timeline shown) and janky frames for Photos, Library, People, viewer, Details, on the phone's release build. Taps and dumpsys only, data stays. First numbers in `bugs.md`: every screen under 3% janky frames.
-- [ ] Fix the known load costs, by measured impact. They do not show as janky frames; if a screen still feels slow, measure how long its data takes to show first. Done 2026-10-18: Details reads only its photo's faces and the people's vectorless faces (`photoFaces` + `taggedFaces`); Library/People count with `libraryPhotoCount` instead of building a `MediaPhoto` per row. Done 2026-10-20: the Photos grid loads a screen ahead with no fade and a 128 MB thumb cache (no blank tiles on a cold fling, was up to 29%); the viewer decodes at about screen size into a hardware bitmap (tap to sharp ~330 -> ~175 ms). Left: `Search.kt` still loads full `faceVecs()` for its named-people list.
+- [x] Fix the known load costs, by measured impact. They do not show as janky frames; if a screen still feels slow, measure how long its data takes to show first. Done 2026-10-18: Details reads only its photo's faces and the people's vectorless faces (`photoFaces` + `taggedFaces`); Library/People count with `libraryPhotoCount` instead of building a `MediaPhoto` per row. Done 2026-10-20: the Photos grid loads a screen ahead with no fade and a 128 MB thumb cache (no blank tiles on a cold fling, was up to 29%); the viewer decodes at about screen size into a hardware bitmap (tap to sharp ~330 -> ~175 ms). Done 2026-10-21: Search reads vectorless faces too (`taggedFaces`).
+- [ ] Photos tab: no timeline reload while the app is in the background (`bugs.md`, "Photos tab reloads the whole timeline while the app is in the background").
 - [ ] Load time in `make perf`: ms from opening a screen until its data shows (Library, People, Person, Details, the viewer's sharp photo), like the cold start's timeline time. Started 2026-10-20: `make perf` reports the worst blank share on a cold fling.
 - [ ] Regenerate the baseline profile on the emulator. With it really installed (2026-10-20), cold start was 15-25 ms slower than with the profile the app records in use.
 - [x] Perf line in `AGENTS.md` (Commands): `make release`, pause indexing, `make perf`.
+
+## Phase 12: code health (review 2026-10-21)
+- [x] Done 2026-10-21: the auto-index watcher runs only while the app is open (`repeatOnLifecycle`); user DB writes run under `NonCancellable`, so Back right after a tap keeps them; Find faces again clears its tables in one transaction; no `runBlocking` in `AutoIndex.kt`.
+- [ ] Viewer survives an Activity restart (dark mode, wallpaper colours, font size, language, process death), not only rotation: keep its tile list, not just the open id (`bugs.md`, "Viewer closes when the phone rotates").
+- [ ] Types instead of strings: enums for `PhotoRow.kind` and `Hit.kind` (lowercase names, so no DB migration), a `sealed interface` for timeline items instead of `List<Any>`.
+- [x] Back stack navigation: one saved list of screens (`Screen`, `MainActivity.kt`) replaces the `screen` string, the `xxxFrom` variables and the per-screen `BackHandler`s. Done 2026-10-21; `NavigationTest` passed on the old code first, then on the new.
+- [ ] Room `Flow` queries instead of `peopleSaved` and the `reload++` counters; the screen cache (`cache` in `Ui.kt`) drops keys it no longer needs (`moveTo<id>` adds one per photo). After the back stack.
 
 ## Later
 - Google Takeout import: copy photos not already on the phone, dates from the JSON, skip duplicates. Plan: `docs/library-unification.md`.
 - Names from Takeout: match Google's people tags to our people (photos with one tag and one face, then a majority vote per person, like `bench.py eval`).
 - Split a person. Ignore a face (strangers in the back).
+- Reorder people: the user sets the order on People (and the Library row follows), instead of named first by photo count. The order survives regroups. Not in the mockup yet: design first.
+- Dark theme: a dark Honey palette that follows the system setting. Replaces the light-only call (2026-10-15). Not in the mockup yet: design first.
 - Locked folder behind PIN or fingerprint (Library card in the mockup, no screen yet).
 - Simple edit: crop, rotate. Other edits open in another app (Viewer, More > Edit in…).
 - Rename an album.
@@ -184,6 +200,7 @@ Today perf is found only after someone feels it (`bugs.md` holds the numbers). N
 - Duplicates finder: exact copies, burst shots, very similar shots. Keep the best one (sharpest, open eyes, best faces); deleting the rest needs the user's OK.
 - Blurry and bad photo cleanup.
 - Index: decode only the face regions (`ImageDecoder.setCrop`) instead of the whole 4096 photo. Saves 10–25% of one index run, once; risk is silent vector drift. If it comes back, measure first (time, vector similarity vs the full decode).
+- NPU on other Snapdragon chips: the APK only has the 8 Elite lib (HTP V79), `jniLibs.excludes` in `app/build.gradle.kts` drops the rest. Remove the excludes for V73, V75 and V81 (about 50 MB raw) and the runtime picks the lib that fits the phone. Can't be tested here, only the OnePlus 13 is at hand. Until then those phones index on the CPU: ONNX Runtime drops to it when the NPU can't start (checked on the arm64 emulator, 44 photos indexed). Other makers (MediaTek, Samsung, Tensor) need their own SDK, LiteRT maybe.
 
 ## Ideas
 - Map of photos by GPS (offline map tiles, or tiles fetched when online).
