@@ -580,3 +580,14 @@ Steps:
 
 Fix ideas:
 - Keep the stack's 3-face width and leave the empty slots blank.
+
+## Photos tab reloads the whole timeline while the app is in the background
+
+The Photos tab's MediaStore observer (`PhotosScreen`, `Photos.kt`) stays registered after Home, and Compose keeps recomposing a stopped Activity (only animation frames pause). So each new photo or edit made in another app (camera, messenger) re-runs `timeline()` over the whole library 1 s later, with nobody looking. Found by reading the code and Compose's `Recomposer`, not measured on the phone.
+
+Steps:
+1. Open Memoria on the Photos tab, press Home.
+2. Take a few photos with the camera: each one starts a full timeline query in Memoria.
+
+Fix ideas:
+- While the app is stopped, only note that something changed; reload once on return (`LifecycleStartEffect`), like the auto-index watcher does now.

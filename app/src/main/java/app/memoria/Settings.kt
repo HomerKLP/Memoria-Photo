@@ -41,8 +41,10 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.room.withTransaction
 import androidx.work.WorkManager
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -96,12 +98,15 @@ fun SettingsScreen(onBack: () -> Unit, onHidden: () -> Unit, onLicenses: () -> U
             TextButton({
                 rescan = false
                 scope.launch {
-                    withContext(Dispatchers.IO) {
+                    // NonCancellable and one transaction: a Back halfway never leaves photos marked done with no faces, or the index paused
+                    withContext(Dispatchers.IO + NonCancellable) {
                         IndexControl.pause(context)
-                        dao.clearFaces(); dao.clearAnswers(); dao.clearMerges(); dao.clearPhotos(); dao.deletePeople(); dao.clearPersonIds()
+                        Db.get(context).withTransaction {
+                            dao.clearFaces(); dao.clearAnswers(); dao.clearMerges(); dao.clearPhotos(); dao.deletePeople(); dao.clearPersonIds()
+                        }
                         IndexProgress.finish(context)
+                        IndexControl.start(context, testOnly = false)
                     }
-                    IndexControl.start(context, testOnly = false)
                     reload++
                 }
             }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Delete and scan") }

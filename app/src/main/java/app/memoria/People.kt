@@ -78,6 +78,7 @@ import androidx.room.withTransaction
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
@@ -360,14 +361,15 @@ fun PeopleScreen(
         onMerge = { merging = it },
         onCover = { covering = it },
         onHide = { p ->
-            if (p.hidden) scope.launch { withContext(Dispatchers.IO) { dao.setHidden(p.id, false) }; reload++ } else hiding = p
+            // NonCancellable: Back right after a tap closes this scope, and the write must still land
+            if (p.hidden) scope.launch { withContext(Dispatchers.IO + NonCancellable) { dao.setHidden(p.id, false) }; reload++ } else hiding = p
         },
     )
     merging?.let { p ->
         MergeSheet(p, r?.people.orEmpty().filter { it.id != p.id && !it.hidden }, onDismiss = { merging = null }) { other ->
             merging = null
             scope.launch {
-                withContext(Dispatchers.IO) { mergePeople(db, p, other) }
+                withContext(Dispatchers.IO + NonCancellable) { mergePeople(db, p, other) }
                 reload++
             }
         }
@@ -376,7 +378,7 @@ fun PeopleScreen(
         ChangeCoverSheet(p, onDismiss = { covering = null }) { faceId ->
             covering = null
             scope.launch {
-                withContext(Dispatchers.IO) { dao.setCover(p.id, faceId) }
+                withContext(Dispatchers.IO + NonCancellable) { dao.setCover(p.id, faceId) }
                 // The Library tab is off composition while this person is open, so update its cache (and
                 // People's) in place; otherwise its first frame back shows the old cover, then flips.
                 updateCached("library", LibraryData::class.java) { it.withCover(p.id, faceId) }
@@ -398,7 +400,7 @@ fun PeopleScreen(
                 TextButton({
                     hiding = null
                     scope.launch {
-                        withContext(Dispatchers.IO) { dao.setHidden(p.id, true) }
+                        withContext(Dispatchers.IO + NonCancellable) { dao.setHidden(p.id, true) }
                         reload++
                     }
                     onPersonBack()
@@ -416,7 +418,7 @@ fun PeopleScreen(
         ) { name ->
             naming = null
             scope.launch {
-                withContext(Dispatchers.IO) { dao.setName(p.id, name.trim().ifEmpty { null }) }
+                withContext(Dispatchers.IO + NonCancellable) { dao.setName(p.id, name.trim().ifEmpty { null }) }
                 reload++
             }
         }

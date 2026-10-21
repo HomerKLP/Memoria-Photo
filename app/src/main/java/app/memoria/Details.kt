@@ -42,6 +42,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.Instant
@@ -168,8 +169,8 @@ fun DetailsPanel(tile: Tile, modifier: Modifier = Modifier) {
             Triple(info, photoFaces, people)
         }.let { (i, f, p) -> info = i; faces = f; people = p }
     }
-    // closes the sheet at once, then writes and reloads the row
-    val fix: (suspend () -> Unit) -> Unit = { write -> fixing = null; scope.launch { withContext(Dispatchers.IO) { write() }; reload++ } }
+    // closes the sheet at once, then writes and reloads the row; NonCancellable, so closing the viewer right after keeps the write
+    val fix: (suspend () -> Unit) -> Unit = { write -> fixing = null; scope.launch { withContext(Dispatchers.IO + NonCancellable) { write() }; reload++ } }
     fixing?.let { f ->
         val p = people.firstOrNull { it.id == f.personId }
         if (p != null && p.name.isNullOrBlank()) NamePersonSheet(p, onDismiss = { fixing = null }) { name ->

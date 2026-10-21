@@ -69,6 +69,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.room.withTransaction
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.max
@@ -107,7 +108,8 @@ fun HelpRecognizeScreen(personId: Long?, onBack: () -> Unit) {
     val q = queue
     val at = q?.let { l -> (pos until l.size).firstOrNull { l[it].first.id !in done } ?: l.size } ?: 0 // a fast double tap must not jump over the next face
     val current = q?.getOrNull(at)
-    val answer: (suspend () -> Unit) -> Unit = { write -> scope.launch(Dispatchers.IO) { write() }; pos = at + 1 }
+    // NonCancellable: Back right after an answer closes this scope, and the answer must still land
+    val answer: (suspend () -> Unit) -> Unit = { write -> scope.launch { withContext(Dispatchers.IO + NonCancellable) { write() } }; pos = at + 1 }
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         TopBar("Help recognize", q?.let { "${min(at + 1, it.size)} of ${it.size}" }, onBack = onBack) {
             if (current != null) TextButton({ skipped++; pos = at + 1 }) { Text("Skip") }
@@ -176,7 +178,7 @@ fun HelpRecognizeScreen(personId: Long?, onBack: () -> Unit) {
             picking = false
             pos = at + 1
             scope.launch {
-                val id = withContext(Dispatchers.IO) { newPerson(db, face, person, name) }
+                val id = withContext(Dispatchers.IO + NonCancellable) { newPerson(db, face, person, name) }
                 added = added + Person(listOf(face), face, id, name)
             }
         }
