@@ -564,6 +564,12 @@ Fix ideas:
 - Keep the tab composed under the opened screen: the tab is always the base, the opened screen is an overlay (`AnimatedContent` on the opened screen only). Block touches on the overlay and hide the base from TalkBack.
 - Or skip the reload on return when the cached data is fresh.
 
+Fixed 2026-10-21: the tab stays composed under an opened screen (`MainActivity.kt` `App`), so back only slides the screen away. Library reloads once you are back (`returns`). Release, 3 runs: See all back 0-1 janky of 16-17 frames, p90 8-20 ms; Settings back 1-2 janky of 16, p90 14-18 ms. The frame left is probably Library's reload landing during the slide; if it still shows, reload after the slide ends.
+
+## Back from a person showed the People list while sliding out
+
+Fixed 2026-10-21 (user report). Close cleared the open person at once, so the leaving screen turned into the People list (Help recognize card) for the slide. The person is now set or cleared when People opens, not on close. Checked on the emulator with animations slowed 10x.
+
 ## Help recognize card: text shifts left with fewer than 3 faces
 
 With 1 face to check the stack holds 1 face, so the title and count move left (seen on Library, 7 → 1 faces). The mockup only shows 3 faces.

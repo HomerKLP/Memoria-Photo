@@ -132,7 +132,7 @@ Goal: no visible loss, not lossless (re-encoding always loses some).
 Goal: motion that feels finished, like a mature gallery app, before the first APK release. No motion design in the mockup: Claude checks each motion on the emulator, the user on the phone.
 - [x] Opening and closing a photo: it grows out of its tile and shrinks back into it (swipe down or Back). The grid behind follows the photo you swipe to, so it always lands in a clear tile.
 - [x] Double tap in the viewer: the zoom animates in and out instead of jumping (tween, `Viewer.kt`).
-- [ ] Page changes: open and back between screens, and the tab switch.
+- [ ] Page changes: open and back between screens, and the tab switch. Settings and its pages push (2026-10-21): the tab slides out to the left as Settings comes in, Back reverses it. Other screens still slide in over the tab; the tab switch and screen to screen moves still cut.
 - [ ] Sheets, menus and dialogs: smooth in and out.
 - [ ] Select mode: the top bar and the Select bar swap smoothly.
 - [ ] Lists: photos and people that leave (delete, move, merge, hide) animate out instead of vanishing; new pictures fade in (thumbnails, covers).

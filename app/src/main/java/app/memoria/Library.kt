@@ -83,6 +83,7 @@ fun LibraryScreen(
     onOpenTrash: () -> Unit,
     onHelpRecognize: () -> Unit,
     onOpenSettings: () -> Unit,
+    reload: Int = 0,
 ) {
     val context = LocalContext.current
     val dao = remember { Db.get(context).index() }
@@ -90,9 +91,9 @@ fun LibraryScreen(
     val indexed by remember { dao.kinds() }.collectAsState(emptyMap())
     val running = work.any { it.state == WorkInfo.State.RUNNING }
     // cached, not null: an empty first frame is shorter and the tab's restored scroll clamps to it.
-    // Keyed on [saved]: the run saves people every so often, so they show up while indexing.
+    // Keyed on [saved]: the run saves people every so often, so they show up while indexing. [reload]: back from a screen opened over it.
     val saved by peopleSaved.collectAsState()
-    val data by cachedProduceState("library", saved) {
+    val data by cachedProduceState("library", saved, reload) {
         withContext(Dispatchers.IO) {
             // Faces without vectors: the row only shows covers. Merge with loads the vectors when it opens.
             val faces = dao.taggedFaces()

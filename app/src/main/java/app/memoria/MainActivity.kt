@@ -20,6 +20,8 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.updateTransition
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
@@ -45,6 +47,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -55,10 +58,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -71,6 +77,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkInfo
 import java.io.File
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -92,6 +99,10 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun App(dir: File) {
     var screen by rememberSaveable { mutableStateOf("photos") }
+    var tab by rememberSaveable { mutableStateOf("photos") } // the tab under an opened screen
+    // bumped when a screen goes back to its tab: Library stays composed under it, so it reloads to show changes made there
+    var returns by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) { snapshotFlow { isTab(screen) }.drop(1).collect { if (it) returns++ } }
     // new photos start an index run on their own while the app is open (see AutoIndex.kt)
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -169,21 +180,84 @@ fun App(dir: File) {
     val open: (List<Tile>, Tile) -> Unit = { list, tile -> viewTiles = list; viewerFrom = screen; viewing = tile.id }
     // The viewer sits on top of the screen, so the grid stays under it: the photo grows out of its tile
     // and shrinks back in. The screen under is hidden from TalkBack while the viewer is open.
+    // A screen opened from a tab sits on top of it too, so the tab stays composed and back only slides the
+    // screen away (building Library again during the slide made it stutter).
+    if (isTab(screen)) tab = screen
+    val opened = updateTransition(screen.takeUnless(::isTab), label = "screen")
+    // Settings pushes: the tab slides out to the left as Settings comes in, like a window to the right
+    val pushed by opened.animateFloat({ tween(250) }, label = "push") { if (it in settingsPages) 1f else 0f }
     Box(Modifier.fillMaxSize()) {
         Box(if (viewing != null) Modifier.clearAndSetSemantics {} else Modifier) {
-            // A screen opened from a tab slides in from the right, and back slides out to the right over the tab.
-            // Other moves (tab to tab, screen to screen) switch at once. Each screen paints its own background so the
-            // one under it does not show through.
-            AnimatedContent(screen, transitionSpec = {
-                val open = isTab(initialState) && !isTab(targetState)
-                val close = !isTab(initialState) && isTab(targetState)
+            Box(Modifier.graphicsLayer { translationX = -pushed * size.width }.then(if (opened.targetState != null) Modifier.clearAndSetSemantics {} else Modifier)) {
+                Scaffold(bottomBar = {
+                    // The tabs and the Select bar are the same height (both build on ShortNavigationBar),
+                    // so crossfading them never moves the grid.
+                    Crossfade(targetState = tab == "photos" && selection.active, label = "bottomBar") { selecting ->
+                        if (selecting) SelectBar(
+                            favorite = selection.allFavorite,
+                            onShare = shareSelected,
+                            onFavorite = { favoriteSelected(!selection.allFavorite) },
+                            onDelete = deleteSelected,
+                        )
+                        else ShortNavigationBar {
+                            ShortNavigationBarItem(
+                                tab == "photos", {
+                                    if (tab == "photos") photosScrollTop++ else screen = "photos"
+                                }, { Icon(painterResource(R.drawable.ic_photo), null) }, { Text("Photos") },
+                                iconPosition = NavigationItemIconPosition.Start,
+                            )
+                            ShortNavigationBarItem(
+                                tab == "library", { screen = "library" }, { Icon(painterResource(R.drawable.ic_library), null) }, { Text("Library") },
+                                iconPosition = NavigationItemIconPosition.Start,
+                            )
+                        }
+                    }
+                }) { padding ->
+                    Column(Modifier.padding(padding)) {
+                        tabs.SaveableStateProvider(tab) {
+                            if (tab == "photos") PhotosScreen(
+                                onOpen = open, grid = photosGrid, selection = selection, reload = photosReload,
+                                onSearch = { searchFrom = "photos"; screen = "search" },
+                                scrollToTop = photosScrollTop,
+                            )
+                            else LibraryScreen(
+                                onOpenSearch = { searchFrom = "library"; screen = "search" },
+                                onOpenPeople = { openPerson = null; peopleFrom = "library"; screen = "people" },
+                                onOpenPerson = { openPerson = it; personDirect = true; peopleFrom = "library"; screen = "people" },
+                                onOpenAlbums = { screen = "albums" },
+                                onOpenAlbum = { openAlbum = it; albumFrom = "library"; screen = "album" },
+                                onOpenPlaces = { screen = "places" },
+                                onOpenPlace = { openPlace = it; placeFrom = "library"; screen = "place" },
+                                onOpenFavorites = { shortcutFrom = "library"; screen = "favorites" },
+                                onOpenVideos = { shortcutFrom = "library"; screen = "videos" },
+                                onOpenTrash = { screen = "trash" },
+                                onHelpRecognize = { recognizeFor = null; recognizeFrom = "library"; screen = "recognize" },
+                                onOpenSettings = { screen = "settings" },
+                                reload = returns,
+                            )
+                        }
+                    }
+                }
+            }
+            // An opened screen slides in from the right, and back slides it out to the right. Settings and its
+            // pages push the same way; other screen to screen moves switch at once. Each screen paints its own
+            // background and takes the taps, so the tab under it neither shows through nor reacts.
+            opened.AnimatedContent(transitionSpec = {
+                val from = initialState
+                val to = targetState
                 when {
-                    open -> (slideInHorizontally(tween(250)) { it } togetherWith ExitTransition.KeepUntilTransitionsFinished).apply { targetContentZIndex = 1f }
-                    close -> (EnterTransition.None togetherWith slideOutHorizontally(tween(250)) { it }).apply { targetContentZIndex = -1f }
+                    from == null -> slideInHorizontally(tween(250)) { it } togetherWith ExitTransition.None
+                    to == null -> EnterTransition.None togetherWith slideOutHorizontally(tween(250)) { it }
+                    from in settingsPages && to in settingsPages -> {
+                        val dir = if (to == "settings") -1 else 1
+                        slideInHorizontally(tween(250)) { it * dir } togetherWith slideOutHorizontally(tween(250)) { -it * dir }
+                    }
                     else -> EnterTransition.None togetherWith ExitTransition.None
                 }
-            }, label = "screen") { target ->
-                Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+            }) { target ->
+                // no screen is an empty full-size box: a zero size would clip the screen sliding in or out
+                if (target == null) Box(Modifier.fillMaxSize())
+                else Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).pointerInput(Unit) {}) {
                     when (target) {
                         "dev" -> {
                             BackHandler { screen = "settings" }
@@ -191,14 +265,14 @@ fun App(dir: File) {
                         }
                         "settings" -> {
                             BackHandler { screen = "library" }
-                            SettingsScreen(onBack = { screen = "library" }, onHidden = { screen = "hidden" }, onLicenses = { screen = "licenses" }, onDev = { screen = "dev" })
+                            SettingsScreen(onBack = { screen = "library" }, onHidden = { openPerson = null; screen = "hidden" }, onLicenses = { screen = "licenses" }, onDev = { screen = "dev" })
                         }
                         "licenses" -> {
                             BackHandler { screen = "settings" }
                             LicensesScreen(onBack = { screen = "settings" })
                         }
                         "hidden" -> {
-                            val close = { tabs.removeState("hidden"); openPerson = null; screen = "settings" }
+                            val close = { tabs.removeState("hidden"); screen = "settings" }
                             tabs.SaveableStateProvider("hidden") { // keeps the open person while the viewer is on top
                                 PeopleScreen(
                                     openId = openPerson,
@@ -212,8 +286,9 @@ fun App(dir: File) {
                             }
                         }
                         "people" -> {
-                            // removeState on close: the next visit starts at the list, not the last person
-                            val close = { tabs.removeState("people"); openPerson = null; personDirect = false; screen = peopleFrom }
+                            // removeState on close: the next visit starts at the top. openPerson is set or cleared on the next
+                            // open, not here, so a person slides out as it is instead of turning into the list.
+                            val close = { tabs.removeState("people"); personDirect = false; screen = peopleFrom }
                             tabs.SaveableStateProvider("people") { // keeps the open person and list scroll while the viewer is on top
                                 PeopleScreen(
                                     openId = openPerson,
@@ -314,54 +389,6 @@ fun App(dir: File) {
                             BackHandler { screen = "library" }
                             TrashScreen { screen = "library" }
                         }
-                        else -> Scaffold(bottomBar = {
-                            // The tabs and the Select bar are the same height (both build on ShortNavigationBar),
-                            // so crossfading them never moves the grid.
-                            Crossfade(targetState = target == "photos" && selection.active, label = "bottomBar") { selecting ->
-                                if (selecting) SelectBar(
-                                    favorite = selection.allFavorite,
-                                    onShare = shareSelected,
-                                    onFavorite = { favoriteSelected(!selection.allFavorite) },
-                                    onDelete = deleteSelected,
-                                )
-                                else ShortNavigationBar {
-                                    ShortNavigationBarItem(
-                                        target == "photos", {
-                                            if (target == "photos") photosScrollTop++ else screen = "photos"
-                                        }, { Icon(painterResource(R.drawable.ic_photo), null) }, { Text("Photos") },
-                                        iconPosition = NavigationItemIconPosition.Start,
-                                    )
-                                    ShortNavigationBarItem(
-                                        target == "library", { screen = "library" }, { Icon(painterResource(R.drawable.ic_library), null) }, { Text("Library") },
-                                        iconPosition = NavigationItemIconPosition.Start,
-                                    )
-                                }
-                            }
-                        }) { padding ->
-                            Column(Modifier.padding(padding)) {
-                                tabs.SaveableStateProvider(target) {
-                                    if (target == "photos") PhotosScreen(
-                                        onOpen = open, grid = photosGrid, selection = selection, reload = photosReload,
-                                        onSearch = { searchFrom = "photos"; screen = "search" },
-                                        scrollToTop = photosScrollTop,
-                                    )
-                                    else LibraryScreen(
-                                        onOpenSearch = { searchFrom = "library"; screen = "search" },
-                                        onOpenPeople = { peopleFrom = "library"; screen = "people" },
-                                        onOpenPerson = { openPerson = it; personDirect = true; peopleFrom = "library"; screen = "people" },
-                                        onOpenAlbums = { screen = "albums" },
-                                        onOpenAlbum = { openAlbum = it; albumFrom = "library"; screen = "album" },
-                                        onOpenPlaces = { screen = "places" },
-                                        onOpenPlace = { openPlace = it; placeFrom = "library"; screen = "place" },
-                                        onOpenFavorites = { shortcutFrom = "library"; screen = "favorites" },
-                                        onOpenVideos = { shortcutFrom = "library"; screen = "videos" },
-                                        onOpenTrash = { screen = "trash" },
-                                        onHelpRecognize = { recognizeFor = null; recognizeFrom = "library"; screen = "recognize" },
-                                        onOpenSettings = { screen = "settings" },
-                                    )
-                                }
-                            }
-                        }
                     }
                 }
             }
@@ -378,6 +405,8 @@ fun App(dir: File) {
 }
 
 private fun isTab(screen: String) = screen == "photos" || screen == "library"
+
+private val settingsPages = setOf("settings", "licenses", "hidden", "dev")
 
 /** Library shortcut card from the mockup (Favorites, Videos, Trash). One line each, so the two cards in a row stay the same height. */
 @Composable
