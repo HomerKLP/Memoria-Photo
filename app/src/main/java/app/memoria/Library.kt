@@ -1,5 +1,7 @@
 package app.memoria
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -27,6 +29,9 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -287,6 +292,9 @@ fun PillButton(text: String, onClick: () -> Unit, enabled: Boolean = true) {
 /** Horizontal row of up to 12 people, 72 dp faces, then a See all tile. Tap opens the person; naming happens on the person screen. */
 @Composable
 fun PeopleRow(faces: List<Person>?, onOpen: (Long) -> Unit, onSeeAll: () -> Unit) {
+    // people a regroup adds fade in; the first load shows at once
+    var loaded by remember { mutableStateOf(false) }
+    LaunchedEffect(faces != null) { if (faces != null) loaded = true }
     LazyRow(
         Modifier.testTag("peopleRow").fillMaxWidth().padding(bottom = 2.dp),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp),
@@ -301,7 +309,7 @@ fun PeopleRow(faces: List<Person>?, onOpen: (Long) -> Unit, onSeeAll: () -> Unit
             }
         }
         items(faces.orEmpty().take(12), key = { it.id }) { p ->
-            Column(Modifier.width(72.dp).clickable { onOpen(p.id) }, horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(Modifier.animateItem(fadeInSpec = if (loaded) spring(stiffness = Spring.StiffnessMediumLow) else null).width(72.dp).clickable { onOpen(p.id) }, horizontalAlignment = Alignment.CenterHorizontally) {
                 FaceImage(p.cover, Modifier.size(72.dp).clip(CircleShape))
                 Spacer(Modifier.height(6.dp))
                 // empty line for unnamed people too: the row's height follows the visible items, so it jumped while scrolling

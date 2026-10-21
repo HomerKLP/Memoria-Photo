@@ -129,7 +129,7 @@ fun TrashContent(
             ) {
                 items(items, key = { it.tile.id }) { t ->
                     TrashTile(
-                        t, selecting, t.tile.id in selected,
+                        t, selecting, t.tile.id in selected, Modifier.animateItem(fadeInSpec = null), // no fade in: a first load shows at once
                         onClick = { if (selecting) onToggle(t.tile.id) },
                         onLongClick = { onToggle(t.tile.id) },
                     )

@@ -551,7 +551,7 @@ fun FavoritesContent(
                             Modifier.combinedClickable(
                                 onClick = { if (sel == null) onOpen(f.all, t) else pick.set(if (on) sel - t.id else sel + t.id) },
                                 onLongClick = { pick.set(sel.orEmpty() + t.id) },
-                            ).testTag("tile-${t.id}"),
+                            ).testTag("tile-${t.id}").animateItem(fadeInSpec = null), // no fade in: a first load shows at once
                             selecting = sel != null, selected = on, heart = false,
                         )
                     }

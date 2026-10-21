@@ -132,12 +132,12 @@ Goal: no visible loss, not lossless (re-encoding always loses some).
 Goal: motion that feels finished, like a mature gallery app, before the first APK release. No motion design in the mockup: Claude checks each motion on the emulator, the user on the phone.
 - [x] Opening and closing a photo: it grows out of its tile and shrinks back into it (swipe down or Back). The grid behind follows the photo you swipe to, so it always lands in a clear tile.
 - [x] Double tap in the viewer: the zoom animates in and out instead of jumping (tween, `Viewer.kt`).
-- [ ] Page changes: open and back between screens, and the tab switch. Settings and its pages push (2026-10-21): the tab slides out to the left as Settings comes in, Back reverses it. Other screens still slide in over the tab; the tab switch and screen to screen moves still cut.
+- [ ] Page changes: open and back between screens, and the tab switch. Settings and its pages push (2026-10-21): the tab slides out to the left as Settings comes in, Back reverses it. Other screens still slide in over the tab. Every screen to screen move pushes the same way (2026-10-21). The tab switch fades (200 ms, 2026-10-21).
 - [ ] Sheets, menus and dialogs: smooth in and out.
 - [ ] Select mode: the top bar and the Select bar swap smoothly.
-- [ ] Lists: photos and people that leave (delete, move, merge, hide) animate out instead of vanishing; new pictures fade in (thumbnails, covers).
-- [ ] Indexing: people that a regroup adds (Library row, People grid) animate in instead of popping up.
-- [ ] Index progress bar: animates in when a run starts and out when it ends, so it feels natural.
+- [ ] Lists: photos and people that leave (delete, move, merge, hide) animate out instead of vanishing. Done 2026-10-21 for every photo grid, the Albums and Places lists and the Library people row: a leaving item fades out, the rest slide. No fade-in for photos (first loads show at once, as for thumbnails). Left: the People grid, whose rows are built by hand, so cards cannot slide between rows.
+- [ ] Indexing: people that a regroup adds (Library row, People grid) animate in instead of popping up. Library row done 2026-10-21 (fades in after its first load); the People grid is left, see Lists.
+- [ ] Index progress moves to Settings (2026-10-21, replaces animating the Library bar): a status row at the top of "Finding faces" (count, time left, Pause / Resume). Library loses the bar, so a short run no longer pushes Albums down; while a run goes, the People row's empty line says "Finding faces…". The notification tap opens Settings. Design first: add the row to Settings and drop the bar from Library in `docs/design.html`, then build.
 - [ ] Rules: the no-layout-jump rule still holds; short motions; follow Android's "Remove animations" setting; check on a release build that nothing stutters.
 
 ## Phase 8: release

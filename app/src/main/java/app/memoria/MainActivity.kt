@@ -207,9 +207,10 @@ fun App(dir: File) {
                         }
                     }
                 }) { padding ->
-                    Column(Modifier.padding(padding)) {
-                        tabs.SaveableStateProvider(tab) {
-                            if (tab == "photos") PhotosScreen(
+                    // tabs are side by side, so they fade; a push would read as going deeper
+                    Crossfade(tab, Modifier.padding(padding), animationSpec = tween(200), label = "tab") { t ->
+                        tabs.SaveableStateProvider(t) {
+                            if (t == "photos") PhotosScreen(
                                 onOpen = open, grid = photosGrid, selection = selection, reload = photosReload,
                                 onSearch = { push(Screen.Search) },
                                 scrollToTop = photosScrollTop,
@@ -233,20 +234,19 @@ fun App(dir: File) {
                     }
                 }
             }
-            // An opened screen slides in from the right, and back slides it out to the right. Settings and its
-            // pages push the same way; other screen to screen moves switch at once. Each screen paints its own
+            // An opened screen slides in from the right, and back slides it out to the right. Screen to screen
+            // pushes: the old one slides out to the left, Back reverses it. Each screen paints its own
             // background and takes the taps, so the tab under it neither shows through nor reacts.
             opened.AnimatedContent(contentKey = { it?.let { e -> screenKey(e.index, e.value) } }, transitionSpec = {
-                val from = initialState?.value
-                val to = targetState?.value
+                val from = initialState
+                val to = targetState
                 when {
                     from == null -> slideInHorizontally(tween(250)) { it } togetherWith ExitTransition.None
                     to == null -> EnterTransition.None togetherWith slideOutHorizontally(tween(250)) { it }
-                    from.isSettingsPage() && to.isSettingsPage() -> {
-                        val dir = if (to is Screen.Settings) -1 else 1
+                    else -> {
+                        val dir = if (to.index >= from.index) 1 else -1
                         slideInHorizontally(tween(250)) { it * dir } togetherWith slideOutHorizontally(tween(250)) { -it * dir }
                     }
-                    else -> EnterTransition.None togetherWith ExitTransition.None
                 }
             }) { target ->
                 // no screen is an empty full-size box: a zero size would clip the screen sliding in or out

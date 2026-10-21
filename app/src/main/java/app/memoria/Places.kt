@@ -125,7 +125,7 @@ fun PlacesContent(places: List<Place>?, onBack: () -> Unit = {}, onOpenPlace: (I
             GridCells.Fixed(3), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            items(places.orEmpty(), key = { it.id }) { CoverTile(it.tiles.first(), it.name, "${it.tiles.size}", Modifier.clickable { onOpenPlace(it.id) }) }
+            items(places.orEmpty(), key = { it.id }) { CoverTile(it.tiles.first(), it.name, "${it.tiles.size}", Modifier.animateItem(fadeInSpec = null).clickable { onOpenPlace(it.id) }) }
         }
     }
 }
@@ -188,7 +188,7 @@ fun PlaceContent(place: Place?, onBack: () -> Unit = {}, onOpen: (List<Tile>, Ti
                             Modifier.combinedClickable(
                                 onClick = { if (sel == null) onOpen(allTiles, t) else pick.set(if (on) sel - t.id else sel + t.id) },
                                 onLongClick = { pick.set(sel.orEmpty() + t.id) },
-                            ).testTag("tile-${t.id}"),
+                            ).testTag("tile-${t.id}").animateItem(fadeInSpec = null), // no fade in: a first load shows at once
                             selecting = sel != null, selected = on,
                         )
                     }

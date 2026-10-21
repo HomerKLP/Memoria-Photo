@@ -155,9 +155,9 @@ fun AlbumsContent(albums: List<Album>?, onBack: () -> Unit = {}, onOpenAlbum: (L
             GridCells.Fixed(3), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            items(albums.orEmpty(), key = { it.id }) { CoverTile(it.tiles.first(), it.name, "${it.tiles.size}", Modifier.clickable { onOpenAlbum(it.id) }) }
+            items(albums.orEmpty(), key = { it.id }) { CoverTile(it.tiles.first(), it.name, "${it.tiles.size}", Modifier.animateItem(fadeInSpec = null).clickable { onOpenAlbum(it.id) }) }
             // the New album tile stays last, like the mockup, and does not depend on the load
-            item(key = "newAlbum") { NewAlbumTile(onClick = onNewAlbum) }
+            item(key = "newAlbum") { NewAlbumTile(Modifier.animateItem(fadeInSpec = null), onClick = onNewAlbum) }
         }
     }
 }
@@ -254,7 +254,7 @@ fun AlbumContent(
                                 Modifier.combinedClickable(
                                     onClick = { if (selected == null) onOpen(a!!.tiles, t) else onSelect(if (on) selected - t.id else selected + t.id) },
                                     onLongClick = { onSelect(selected.orEmpty() + t.id) },
-                                ).testTag("tile-${t.id}"),
+                                ).testTag("tile-${t.id}").animateItem(fadeInSpec = null), // no fade in: a first load shows at once
                                 selecting = selected != null, selected = on,
                             )
                         }
@@ -369,7 +369,7 @@ fun VideosContent(videos: Videos?, onBack: () -> Unit = {}, onOpen: (List<Tile>,
                             Modifier.combinedClickable(
                                 onClick = { if (sel == null) onOpen(v.all, t) else pick.set(if (on) sel - t.id else sel + t.id) },
                                 onLongClick = { pick.set(sel.orEmpty() + t.id) },
-                            ).testTag("tile-${t.id}"),
+                            ).testTag("tile-${t.id}").animateItem(fadeInSpec = null),
                             selecting = sel != null, selected = on,
                         )
                     }
