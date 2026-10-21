@@ -42,7 +42,7 @@ suspend fun devNumbers(dao: IndexDao): DevNumbers {
     val named = shown.count { !it.name.isNullOrBlank() }
     val withTown = dao.placed().size
     return DevNumbers(
-        camera = kinds["camera"] ?: 0, other = kinds["other"] ?: 0, skip = kinds["skip"] ?: 0,
+        camera = kinds[PhotoKind.camera] ?: 0, other = kinds[PhotoKind.other] ?: 0, skip = kinds[PhotoKind.skip] ?: 0,
         sure = faces.count { it }, unsure = faces.count { !it },
         named = named, unnamed = shown.size - named, hidden = people.size - shown.size,
         withTown = withTown, withoutTown = dao.photoIds().size - withTown,

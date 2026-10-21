@@ -183,7 +183,7 @@ Today perf is found only after someone feels it (`bugs.md` holds the numbers). N
 ## Phase 12: code health (review 2026-10-21)
 - [x] Done 2026-10-21: the auto-index watcher runs only while the app is open (`repeatOnLifecycle`); user DB writes run under `NonCancellable`, so Back right after a tap keeps them; Find faces again clears its tables in one transaction; no `runBlocking` in `AutoIndex.kt`.
 - [ ] Viewer survives an Activity restart (dark mode, wallpaper colours, font size, language, process death), not only rotation: keep its tile list, not just the open id (`bugs.md`, "Viewer closes when the phone rotates").
-- [ ] Types instead of strings: enums for `PhotoRow.kind` and `Hit.kind` (lowercase names, so no DB migration), a `sealed interface` for timeline items instead of `List<Any>`.
+- [x] Types instead of strings: enums for `PhotoRow.kind` and `Hit.kind` (lowercase names, so no DB migration), a `sealed interface` for timeline items instead of `List<Any>`. Done 2026-10-22.
 - [x] Back stack navigation: one saved list of screens (`Screen`, `MainActivity.kt`) replaces the `screen` string, the `xxxFrom` variables and the per-screen `BackHandler`s. Done 2026-10-21; `NavigationTest` passed on the old code first, then on the new.
 - [ ] Room `Flow` queries instead of `peopleSaved` and the `reload++` counters; the screen cache (`cache` in `Ui.kt`) drops keys it no longer needs (`moveTo<id>` adds one per photo). After the back stack.
 

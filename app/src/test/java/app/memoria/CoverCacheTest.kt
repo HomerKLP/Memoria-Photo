@@ -12,7 +12,7 @@ import org.junit.Test
  */
 class CoverCacheTest {
 
-    private fun face(id: Long) = FaceVec(id, photoId = id, box = floatArrayOf(0f, 0f, 50f, 50f), vector = FloatArray(512).also { it[0] = 1f }, quality = 0.9f, kind = "camera", personId = 1)
+    private fun face(id: Long) = FaceVec(id, photoId = id, box = floatArrayOf(0f, 0f, 50f, 50f), vector = FloatArray(512).also { it[0] = 1f }, quality = 0.9f, kind = PhotoKind.camera, personId = 1)
 
     private fun person(id: Long, faceIds: List<Long>) = Person(faceIds.map { face(it) }, face(faceIds.first()), id, "P$id")
 

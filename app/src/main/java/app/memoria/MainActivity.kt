@@ -320,12 +320,12 @@ fun App(dir: File, openSettings: Int = 0) {
                                 onBack = back,
                                 onOpen = { h ->
                                     when (h.kind) {
-                                        "person" -> push(Screen.People(h.key.toLong(), direct = true))
-                                        "place" -> push(Screen.Place(h.key.toInt()))
-                                        "album" -> push(Screen.Album(h.key.toLong()))
-                                        "videos" -> push(Screen.Videos)
-                                        "favorites" -> push(Screen.Favorites)
-                                        else -> { // a year or a month: the Photos tab, scrolled to that month's header
+                                        HitKind.person -> push(Screen.People(h.key.toLong(), direct = true))
+                                        HitKind.place -> push(Screen.Place(h.key.toInt()))
+                                        HitKind.album -> push(Screen.Album(h.key.toLong()))
+                                        HitKind.videos -> push(Screen.Videos)
+                                        HitKind.favorites -> push(Screen.Favorites)
+                                        HitKind.year, HitKind.month -> { // the Photos tab, scrolled to that month's header
                                             back(); tab = "photos"
                                             val at = lastTimeline?.indexOfFirst { it is Header && it.key == h.key } ?: -1
                                             if (at >= 0) scope.launch { photosGrid.scrollToItem(at) }

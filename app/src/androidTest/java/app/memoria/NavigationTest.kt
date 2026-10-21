@@ -61,7 +61,7 @@ class NavigationTest {
         photo = ContentUris.parseId(uri)
         runBlocking {
             dao.insert(
-                PhotoRow(photoId, "Pictures/NavTest/person.jpg", "camera"),
+                PhotoRow(photoId, "Pictures/NavTest/person.jpg", PhotoKind.camera),
                 listOf(FaceRow(photoId = photoId, box = FloatArray(4), score = 0.9f, landmarks = FloatArray(10), vector = FloatArray(4), quality = 0.9f, thumb = ByteArray(0))),
             )
             val face = dao.photoFaces(photoId).single().id

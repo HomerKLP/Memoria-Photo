@@ -62,7 +62,7 @@ class LayoutJumpTest {
     // --- fakes ---------------------------------------------------------------------------------
 
     private fun face(id: Long, quality: Float = 0.9f) =
-        FaceVec(id, id, floatArrayOf(0f, 0f, 50f, 50f), FloatArray(512), quality, "camera", null)
+        FaceVec(id, id, floatArrayOf(0f, 0f, 50f, 50f), FloatArray(512), quality, PhotoKind.camera, null)
 
     private fun tile(id: Long) = Tile(id, Uri.parse("content://media/external/images/media/$id"), 0L, null)
 
@@ -422,7 +422,7 @@ class LayoutJumpTest {
     /** Photos select mode: the top bar swaps for "N selected" and the tiles grow a circle; the grid must not move. */
     /** New album: the picker opens in select mode; loading the timeline must not move its bar or footer. */
     @Test fun newAlbumPick_loadingToLoaded_topBarAndFooterStayPut() {
-        var items by mutableStateOf<List<Any>?>(null)
+        var items by mutableStateOf<List<TimelineItem>?>(null)
         val selection = PhotoSelection()
         rule.setContent {
             MemoriaTheme {
@@ -457,7 +457,7 @@ class LayoutJumpTest {
 
     @Test fun photos_selecting_keepsGridPut() {
         val tiles = (1L..9L).map { tile(it) }
-        val items: List<Any> = listOf(Header("m1", "October 2026", true), Header("d1", "Sat, 11 Oct", false)) + tiles
+        val items: List<TimelineItem> = listOf(Header("m1", "October 2026", true), Header("d1", "Sat, 11 Oct", false)) + tiles
         val selection = PhotoSelection()
         rule.setContent { MemoriaTheme { Surface { PhotosContent(items, selection = selection) } } }
 
@@ -472,7 +472,7 @@ class LayoutJumpTest {
 
     /** The wordmark, the month heading and the day heading start on one left edge. */
     @Test fun photos_wordmarkMonthAndDay_shareTheLeftEdge() {
-        val items: List<Any> = listOf(Header("m1", "October 2026", true), Header("d1", "Sat, 11 Oct", false)) + (1L..9L).map { tile(it) }
+        val items: List<TimelineItem> = listOf(Header("m1", "October 2026", true), Header("d1", "Sat, 11 Oct", false)) + (1L..9L).map { tile(it) }
         rule.setContent { MemoriaTheme { Surface { PhotosContent(items) } } }
 
         val left = rule.onNodeWithText("Memoria Photo").getUnclippedBoundsInRoot().left
@@ -483,7 +483,7 @@ class LayoutJumpTest {
     /** The top bar is hidden by scrolling: select mode puts its bar over the pinned month, and the grid must not move. */
     @Test fun photos_topBarHidden_selecting_keepsGridPut() {
         val tiles = (1L..80L).map { tile(it) }
-        val items: List<Any> = listOf(Header("m1", "October 2026", true), Header("d1", "Sat, 11 Oct", false)) + tiles
+        val items: List<TimelineItem> = listOf(Header("m1", "October 2026", true), Header("d1", "Sat, 11 Oct", false)) + tiles
         val selection = PhotoSelection()
         val grid = LazyGridState()
         rule.setContent { MemoriaTheme { Surface { PhotosContent(items, grid = grid, selection = selection) } } }
@@ -503,7 +503,7 @@ class LayoutJumpTest {
     /** New photos arrive while the user is scrolled down: they land above, and the tile on screen stays put. */
     @Test fun photos_newPhotosArriving_scrolledDown_keepsTilePut() {
         val old = (1L..80L).map { tile(it) }
-        val oldItems: List<Any> = listOf(Header("m1", "October 2026", true), Header("d1", "Sat, 11 Oct", false)) + old
+        val oldItems: List<TimelineItem> = listOf(Header("m1", "October 2026", true), Header("d1", "Sat, 11 Oct", false)) + old
         var items by mutableStateOf(oldItems)
         val grid = LazyGridState()
         rule.setContent { MemoriaTheme { Surface { PhotosContent(items, grid = grid) } } }
@@ -518,7 +518,7 @@ class LayoutJumpTest {
 
     /** New photos arrive while the grid is at the top (a new month too): they show, the grid does not stay on the old first month. */
     @Test fun photos_newPhotosArriving_atTop_showsThem() {
-        val old: List<Any> = listOf(Header("m1", "October 2026", true), Header("d1", "Sat, 11 Oct", false)) + (1L..9L).map { tile(it) }
+        val old: List<TimelineItem> = listOf(Header("m1", "October 2026", true), Header("d1", "Sat, 11 Oct", false)) + (1L..9L).map { tile(it) }
         var items by mutableStateOf(old)
         rule.setContent { MemoriaTheme { Surface { PhotosContent(items) } } }
 
@@ -770,7 +770,7 @@ class LayoutJumpTest {
         val top = rule.onNodeWithTag("searchField").top()
         val height = rule.onNodeWithTag("searchField").height()
         rule.runOnIdle {
-            data = SearchData(listOf(person(1, "Dana")), listOf(Hit("person", "1", "Dana", "1 photo", face = face(1))), listOf(Hit("videos", "videos", "Videos")))
+            data = SearchData(listOf(person(1, "Dana")), listOf(Hit(HitKind.person, "1", "Dana", "1 photo", face = face(1))), listOf(Hit(HitKind.videos, "videos", "Videos")))
         }
         assertSame("field after loading", top, rule.onNodeWithTag("searchField").top())
         rule.runOnIdle { text = "d" }

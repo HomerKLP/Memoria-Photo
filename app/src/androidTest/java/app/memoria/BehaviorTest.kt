@@ -59,14 +59,14 @@ class BehaviorTest {
     // --- fakes ---------------------------------------------------------------------------------
 
     private fun face(id: Long, quality: Float = 0.9f) =
-        FaceVec(id, id, floatArrayOf(0f, 0f, 50f, 50f), FloatArray(512), quality, "camera", null)
+        FaceVec(id, id, floatArrayOf(0f, 0f, 50f, 50f), FloatArray(512), quality, PhotoKind.camera, null)
 
     private fun tile(id: Long) = Tile(id, Uri.parse("content://media/external/images/media/$id"), 0L, null)
 
     private fun person(id: Long, name: String? = null) =
         face(id).let { Person((1L..8L).map { i -> face(id * 100 + i) }, it, id, name) }
 
-    private val timeline: List<Any> = listOf(
+    private val timeline: List<TimelineItem> = listOf(
         Header("m1", "October 2026", true),
         Header("d1", "Sat, 11 Oct", false),
     ) + (1L..9L).map { tile(it) }
@@ -109,7 +109,7 @@ class BehaviorTest {
         assertEquals(setOf(1L), selection.ids)
     }
 
-    private val longTimeline: List<Any> = listOf(
+    private val longTimeline: List<TimelineItem> = listOf(
         Header("m1", "October 2026", true),
         Header("d1", "Sat, 11 Oct", false),
     ) + (1L..80L).map { tile(it) }
@@ -561,12 +561,12 @@ class BehaviorTest {
     private val search = SearchData(
         people = listOf(person(1, "Dana")),
         hits = listOf(
-            Hit("person", "1", "Dana", "8 photos", face = face(1)),
-            Hit("album", "5", "Downloads", "33 items", cover = tile(5)),
-            Hit("album", "6", "Andy's phone", "4 items", cover = tile(6)),
-            Hit("month", "m2025-12", "December 2025", "48 items"),
+            Hit(HitKind.person, "1", "Dana", "8 photos", face = face(1)),
+            Hit(HitKind.album, "5", "Downloads", "33 items", cover = tile(5)),
+            Hit(HitKind.album, "6", "Andy's phone", "4 items", cover = tile(6)),
+            Hit(HitKind.month, "m2025-12", "December 2025", "48 items"),
         ),
-        types = listOf(Hit("videos", "videos", "Videos"), Hit("favorites", "favorites", "Favorites"), Hit("album", "7", "Screenshots")),
+        types = listOf(Hit(HitKind.videos, "videos", "Videos"), Hit(HitKind.favorites, "favorites", "Favorites"), Hit(HitKind.album, "7", "Screenshots")),
     )
 
     @Test fun search_typing_findsWordStartsAndOpensAHit() {
@@ -606,7 +606,7 @@ class BehaviorTest {
         }
 
         rule.onNodeWithText("Dana").performClick()
-        assertEquals("person", opened?.kind)
+        assertEquals(HitKind.person, opened?.kind)
         rule.onNodeWithText("Screenshots").performClick()
         assertEquals("7", opened?.key)
         rule.onNodeWithText("December 2025").performClick()

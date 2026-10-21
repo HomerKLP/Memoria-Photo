@@ -119,10 +119,13 @@ import java.time.format.DateTimeFormatter
 import kotlin.math.min
 import kotlin.math.roundToInt
 
-/** A photo or video in the timeline. duration is set for videos only. favorite is MediaStore's own flag. */
-data class Tile(val id: Long, val uri: Uri, val date: Long, val duration: Long?, val favorite: Boolean = false)
+/** A row of the Photos grid: a month or day [Header], or a [Tile]. */
+sealed interface TimelineItem
 
-class Header(val key: String, val text: String, val month: Boolean)
+/** A photo or video in the timeline. duration is set for videos only. favorite is MediaStore's own flag. */
+data class Tile(val id: Long, val uri: Uri, val date: Long, val duration: Long?, val favorite: Boolean = false) : TimelineItem
+
+class Header(val key: String, val text: String, val month: Boolean) : TimelineItem
 
 private val nameDate = Regex("(?<!\\d)((?:19|20)\\d{6})(?:[_-](\\d{6}))?(?!\\d)")
 private val nameFormat = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
@@ -139,7 +142,7 @@ fun fallbackDate(name: String, added: Long, modified: Long, zone: ZoneId): Long 
  * All photos and videos, newest first, with month and day headers between them.
  * favoritesOnly keeps MediaStore's own favorite flag (`QUERY_ARG_MATCH_FAVORITE`), so nothing is copied.
  */
-fun timeline(context: Context, favoritesOnly: Boolean = false): List<Any> {
+fun timeline(context: Context, favoritesOnly: Boolean = false): List<TimelineItem> {
     val zone = ZoneId.systemDefault()
     val tiles = mutableListOf<Tile>()
     val cols = arrayOf(FileColumns._ID, FileColumns.MEDIA_TYPE, FileColumns.DATE_TAKEN, FileColumns.DATE_ADDED, FileColumns.DURATION, FileColumns.DATE_MODIFIED, FileColumns.DISPLAY_NAME, FileColumns.IS_FAVORITE)
@@ -159,7 +162,7 @@ fun timeline(context: Context, favoritesOnly: Boolean = false): List<Any> {
     val today = LocalDate.now()
     val monthName = DateTimeFormatter.ofPattern("LLLL yyyy")
     val dayName = DateTimeFormatter.ofPattern("EEE, d MMM")
-    val out = mutableListOf<Any>()
+    val out = mutableListOf<TimelineItem>()
     var month: YearMonth? = null
     var day: LocalDate? = null
     for (t in tiles.sortedByDescending { it.date }) {
@@ -218,8 +221,8 @@ fun photosByIds(context: Context, ids: List<Long>): List<Tile> {
 }
 
 // Shown at once when the tab opens again, then replaced by a fresh query
-var lastTimeline: List<Any>? = null
-var lastFavorites: List<Any>? = null
+var lastTimeline: List<TimelineItem>? = null
+var lastFavorites: List<TimelineItem>? = null
 
 /** Replaces one tile in the cached timelines after a change, so the grid and viewer see it on the next open. */
 fun updateTile(tile: Tile) {
@@ -479,7 +482,7 @@ private fun favoritesSubtitle(f: Favorites): String = listOfNotNull(
 ).joinToString(" · ")
 
 /** Favorites grouped by month name, newest first. Comes from the timeline so the cache is shared. */
-fun groupFavorites(items: List<Any>): Favorites {
+fun groupFavorites(items: List<TimelineItem>): Favorites {
     val tiles = items.filterIsInstance<Tile>()
     val month = DateTimeFormatter.ofPattern("LLLL yyyy")
     val zone = ZoneId.systemDefault()
@@ -569,7 +572,7 @@ fun FavoritesContent(
 /** Photos layout per docs/design.html: the timeline, the months slider and the select mode. No MediaStore, so previews and tests render it. */
 @Composable
 fun PhotosContent(
-    items: List<Any>?,
+    items: List<TimelineItem>?,
     granted: Boolean = true,
     onAsk: () -> Unit = {},
     onBack: (() -> Unit)? = null,

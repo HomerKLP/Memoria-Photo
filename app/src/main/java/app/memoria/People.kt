@@ -93,7 +93,7 @@ import kotlin.math.sqrt
  * [nearSure]: its person's sharp or Yes faces vouch for it (set by [groupFaces], saved at regroup).
  */
 class FaceVec(
-    val id: Long, val photoId: Long, val box: FloatArray, val vector: FloatArray, val quality: Float, val kind: String, val personId: Long?,
+    val id: Long, val photoId: Long, val box: FloatArray, val vector: FloatArray, val quality: Float, val kind: PhotoKind, val personId: Long?,
     val yes: Boolean = false, val rejected: Boolean = false, val nearSure: Boolean = false,
 ) {
     /** Unsure faces wait in Help recognize. A face moved off a person by a no landed by distance, so it is asked again. */
@@ -110,7 +110,7 @@ class FaceVec(
  * The viewer details panel shows names, covers and counts; it never matches by distance, so the vector is not read.
  */
 class LightFace(
-    val id: Long, val photoId: Long, val box: FloatArray, val quality: Float, val kind: String, val personId: Long,
+    val id: Long, val photoId: Long, val box: FloatArray, val quality: Float, val kind: PhotoKind, val personId: Long,
     val yes: Boolean = false, val rejected: Boolean = false, val nearSure: Boolean = false,
 ) {
     fun toVec() = FaceVec(id, photoId, box, FloatArray(0), quality, kind, personId, yes, rejected, nearSure)
@@ -162,7 +162,7 @@ fun groupFaces(all: List<FaceVec>, answers: List<AnswerRow> = emptyList(), merge
     // a face the user fixed by hand follows the answers: it never starts a person (a moved face would go back), and small ones stay
     val answered = answers.map { it.faceId }.toSet()
     val (seeds, others) = all.filter { min(it.box[2] - it.box[0], it.box[3] - it.box[1]) >= 40 || it.id in answered }
-        .partition { it.kind == "camera" && it.quality >= 0.4f && it.id !in answered }
+        .partition { it.kind == PhotoKind.camera && it.quality >= 0.4f && it.id !in answered }
     val n = seeds.size
     // ponytail: n×n floats, 17 MB at 2k seeds but 400 MB at 10k; store half of it (or float16) before libraries get that big
     val d = Array(n) { FloatArray(n) }
