@@ -14,7 +14,7 @@
     <application
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
-        android:label="Memoria"
+        android:label="${appName}"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <!-- ONNX Runtime's telemetry client, started at launch -->
         <provider

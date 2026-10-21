@@ -1,9 +1,9 @@
 """Compare the phone test screen results with the Mac bench (yolov5m_640 + adaface_ir101, fp32).
 
-adb pull /sdcard/Android/data/app.memoria/files/results_cpu.json testdata/out/phone_cpu.json
+adb pull /sdcard/Android/data/app.memoria.debug/files/results_cpu.json testdata/out/phone_cpu.json
 uv run bench/compare_phone.py testdata/out/phone_cpu.json
 
-Or the index DB (pull memoria.db, -wal and -shm with `adb exec-out run-as app.memoria cat databases/<file>`):
+Or the index DB (pull memoria.db, -wal and -shm with `adb exec-out run-as app.memoria.debug cat databases/<file>`):
 uv run bench/compare_phone.py testdata/out/db/memoria.db
 """
 

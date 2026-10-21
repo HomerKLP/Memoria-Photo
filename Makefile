@@ -14,7 +14,7 @@ DENSITY ?= 480
 .PHONY: help install release pull-db test screenshots shot-check emulator layout behavior perf check
 
 help:
-	@echo "make install     build debug, install on the phone over USB, open the app (stops if the build fails)"
+	@echo "make install     build debug (app.memoria.debug, next to release), install on the phone over USB, open it (stops if the build fails)"
 	@echo "make release     build release, sign with the debug key, install, compile with the profile, open (for speed checks, keeps the data)"
 	@echo "make pull-db     copy the debug app's DB (+ -wal, -shm) to testdata/out/db/; the last copy moves to db/prev-<time>/"
 	@echo "make test        unit tests (pure logic, no device); one class: make test T=DetailsGpsTest"
@@ -30,7 +30,7 @@ help:
 install:
 	./gradlew :app:assembleDebug
 	$(ADB) -d install -r app/build/outputs/apk/debug/app-debug.apk
-	$(ADB) -d shell am start -n app.memoria/.MainActivity
+	$(ADB) -d shell am start -n app.memoria.debug/app.memoria.MainActivity
 
 release:
 	./gradlew :app:assembleRelease
@@ -46,10 +46,10 @@ release:
 # run-as only works on a debug build; checked first so a failed read never overwrites the local copy.
 # The last copy moves to db/prev-<time>/ first: pulling a wiped phone must not replace the only backup.
 pull-db:
-	$(ADB) -d shell run-as app.memoria true
+	$(ADB) -d shell run-as app.memoria.debug true
 	mkdir -p testdata/out/db
 	if [ -f testdata/out/db/memoria.db ]; then d=testdata/out/db/prev-$$(date +%Y%m%d-%H%M%S); mkdir $$d && mv testdata/out/db/memoria.db* $$d/; fi
-	for f in memoria.db memoria.db-wal memoria.db-shm; do $(ADB) -d exec-out run-as app.memoria cat databases/$$f > testdata/out/db/$$f || exit 1; done
+	for f in memoria.db memoria.db-wal memoria.db-shm; do $(ADB) -d exec-out run-as app.memoria.debug cat databases/$$f > testdata/out/db/$$f || exit 1; done
 
 test:
 	./gradlew :app:testDebugUnitTest $(if $(T),--tests '$(T)')

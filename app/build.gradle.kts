@@ -16,6 +16,14 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.1"
+        manifestPlaceholders["appName"] = "Memoria"
+    }
+    buildTypes {
+        // its own package, so debug and release sit side by side on the phone, each with its own data
+        debug {
+            applicationIdSuffix = ".debug"
+            manifestPlaceholders["appName"] = "Memoria Debug"
+        }
     }
     buildFeatures {
         compose = true

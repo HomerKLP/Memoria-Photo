@@ -191,6 +191,8 @@ Today perf is found only after someone feels it (`bugs.md` holds the numbers). N
 - Google Takeout import: copy photos not already on the phone, dates from the JSON, skip duplicates. Plan: `docs/library-unification.md`.
 - Names from Takeout: match Google's people tags to our people (photos with one tag and one face, then a majority vote per person, like `bench.py eval`).
 - Split a person. Ignore a face (strangers in the back).
+- Reorder people: the user sets the order on People (and the Library row follows), instead of named first by photo count. The order survives regroups. Not in the mockup yet: design first.
+- Dark theme: a dark Honey palette that follows the system setting. Replaces the light-only call (2026-10-15). Not in the mockup yet: design first.
 - Locked folder behind PIN or fingerprint (Library card in the mockup, no screen yet).
 - Simple edit: crop, rotate. Other edits open in another app (Viewer, More > Edit in…).
 - Rename an album.
