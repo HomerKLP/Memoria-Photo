@@ -260,7 +260,7 @@ Fix:
 
 ## Viewer closes when the phone rotates
 
-Fixed 2026-10-17 (portrait lock in the manifest). Still open on large screens, where Android 16 ignores the lock (second fix idea below).
+Fixed 2026-10-17 (portrait lock in the manifest). Still open on large screens, where Android 16 ignores the lock (second fix idea below). Also still open for every other Activity restart: dark mode, wallpaper colours, font size, language, process death (found in the 2026-10-21 review, not checked on the phone).
 
 `App` keeps the open photo id in `rememberSaveable` but the tile list in plain
 `remember` (`MainActivity.kt`), and the manifest locks no orientation. On rotate the
@@ -565,6 +565,8 @@ Fix ideas:
 - Or skip the reload on return when the cached data is fresh.
 
 Fixed 2026-10-21: the tab stays composed under an opened screen (`MainActivity.kt` `App`), so back only slides the screen away. Library reloads once you are back (`returns`). Release, 3 runs: See all back 0-1 janky of 16-17 frames, p90 8-20 ms; Settings back 1-2 janky of 16, p90 14-18 ms. The frame left is probably Library's reload landing during the slide; if it still shows, reload after the slide ends.
+
+After the back stack (2026-10-21, release, 3 runs): See all back 0-1 janky of 17-18 frames, p90 13-15 ms; Settings back 0 janky of 17-18, p90 11-13 ms.
 
 ## Back from a person showed the People list while sliding out
 
