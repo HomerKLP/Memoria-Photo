@@ -563,3 +563,14 @@ Cause: opening a screen drops the tab from composition, so Back builds Library a
 Fix ideas:
 - Keep the tab composed under the opened screen: the tab is always the base, the opened screen is an overlay (`AnimatedContent` on the opened screen only). Block touches on the overlay and hide the base from TalkBack.
 - Or skip the reload on return when the cached data is fresh.
+
+## Help recognize card: text shifts left with fewer than 3 faces
+
+With 1 face to check the stack holds 1 face, so the title and count move left (seen on Library, 7 → 1 faces). The mockup only shows 3 faces.
+
+Steps:
+1. Answer Help recognize faces until 1 or 2 are left.
+2. Back to Library: the card's text starts further left than before.
+
+Fix ideas:
+- Keep the stack's 3-face width and leave the empty slots blank.

@@ -71,7 +71,7 @@ Goal: keep screenshots, memes and documents out of face search.
 ## Phase 4: gallery basics (paused, basics done)
 - [x] Honey theme (`Theme.kt`, Bricolage Grotesque font in the APK) and two bottom tabs. Test screen moved to Library > Dev tools.
 - [x] Photos tab: timeline from MediaStore, month and day headers, 3-column grid, video length. Thumbnails from MediaStore `loadThumbnail`.
-- [ ] Photos tab: pinch to resize the grid.
+- [ ] Photos tab: pinch to resize the grid. Levels: days (never fewer than 3 photos a row), pinch out to months, then to years (the top level), with an animation between levels. Month and year views are not in the mockup yet: design first.
 - [x] Photos tab: refresh when new photos arrive. A MediaStore observer reloads the timeline 1 s after the last change; tiles and day headers use `animateItem`, so new photos fade in and the rest slide. Scrolled down, nothing moves. Checked on the emulator; the phone's release build is not checked yet.
 - [ ] Photos tab: place name in the day header (mockup "Photos": `Sun, 28 Sep` + the town, muted). Offline geocoding is already done (`photo.town`), so this only reads it into the header. Photos only, videos have no town yet.
 - [ ] Test photos with no EXIF date and no date in the name land on the push day. Set their file time from the sidecar `photoTakenTime` before pushing, if it gets in the way. (Full plan and decisions: `docs/library-unification.md`.)
@@ -136,6 +136,8 @@ Goal: motion that feels finished, like a mature gallery app, before the first AP
 - [ ] Sheets, menus and dialogs: smooth in and out.
 - [ ] Select mode: the top bar and the Select bar swap smoothly.
 - [ ] Lists: photos and people that leave (delete, move, merge, hide) animate out instead of vanishing; new pictures fade in (thumbnails, covers).
+- [ ] Indexing: people that a regroup adds (Library row, People grid) animate in instead of popping up.
+- [ ] Index progress bar: animates in when a run starts and out when it ends, so it feels natural.
 - [ ] Rules: the no-layout-jump rule still holds; short motions; follow Android's "Remove animations" setting; check on a release build that nothing stutters.
 
 ## Phase 8: release
