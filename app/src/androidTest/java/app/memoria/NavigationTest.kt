@@ -111,11 +111,11 @@ class NavigationTest {
         start()
         openLibrary()
         rule.onNodeWithContentDescription("Settings").performClick()
-        rule.onNodeWithText("Open source, GPL-3.0 · Licenses").performClick()
+        rule.onNodeWithText("Open source, GPL-3.0 · Licenses").performScrollTo().performClick() // below the fold at 360 dp
         rule.onNodeWithText("Licenses").assertIsDisplayed()
         back()
         rule.onNodeWithText("Licenses").assertDoesNotExist()
-        rule.onNodeWithText("Hidden people").performClick()
+        rule.onNodeWithText("Hidden people").performScrollTo().performClick()
         rule.onNodeWithText("Settings").assertDoesNotExist()
         rule.onNodeWithText("Hidden people").assertIsDisplayed()
         back()
@@ -210,7 +210,7 @@ class NavigationTest {
         restore.setContent { MemoriaTheme { Surface { App(dir) } } }
         openLibrary()
         rule.onNodeWithContentDescription("Settings").performClick()
-        rule.onNodeWithText("Open source, GPL-3.0 · Licenses").performClick()
+        rule.onNodeWithText("Open source, GPL-3.0 · Licenses").performScrollTo().performClick() // below the fold at 360 dp
         restore.emulateSavedInstanceStateRestore()
         rule.onNodeWithText("Licenses").assertIsDisplayed()
         back()
