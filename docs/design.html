@@ -102,8 +102,6 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 /* Empty, in a row: the same 72px item as a face, so the row keeps its height and nothing below moves */
 .empty-face { background: var(--surface); place-items: center; }
 .empty-face svg.i { width: 44%; height: 44%; fill: var(--muted); margin: 0; }
-.progress { margin: 14px 16px 0; display: grid; gap: 6px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
-.progress-foot { display: flex; align-items: center; gap: 12px; }
 .track { flex: 1; height: 4px; border-radius: 2px; background: var(--line); }
 .track div { width: 24%; height: 100%; border-radius: 2px; background: var(--accent); }
 .review { margin: 16px 16px 0; padding: 12px; border-radius: 16px; background: var(--accent-soft); display: flex; align-items: center; gap: 12px; }
@@ -275,11 +273,13 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .switch::after { content: ""; position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; border-radius: 50%; background: #fff; }
 .switch.off { background: var(--surface); box-shadow: inset 0 0 0 2px var(--muted); }
 .switch.off::after { top: 8px; right: auto; left: 8px; width: 16px; height: 16px; background: var(--muted); }
-/* Face models row: as tall as the other rows. The bar sits on its bottom edge and the button keeps its width in every state, so nothing moves */
-.set.models { position: relative; }
-.set.models .track { position: absolute; left: 56px; right: 120px; bottom: 4px; }
-.set.models .track.off { visibility: hidden; }
-.set.models .pill-btn { flex: none; width: 88px; padding: 0; }
+/* Face models and Face search rows: as tall as the other rows. The bar sits on the bottom edge and the button keeps its width in every state, so nothing moves */
+.set.models, .set.run { position: relative; }
+.set.models .track, .set.run .track { position: absolute; left: 56px; right: 120px; bottom: 4px; }
+.set.models .track.off, .set.run .track.off { visibility: hidden; }
+.set.models .pill-btn, .set.run .pill-btn { flex: none; width: 88px; padding: 0; }
+/* one line: a second line mid-run would push the rows below down */
+.set.run span { font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Confirm dialog */
 .phone.modal { position: relative; }
@@ -633,14 +633,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="row">
             <div class="person wide">
               <div class="face empty-face"><svg class="i"><use href="#i-person"/></svg></div>
-              <span class="unnamed">No people yet</span>
-            </div>
-          </div>
-          <div class="progress">
-            <span>Finding faces · 412 of 1,706 photos · 3m left</span>
-            <div class="progress-foot">
-              <div class="track"><div></div></div>
-              <button class="pill-btn">Pause</button>
+              <span class="unnamed">Finding faces…</span>
             </div>
           </div>
   
@@ -665,7 +658,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="handle"></div>
         </div>
       </div>
-      <figcaption>Library while indexing: no people yet (one muted item at a face's size, see Empty) with the progress row under it. People and the Help recognize card appear only once a run has finished, when the progress row is gone.</figcaption>
+      <figcaption>Library while indexing: no people yet, so the row's one muted item (see Empty) reads "Finding faces…" instead of "No people yet". Progress and Pause are in Settings, Face search. People and the Help recognize card appear only once a run has finished.</figcaption>
     </figure>
     <figure>
       <div class="phone has-slider">
@@ -984,13 +977,6 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
             <div class="review-text"><b>Help recognize</b><span>24 faces to check</span></div>
             <button class="pill-btn">Review</button>
           </div>
-          <div class="progress">
-            <span>Finding faces · 412 of 1,706 photos · 3m left</span>
-            <div class="progress-foot">
-              <div class="track"><div></div></div>
-              <button class="pill-btn">Pause</button>
-            </div>
-          </div>
   
           <div class="head"><h3>Named</h3><span class="hint">4 people</span></div>
           <div class="people-grid named tight" id="people-grid"></div>
@@ -1207,6 +1193,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <div class="scroll">
           <div class="head"><h3>Finding faces</h3></div>
           <div class="set models"><svg class="i"><use href="#i-check"/></svg><div><b>Face models</b><span>Ready · 169 MB</span><div class="track off"><div></div></div></div></div>
+          <div class="set run"><svg class="i"><use href="#i-search"/></svg><div><b>Face search</b><span>412 of 1,706 · 3m left</span><div class="track"><div></div></div></div><button class="pill-btn">Pause</button></div>
           <div class="set"><svg class="i"><use href="#i-bolt"/></svg><div><b>Only while charging</b><span>Pause face search on battery</span></div><span class="switch off" role="switch" aria-checked="false"></span></div>
           <div class="set"><svg class="i"><use href="#i-battery"/></svg><div><b>Background work</b><span>Not allowed. The phone may stop face search</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
           <div class="set"><svg class="i"><use href="#i-folder"/></svg><div><b>Folders to skip</b><span>None, all photos are searched</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
@@ -1223,7 +1210,11 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Settings: opens from the gear on Library. Face models (shown ready, see the next three), face search, hidden people, face data backup, about. With "Only while charging" on battery, the progress row reads "Waiting for charger · 412 of 1,706 photos" and keeps Pause. The Developer section is last and only in debug builds; a release build has no such section</figcaption>
+      <figcaption>Settings: opens from the gear on Library, and from a tap on the face search notification. Face models (shown ready, see the next three), then Face search: the only place that shows a run, with photos done, time left and Pause. Paused, it reads "Paused · 412 of 1,706" with Resume; with "Only while charging" on battery, "Waiting for charger" and keeps Pause. One line, cut with … if long. Then face search options, hidden people, face data backup, about. The Developer section is last and only in debug builds; a release build has no such section</figcaption>
+    </figure>
+    <figure id="search-done">
+      <div class="phone" id="search-done-phone"></div>
+      <figcaption>Face search, no run going: "Done" and the photo count. The bar and the button go, the row keeps its height, so nothing moves. A run for new photos fills it again</figcaption>
     </figure>
     <figure id="models-missing">
       <div class="phone" id="models-missing-phone"></div>
@@ -1645,6 +1636,9 @@ for (const [id, [icon, sub, off, pct, btn]] of Object.entries(modelRows)) {
   phone.prepend(...[...document.querySelector("#settings .phone").children].map(n => n.cloneNode(true)));
   phone.querySelector(".set.models").innerHTML = `<svg class="i"><use href="#i-${icon}"/></svg><div><b>Face models</b><span>${sub}</span><div class="track ${off}"><div style="width:${pct}%"></div></div></div><button class="pill-btn">${btn}</button>`;
 }
+const searchDone = document.getElementById("search-done-phone");
+searchDone.prepend(...[...document.querySelector("#settings .phone").children].map(n => n.cloneNode(true)));
+searchDone.querySelector(".set.run").innerHTML = `<svg class="i"><use href="#i-check"/></svg><div><b>Face search</b><span>Done · 1,706 photos</span><div class="track off"><div></div></div></div>`;
 const rescan = document.getElementById("rescan-phone");
 rescan.prepend(...[...document.querySelector("#settings .phone").children].map(n => n.cloneNode(true)));
 document.getElementById("hide-phone").prepend(...[...document.querySelector("#person .phone").children].map(n => n.cloneNode(true)));

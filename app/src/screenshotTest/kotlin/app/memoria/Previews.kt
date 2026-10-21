@@ -51,7 +51,6 @@ fun PeopleList() = MemoriaTheme {
                 summary = "7 people · 412 faces",
                 people = listOf(fakePerson(1, "Dana"), fakePerson(2, "Arman"), fakePerson(3, null), fakePerson(4, null), fakePerson(5, "Bota"), fakePerson(6, null), fakePerson(7, "Mei")),
                 unsure = listOf(fakeFace(201, 0.3f), fakeFace(202, 0.3f), fakeFace(203, 0.3f)),
-                total = 1706,
             ),
         )
     }
@@ -67,7 +66,6 @@ fun PersonScreen() = MemoriaTheme {
                 summary = "7 people · 412 faces",
                 people = listOf(fakePerson(1, "Dana"), fakePerson(2, "Arman")),
                 unsure = emptyList(),
-                total = 1706,
             ),
             openId = 1,
         )
@@ -93,11 +91,7 @@ fun PersonSelect() = MemoriaTheme {
 @Composable
 fun LibraryLayout() = MemoriaTheme {
     Surface {
-        LibraryContent(
-            data = fakeLibrary(),
-            indexing = true,
-            indexed = 412,
-        )
+        LibraryContent(data = fakeLibrary())
     }
 }
 
@@ -164,7 +158,6 @@ private fun fakeLibrary(people: List<Person>? = null, unsure: List<FaceVec>? = n
     favorites = 38,
     videos = 211,
     trash = 7,
-    total = 1706,
     places = fakePlaces,
 )
 
@@ -306,22 +299,28 @@ fun LibraryLoading() = MemoriaTheme { Surface { LibraryContent(data = null) } }
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 1000)
 @Composable
-fun LibraryIndexing() = MemoriaTheme { Surface { LibraryContent(fakeLibrary(), indexing = true, indexed = 412) } }
+fun LibraryIndexing() = MemoriaTheme { Surface { LibraryContent(fakeLibrary(people = emptyList(), unsure = emptyList()), indexing = true) } }
 
+/** Settings with a run going (mockup "Settings"); the Face search states pair with settings_faceSearchStates_rowsStayPut. */
 @PreviewTest
-@Preview(widthDp = 360, heightDp = 1000)
+@Preview(widthDp = 360, heightDp = 900)
 @Composable
-fun LibraryPaused() = MemoriaTheme { Surface { LibraryContent(fakeLibrary(), paused = true, indexed = 412) } }
-
-@PreviewTest
-@Preview(widthDp = 360, heightDp = 1000)
-@Composable
-fun LibraryWaiting() = MemoriaTheme { Surface { LibraryContent(fakeLibrary(), waiting = true, indexed = 412) } }
+fun SettingsPage() = MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", indexing = true, indexed = 412, total = 1706) } }
 
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 900)
 @Composable
-fun SettingsPage() = MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1") } }
+fun SettingsSearchPaused() = MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", paused = true, indexed = 412, total = 1706) } }
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 900)
+@Composable
+fun SettingsSearchWaiting() = MemoriaTheme { Surface { SettingsContent(charging = true, allowed = false, hidden = 2, version = "0.1", waiting = true, indexed = 412, total = 1706) } }
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 900)
+@Composable
+fun SettingsSearchDone() = MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", indexed = 1706, total = 1706) } }
 
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 900)
@@ -361,7 +360,7 @@ fun PeopleLoading() = MemoriaTheme { Surface { PeopleContent(data = null) } }
 @Preview(widthDp = 360, heightDp = 900)
 @Composable
 fun PeopleEmpty() = MemoriaTheme {
-    Surface { PeopleContent(data = PeopleData("No people", emptyList(), emptyList(), total = 0)) }
+    Surface { PeopleContent(data = PeopleData("No people", emptyList(), emptyList())) }
 }
 
 @PreviewTest

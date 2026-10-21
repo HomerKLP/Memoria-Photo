@@ -593,3 +593,16 @@ Steps:
 
 Fix ideas:
 - While the app is stopped, only note that something changed; reload once on return (`LifecycleStartEffect`), like the auto-index watcher does now.
+
+## Memoria Debug never auto-indexed new photos
+
+Fixed 2026-10-22 on the phone (setup, not code). After the debug/release split, the face models and the NPU builds were copied into `Android/data/app.memoria.debug/files/` with `cp` on the phone, so they belonged to `shell` and were `rw-rw----`. The app could see `models/` but not read it, so `modelsReady()` was false and the watcher never started a run. Release was fine: its model files are `rw-rw-rw-`.
+
+Steps:
+1. Copy the models into a new package's `files/models/` with `cp` in `adb shell`.
+2. Take a photo, open the app: no run, and Settings shows Face models as not downloaded.
+
+Fix (done on the phone):
+- `chmod 666` the model files, `chmod 2777` `models/` and `npu/` (so the app can also write NPU builds), `chmod 666` the files in `npu/`.
+- Keep the model files' dates (`cp -p` or `touch -r`): an NPU build's name holds the model's size and date, so a new date means a rebuild, and a rebuild into a folder the app cannot write fails.
+- A fresh install also re-cuts every face picture once (`recutThumbs`, no `recutTo` pref yet) before it indexes anything, so its first run takes minutes.

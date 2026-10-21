@@ -85,20 +85,30 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 class MainActivity : ComponentActivity() {
+    // bumped by a tap on the index notification, so App opens Settings
+    private var openSettings by mutableIntStateOf(0)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // Light app: dark bar icons even when the phone is in dark mode
         val bars = SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
         enableEdgeToEdge(bars, bars)
         super.onCreate(savedInstanceState)
+        // not on a restore: the same intent comes back, and Settings would open again
+        if (savedInstanceState == null && intent.getBooleanExtra("openSettings", false)) openSettings++
         val dir = File(getExternalFilesDir(null), "test").apply { mkdirs() }
-        setContent { MemoriaTheme { Surface { App(dir) } } }
+        setContent { MemoriaTheme { Surface { App(dir, openSettings) } } }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        if (intent.getBooleanExtra("openSettings", false)) openSettings++
     }
 }
 
 /** Two tabs, Photos and Library. The test screen opens from Library. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun App(dir: File) {
+fun App(dir: File, openSettings: Int = 0) {
     var tab by rememberSaveable { mutableStateOf("photos") } // the tab under the opened screens
     // the screens opened over the tab, oldest first; Back closes the last one
     var stack by rememberSaveable { mutableStateOf(emptyList<Screen>()) }
@@ -126,6 +136,14 @@ fun App(dir: File) {
     var photosScrollTop by remember { mutableIntStateOf(0) } // bumped by a tab tap; the Photos tab reacts by scrolling to the top
     var viewing by rememberSaveable { mutableStateOf<Long?>(null) }
     var viewTiles by remember { mutableStateOf<List<Tile>>(emptyList()) }
+    // the index notification: Settings over Library, whatever was open
+    LaunchedEffect(openSettings) {
+        if (openSettings == 0) return@LaunchedEffect
+        viewing = null
+        repeat(stack.size) { back() }
+        tab = "library"
+        push(Screen.Settings)
+    }
     // Photos tab select mode (mockup "Photos, selecting"): the picked tiles, shared so the bottom bar swaps
     val selection = remember { PhotoSelection() }
     var photosReload by remember { mutableStateOf(0) } // bumped after a bulk action, so the grid refetches

@@ -33,7 +33,7 @@ Current again since 2026-10-20. Phase 6 is paused.
 - [x] Some face pictures looked blurry on the People screen: saved at 160 px, shown at up to 288 px. Now saved at 288 px, old ones cut again once. No upscale: ~90% of faces in people are 288 px or bigger in the photo.
 - [x] Remove verbose ONNX Runtime logging from the test screen.
 - [x] Decide how to ship the models in a release: download on first run, not in the APK (2026-10-20).
-- [ ] Tap on the index notification opens the app on the Library tab (progress is there). Today the notification has no tap action.
+- [x] Tap on the index notification opens Settings, where the run shows (changed from Library 2026-10-22, when progress moved there). Built 2026-10-22: `openSettings` extra, `MainActivity.onNewIntent`.
 - [ ] Face models download: Settings > Finding faces > Face models row (designed, mockup "Face models"). Saves to `files/models`, goes on after a stop, checks the files when done, then auto-index starts. Hosted as a GitHub release asset (2026-10-21), so it waits until the repo is public. Open: a first-run hint on Library.
 - [x] Background indexing with WorkManager, test folder `Pictures/MemoriaTest` only. Matches the Mac.
 - [x] Photo type from metadata: camera, other (downloads, messengers), skip (screenshots, GIFs, tiny).
@@ -137,7 +137,7 @@ Goal: motion that feels finished, like a mature gallery app, before the first AP
 - [ ] Select mode: the top bar and the Select bar swap smoothly.
 - [ ] Lists: photos and people that leave (delete, move, merge, hide) animate out instead of vanishing. Done 2026-10-21 for every photo grid, the Albums and Places lists and the Library people row: a leaving item fades out, the rest slide. No fade-in for photos (first loads show at once, as for thumbnails). Left: the People grid, whose rows are built by hand, so cards cannot slide between rows.
 - [ ] Indexing: people that a regroup adds (Library row, People grid) animate in instead of popping up. Library row done 2026-10-21 (fades in after its first load); the People grid is left, see Lists.
-- [ ] Index progress moves to Settings (2026-10-21, replaces animating the Library bar): a status row at the top of "Finding faces" (count, time left, Pause / Resume). Library loses the bar, so a short run no longer pushes Albums down; while a run goes, the People row's empty line says "Finding faces…". The notification tap opens Settings. Design first: add the row to Settings and drop the bar from Library in `docs/design.html`, then build.
+- [ ] Index progress moves to Settings (2026-10-21, replaces animating the Library bar): a "Face search" row in Settings > Finding faces, under Face models (count, time left, bar, Pause / Resume; "Done" with no run). Library and People lose the bar, so a short run no longer pushes Albums down; while a run goes, the Library People row's empty line says "Finding faces…". The notification tap opens Settings. Mockup done 2026-10-21 (Settings, "Face search, no run going", Library, People). Built 2026-10-22 (`FaceSearchRow`, `Settings.kt`); previews and unit tests green; the layout and behavior tests are written but not run yet (device tests on hold).
 - [ ] Rules: the no-layout-jump rule still holds; short motions; follow Android's "Remove animations" setting; check on a release build that nothing stutters.
 
 ## Phase 8: release

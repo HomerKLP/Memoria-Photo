@@ -79,7 +79,6 @@ class LayoutJumpTest {
             favorites = 38,
             videos = 211,
             trash = 7,
-            total = 1706,
             places = places,
         )
     }
@@ -97,27 +96,31 @@ class LayoutJumpTest {
         assertSame("Albums header", before, rule.onNodeWithText("Albums").top())
     }
 
-    @Test fun library_pauseResume_progressBarKeepsLength() {
-        var indexing by mutableStateOf(true)
-        var paused by mutableStateOf(false)
-        rule.setContent { MemoriaTheme { Surface { LibraryContent(library(), indexing = indexing, paused = paused, indexed = 412) } } }
+    /** Face search row (mockup Settings): running, paused, waiting and done keep the row and the rows below in place. */
+    @Test fun settings_faceSearchStates_rowsStayPut() {
+        var state by mutableStateOf("running")
+        rule.setContent {
+            MemoriaTheme { Surface {
+                SettingsContent(
+                    charging = false, allowed = false, hidden = 2, version = "0.1",
+                    indexing = state == "running", paused = state == "paused", waiting = state == "waiting", indexed = 412, total = 1706,
+                )
+            } }
+        }
 
+        val searchBefore = rule.onNodeWithText("Face search").top()
+        val chargingBefore = rule.onNodeWithText("Only while charging").top()
         val barBefore = rule.onNodeWithTag("indexBar").width()
         val actionBefore = rule.onNodeWithTag("indexAction").width()
-        rule.runOnIdle { indexing = false; paused = true }
-        assertSame("progress bar", barBefore, rule.onNodeWithTag("indexBar").width())
-        assertSame("Pause/Resume box", actionBefore, rule.onNodeWithTag("indexAction").width())
-    }
-
-    @Test fun library_waitingToRunning_progressBarKeepsLength() {
-        var waiting by mutableStateOf(true)
-        rule.setContent { MemoriaTheme { Surface { LibraryContent(library(), indexing = !waiting, waiting = waiting, indexed = 412) } } }
-
-        val barBefore = rule.onNodeWithTag("indexBar").width()
-        val actionBefore = rule.onNodeWithTag("indexAction").width()
-        rule.runOnIdle { waiting = false }
-        assertSame("progress bar", barBefore, rule.onNodeWithTag("indexBar").width())
-        assertSame("Pause box", actionBefore, rule.onNodeWithTag("indexAction").width())
+        for (s in listOf("paused", "waiting", "done")) {
+            rule.runOnIdle { state = s }
+            assertSame("Face search ($s)", searchBefore, rule.onNodeWithText("Face search").top())
+            assertSame("Only while charging ($s)", chargingBefore, rule.onNodeWithText("Only while charging").top())
+            if (s != "done") {
+                assertSame("progress bar ($s)", barBefore, rule.onNodeWithTag("indexBar").width())
+                assertSame("Pause/Resume ($s)", actionBefore, rule.onNodeWithTag("indexAction").width())
+            }
+        }
     }
 
     @Test fun settings_countLoadedAndAllowed_rowsBelowStayPut() {
@@ -735,7 +738,6 @@ class LayoutJumpTest {
                 "7 people · 412 faces",
                 (1L..7L).map { person(it, if (it % 2 == 0L) "Person $it" else null) },
                 emptyList(),
-                total = 1706,
             )
         }
         assertSame("top bar height", barBefore, rule.onNodeWithTag("topBar").height())
@@ -748,7 +750,7 @@ class LayoutJumpTest {
     @Test fun people_rowCards_sameHeight() {
         val named = (1L..3L).map { person(it, "Person $it") }
         val unnamed = (4L..8L).map { person(it, null) }
-        rule.setContent { MemoriaTheme { Surface { PeopleContent(PeopleData("8 people", named + unnamed, emptyList(), 412)) } } }
+        rule.setContent { MemoriaTheme { Surface { PeopleContent(PeopleData("8 people", named + unnamed, emptyList())) } } }
 
         fun heights(tag: String) = rule.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes().map { it.boundsInRoot.height }
         val namedH = heights("namedCard")

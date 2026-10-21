@@ -19,7 +19,7 @@ class CoverCacheTest {
     @Test fun libraryData_withCover_changesOnlyThatPerson() {
         val dana = person(1, listOf(10, 11))
         val other = person(2, listOf(20, 21))
-        val data = LibraryData(listOf(dana, other), emptyList(), emptyList(), 0, 0, 0, 0)
+        val data = LibraryData(listOf(dana, other), emptyList(), emptyList(), 0, 0, 0)
 
         val updated = data.withCover(1, 11)
 
@@ -30,7 +30,7 @@ class CoverCacheTest {
     }
 
     @Test fun peopleData_withCover_changesOnlyThatPerson() {
-        val data = PeopleData("2 people", listOf(person(1, listOf(10, 11)), person(2, listOf(20))), emptyList(), 0)
+        val data = PeopleData("2 people", listOf(person(1, listOf(10, 11)), person(2, listOf(20))), emptyList())
 
         val updated = data.withCover(1, 11)
 
@@ -39,7 +39,7 @@ class CoverCacheTest {
     }
 
     @Test fun withCover_isNoOpForAMissingPerson() {
-        val data = PeopleData("1 person", listOf(person(1, listOf(10))), emptyList(), 0)
+        val data = PeopleData("1 person", listOf(person(1, listOf(10))), emptyList())
         assertEquals(data.people, data.withCover(99, 10).people)
     }
 
