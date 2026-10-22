@@ -15,13 +15,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsNotFocused
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
@@ -601,6 +605,24 @@ class BehaviorTest {
         rule.onNodeWithText("Andy's phone").assertDoesNotExist()
         rule.onNodeWithText("Downloads").performClick()
         assertEquals("5", opened?.key)
+    }
+
+    @Test fun search_opensWithTheFieldFocused() {
+        rule.setContent { MemoriaTheme { Surface { SearchContent(search, "") } } }
+        rule.onNodeWithTag("searchField").assertIsFocused()
+    }
+
+    @Test fun search_backToAQuery_leavesTheFieldUnfocused() {
+        rule.setContent { MemoriaTheme { Surface { SearchContent(search, "da") } } }
+        rule.onNodeWithTag("searchField").assertIsNotFocused()
+    }
+
+    @Test fun search_tapOnTheIcon_focusesTheField() {
+        rule.setContent { MemoriaTheme { Surface { SearchContent(search, "da") } } }
+
+        // the search icon, 24 dp left of the field: still the box, not the field
+        rule.onNodeWithTag("searchField").performTouchInput { click(Offset(-24.dp.toPx(), centerY)) }
+        rule.onNodeWithTag("searchField").assertIsFocused()
     }
 
     @Test fun search_clear_emptiesTheField() {
