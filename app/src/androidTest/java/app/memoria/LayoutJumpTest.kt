@@ -212,6 +212,19 @@ class LayoutJumpTest {
         assertSame("Help recognize", before, rule.onNodeWithText("Help recognize").getUnclippedBoundsInRoot().left)
     }
 
+    /** Folders to skip: a check comes and goes in its own slot, so the count and the rows below stay put. */
+    @Test fun skip_checking_rowsStayPut() {
+        val albums = listOf(Album(1, "Camera", listOf(tile(1))), Album(2, "WhatsApp", listOf(tile(2))), Album(3, "Telegram", listOf(tile(3))))
+        var skipped by mutableStateOf(setOf<Long>())
+        rule.setContent { MemoriaTheme { Surface { SkipContent(albums, skipped) } } }
+
+        val countBefore = rule.onNodeWithText("WhatsApp").getUnclippedBoundsInRoot()
+        val belowBefore = rule.onNodeWithText("Telegram").top()
+        rule.runOnIdle { skipped = setOf(2L) }
+        assertSame("WhatsApp row height", countBefore.bottom - countBefore.top, rule.onNodeWithText("WhatsApp").height())
+        assertSame("Telegram", belowBefore, rule.onNodeWithText("Telegram").top())
+    }
+
     @Test fun library_loadingToEmpty_peopleRowStaysSameHeight() {
         var data by mutableStateOf<LibraryData?>(null)
         rule.setContent { MemoriaTheme { Surface { LibraryContent(data) } } }

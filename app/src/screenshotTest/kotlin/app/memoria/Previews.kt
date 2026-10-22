@@ -308,6 +308,20 @@ fun LibraryLoading() =MemoriaTheme { Surface { LibraryContent(data = null) } }
 @Composable
 fun LibraryIndexing() = MemoriaTheme { Surface { LibraryContent(fakeLibrary(people = emptyList(), unsure = emptyList()), indexing = true) } }
 
+/** Mockup "Folders to skip", two skipped; pairs with skip_checking_rowsStayPut. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 760)
+@Composable
+fun SkipFolders() = MemoriaTheme {
+    Surface {
+        SkipContent(
+            listOf("Camera" to 1204, "WhatsApp" to 312, "Screenshots" to 214, "Telegram" to 96, "Holidays 2024" to 47, "Instagram" to 21, "Downloads" to 18, "Edits" to 9)
+                .mapIndexed { i, (n, c) -> fakeAlbum(i.toLong(), n, c) },
+            skipped = setOf(1L, 2L),
+        )
+    }
+}
+
 /** Settings with a run going (mockup "Settings"); the Face search states pair with settings_faceSearchStates_rowsStayPut. */
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 900)

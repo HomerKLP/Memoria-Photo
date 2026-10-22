@@ -10,12 +10,18 @@ EMULATOR := $(HOME)/Library/Android/sdk/emulator/emulator
 AVD ?= Medium_Phone_API_37.0
 SERIAL ?= emulator-5554
 DENSITY ?= 480
+KEYSTORE ?= $(HOME)/keys/memoria-release.jks
+# The release key's SHA-256; an APK signed with any other key (the debug key above all) is deleted.
+KEY_SHA256 := bc1c500550d9e3bd73e27f44132877189329f88875ace0bd6049a828e792b240
+VERSION := $(shell sed -n 's/.*versionName = "\(.*\)"/\1/p' app/build.gradle.kts)
+APK := app/build/outputs/apk/release/memoria-$(VERSION).apk
 
-.PHONY: help install release pull-db test screenshots shot-check emulator layout behavior perf check
+.PHONY: help install apk release pull-db test screenshots shot-check emulator layout behavior perf check
 
 help:
 	@echo "make install     build debug (app.memoria.debug, next to release), install on the phone over USB, open it (stops if the build fails)"
-	@echo "make release     build release, sign with the debug key, install, compile with the profile, open (for speed checks, keeps the data)"
+	@echo "make apk         build release, sign with the release key (asks its password), check the signer; the file to publish"
+	@echo "make release     make apk, then install on the phone, compile with the profile, open (for speed checks, keeps the data)"
 	@echo "make pull-db     copy the debug app's DB (+ -wal, -shm) to testdata/out/db/; the last copy moves to db/prev-<time>/"
 	@echo "make test        unit tests (pure logic, no device); one class: make test T=DetailsGpsTest"
 	@echo "make screenshots refresh screenshot baselines (no device)"
@@ -32,11 +38,16 @@ install:
 	$(ADB) -d install -r app/build/outputs/apk/debug/app-debug.apk
 	$(ADB) -d shell am start -n app.memoria.debug/app.memoria.MainActivity
 
-release:
+apk:
 	./gradlew :app:assembleRelease
-	PATH="$(JAVA_HOME)/bin:$$PATH" $(APKSIGNER) sign --ks $(HOME)/.android/debug.keystore --ks-pass pass:android \
-		--out app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/app-release-unsigned.apk
-	$(ADB) -d install -r app/build/outputs/apk/release/app-release.apk
+	rm -f $(APK)
+	PATH="$(JAVA_HOME)/bin:$$PATH" $(APKSIGNER) sign --ks $(KEYSTORE) --out $(APK) app/build/outputs/apk/release/app-release-unsigned.apk
+	PATH="$(JAVA_HOME)/bin:$$PATH" $(APKSIGNER) verify --print-certs $(APK) | grep -qi 'SHA-256 digest: $(KEY_SHA256)' \
+		|| { rm -f $(APK); echo "Not signed with the release key, APK deleted"; exit 1; }
+	@echo "Signed with the release key: $(APK)"
+
+release: apk
+	$(ADB) -d install -r $(APK)
 	# A fresh install runs uncompiled, every frame ~2x slower, until Android compiles it overnight; compile it now with the profile.
 	$(ADB) -d shell am start -W -n app.memoria/.MainActivity
 	$(ADB) -d shell am broadcast -a androidx.profileinstaller.action.INSTALL_PROFILE -n app.memoria/androidx.profileinstaller.ProfileInstallReceiver

@@ -274,8 +274,10 @@ fun App(dir: File, openSettings: Int = 0) {
                         when (val s = target.value) {
                             Screen.Dev -> TestScreen(dir, back)
                             Screen.Settings -> SettingsScreen(
-                                onBack = back, onHidden = { push(Screen.Hidden()) }, onLicenses = { push(Screen.Licenses) }, onDev = { push(Screen.Dev) },
+                                onBack = back, onHidden = { push(Screen.Hidden()) }, onSkip = { push(Screen.Skip) }, onLicenses = { push(Screen.Licenses) },
+                                onDev = { push(Screen.Dev) },
                             )
+                            Screen.Skip -> SkipScreen(onBack = back)
                             Screen.Licenses -> LicensesScreen(onBack = back)
                             is Screen.Hidden -> PeopleScreen(
                                 openId = s.person,
@@ -358,6 +360,7 @@ private var viewTiles by mutableStateOf<List<Tile>>(emptyList())
 sealed interface Screen : Serializable {
     data object Settings : Screen
     data object Licenses : Screen
+    data object Skip : Screen
     data object Dev : Screen
     data class Hidden(val person: Long? = null) : Screen
     /** [person] is open, if set; [direct]: People opened right at the person, so back from the person closes it. */
@@ -380,7 +383,7 @@ sealed interface Screen : Serializable {
 /** A stack entry's id for its saved state: the kind and the depth, not the arguments, so [Screen.People] keeps its state as a person opens. */
 internal fun screenKey(depth: Int, screen: Screen) = "$depth ${screen.javaClass.simpleName}"
 
-private fun Screen?.isSettingsPage() = this is Screen.Settings || this is Screen.Licenses || this is Screen.Hidden || this is Screen.Dev
+private fun Screen?.isSettingsPage() = this is Screen.Settings || this is Screen.Licenses || this is Screen.Skip || this is Screen.Hidden || this is Screen.Dev
 
 /** Library shortcut card from the mockup (Favorites, Videos, Trash). One line each, so the two cards in a row stay the same height. */
 @Composable

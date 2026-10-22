@@ -315,6 +315,9 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .pick > svg.i, .pick .icon-btn { color: var(--muted); }
 .pick .icon-btn { margin-right: -12px; }
 .pick mark { background: none; color: var(--accent); }
+/* Folders to skip: the check keeps its slot when off, so the count never shifts */
+.pick > svg.i.tick { color: var(--accent); }
+.pick > svg.i.tick.off { visibility: hidden; }
 /* Keyboard: mockup only, shows how much room is left above it */
 .kbd { flex: none; padding: 10px 4px 6px; background: #E6DCCB; display: grid; gap: 10px; }
 .kbd div { display: flex; justify-content: center; gap: 5px; }
@@ -1241,6 +1244,21 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
       </div>
       <figcaption>Find faces again: asks first, from Settings. Wipes the whole index, names too</figcaption>
     </figure>
+    <figure id="skip">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="title"><b>Folders to skip</b><span>2 skipped</span></div>
+        </div>
+        <div class="scroll">
+          <div class="note"><svg class="i"><use href="#i-info"/></svg>No face search in a checked album. Its photos stay</div>
+          <div id="skip-list"></div>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Folders to skip: opens from Settings. Every album, in the Albums order, with its photo count; a check marks a skipped one. Tap an unchecked album: the Ignore faces dialog asks first, then it gets the check. Tap a checked one: the check goes, no question, and the next run searches it again. The same list as an album's More > Ignore faces in this album. Rows never move: the check has its own slot in every row, and a skipped album stays where it is. The Settings row then reads "2 skipped"</figcaption>
+    </figure>
     <figure id="hidden">
       <div class="phone">
         <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
@@ -1715,6 +1733,9 @@ fill("place-photos", [["October 2026", 5], ["September 2026", 8], ["July 2026", 
 // Move to album: filled last so the photos above keep their colors.
 fill("move-list", [["Screenshots", "214"], ["Telegram", "96"], ["Holidays 2024", "47"], ["Instagram", "21"], ["Edits", "9"]]
   .map(([n, c]) => `<div class="pick"><span class="thumb" style="background:${photo()}"></span><b>${n}</b><span>${c}</span></div>`).join(""));
+// Folders to skip: every album, two checked.
+fill("skip-list", [["Camera", "1,204", 0], ["WhatsApp", "312", 1], ["Screenshots", "214", 1], ["Telegram", "96", 0], ["Holidays 2024", "47", 0], ["Instagram", "21", 0], ["Downloads", "18", 0], ["Edits", "9", 0]]
+  .map(([n, c, on]) => `<div class="pick" role="checkbox" aria-checked="${!!on}"><span class="thumb" style="background:${photo()}"></span><b>${n}</b><span>${c}</span><svg class="i tick${on ? "" : " off"}"><use href="#i-check"/></svg></div>`).join(""));
 // Album, selecting: same tiles as an album, three picked.
 fill("album-picked", [["October 2026", 5, [1, 2], [4]], ["September 2026", 6, [1], []], ["August 2026", 4, [], []]]
   .map(([m, n, on, v]) => `<section class="month-sec"><h3 class="month">${m}</h3><div class="grid big">${Array.from({ length: n }, (_, i) => `<div class="tile${on.includes(i) ? " on" : ""}" style="background:${photo()}"><span class="sel">${

@@ -219,6 +219,18 @@ class NavigationTest {
         assertOnLibrary()
     }
 
+    @Test fun foldersToSkip_backReturnsToSettings() {
+        start()
+        openLibrary()
+        rule.onNodeWithContentDescription("Settings").performClick()
+        rule.onNodeWithText("Folders to skip").performScrollTo().performClick()
+        rule.onNodeWithText("No face search in a checked album. Its photos stay").assertIsDisplayed()
+        back()
+        rule.onNodeWithText("Only while charging").assertIsDisplayed()
+        back()
+        assertOnLibrary()
+    }
+
     /** A dark mode or font size switch restarts the Activity; the open photo stays open. */
     @Test fun restore_keepsTheOpenPhoto() {
         val restore = StateRestorationTester(rule)
