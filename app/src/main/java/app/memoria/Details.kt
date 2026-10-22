@@ -194,8 +194,9 @@ fun DetailsContent(
     people: List<Person>,
     onFixFace: (FaceVec) -> Unit = {},
     modifier: Modifier = Modifier,
+    zone: ZoneId = ZoneId.systemDefault(),
 ) {
-    val time = Instant.ofEpochMilli(tile.date).atZone(ZoneId.systemDefault())
+    val time = Instant.ofEpochMilli(tile.date).atZone(zone)
     CompositionLocalProvider(LocalContentColor provides onViewer) { Column(modifier.navigationBarsPadding().padding(bottom = 24.dp)) {
         Box(
             Modifier.padding(top = 10.dp).size(32.dp, 4.dp).align(Alignment.CenterHorizontally)

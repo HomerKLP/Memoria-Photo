@@ -135,7 +135,6 @@ fun App(dir: File, openSettings: Int = 0) {
     val scope = rememberCoroutineScope()
     var photosScrollTop by remember { mutableIntStateOf(0) } // bumped by a tab tap; the Photos tab reacts by scrolling to the top
     var viewing by rememberSaveable { mutableStateOf<Long?>(null) }
-    var viewTiles by remember { mutableStateOf<List<Tile>>(emptyList()) }
     // the index notification: Settings over Library, whatever was open
     LaunchedEffect(openSettings) {
         if (openSettings == 0) return@LaunchedEffect
@@ -350,6 +349,10 @@ fun App(dir: File, openSettings: Int = 0) {
         }
     }
 }
+
+// ponytail: the viewer's photos live outside composition, so a dark mode or font switch keeps them;
+// after process death they are gone and the viewer closes. Reload them by the open id if that matters.
+private var viewTiles by mutableStateOf<List<Tile>>(emptyList())
 
 /** A screen opened over the tabs, with what it shows. Serializable, so the stack survives the app being restarted. */
 sealed interface Screen : Serializable {

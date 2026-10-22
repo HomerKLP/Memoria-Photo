@@ -61,6 +61,7 @@ Current again since 2026-10-20. Phase 6 is paused.
 - [x] Fewer faces to check (2026-10-20): a face is also sure when the person's sharp or Yes faces vouch for it (closest within 0.5 and no other person 0.1 closer, or a Yes face within 0.3). One Yes in Help recognize settles its look-alikes at once. New column `face.nearSure` (DB v10). On the emulator with the old DB, 91 faces to check became 8; 83 of the 84 made sure were your own Yes answers, in the same person. Checked on the phone: migration and regroup only, nothing is left there to ask.
 - [x] Checked on the phone (2026-10-21): a Yes in Help recognize skips its look-alikes, and the faces made sure by neighbours are the right people. The skip has no UI test (the screen loads from the DB); only `Person.twinsOf` is unit-tested.
 - [x] Main face: the sharpest starting face (highest quality score), 2026-10-21. Was the one closest to the person's average.
+- [ ] Folders to skip (Settings > Finding faces): turn the disabled row on. A screen that lists the skipped folders (from an album's "Ignore faces in this album"), lets you take one off the list, and maybe add one. Not in the mockup yet (only the row): design first.
 
 ## Phase 3: photo type filter
 Goal: keep screenshots, memes and documents out of face search.

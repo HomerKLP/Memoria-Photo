@@ -119,7 +119,7 @@ class NavigationTest {
         rule.onNodeWithText("Settings").assertDoesNotExist()
         rule.onNodeWithText("Hidden people").assertIsDisplayed()
         back()
-        rule.onNodeWithText("Settings").assertIsDisplayed()
+        rule.onNodeWithText("Settings").assertExists() // the title scrolled up with the page, so not on screen
         back()
         assertOnLibrary()
     }
@@ -214,8 +214,19 @@ class NavigationTest {
         restore.emulateSavedInstanceStateRestore()
         rule.onNodeWithText("Licenses").assertIsDisplayed()
         back()
-        rule.onNodeWithText("Settings").assertIsDisplayed()
+        rule.onNodeWithText("Settings").assertExists() // the title scrolled up with the page, so not on screen
         back()
         assertOnLibrary()
+    }
+
+    /** A dark mode or font size switch restarts the Activity; the open photo stays open. */
+    @Test fun restore_keepsTheOpenPhoto() {
+        val restore = StateRestorationTester(rule)
+        restore.setContent { MemoriaTheme { Surface { App(dir) } } }
+        rule.waitUntil(5_000) { rule.onAllNodesWithTag("tile-$photo").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("tile-$photo").performClick()
+        rule.onNodeWithContentDescription("More").assertIsDisplayed()
+        restore.emulateSavedInstanceStateRestore()
+        rule.onNodeWithContentDescription("More").assertIsDisplayed()
     }
 }

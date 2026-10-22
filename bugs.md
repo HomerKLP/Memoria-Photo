@@ -4,6 +4,8 @@ Style: one-line description, steps to reproduce, fix ideas. Code paths only when
 
 ## Photos tab stutters on first load
 
+Closed 2026-10-22: release builds are smooth (0% janky frames on a cold fling, 2026-10-16); the rest was the debug build.
+
 First time the photos appear the tab is rough; smooth after that. Cause: the
 first build runs the timeline query, grid measure and one thumbnail decode per
 visible tile all at once (`Photos.kt`).
@@ -81,6 +83,8 @@ Fix ideas:
 2026-10-18: fixed. Library and People read `taggedFaces()` (`LightFace`, no 512-float vector) and map with `toVec()`; the vector was never read on screen. Merge with is the only consumer (it ranks by the mean face), so `MergeSheet` loads `faceVecs()` once when its sheet opens and passes the means to `MergeContent` (empty in tests/previews, so they keep the old path). The People summary count now comes from a new `IndexDao.faceTotal()` (the old `faces.size` was the whole `faceVecs()` list). Emulator, debug, ~1.8k faces: People load ~100 -> ~50 ms and the ~3.6 MB of vectors per open are gone; Library's own number barely moved because albums/places dominate it. `Search.kt` still loads `faceVecs()` for its named-people list (same fix, not done). `make check`, `make layout` green.
 
 ## Viewer opens blurry, then sharpens
+
+Mostly fixed 2026-10-20 (see "Grid and viewer feel slow"): the viewer decodes at about screen size, tap to sharp ~330 -> ~175 ms. A short blur is still there.
 
 The photo is blurry for a moment, then becomes full resolution. Cause:
 `ViewerPage` shows the small grid thumbnail first, then swaps in the big decode
@@ -260,7 +264,9 @@ Fix:
 
 ## Viewer closes when the phone rotates
 
-Fixed 2026-10-17 (portrait lock in the manifest). Still open on large screens, where Android 16 ignores the lock (second fix idea below). Also still open for every other Activity restart: dark mode, wallpaper colours, font size, language, process death (found in the 2026-10-21 review, not checked on the phone).
+Fixed 2026-10-22 for every Activity restart that keeps the process (dark mode, wallpaper colours, font size, language, rotation on large screens): the viewer's photo list is a top-level state, not `remember` (`MainActivity.kt`). Test: `NavigationTest.restore_keepsTheOpenPhoto` (red before, green after). Checked on the phone: the viewer stays open through a dark mode switch both ways. Still open after process death: the list is gone and the viewer closes.
+
+Fixed 2026-10-17 (portrait lock in the manifest). Still open on large screens, where Android 16 ignores the lock (second fix idea below). Also still open for every other Activity restart: dark mode, wallpaper colours, font size, language, process death (found in the 2026-10-21 review). Checked on the phone 2026-10-22: switching dark mode with a photo open closes the viewer and shows the grid.
 
 `App` keeps the open photo id in `rememberSaveable` but the tile list in plain
 `remember` (`MainActivity.kt`), and the manifest locks no orientation. On rotate the
@@ -314,6 +320,8 @@ Fix ideas:
 - Add the search `IconButton` to the app bar like the Library gear (search itself not designed yet).
 
 ## Viewer: system bars stay visible in the tapped state
+
+Gone 2026-10-22: on the phone a tap hides the status and nav bars (both report `visible=false`); some later viewer change fixed it.
 
 Steps:
 1. Open a photo, tap the photo to hide the bars.
@@ -502,6 +510,8 @@ Steps:
 
 ## Flaky layout test: library_pauseResume_progressBarKeepsLength
 
+Closed 2026-10-22: the test is gone, index progress moved to Settings (`127b7c5`).
+
 Failed once in a full `make layout` run (2026-10-18, no message), passed when run alone. Another session was driving the same emulator at the time, which may be the cause.
 
 Steps: `make layout`; if it fails, rerun the one test with `-Pandroid.testInstrumentationRunnerArguments.class=app.memoria.LayoutJumpTest#library_pauseResume_progressBarKeepsLength`.
@@ -537,6 +547,8 @@ get month headings and the slider. Videos and Favorites are designed in the mock
 Removed 2026-10-19 (the user did not like them): the slider is the rail and the knob only, in the mockup and in `Ui.kt`.
 
 ## Screenshot baselines depend on the recording machine's time zone
+
+Fixed 2026-10-22: `DetailsContent` takes a `zone` (the phone's by default) and the `DetailsView` preview passes UTC. `TZ=UTC` shot-check passes; no other baseline changed.
 
 The `DetailsView` baseline shows the date and zone of the machine that recorded it (`Details.kt` uses `ZoneId.systemDefault()`). `make shot-check` fails on a machine in another zone.
 
