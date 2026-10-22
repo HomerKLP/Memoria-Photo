@@ -136,8 +136,8 @@ Goal: motion that feels finished, like a mature gallery app, before the first AP
 - [ ] Page changes: open and back between screens, and the tab switch. Settings and its pages push (2026-10-21): the tab slides out to the left as Settings comes in, Back reverses it. Other screens still slide in over the tab. Every screen to screen move pushes the same way (2026-10-21). The tab switch fades (200 ms, 2026-10-21).
 - [ ] Sheets, menus and dialogs: smooth in and out.
 - [ ] Select mode: the top bar and the Select bar swap smoothly.
-- [ ] Lists: photos and people that leave (delete, move, merge, hide) animate out instead of vanishing. Done 2026-10-21 for every photo grid, the Albums and Places lists and the Library people row: a leaving item fades out, the rest slide. No fade-in for photos (first loads show at once, as for thumbnails). Left: the People grid, whose rows are built by hand, so cards cannot slide between rows.
-- [ ] Indexing: people that a regroup adds (Library row, People grid) animate in instead of popping up. Library row done 2026-10-21 (fades in after its first load); the People grid is left, see Lists.
+- [x] Lists: photos and people that leave (delete, move, merge, hide) animate out instead of vanishing. Done 2026-10-21 for every photo grid, the Albums and Places lists and the Library people row: a leaving item fades out, the rest slide. No fade-in for photos (first loads show at once, as for thumbnails). The People grid done 2026-10-22: one grid instead of hand-built rows, so cards slide between rows. Checked on the phone (hide).
+- [x] Indexing: people that a regroup adds (Library row, People grid) animate in instead of popping up. Library row done 2026-10-21 (fades in after its first load), the People grid 2026-10-22.
 - [ ] Index progress moves to Settings (2026-10-21, replaces animating the Library bar): a "Face search" row in Settings > Finding faces, under Face models (count, time left, bar, Pause / Resume; "Done" with no run). Library and People lose the bar, so a short run no longer pushes Albums down; while a run goes, the Library People row's empty line says "Finding faces…". The notification tap opens Settings. Mockup done 2026-10-21 (Settings, "Face search, no run going", Library, People). Built 2026-10-22 (`FaceSearchRow`, `Settings.kt`); previews and unit tests green; the layout and behavior tests are written but not run yet (device tests on hold).
 - [ ] Rules: the no-layout-jump rule still holds; short motions; follow Android's "Remove animations" setting; check on a release build that nothing stutters.
 
@@ -186,7 +186,7 @@ Today perf is found only after someone feels it (`bugs.md` holds the numbers). N
 - [ ] Viewer survives an Activity restart (dark mode, wallpaper colours, font size, language, process death), not only rotation: keep its tile list, not just the open id (`bugs.md`, "Viewer closes when the phone rotates").
 - [x] Types instead of strings: enums for `PhotoRow.kind` and `Hit.kind` (lowercase names, so no DB migration), a `sealed interface` for timeline items instead of `List<Any>`. Done 2026-10-22.
 - [x] Back stack navigation: one saved list of screens (`Screen`, `MainActivity.kt`) replaces the `screen` string, the `xxxFrom` variables and the per-screen `BackHandler`s. Done 2026-10-21; `NavigationTest` passed on the old code first, then on the new.
-- [ ] Room `Flow` queries instead of `peopleSaved` and the `reload++` counters; the screen cache (`cache` in `Ui.kt`) drops keys it no longer needs (`moveTo<id>` adds one per photo). After the back stack.
+- [x] The screen cache (`cache` in `Ui.kt`) no longer adds a key per photo: Move to album uses one `moveTo` key. Done 2026-10-22. Room `Flow` queries instead of `peopleSaved` and the `reload++` counters: not doing (`decisions.md`, 2026-10-22).
 
 ## Later
 - Google Takeout import: copy photos not already on the phone, dates from the JSON, skip duplicates. Plan: `docs/library-unification.md`.

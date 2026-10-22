@@ -30,6 +30,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeUp
@@ -787,6 +788,16 @@ class LayoutJumpTest {
         val unnamedH = heights("unnamedCard")
         assertEquals("unnamed cards on screen", 5, unnamedH.size)
         assertTrue("unnamed cards differ in height: $unnamedH", unnamedH.all { it == unnamedH.first() })
+
+        // one grid now, not rows: it keeps the mockup's 16 dp sides and 6 dp gaps, and the heads their 16 dp
+        val cards = rule.onAllNodesWithTag("namedCard", useUnmergedTree = true)
+        val first = cards[0].getUnclippedBoundsInRoot()
+        val second = cards[1].getUnclippedBoundsInRoot()
+        val screen = rule.onRoot().getUnclippedBoundsInRoot().right
+        assertEquals("left side", 16f, first.left.value, 0.5f)
+        assertEquals("gap", 6f, (second.left - first.right).value, 0.5f)
+        assertEquals("right side", 16f, (screen - cards[2].getUnclippedBoundsInRoot().right).value, 0.5f)
+        assertEquals("head left", 16f, rule.onNodeWithText("Named").getUnclippedBoundsInRoot().left.value, 0.5f)
     }
 
     /** Search: the field is the top bar, so loading, typing (the × shows, hits replace the lists) and clearing never move it. */

@@ -167,7 +167,7 @@ fun MoveToAlbumSheet(photo: Tile, onDismiss: () -> Unit, onMove: (String) -> Uni
     val context = LocalContext.current
     val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val current by produceState<TileAlbum?>(null, photo.id) { value = withContext(Dispatchers.IO) { albumOf(context, photo.id) } }
-    val targets by cachedProduceState("moveTo${photo.id}", current?.id) { withContext(Dispatchers.IO) { moveTargets(context, current?.id ?: -1L) } }
+    val targets by cachedProduceState("moveTo", current?.id) { withContext(Dispatchers.IO) { moveTargets(context, current?.id ?: -1L) } }
     var naming by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("") }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet, containerColor = MaterialTheme.colorScheme.background) {
