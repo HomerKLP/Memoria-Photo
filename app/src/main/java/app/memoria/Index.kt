@@ -397,7 +397,7 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                             }
                         }
                     } catch (e: Exception) {
-                        Log.w("Memoria", "index ${photo.path}", e)
+                        Log.w("Memoria", "index ${photo.id}", e)
                         PhotoKind.error to emptyList()
                     }
                     dao.insert(PhotoRow(photo.id, photo.path, kind), faces.map {
@@ -501,7 +501,7 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         val base = IndexProgress.base(applicationContext)
         val eta = etaMillis(IndexProgress.startedAt(applicationContext), (done - base).coerceAtLeast(0), total - base)
         return Notification.Builder(applicationContext, "index")
-            .setSmallIcon(android.R.drawable.ic_menu_gallery)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("Finding faces")
             .setContentText(if (eta != null) "$done / $total photos · ${formatEta(eta)}" else "$done / $total photos")
             .setProgress(total, done, false)
