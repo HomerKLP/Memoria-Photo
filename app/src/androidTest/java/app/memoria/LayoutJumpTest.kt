@@ -67,15 +67,20 @@ class LayoutJumpTest {
     private fun tile(id: Long) = Tile(id, Uri.parse("content://media/external/images/media/$id"), 0L, null)
 
     /** [named] false: every person has no name, the case that used to shrink the row. [people] overrides the row (empty = the "No people yet" case). */
-    private fun library(named: Boolean = true, people: List<Person>? = null, places: List<Place> = emptyList()): LibraryData {
+    private fun library(
+        named: Boolean = true,
+        people: List<Person>? = null,
+        places: List<Place> = emptyList(),
+        unsure: List<FaceVec> = listOf(face(101, 0.3f), face(102, 0.3f)),
+    ): LibraryData {
         val faces = (1L..4L).map { i ->
             val f = face(i)
             Person(listOf(f), f, i, if (named) "Person $i" else null)
         }
         return LibraryData(
             faces = people ?: faces,
-            unsure = listOf(face(101, 0.3f), face(102, 0.3f)),
-            albums = listOf("Camera", "Screenshots", "Telegram").mapIndexed { i, n -> Album(i.toLong(), n, listOf(tile(i.toLong()))) },
+            unsure = unsure,
+            albums =listOf("Camera", "Screenshots", "Telegram").mapIndexed { i, n -> Album(i.toLong(), n, listOf(tile(i.toLong()))) },
             favorites = 38,
             videos = 211,
             trash = 7,
@@ -195,6 +200,16 @@ class LayoutJumpTest {
         val before = rule.onNodeWithText("Favorites").top()
         rule.runOnIdle { data = library(places = listOf(Place(1, "Riverton", listOf(tile(1))))) }
         assertSame("Favorites", before, rule.onNodeWithText("Favorites").top())
+    }
+
+    /** Help recognize card: 3 faces down to 1, the text keeps its place. */
+    @Test fun library_fewerUnsureFaces_reviewTextStaysPut() {
+        var data by mutableStateOf(library(unsure = listOf(face(101, 0.3f), face(102, 0.3f), face(103, 0.3f))))
+        rule.setContent { MemoriaTheme { Surface { LibraryContent(data) } } }
+
+        val before = rule.onNodeWithText("Help recognize").getUnclippedBoundsInRoot().left
+        rule.runOnIdle { data = library(unsure = listOf(face(101, 0.3f))) }
+        assertSame("Help recognize", before, rule.onNodeWithText("Help recognize").getUnclippedBoundsInRoot().left)
     }
 
     @Test fun library_loadingToEmpty_peopleRowStaysSameHeight() {

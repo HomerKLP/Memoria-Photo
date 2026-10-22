@@ -104,6 +104,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleStartEffect
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.filterNotNull
@@ -420,11 +423,14 @@ fun PhotosScreen(
     val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted = media.all(::has) }
     LaunchedEffect(Unit) { if (!perms.all(::has)) ask.launch(perms) }
     val pick = rememberPick() // Favorites only, the timeline has its own select mode
-    // New photos while the tab is open: reload once the burst of changes has been quiet for a second
+    // New photos while the tab is open: reload once the burst of changes has been quiet for a second.
+    // In the background only note it, and reload once on return.
     var mediaChanges by remember { mutableIntStateOf(0) }
-    DisposableEffect(context) {
+    var missed by remember { mutableStateOf(false) }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(context, lifecycle) {
         val handler = Handler(Looper.getMainLooper())
-        val bump = Runnable { mediaChanges++ }
+        val bump = Runnable { if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) mediaChanges++ else missed = true }
         val observer = object : ContentObserver(handler) {
             override fun onChange(selfChange: Boolean) {
                 handler.removeCallbacks(bump)
@@ -437,6 +443,10 @@ fun PhotosScreen(
             context.contentResolver.unregisterContentObserver(observer)
             handler.removeCallbacks(bump)
         }
+    }
+    LifecycleStartEffect(Unit) {
+        if (missed) { missed = false; mediaChanges++ }
+        onStopOrDispose {}
     }
     val items by produceState(if (favoritesOnly) lastFavorites else lastTimeline, granted, reload, pick.changes, mediaChanges) {
         if (granted) value = withContext(Dispatchers.IO) { timeline(context, favoritesOnly) }

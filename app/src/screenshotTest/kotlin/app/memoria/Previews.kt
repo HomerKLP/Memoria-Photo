@@ -291,10 +291,16 @@ fun LibraryEmpty() = MemoriaTheme {
     Surface { LibraryContent(fakeLibrary(people = emptyList(), unsure = emptyList())) }
 }
 
+/** One face to check; pairs with library_fewerUnsureFaces_reviewTextStaysPut. */
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 1000)
 @Composable
-fun LibraryLoading() = MemoriaTheme { Surface { LibraryContent(data = null) } }
+fun LibraryOneUnsure() = MemoriaTheme { Surface { LibraryContent(fakeLibrary(unsure = listOf(fakeFace(101, 0.3f)))) } }
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 1000)
+@Composable
+fun LibraryLoading() =MemoriaTheme { Surface { LibraryContent(data = null) } }
 
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 1000)

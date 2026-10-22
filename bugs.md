@@ -583,6 +583,8 @@ Steps:
 Fix ideas:
 - Keep the stack's 3-face width and leave the empty slots blank.
 
+2026-10-22: fixed. The stack is always 96 dp wide (3 faces), empty slots stay blank (`ReviewCard`, `Library.kt`). Test: `library_fewerUnsureFaces_reviewTextStaysPut`; preview `LibraryOneUnsure`.
+
 ## Photos tab reloads the whole timeline while the app is in the background
 
 The Photos tab's MediaStore observer (`PhotosScreen`, `Photos.kt`) stays registered after Home, and Compose keeps recomposing a stopped Activity (only animation frames pause). So each new photo or edit made in another app (camera, messenger) re-runs `timeline()` over the whole library 1 s later, with nobody looking. Found by reading the code and Compose's `Recomposer`, not measured on the phone.
@@ -593,6 +595,8 @@ Steps:
 
 Fix ideas:
 - While the app is stopped, only note that something changed; reload once on return (`LifecycleStartEffect`), like the auto-index watcher does now.
+
+2026-10-22: fixed. A change that settles while the Activity is stopped only sets `missed`; `LifecycleStartEffect` reloads once on return. Checked on the emulator with a temporary log: a photo added right after Home loads nothing in the background, one load on return. Also seen: Android already holds back observer calls while the app is cached and delivers them after return, so the background reload only happened while the process stayed alive (an index run's foreground service, or the first seconds after Home).
 
 ## Memoria Debug never auto-indexed new photos
 

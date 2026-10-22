@@ -282,8 +282,9 @@ fun ReviewCard(unsure: List<FaceVec>, onReview: () -> Unit, title: String = "Hel
             .clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.primaryContainer).padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // 36 dp faces, each 12 dp over the last; the ring sits outside the photo, so no photo edge shows around it
-        Row(horizontalArrangement = Arrangement.spacedBy((-12).dp)) {
+        // 36 dp faces, each 12 dp over the last; the ring sits outside the photo, so no photo edge shows around it.
+        // Always 3 faces wide, so the text does not shift left when fewer are left.
+        Row(Modifier.width(96.dp), horizontalArrangement = Arrangement.spacedBy((-12).dp)) {
             unsure.take(3).forEach { f ->
                 FaceImage(f, Modifier.size(40.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape).padding(2.dp).clip(CircleShape))
             }
