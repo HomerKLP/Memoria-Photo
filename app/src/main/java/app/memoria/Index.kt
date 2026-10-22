@@ -3,8 +3,10 @@ package app.memoria
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.ContentUris
 import android.content.Context
+import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.ImageDecoder
 import android.media.ExifInterface
@@ -42,13 +44,13 @@ import java.io.File
 import java.nio.ByteBuffer
 import kotlin.math.min
 
-/**
- * kind: camera (can start a person), other (downloads, messengers: only join people), skip, error.
- * townId: GeoNames id of the nearest town (see [Towns]), 0 = no GPS, null = GPS not read yet.
- */
+/** camera can start a person, other (downloads, messengers) only joins people. Room saves the name, so the names are the DB values. */
+enum class PhotoKind { camera, other, skip, error }
+
+/** townId: GeoNames id of the nearest town (see [Towns]), 0 = no GPS, null = GPS not read yet. */
 @Entity(tableName = "photo")
 class PhotoRow(
-    @PrimaryKey val id: Long, val path: String, val kind: String,
+    @PrimaryKey val id: Long, val path: String, val kind: PhotoKind,
     val lat: Double? = null, val lon: Double? = null, val townId: Int? = null, val town: String? = null,
 )
 
@@ -100,7 +102,7 @@ interface IndexDao {
     @Query("DELETE FROM answer") suspend fun clearAnswers()
     @Insert suspend fun insert(photo: PhotoRow, faces: List<FaceRow>)
     @Query("SELECT kind, COUNT(*) AS n FROM photo GROUP BY kind")
-    fun kinds(): Flow<Map<@MapColumn("kind") String, @MapColumn("n") Int>>
+    fun kinds(): Flow<Map<@MapColumn("kind") PhotoKind, @MapColumn("n") Int>>
     @Query("SELECT COUNT(*) FROM face") fun faceCount(): Flow<Int>
     /** Faces the user did not mark "Not a face", for the People summary; the display reads no vectors. */
     @Query("SELECT COUNT(*) FROM face WHERE NOT notFace") suspend fun faceTotal(): Int
@@ -326,13 +328,13 @@ internal fun skipsIndex(photo: MediaPhoto): Boolean =
     "screenshot" in photo.path.lowercase() || photo.mime == "image/gif" || min(photo.width, photo.height) in 1 until 200
 
 /** Pure part of [kindOf]: [hasCameraMake] is whether the file carries a camera EXIF make. */
-internal fun kindOf(photo: MediaPhoto, hasCameraMake: Boolean): String = when {
-    skipsIndex(photo) -> "skip"
-    hasCameraMake -> "camera"
-    else -> "other"
+internal fun kindOf(photo: MediaPhoto, hasCameraMake: Boolean): PhotoKind = when {
+    skipsIndex(photo) -> PhotoKind.skip
+    hasCameraMake -> PhotoKind.camera
+    else -> PhotoKind.other
 }
 
-fun kindOf(context: Context, photo: MediaPhoto, uri: Uri): String =
+fun kindOf(context: Context, photo: MediaPhoto, uri: Uri): PhotoKind =
     kindOf(photo, context.contentResolver.openInputStream(uri)!!.use { ExifInterface(it).getAttribute(ExifInterface.TAG_MAKE) } != null)
 
 /** Finds faces in new photos and saves them. Photos already in the DB are skipped, so it can stop and resume. */
@@ -378,7 +380,7 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                     val uri = ContentUris.withAppendedId(Media.EXTERNAL_CONTENT_URI, photo.id)
                     val (kind, faces) = try {
                         val kind = kindOf(applicationContext, photo, uri)
-                        kind to if (kind == "skip") emptyList() else {
+                        kind to if (kind == PhotoKind.skip) emptyList() else {
                             // Detect on a small decode, full decode only for photos with faces (~half)
                             val source = ImageDecoder.createSource(applicationContext.contentResolver, uri)
                             val small = loadPhoto(source, 640)
@@ -396,7 +398,7 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                         }
                     } catch (e: Exception) {
                         Log.w("Memoria", "index ${photo.path}", e)
-                        "error" to emptyList()
+                        PhotoKind.error to emptyList()
                     }
                     dao.insert(PhotoRow(photo.id, photo.path, kind), faces.map {
                         FaceRow(photoId = photo.id, box = it.box, score = it.score, landmarks = it.landmarks, vector = it.vector!!, quality = it.quality!!, thumb = it.thumb!!)
@@ -504,6 +506,13 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
             .setContentText(if (eta != null) "$done / $total photos · ${formatEta(eta)}" else "$done / $total photos")
             .setProgress(total, done, false)
             .setOngoing(true)
+            // a tap opens Settings, where the run shows; the open app gets it in onNewIntent
+            .setContentIntent(PendingIntent.getActivity(
+                applicationContext, 0,
+                Intent(applicationContext, MainActivity::class.java).putExtra("openSettings", true)
+                    .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+                PendingIntent.FLAG_IMMUTABLE,
+            ))
             .build()
     }
 }

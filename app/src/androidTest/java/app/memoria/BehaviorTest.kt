@@ -59,14 +59,14 @@ class BehaviorTest {
     // --- fakes ---------------------------------------------------------------------------------
 
     private fun face(id: Long, quality: Float = 0.9f) =
-        FaceVec(id, id, floatArrayOf(0f, 0f, 50f, 50f), FloatArray(512), quality, "camera", null)
+        FaceVec(id, id, floatArrayOf(0f, 0f, 50f, 50f), FloatArray(512), quality, PhotoKind.camera, null)
 
     private fun tile(id: Long) = Tile(id, Uri.parse("content://media/external/images/media/$id"), 0L, null)
 
     private fun person(id: Long, name: String? = null) =
         face(id).let { Person((1L..8L).map { i -> face(id * 100 + i) }, it, id, name) }
 
-    private val timeline: List<Any> = listOf(
+    private val timeline: List<TimelineItem> = listOf(
         Header("m1", "October 2026", true),
         Header("d1", "Sat, 11 Oct", false),
     ) + (1L..9L).map { tile(it) }
@@ -109,7 +109,7 @@ class BehaviorTest {
         assertEquals(setOf(1L), selection.ids)
     }
 
-    private val longTimeline: List<Any> = listOf(
+    private val longTimeline: List<TimelineItem> = listOf(
         Header("m1", "October 2026", true),
         Header("d1", "Sat, 11 Oct", false),
     ) + (1L..80L).map { tile(it) }
@@ -561,12 +561,12 @@ class BehaviorTest {
     private val search = SearchData(
         people = listOf(person(1, "Dana")),
         hits = listOf(
-            Hit("person", "1", "Dana", "8 photos", face = face(1)),
-            Hit("album", "5", "Downloads", "33 items", cover = tile(5)),
-            Hit("album", "6", "Andy's phone", "4 items", cover = tile(6)),
-            Hit("month", "m2025-12", "December 2025", "48 items"),
+            Hit(HitKind.person, "1", "Dana", "8 photos", face = face(1)),
+            Hit(HitKind.album, "5", "Downloads", "33 items", cover = tile(5)),
+            Hit(HitKind.album, "6", "Andy's phone", "4 items", cover = tile(6)),
+            Hit(HitKind.month, "m2025-12", "December 2025", "48 items"),
         ),
-        types = listOf(Hit("videos", "videos", "Videos"), Hit("favorites", "favorites", "Favorites"), Hit("album", "7", "Screenshots")),
+        types = listOf(Hit(HitKind.videos, "videos", "Videos"), Hit(HitKind.favorites, "favorites", "Favorites"), Hit(HitKind.album, "7", "Screenshots")),
     )
 
     @Test fun search_typing_findsWordStartsAndOpensAHit() {
@@ -606,7 +606,7 @@ class BehaviorTest {
         }
 
         rule.onNodeWithText("Dana").performClick()
-        assertEquals("person", opened?.kind)
+        assertEquals(HitKind.person, opened?.kind)
         rule.onNodeWithText("Screenshots").performClick()
         assertEquals("7", opened?.key)
         rule.onNodeWithText("December 2025").performClick()
@@ -623,29 +623,22 @@ class BehaviorTest {
         summary = "3 people · 20 faces",
         people = listOf(person(1, "Dana"), person(2, "Arman"), person(3)),
         unsure = listOf(face(99)),
-        total = 10,
     )
 
     private fun hiddenPerson(id: Long, name: String) =
         Person((1L..8L).map { i -> face(id * 100 + i) }, face(id * 100 + 1), id, name, hidden = true)
 
-    @Test fun people_list_tapsAndIndex_fire() {
+    @Test fun people_list_taps_fire() {
         var opened: Long? = null
         var review = false
-        var paused = false
         rule.setContent {
             MemoriaTheme { Surface {
-                PeopleContent(
-                    peopleData, onOpenPerson = { opened = it }, onHelpRecognize = { review = true },
-                    indexing = true, indexed = 3, onPauseIndex = { paused = true },
-                )
+                PeopleContent(peopleData, onOpenPerson = { opened = it }, onHelpRecognize = { review = true })
             } }
         }
 
         rule.onNodeWithText("Review").performClick()
         assertTrue(review)
-        rule.onNodeWithText("Pause").performClick()
-        assertTrue(paused)
         rule.onNodeWithText("Dana").performClick()
         assertEquals(1L, opened)
     }
@@ -658,19 +651,12 @@ class BehaviorTest {
         assertEquals(3L, opened)
     }
 
-    @Test fun people_list_backAndResume_fire() {
+    @Test fun people_list_back_fires() {
         var back = false
-        var resume = false
-        rule.setContent {
-            MemoriaTheme { Surface {
-                PeopleContent(peopleData, onBack = { back = true }, paused = true, indexed = 3, onResumeIndex = { resume = true })
-            } }
-        }
+        rule.setContent { MemoriaTheme { Surface { PeopleContent(peopleData, onBack = { back = true }) } } }
 
         rule.onNodeWithContentDescription("Back").performClick()
         assertTrue(back)
-        rule.onNodeWithText("Resume").performClick()
-        assertTrue(resume)
     }
 
     @Test fun person_chips_fire() {
@@ -710,7 +696,7 @@ class BehaviorTest {
         rule.setContent {
             MemoriaTheme { Surface {
                 PeopleContent(
-                    PeopleData("1 person", listOf(hiddenPerson(4, "Sara")), emptyList(), 10),
+                    PeopleData("1 person", listOf(hiddenPerson(4, "Sara")), emptyList()),
                     openId = 4, onHide = { hide = true },
                 )
             } }
@@ -725,7 +711,7 @@ class BehaviorTest {
         var review: Long? = null
         rule.setContent {
             MemoriaTheme { Surface {
-                PeopleContent(PeopleData("1 person", listOf(p), emptyList(), 10), openId = 1, onHelpRecognize = { review = it })
+                PeopleContent(PeopleData("1 person", listOf(p), emptyList()), openId = 1, onHelpRecognize = { review = it })
             } }
         }
 
@@ -822,7 +808,7 @@ class BehaviorTest {
         rule.setContent {
             MemoriaTheme { Surface {
                 PeopleContent(
-                    PeopleData("1 person", listOf(hiddenPerson(4, "Sara")), emptyList(), 10),
+                    PeopleData("1 person", listOf(hiddenPerson(4, "Sara")), emptyList()),
                     hiddenOnly = true, onOpenPerson = { opened = it }, onBack = { back = true },
                 )
             } }
@@ -838,7 +824,7 @@ class BehaviorTest {
     @Test fun hiddenPeople_empty_showsHint() {
         rule.setContent {
             MemoriaTheme { Surface {
-                PeopleContent(PeopleData("0 people", emptyList(), emptyList(), 10), hiddenOnly = true)
+                PeopleContent(PeopleData("0 people", emptyList(), emptyList()), hiddenOnly = true)
             } }
         }
 
@@ -852,7 +838,7 @@ class BehaviorTest {
         faces = (1L..3L).map { person(it, "Person $it") },
         unsure = listOf(face(99)),
         albums = listOf(Album(1, "Camera", (1L..6L).map { tile(it) })),
-        favorites = 4, videos = 2, trash = 3, total = 10,
+        favorites = 4, videos = 2, trash = 3,
         places = listOf(Place(1, "Riverton", (1L..3L).map { tile(it) })),
     )
 
@@ -1049,11 +1035,11 @@ class BehaviorTest {
         assertTrue(folder)
     }
 
-    @Test fun library_indexPause_fires() {
+    @Test fun settings_indexPause_fires() {
         var pause = false
         rule.setContent {
             MemoriaTheme { Surface {
-                LibraryContent(library, indexing = true, indexed = 3, onPauseIndex = { pause = true })
+                SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", indexing = true, indexed = 3, onPauseIndex = { pause = true })
             } }
         }
 
@@ -1061,11 +1047,11 @@ class BehaviorTest {
         assertTrue(pause)
     }
 
-    @Test fun library_indexResume_fires() {
+    @Test fun settings_indexResume_fires() {
         var resume = false
         rule.setContent {
             MemoriaTheme { Surface {
-                LibraryContent(library, paused = true, indexed = 3, onResumeIndex = { resume = true })
+                SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", paused = true, indexed = 3, onResumeIndex = { resume = true })
             } }
         }
 

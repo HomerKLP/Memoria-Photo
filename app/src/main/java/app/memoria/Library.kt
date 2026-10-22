@@ -1,5 +1,7 @@
 package app.memoria
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -23,10 +25,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -44,6 +48,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -60,7 +65,6 @@ data class LibraryData(
     val favorites: Int,
     val videos: Int,
     val trash: Int,
-    val total: Int,                 // photos in the index scope, for the progress bar
     val places: List<Place> = emptyList(), // towns, most photos first
 )
 
@@ -88,7 +92,6 @@ fun LibraryScreen(
     val context = LocalContext.current
     val dao = remember { Db.get(context).index() }
     val work by remember { WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow("index") }.collectAsState(emptyList())
-    val indexed by remember { dao.kinds() }.collectAsState(emptyMap())
     val running = work.any { it.state == WorkInfo.State.RUNNING }
     // cached, not null: an empty first frame is shorter and the tab's restored scroll clamps to it.
     // Keyed on [saved]: the run saves people every so often, so they show up while indexing. [reload]: back from a screen opened over it.
@@ -110,7 +113,6 @@ fun LibraryScreen(
                 favorites = all.count { it.favorite },
                 videos = all.count { it.duration != null },
                 trash = runCatching { trash(context).size }.getOrDefault(0),
-                total = libraryPhotoCount(context),
                 places = places(dao.placed(), all),
             )
         }
@@ -118,13 +120,6 @@ fun LibraryScreen(
     LibraryContent(
         data = data,
         indexing = running,
-        waiting = !running && work.any { it.state == WorkInfo.State.ENQUEUED } && waitsForCharger(context),
-        indexed = indexed.values.sum(),
-        startedAt = IndexProgress.startedAt(context),
-        base = IndexProgress.base(context),
-        paused = !running && IndexProgress.paused(context),
-        onPauseIndex = { IndexControl.pause(context) },
-        onResumeIndex = { IndexControl.resume(context) },
         onOpenSearch = onOpenSearch,
         onOpenPeople = onOpenPeople,
         onOpenPerson = onOpenPerson,
@@ -140,18 +135,11 @@ fun LibraryScreen(
     )
 }
 
-/** Library tab: people, index progress, review, albums, places, shortcuts. Layout per docs/design.html. */
+/** Library tab: people, review, albums, places, shortcuts. Layout per docs/design.html; the index run shows in Settings. */
 @Composable
 fun LibraryContent(
     data: LibraryData?,
     indexing: Boolean = false,
-    waiting: Boolean = false,
-    indexed: Int = 0,
-    startedAt: Long = 0L,
-    base: Int = 0,
-    paused: Boolean = false,
-    onPauseIndex: () -> Unit = {},
-    onResumeIndex: () -> Unit = {},
     onOpenSearch: () -> Unit = {},
     onOpenPeople: () -> Unit = {},
     onOpenPerson: (Long) -> Unit = {},
@@ -172,12 +160,7 @@ fun LibraryContent(
         }
         SearchBar(onOpenSearch)
         SectionHead("People", "See all", onOpenPeople)
-        PeopleRow(data?.faces, onOpenPerson, onOpenPeople)
-        IndexProgressRow(
-            indexing = indexing, waiting = waiting, indexed = indexed, total = data?.total ?: 0,
-            startedAt = startedAt, base = base, paused = paused,
-            onPause = onPauseIndex, onResume = onResumeIndex,
-        )
+        PeopleRow(data?.faces, onOpenPerson, onOpenPeople, finding = indexing)
         // still loading: an invisible card holds its space, so Albums does not jump down when it arrives
         if (data == null) Box(Modifier.alpha(0f)) { ReviewCard(emptyList(), {}) }
         else if (data.unsure.isNotEmpty()) ReviewCard(data.unsure, onHelpRecognize)
@@ -225,68 +208,25 @@ fun SectionHead(title: String, action: String? = null, onAction: (() -> Unit)? =
     }
 }
 
-/**
- * "Finding faces" line, bar and Pause / Resume. Shows nothing when no run is active.
- * Shared by Library and People so the two stay in step.
- */
-@Composable
-fun IndexProgressRow(
-    indexing: Boolean,
-    waiting: Boolean,
-    indexed: Int,
-    total: Int,
-    startedAt: Long,
-    base: Int,
-    paused: Boolean,
-    onPause: () -> Unit,
-    onResume: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    if (!indexing && !waiting && !paused) return
-    // time left from this run only: photos already indexed before the run (base) do not count
-    val eta = if (indexing) etaMillis(startedAt, (indexed - base).coerceAtLeast(0), (total - base).coerceAtLeast(0)) else null
-    Column(modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp)) {
-        Text(
-            when {
-                waiting -> "Waiting for charger · $indexed of $total photos"
-                !indexing -> "Indexing paused · $indexed of $total photos"
-                total <= 0 -> "Finding faces · $indexed photos"
-                eta != null -> "Finding faces · $indexed of $total photos · ${formatEta(eta)}"
-                else -> "Finding faces · $indexed of $total photos"
-            },
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1, overflow = TextOverflow.Ellipsis, // a second line mid-run would push everything below down
-        )
-        Spacer(Modifier.height(6.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            if (total > 0) LinearProgressIndicator(
-                { (indexed.toFloat() / total).coerceIn(0f, 1f) }, Modifier.testTag("indexBar").weight(1f).height(4.dp),
-                color = MaterialTheme.colorScheme.primary,
-            ) else LinearProgressIndicator(Modifier.testTag("indexBar").weight(1f).height(4.dp), color = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.width(12.dp))
-            // fixed width: Resume is wider than Pause, and the bar would change length on each tap
-            Box(Modifier.testTag("indexAction").widthIn(min = 88.dp), contentAlignment = Alignment.CenterEnd) {
-                if (indexing || waiting) PillButton("Pause", onPause) else PillButton("Resume", onResume)
-            }
-        }
-    }
-}
-
 /** Small accent pill button, like the mockup's Review / Pause. */
 @Composable
-fun PillButton(text: String, onClick: () -> Unit, enabled: Boolean = true) {
+fun PillButton(text: String, onClick: () -> Unit, enabled: Boolean = true, modifier: Modifier = Modifier) {
     Text(
         text,
-        Modifier.clip(RoundedCornerShape(18.dp)).background(MaterialTheme.colorScheme.primary)
+        modifier.clip(RoundedCornerShape(18.dp)).background(MaterialTheme.colorScheme.primary)
             .clickable(enabled = enabled, onClick = onClick).padding(horizontal = 16.dp, vertical = 9.dp),
         // 18 sp line + 9 dp padding = the mockup's 36 dp; the default 24 sp line made it 42
         color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Medium, fontSize = 13.sp, lineHeight = 18.sp,
+        textAlign = TextAlign.Center, // for a fixed [modifier] width
     )
 }
 
 /** Horizontal row of up to 12 people, 72 dp faces, then a See all tile. Tap opens the person; naming happens on the person screen. */
 @Composable
-fun PeopleRow(faces: List<Person>?, onOpen: (Long) -> Unit, onSeeAll: () -> Unit) {
+fun PeopleRow(faces: List<Person>?, onOpen: (Long) -> Unit, onSeeAll: () -> Unit, finding: Boolean = false) {
+    // people a regroup adds fade in; the first load shows at once
+    var loaded by remember { mutableStateOf(false) }
+    LaunchedEffect(faces != null) { if (faces != null) loaded = true }
     LazyRow(
         Modifier.testTag("peopleRow").fillMaxWidth().padding(bottom = 2.dp),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp),
@@ -301,7 +241,7 @@ fun PeopleRow(faces: List<Person>?, onOpen: (Long) -> Unit, onSeeAll: () -> Unit
             }
         }
         items(faces.orEmpty().take(12), key = { it.id }) { p ->
-            Column(Modifier.width(72.dp).clickable { onOpen(p.id) }, horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(Modifier.animateItem(fadeInSpec = if (loaded) spring(stiffness = Spring.StiffnessMediumLow) else null).width(72.dp).clickable { onOpen(p.id) }, horizontalAlignment = Alignment.CenterHorizontally) {
                 FaceImage(p.cover, Modifier.size(72.dp).clip(CircleShape))
                 Spacer(Modifier.height(6.dp))
                 // empty line for unnamed people too: the row's height follows the visible items, so it jumped while scrolling
@@ -328,7 +268,7 @@ fun PeopleRow(faces: List<Person>?, onOpen: (Long) -> Unit, onSeeAll: () -> Unit
                     Icon(painterResource(R.drawable.ic_person), null, Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Spacer(Modifier.height(6.dp))
-                Text("No people yet", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, minLines = 1, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(if (finding) "Finding faces…" else "No people yet", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, minLines = 1, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
@@ -342,8 +282,9 @@ fun ReviewCard(unsure: List<FaceVec>, onReview: () -> Unit, title: String = "Hel
             .clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.primaryContainer).padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // 36 dp faces, each 12 dp over the last; the ring sits outside the photo, so no photo edge shows around it
-        Row(horizontalArrangement = Arrangement.spacedBy((-12).dp)) {
+        // 36 dp faces, each 12 dp over the last; the ring sits outside the photo, so no photo edge shows around it.
+        // Always 3 faces wide, so the text does not shift left when fewer are left.
+        Row(Modifier.width(96.dp), horizontalArrangement = Arrangement.spacedBy((-12).dp)) {
             unsure.take(3).forEach { f ->
                 FaceImage(f, Modifier.size(40.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape).padding(2.dp).clip(CircleShape))
             }

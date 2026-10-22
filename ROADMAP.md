@@ -33,7 +33,7 @@ Current again since 2026-10-20. Phase 6 is paused.
 - [x] Some face pictures looked blurry on the People screen: saved at 160 px, shown at up to 288 px. Now saved at 288 px, old ones cut again once. No upscale: ~90% of faces in people are 288 px or bigger in the photo.
 - [x] Remove verbose ONNX Runtime logging from the test screen.
 - [x] Decide how to ship the models in a release: download on first run, not in the APK (2026-10-20).
-- [ ] Tap on the index notification opens the app on the Library tab (progress is there). Today the notification has no tap action.
+- [x] Tap on the index notification opens Settings, where the run shows (changed from Library 2026-10-22, when progress moved there). Built 2026-10-22: `openSettings` extra, `MainActivity.onNewIntent`.
 - [ ] Face models download: Settings > Finding faces > Face models row (designed, mockup "Face models"). Saves to `files/models`, goes on after a stop, checks the files when done, then auto-index starts. Hosted as a GitHub release asset (2026-10-21), so it waits until the repo is public. Open: a first-run hint on Library.
 - [x] Background indexing with WorkManager, test folder `Pictures/MemoriaTest` only. Matches the Mac.
 - [x] Photo type from metadata: camera, other (downloads, messengers), skip (screenshots, GIFs, tiny).
@@ -61,6 +61,7 @@ Current again since 2026-10-20. Phase 6 is paused.
 - [x] Fewer faces to check (2026-10-20): a face is also sure when the person's sharp or Yes faces vouch for it (closest within 0.5 and no other person 0.1 closer, or a Yes face within 0.3). One Yes in Help recognize settles its look-alikes at once. New column `face.nearSure` (DB v10). On the emulator with the old DB, 91 faces to check became 8; 83 of the 84 made sure were your own Yes answers, in the same person. Checked on the phone: migration and regroup only, nothing is left there to ask.
 - [x] Checked on the phone (2026-10-21): a Yes in Help recognize skips its look-alikes, and the faces made sure by neighbours are the right people. The skip has no UI test (the screen loads from the DB); only `Person.twinsOf` is unit-tested.
 - [x] Main face: the sharpest starting face (highest quality score), 2026-10-21. Was the one closest to the person's average.
+- [ ] Folders to skip (Settings > Finding faces): turn the disabled row on. A screen that lists the skipped folders (from an album's "Ignore faces in this album"), lets you take one off the list, and maybe add one. Not in the mockup yet (only the row): design first.
 
 ## Phase 3: photo type filter
 Goal: keep screenshots, memes and documents out of face search.
@@ -132,12 +133,12 @@ Goal: no visible loss, not lossless (re-encoding always loses some).
 Goal: motion that feels finished, like a mature gallery app, before the first APK release. No motion design in the mockup: Claude checks each motion on the emulator, the user on the phone.
 - [x] Opening and closing a photo: it grows out of its tile and shrinks back into it (swipe down or Back). The grid behind follows the photo you swipe to, so it always lands in a clear tile.
 - [x] Double tap in the viewer: the zoom animates in and out instead of jumping (tween, `Viewer.kt`).
-- [ ] Page changes: open and back between screens, and the tab switch. Settings and its pages push (2026-10-21): the tab slides out to the left as Settings comes in, Back reverses it. Other screens still slide in over the tab; the tab switch and screen to screen moves still cut.
+- [ ] Page changes: open and back between screens, and the tab switch. Settings and its pages push (2026-10-21): the tab slides out to the left as Settings comes in, Back reverses it. Other screens still slide in over the tab. Every screen to screen move pushes the same way (2026-10-21). The tab switch fades (200 ms, 2026-10-21).
 - [ ] Sheets, menus and dialogs: smooth in and out.
 - [ ] Select mode: the top bar and the Select bar swap smoothly.
-- [ ] Lists: photos and people that leave (delete, move, merge, hide) animate out instead of vanishing; new pictures fade in (thumbnails, covers).
-- [ ] Indexing: people that a regroup adds (Library row, People grid) animate in instead of popping up.
-- [ ] Index progress bar: animates in when a run starts and out when it ends, so it feels natural.
+- [ ] Lists: photos and people that leave (delete, move, merge, hide) animate out instead of vanishing. Done 2026-10-21 for every photo grid, the Albums and Places lists and the Library people row: a leaving item fades out, the rest slide. No fade-in for photos (first loads show at once, as for thumbnails). Left: the People grid, whose rows are built by hand, so cards cannot slide between rows.
+- [ ] Indexing: people that a regroup adds (Library row, People grid) animate in instead of popping up. Library row done 2026-10-21 (fades in after its first load); the People grid is left, see Lists.
+- [ ] Index progress moves to Settings (2026-10-21, replaces animating the Library bar): a "Face search" row in Settings > Finding faces, under Face models (count, time left, bar, Pause / Resume; "Done" with no run). Library and People lose the bar, so a short run no longer pushes Albums down; while a run goes, the Library People row's empty line says "Finding faces…". The notification tap opens Settings. Mockup done 2026-10-21 (Settings, "Face search, no run going", Library, People). Built 2026-10-22 (`FaceSearchRow`, `Settings.kt`); previews and unit tests green; the layout and behavior tests are written but not run yet (device tests on hold).
 - [ ] Rules: the no-layout-jump rule still holds; short motions; follow Android's "Remove animations" setting; check on a release build that nothing stutters.
 
 ## Phase 8: release
@@ -183,7 +184,7 @@ Today perf is found only after someone feels it (`bugs.md` holds the numbers). N
 ## Phase 12: code health (review 2026-10-21)
 - [x] Done 2026-10-21: the auto-index watcher runs only while the app is open (`repeatOnLifecycle`); user DB writes run under `NonCancellable`, so Back right after a tap keeps them; Find faces again clears its tables in one transaction; no `runBlocking` in `AutoIndex.kt`.
 - [ ] Viewer survives an Activity restart (dark mode, wallpaper colours, font size, language, process death), not only rotation: keep its tile list, not just the open id (`bugs.md`, "Viewer closes when the phone rotates").
-- [ ] Types instead of strings: enums for `PhotoRow.kind` and `Hit.kind` (lowercase names, so no DB migration), a `sealed interface` for timeline items instead of `List<Any>`.
+- [x] Types instead of strings: enums for `PhotoRow.kind` and `Hit.kind` (lowercase names, so no DB migration), a `sealed interface` for timeline items instead of `List<Any>`. Done 2026-10-22.
 - [x] Back stack navigation: one saved list of screens (`Screen`, `MainActivity.kt`) replaces the `screen` string, the `xxxFrom` variables and the per-screen `BackHandler`s. Done 2026-10-21; `NavigationTest` passed on the old code first, then on the new.
 - [ ] Room `Flow` queries instead of `peopleSaved` and the `reload++` counters; the screen cache (`cache` in `Ui.kt`) drops keys it no longer needs (`moveTo<id>` adds one per photo). After the back stack.
 

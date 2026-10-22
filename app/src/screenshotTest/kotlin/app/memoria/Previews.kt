@@ -35,7 +35,7 @@ fun FavoritesShortcut() = MemoriaTheme {
 
 /** The shared parts, in one place: keeps code and the mockup's "Shared parts" section in step. */
 private fun fakeFace(id: Long, quality: Float) =
-    FaceVec(id, 0, floatArrayOf(0f, 0f, 50f, 50f), FloatArray(512), quality, "camera", 1)
+    FaceVec(id, 0, floatArrayOf(0f, 0f, 50f, 50f), FloatArray(512), quality, PhotoKind.camera, 1)
 
 private fun fakePerson(id: Long, name: String?) =
     (1L..7L).map { fakeFace(id * 100 + it, if (it == 7L) 0.3f else 0.9f) }
@@ -51,7 +51,6 @@ fun PeopleList() = MemoriaTheme {
                 summary = "7 people · 412 faces",
                 people = listOf(fakePerson(1, "Dana"), fakePerson(2, "Arman"), fakePerson(3, null), fakePerson(4, null), fakePerson(5, "Bota"), fakePerson(6, null), fakePerson(7, "Mei")),
                 unsure = listOf(fakeFace(201, 0.3f), fakeFace(202, 0.3f), fakeFace(203, 0.3f)),
-                total = 1706,
             ),
         )
     }
@@ -67,7 +66,6 @@ fun PersonScreen() = MemoriaTheme {
                 summary = "7 people · 412 faces",
                 people = listOf(fakePerson(1, "Dana"), fakePerson(2, "Arman")),
                 unsure = emptyList(),
-                total = 1706,
             ),
             openId = 1,
         )
@@ -93,11 +91,7 @@ fun PersonSelect() = MemoriaTheme {
 @Composable
 fun LibraryLayout() = MemoriaTheme {
     Surface {
-        LibraryContent(
-            data = fakeLibrary(),
-            indexing = true,
-            indexed = 412,
-        )
+        LibraryContent(data = fakeLibrary())
     }
 }
 
@@ -164,7 +158,6 @@ private fun fakeLibrary(people: List<Person>? = null, unsure: List<FaceVec>? = n
     favorites = 38,
     videos = 211,
     trash = 7,
-    total = 1706,
     places = fakePlaces,
 )
 
@@ -284,9 +277,10 @@ fun DetailsView() = MemoriaTheme {
             info = PhotoInfo("IMG_20261011_143201.jpg", "DCIM/Camera", 3_500_000, 4032, 3024, "Mountain View", "Pixel 9", "f/1.8 · 1/120 s · ISO 64 · 24 mm"),
             faces = listOf(
                 fakeFace(1, 0.9f),
-                FaceVec(2, 0, floatArrayOf(0f, 0f, 50f, 50f), FloatArray(512), 0.9f, "camera", null),
+                FaceVec(2, 0, floatArrayOf(0f, 0f, 50f, 50f), FloatArray(512), 0.9f, PhotoKind.camera, null),
             ),
             people = listOf(fakePerson(1, "Dana")),
+            zone = java.time.ZoneOffset.UTC, // the recording machine's zone would leak into the baseline
         )
     }
 }
@@ -298,30 +292,42 @@ fun LibraryEmpty() = MemoriaTheme {
     Surface { LibraryContent(fakeLibrary(people = emptyList(), unsure = emptyList())) }
 }
 
+/** One face to check; pairs with library_fewerUnsureFaces_reviewTextStaysPut. */
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 1000)
 @Composable
-fun LibraryLoading() = MemoriaTheme { Surface { LibraryContent(data = null) } }
+fun LibraryOneUnsure() = MemoriaTheme { Surface { LibraryContent(fakeLibrary(unsure = listOf(fakeFace(101, 0.3f)))) } }
 
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 1000)
 @Composable
-fun LibraryIndexing() = MemoriaTheme { Surface { LibraryContent(fakeLibrary(), indexing = true, indexed = 412) } }
+fun LibraryLoading() =MemoriaTheme { Surface { LibraryContent(data = null) } }
 
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 1000)
 @Composable
-fun LibraryPaused() = MemoriaTheme { Surface { LibraryContent(fakeLibrary(), paused = true, indexed = 412) } }
+fun LibraryIndexing() = MemoriaTheme { Surface { LibraryContent(fakeLibrary(people = emptyList(), unsure = emptyList()), indexing = true) } }
 
+/** Settings with a run going (mockup "Settings"); the Face search states pair with settings_faceSearchStates_rowsStayPut. */
 @PreviewTest
-@Preview(widthDp = 360, heightDp = 1000)
+@Preview(widthDp = 360, heightDp = 900)
 @Composable
-fun LibraryWaiting() = MemoriaTheme { Surface { LibraryContent(fakeLibrary(), waiting = true, indexed = 412) } }
+fun SettingsPage() = MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", indexing = true, indexed = 412, total = 1706) } }
 
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 900)
 @Composable
-fun SettingsPage() = MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1") } }
+fun SettingsSearchPaused() = MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", paused = true, indexed = 412, total = 1706) } }
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 900)
+@Composable
+fun SettingsSearchWaiting() = MemoriaTheme { Surface { SettingsContent(charging = true, allowed = false, hidden = 2, version = "0.1", waiting = true, indexed = 412, total = 1706) } }
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 900)
+@Composable
+fun SettingsSearchDone() = MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", indexed = 1706, total = 1706) } }
 
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 900)
@@ -361,7 +367,7 @@ fun PeopleLoading() = MemoriaTheme { Surface { PeopleContent(data = null) } }
 @Preview(widthDp = 360, heightDp = 900)
 @Composable
 fun PeopleEmpty() = MemoriaTheme {
-    Surface { PeopleContent(data = PeopleData("No people", emptyList(), emptyList(), total = 0)) }
+    Surface { PeopleContent(data = PeopleData("No people", emptyList(), emptyList())) }
 }
 
 @PreviewTest
@@ -475,7 +481,7 @@ fun NewAlbumSheetPreview() = MemoriaTheme {
 @Composable
 fun NewAlbumPickPreview() = MemoriaTheme {
     val tiles = (1L..9L).map { Tile(it, android.net.Uri.parse("content://media/external/images/media/$it"), 0L, null) }
-    val items: List<Any> = remember { listOf(Header("m1", "October 2026", true), Header("d1", "Sat, 11 Oct", false)) + tiles }
+    val items: List<TimelineItem> = remember { listOf(Header("m1", "October 2026", true), Header("d1", "Sat, 11 Oct", false)) + tiles }
     val selection = remember { PhotoSelection().apply { addAll(tiles.take(6)) } }
     Surface {
         PhotosContent(
@@ -564,7 +570,7 @@ fun ViewerMore() = MemoriaTheme {
 @Composable
 fun PhotosSelect() = MemoriaTheme {
     val tiles = (1L..9L).map { Tile(it, android.net.Uri.parse("content://media/external/images/media/$it"), 0L, if (it % 3 == 0L) 42_000L else null, it == 2L) }
-    val items: List<Any> = remember { listOf(Header("m1", "October 2026", true), Header("d1", "Sat, 11 Oct", false)) + tiles }
+    val items: List<TimelineItem> = remember { listOf(Header("m1", "October 2026", true), Header("d1", "Sat, 11 Oct", false)) + tiles }
     val selection = remember { PhotoSelection().apply { addAll(tiles.take(6)) } }
     Surface { PhotosContent(items, selection = selection, pickedSize = 18_400_000) }
 }
@@ -572,13 +578,13 @@ fun PhotosSelect() = MemoriaTheme {
 private val fakeSearch = SearchData(
     people = listOf(fakePerson(1, "Dana"), fakePerson(2, "Arman"), fakePerson(3, "Bota"), fakePerson(4, "Mei")),
     hits = listOf(
-        Hit("person", "1", "Dana", "230 photos", face = fakeFace(100, 0.9f)),
-        Hit("album", "5", "Downloads", "33 items", cover = fakeAlbum(5, "Downloads", 1).tiles.first()),
-        Hit("year", "m2025-12", "2025", "412 items"),
-        Hit("month", "m2025-12", "December 2025", "48 items"),
-        Hit("album", "6", "Camera", "1,204 items", cover = fakeAlbum(6, "Camera", 1).tiles.first()),
+        Hit(HitKind.person, "1", "Dana", "230 photos", face = fakeFace(100, 0.9f)),
+        Hit(HitKind.album, "5", "Downloads", "33 items", cover = fakeAlbum(5, "Downloads", 1).tiles.first()),
+        Hit(HitKind.year, "m2025-12", "2025", "412 items"),
+        Hit(HitKind.month, "m2025-12", "December 2025", "48 items"),
+        Hit(HitKind.album, "6", "Camera", "1,204 items", cover = fakeAlbum(6, "Camera", 1).tiles.first()),
     ),
-    types = listOf(Hit("videos", "videos", "Videos"), Hit("favorites", "favorites", "Favorites"), Hit("album", "7", "Screenshots")),
+    types = listOf(Hit(HitKind.videos, "videos", "Videos"), Hit(HitKind.favorites, "favorites", "Favorites"), Hit(HitKind.album, "7", "Screenshots")),
 )
 
 /** Search (mockup): named people, types and recent. Pairs with search_loadingAndTyping_keepFieldPut. */

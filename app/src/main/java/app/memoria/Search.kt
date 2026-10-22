@@ -53,8 +53,11 @@ import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+/** Recent searches save the name, so a rename forgets them. */
+enum class HitKind { person, place, album, year, month, videos, favorites }
+
 /** Something Search opens: a person, place, album, year or month, or a type chip. [key] says which one. */
-class Hit(val kind: String, val key: String, val name: String, val note: String = "", val face: FaceVec? = null, val cover: Tile? = null)
+class Hit(val kind: HitKind, val key: String, val name: String, val note: String = "", val face: FaceVec? = null, val cover: Tile? = null)
 
 /** Named people for the row, everything typing can find (people, places, albums, years and months, in that order), the type chips. */
 class SearchData(val people: List<Person>, val hits: List<Hit>, val types: List<Hit>)
@@ -92,20 +95,20 @@ fun SearchScreen(onBack: () -> Unit, onOpen: (Hit) -> Unit, onSeeAllPeople: () -
             val months = all.groupBy { YearMonth.from(Instant.ofEpochMilli(it.date).atZone(zone)) }.toSortedMap(reverseOrder())
             val dates = months.entries.groupBy { it.key.year }.flatMap { (year, ms) ->
                 // a year opens the tab at its newest month
-                listOf(Hit("year", "m${ms.first().key}", "$year", count(ms.sumOf { it.value.size }, "item"))) +
-                    ms.map { (m, tiles) -> Hit("month", "m$m", monthName.format(m), count(tiles.size, "item")) }
+                listOf(Hit(HitKind.year, "m${ms.first().key}", "$year", count(ms.sumOf { it.value.size }, "item"))) +
+                    ms.map { (m, tiles) -> Hit(HitKind.month, "m$m", monthName.format(m), count(tiles.size, "item")) }
             }
             SearchData(
                 people = people,
-                hits = people.map { Hit("person", "${it.id}", it.name!!, count(it.photos, "photo"), face = it.cover) } +
-                    places(dao.placed(), all).map { Hit("place", "${it.id}", it.name, count(it.tiles.size, "photo"), cover = it.tiles.firstOrNull()) } +
-                    albums.map { Hit("album", "${it.id}", it.name, count(it.tiles.size, "item"), cover = it.tiles.firstOrNull()) } +
+                hits = people.map { Hit(HitKind.person, "${it.id}", it.name!!, count(it.photos, "photo"), face = it.cover) } +
+                    places(dao.placed(), all).map { Hit(HitKind.place, "${it.id}", it.name, count(it.tiles.size, "photo"), cover = it.tiles.firstOrNull()) } +
+                    albums.map { Hit(HitKind.album, "${it.id}", it.name, count(it.tiles.size, "item"), cover = it.tiles.firstOrNull()) } +
                     dates,
                 types = listOfNotNull(
-                    Hit("videos", "videos", "Videos"),
-                    Hit("favorites", "favorites", "Favorites"),
+                    Hit(HitKind.videos, "videos", "Videos"),
+                    Hit(HitKind.favorites, "favorites", "Favorites"),
                     // no screenshots screen yet: the chip opens the phone's Screenshots album, if there is one
-                    albums.firstOrNull { it.name.equals("Screenshots", ignoreCase = true) }?.let { Hit("album", "${it.id}", it.name) },
+                    albums.firstOrNull { it.name.equals("Screenshots", ignoreCase = true) }?.let { Hit(HitKind.album, "${it.id}", it.name) },
                 ),
             )
         }
@@ -178,13 +181,13 @@ fun SearchContent(
             }
             if (data.people.isNotEmpty()) {
                 item { SectionHead("People") }
-                item { PeopleRow(data.people, { id -> data.hits.firstOrNull { it.kind == "person" && it.key == "$id" }?.let(onOpen) }, onSeeAllPeople) }
+                item { PeopleRow(data.people, { id -> data.hits.firstOrNull { it.kind == HitKind.person && it.key == "$id" }?.let(onOpen) }, onSeeAllPeople) }
             }
             item { SectionHead("Types") }
             item {
                 Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     data.types.forEach { t ->
-                        Chip(t.name, when (t.kind) { "videos" -> R.drawable.ic_video; "favorites" -> R.drawable.ic_favorite; else -> R.drawable.ic_photo }) { onOpen(t) }
+                        Chip(t.name, when (t.kind) { HitKind.videos -> R.drawable.ic_video; HitKind.favorites -> R.drawable.ic_favorite; else -> R.drawable.ic_photo }) { onOpen(t) }
                     }
                 }
             }

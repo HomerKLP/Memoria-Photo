@@ -8,11 +8,11 @@ import org.junit.Test
 class PeopleLogicTest {
 
     /** Same face vector every time, so cosine distance is 0 and everything would merge. */
-    private fun face(id: Long, photoId: Long, quality: Float = 0.9f, kind: String = "camera") =
+    private fun face(id: Long, photoId: Long, quality: Float = 0.9f, kind: PhotoKind = PhotoKind.camera) =
         FaceVec(id, photoId, floatArrayOf(0f, 0f, 50f, 50f), FloatArray(512).also { it[0] = 1f }, quality, kind, null)
 
     private fun at(id: Long, quality: Float, vararg x: Float) =
-        FaceVec(id, id, floatArrayOf(0f, 0f, 50f, 50f), FloatArray(512).also { v -> x.forEachIndexed { i, f -> v[i] = f } }, quality, "camera", null)
+        FaceVec(id, id, floatArrayOf(0f, 0f, 50f, 50f), FloatArray(512).also { v -> x.forEachIndexed { i, f -> v[i] = f } }, quality, PhotoKind.camera, null)
 
     // Six starting faces on axis 0. Y (axis 1) is far from them. C is 0.4 from Y. D is 0.4 from C but 0.64 from Y.
     private val seeds = (1L..6L).map { face(it, it) }
@@ -108,12 +108,12 @@ class PeopleLogicTest {
     }
 
     @Test fun nonCameraDoesNotStartAPerson() {
-        assertTrue(groupFaces((1L..6L).map { face(it, it, kind = "other") }).isEmpty())
+        assertTrue(groupFaces((1L..6L).map { face(it, it, kind = PhotoKind.other) }).isEmpty())
     }
 
     @Test fun smallFacesAreLeftOut() {
         // box under 40 px on one side: dropped before grouping
-        val small = (1L..6L).map { FaceVec(it, it, floatArrayOf(0f, 0f, 20f, 20f), FloatArray(512).also { v -> v[0] = 1f }, 0.9f, "camera", null) }
+        val small = (1L..6L).map { FaceVec(it, it, floatArrayOf(0f, 0f, 20f, 20f), FloatArray(512).also { v -> v[0] = 1f }, 0.9f, PhotoKind.camera, null) }
         assertTrue(groupFaces(small).isEmpty())
     }
 
@@ -127,7 +127,7 @@ class PeopleLogicTest {
                 val center = unit(noise()); val spread = 0.6f + rnd.nextFloat()
                 List(4 + rnd.nextInt(20)) { unit(noise().also { v -> for (k in v.indices) v[k] = center[k] + spread * v[k] }) }
             } + List(60) { unit(noise()) }
-            val faces = vectors.mapIndexed { i, v -> FaceVec(i.toLong(), i.toLong(), floatArrayOf(0f, 0f, 50f, 50f), v, 0.9f, "camera", null) }
+            val faces = vectors.mapIndexed { i, v -> FaceVec(i.toLong(), i.toLong(), floatArrayOf(0f, 0f, 50f, 50f), v, 0.9f, PhotoKind.camera, null) }
             assertEquals(closestPairFirst(faces, 0.68f), groupFaces(faces).map { p -> p.faces.map { it.id }.toSet() }.toSet())
         }
     }

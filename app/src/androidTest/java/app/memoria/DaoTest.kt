@@ -25,7 +25,7 @@ class DaoTest {
 
     @Test fun faceVecs_skipsNotFace_andFlagsAnswers() = runBlocking {
         dao.insert(
-            PhotoRow(1, "DCIM/Camera/a.jpg", "camera"),
+            PhotoRow(1, "DCIM/Camera/a.jpg", PhotoKind.camera),
             listOf(
                 FaceRow(id = 1, photoId = 1, box = FloatArray(0), score = 0.9f, landmarks = FloatArray(0), vector = FloatArray(0), quality = 0.9f, thumb = ByteArray(0)),
                 FaceRow(id = 2, photoId = 1, box = FloatArray(0), score = 0.9f, landmarks = FloatArray(0), vector = FloatArray(0), quality = 0.9f, thumb = ByteArray(0), notFace = true),
@@ -37,30 +37,30 @@ class DaoTest {
         dao.answer(AnswerRow(faceId = 4, personFace = 1, yes = false))
         val faces = dao.faceVecs().sortedBy { it.id }
         assertEquals(listOf(1L, 3L, 4L), faces.map { it.id })
-        assertEquals(listOf("camera", "camera", "camera"), faces.map { it.kind })
+        assertEquals(listOf(PhotoKind.camera, PhotoKind.camera, PhotoKind.camera), faces.map { it.kind })
         assertEquals(listOf(false, true, false), faces.map { it.yes })
         assertEquals(listOf(false, false, true), faces.map { it.rejected })
     }
 
     @Test fun photoFaces_onlyThatPhoto_noNotFace() = runBlocking {
         dao.insert(
-            PhotoRow(1, "DCIM/Camera/a.jpg", "camera"),
+            PhotoRow(1, "DCIM/Camera/a.jpg", PhotoKind.camera),
             listOf(
                 FaceRow(id = 1, photoId = 1, box = FloatArray(0), score = 0.9f, landmarks = FloatArray(0), vector = FloatArray(0), quality = 0.9f, thumb = ByteArray(0)),
                 FaceRow(id = 2, photoId = 1, box = FloatArray(0), score = 0.9f, landmarks = FloatArray(0), vector = FloatArray(0), quality = 0.9f, thumb = ByteArray(0), notFace = true),
             ),
         )
         dao.insert(
-            PhotoRow(2, "Download/b.jpg", "other"),
+            PhotoRow(2, "Download/b.jpg", PhotoKind.other),
             listOf(FaceRow(id = 3, photoId = 2, box = FloatArray(0), score = 0.9f, landmarks = FloatArray(0), vector = FloatArray(0), quality = 0.9f, thumb = ByteArray(0))),
         )
         assertEquals(listOf(1L), dao.photoFaces(1).map { it.id })
-        assertEquals(listOf("other"), dao.photoFaces(2).map { it.kind })
+        assertEquals(listOf(PhotoKind.other), dao.photoFaces(2).map { it.kind })
     }
 
     @Test fun taggedFaces_onlyPeopleFaces_noNotFace() = runBlocking {
         dao.insert(
-            PhotoRow(1, "DCIM/Camera/a.jpg", "camera"),
+            PhotoRow(1, "DCIM/Camera/a.jpg", PhotoKind.camera),
             listOf(
                 FaceRow(id = 1, photoId = 1, box = FloatArray(0), score = 0.9f, landmarks = FloatArray(0), vector = FloatArray(0), quality = 0.9f, thumb = ByteArray(0), personId = 7),
                 FaceRow(id = 2, photoId = 1, box = FloatArray(0), score = 0.9f, landmarks = FloatArray(0), vector = FloatArray(0), quality = 0.9f, thumb = ByteArray(0)),
@@ -71,15 +71,15 @@ class DaoTest {
     }
 
     @Test fun kinds_countsPhotosPerKind() = runBlocking {
-        dao.insert(PhotoRow(1, "DCIM/Camera/a.jpg", "camera"), emptyList())
-        dao.insert(PhotoRow(2, "DCIM/Camera/b.jpg", "camera"), emptyList())
-        dao.insert(PhotoRow(3, "Download/c.jpg", "other"), emptyList())
-        assertEquals(mapOf("camera" to 2, "other" to 1), dao.kinds().first())
+        dao.insert(PhotoRow(1, "DCIM/Camera/a.jpg", PhotoKind.camera), emptyList())
+        dao.insert(PhotoRow(2, "DCIM/Camera/b.jpg", PhotoKind.camera), emptyList())
+        dao.insert(PhotoRow(3, "Download/c.jpg", PhotoKind.other), emptyList())
+        assertEquals(mapOf(PhotoKind.camera to 2, PhotoKind.other to 1), dao.kinds().first())
     }
 
     @Test fun notFace_dropsThePerson_andLeavesTheCount() = runBlocking {
         dao.insert(
-            PhotoRow(1, "DCIM/Camera/a.jpg", "camera"),
+            PhotoRow(1, "DCIM/Camera/a.jpg", PhotoKind.camera),
             listOf(
                 FaceRow(id = 1, photoId = 1, box = FloatArray(0), score = 0.9f, landmarks = FloatArray(0), vector = FloatArray(0), quality = 0.9f, thumb = ByteArray(0), personId = 7),
                 FaceRow(id = 2, photoId = 1, box = FloatArray(0), score = 0.9f, landmarks = FloatArray(0), vector = FloatArray(0), quality = 0.9f, thumb = ByteArray(0), personId = 7),
@@ -94,7 +94,7 @@ class DaoTest {
 
     @Test fun movePerson_movesEveryFace_andOnlyThatPersons() = runBlocking {
         dao.insert(
-            PhotoRow(1, "DCIM/Camera/a.jpg", "camera"),
+            PhotoRow(1, "DCIM/Camera/a.jpg", PhotoKind.camera),
             listOf(
                 FaceRow(id = 1, photoId = 1, box = FloatArray(0), score = 0.9f, landmarks = FloatArray(0), vector = FloatArray(0), quality = 0.9f, thumb = ByteArray(0), personId = 1),
                 FaceRow(id = 2, photoId = 1, box = FloatArray(0), score = 0.9f, landmarks = FloatArray(0), vector = FloatArray(0), quality = 0.9f, thumb = ByteArray(0), personId = 1),
@@ -107,9 +107,9 @@ class DaoTest {
     }
 
     @Test fun places_nullIsUnplaced_zeroIsNoGps_positiveIsPlaced() = runBlocking {
-        dao.insert(PhotoRow(1, "DCIM/Camera/a.jpg", "camera"), emptyList())
-        dao.insert(PhotoRow(2, "DCIM/Camera/b.jpg", "camera", townId = 0), emptyList())
-        dao.insert(PhotoRow(3, "DCIM/Camera/c.jpg", "camera", lat = 1.0, lon = 2.0, townId = 5, town = "Town"), emptyList())
+        dao.insert(PhotoRow(1, "DCIM/Camera/a.jpg", PhotoKind.camera), emptyList())
+        dao.insert(PhotoRow(2, "DCIM/Camera/b.jpg", PhotoKind.camera, townId = 0), emptyList())
+        dao.insert(PhotoRow(3, "DCIM/Camera/c.jpg", PhotoKind.camera, lat = 1.0, lon = 2.0, townId = 5, town = "Town"), emptyList())
         assertEquals(listOf(1L), dao.unplaced())
         assertEquals(listOf(3L), dao.placed().map { it.id })
         dao.setPlace(1, 3.0, 4.0, 6, "Other")

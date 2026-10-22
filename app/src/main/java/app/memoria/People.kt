@@ -75,8 +75,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.room.withTransaction
-import androidx.work.WorkInfo
-import androidx.work.WorkManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
@@ -95,7 +93,7 @@ import kotlin.math.sqrt
  * [nearSure]: its person's sharp or Yes faces vouch for it (set by [groupFaces], saved at regroup).
  */
 class FaceVec(
-    val id: Long, val photoId: Long, val box: FloatArray, val vector: FloatArray, val quality: Float, val kind: String, val personId: Long?,
+    val id: Long, val photoId: Long, val box: FloatArray, val vector: FloatArray, val quality: Float, val kind: PhotoKind, val personId: Long?,
     val yes: Boolean = false, val rejected: Boolean = false, val nearSure: Boolean = false,
 ) {
     /** Unsure faces wait in Help recognize. A face moved off a person by a no landed by distance, so it is asked again. */
@@ -112,7 +110,7 @@ class FaceVec(
  * The viewer details panel shows names, covers and counts; it never matches by distance, so the vector is not read.
  */
 class LightFace(
-    val id: Long, val photoId: Long, val box: FloatArray, val quality: Float, val kind: String, val personId: Long,
+    val id: Long, val photoId: Long, val box: FloatArray, val quality: Float, val kind: PhotoKind, val personId: Long,
     val yes: Boolean = false, val rejected: Boolean = false, val nearSure: Boolean = false,
 ) {
     fun toVec() = FaceVec(id, photoId, box, FloatArray(0), quality, kind, personId, yes, rejected, nearSure)
@@ -133,7 +131,7 @@ class Person(val faces: List<FaceVec>, val main: FaceVec, val id: Long = 0, val 
 fun Person.withCover(cover: Long?) = Person(faces, main, id, name, hidden, cover)
 
 /** Everything the People screen shows, loaded in one pass. */
-data class PeopleData(val summary: String, val people: List<Person>, val unsure: List<FaceVec>, val total: Int)
+data class PeopleData(val summary: String, val people: List<Person>, val unsure: List<FaceVec>)
 
 /** The same data with one person's cover changed, for updating a cached list in place (see [updateCached]). */
 fun PeopleData.withCover(personId: Long, faceId: Long?) =
@@ -164,7 +162,7 @@ fun groupFaces(all: List<FaceVec>, answers: List<AnswerRow> = emptyList(), merge
     // a face the user fixed by hand follows the answers: it never starts a person (a moved face would go back), and small ones stay
     val answered = answers.map { it.faceId }.toSet()
     val (seeds, others) = all.filter { min(it.box[2] - it.box[0], it.box[3] - it.box[1]) >= 40 || it.id in answered }
-        .partition { it.kind == "camera" && it.quality >= 0.4f && it.id !in answered }
+        .partition { it.kind == PhotoKind.camera && it.quality >= 0.4f && it.id !in answered }
     val n = seeds.size
     // ponytail: n×n floats, 17 MB at 2k seeds but 400 MB at 10k; store half of it (or float16) before libraries get that big
     val d = Array(n) { FloatArray(n) }
@@ -306,9 +304,6 @@ fun PeopleScreen(
     var merging by remember { mutableStateOf<Person?>(null) }
     var covering by remember { mutableStateOf<Person?>(null) }
     var hiding by remember { mutableStateOf<Person?>(null) }
-    val work by remember { WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow("index") }.collectAsState(emptyList())
-    val indexed by remember { dao.kinds() }.collectAsState(emptyMap())
-    val running = work.any { it.state == WorkInfo.State.RUNNING }
     // [saved] as a key: the run saves people every so often, so they show up while indexing.
     val saved by peopleSaved.collectAsState()
     val result by cachedProduceState("people", reload, saved) {
@@ -322,7 +317,7 @@ fun PeopleScreen(
             // hidden people stay in the list, so one opened from Hidden people still shows
             val shown = people.filter { !it.hidden }
             val unsure = shown.flatMap { p -> p.faces.filter { !it.sure } }.sortedBy { it.quality }
-            PeopleData("${shown.size} people · ${dao.faceTotal()} faces", people, unsure, libraryPhotoCount(context))
+            PeopleData("${shown.size} people · ${dao.faceTotal()} faces", people, unsure)
         }
     }
     BackHandler { if (naming != null) naming = null else if (openId != null) onPersonBack() else onBack() }
@@ -342,14 +337,6 @@ fun PeopleScreen(
     PeopleContent(
         data = r,
         openId = openId,
-        indexing = running,
-        waiting = !running && work.any { it.state == WorkInfo.State.ENQUEUED } && waitsForCharger(context),
-        indexed = indexed.values.sum(),
-        startedAt = IndexProgress.startedAt(context),
-        base = IndexProgress.base(context),
-        paused = !running && IndexProgress.paused(context),
-        onPauseIndex = { IndexControl.pause(context) },
-        onResumeIndex = { IndexControl.resume(context) },
         onBack = onBack,
         onOpenPerson = onOpenPerson,
         onClosePerson = onPersonBack,
@@ -430,14 +417,6 @@ fun PeopleScreen(
 fun PeopleContent(
     data: PeopleData?,
     openId: Long? = null,
-    indexing: Boolean = false,
-    indexed: Int = 0,
-    startedAt: Long = 0L,
-    base: Int = 0,
-    paused: Boolean = false,
-    waiting: Boolean = false,
-    onPauseIndex: () -> Unit = {},
-    onResumeIndex: () -> Unit = {},
     onBack: () -> Unit = {},
     onOpenPerson: (Long) -> Unit = {},
     onClosePerson: () -> Unit = {},
@@ -478,9 +457,6 @@ fun PeopleContent(
                 data?.let { d ->
                     if (d.unsure.isNotEmpty()) item {
                         ReviewCard(d.unsure, { onHelpRecognize(null) })
-                    }
-                    item {
-                        IndexProgressRow(indexing, waiting, indexed, d.total, startedAt, base, paused, onPauseIndex, onResumeIndex)
                     }
                     val shown = d.people.filter { !it.hidden }
                     // the mockup splits them: named 96 dp 3 a row (name and count), unnamed 56 dp 5 a row (faces only)
@@ -674,7 +650,7 @@ fun PersonDetail(
                             Modifier.combinedClickable(
                                 onClick = { if (sel == null) onOpen(shownPhotos, t) else pick.set(if (on) sel - t.id else sel + t.id) },
                                 onLongClick = { pick.set(sel.orEmpty() + t.id) },
-                            ).testTag("tile-${t.id}"),
+                            ).testTag("tile-${t.id}").animateItem(fadeInSpec = null), // no fade in: a first load shows at once
                             selecting = sel != null, selected = on,
                         )
                     }

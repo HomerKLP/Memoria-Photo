@@ -62,24 +62,28 @@ class LayoutJumpTest {
     // --- fakes ---------------------------------------------------------------------------------
 
     private fun face(id: Long, quality: Float = 0.9f) =
-        FaceVec(id, id, floatArrayOf(0f, 0f, 50f, 50f), FloatArray(512), quality, "camera", null)
+        FaceVec(id, id, floatArrayOf(0f, 0f, 50f, 50f), FloatArray(512), quality, PhotoKind.camera, null)
 
     private fun tile(id: Long) = Tile(id, Uri.parse("content://media/external/images/media/$id"), 0L, null)
 
     /** [named] false: every person has no name, the case that used to shrink the row. [people] overrides the row (empty = the "No people yet" case). */
-    private fun library(named: Boolean = true, people: List<Person>? = null, places: List<Place> = emptyList()): LibraryData {
+    private fun library(
+        named: Boolean = true,
+        people: List<Person>? = null,
+        places: List<Place> = emptyList(),
+        unsure: List<FaceVec> = listOf(face(101, 0.3f), face(102, 0.3f)),
+    ): LibraryData {
         val faces = (1L..4L).map { i ->
             val f = face(i)
             Person(listOf(f), f, i, if (named) "Person $i" else null)
         }
         return LibraryData(
             faces = people ?: faces,
-            unsure = listOf(face(101, 0.3f), face(102, 0.3f)),
-            albums = listOf("Camera", "Screenshots", "Telegram").mapIndexed { i, n -> Album(i.toLong(), n, listOf(tile(i.toLong()))) },
+            unsure = unsure,
+            albums =listOf("Camera", "Screenshots", "Telegram").mapIndexed { i, n -> Album(i.toLong(), n, listOf(tile(i.toLong()))) },
             favorites = 38,
             videos = 211,
             trash = 7,
-            total = 1706,
             places = places,
         )
     }
@@ -97,27 +101,31 @@ class LayoutJumpTest {
         assertSame("Albums header", before, rule.onNodeWithText("Albums").top())
     }
 
-    @Test fun library_pauseResume_progressBarKeepsLength() {
-        var indexing by mutableStateOf(true)
-        var paused by mutableStateOf(false)
-        rule.setContent { MemoriaTheme { Surface { LibraryContent(library(), indexing = indexing, paused = paused, indexed = 412) } } }
+    /** Face search row (mockup Settings): running, paused, waiting and done keep the row and the rows below in place. */
+    @Test fun settings_faceSearchStates_rowsStayPut() {
+        var state by mutableStateOf("running")
+        rule.setContent {
+            MemoriaTheme { Surface {
+                SettingsContent(
+                    charging = false, allowed = false, hidden = 2, version = "0.1",
+                    indexing = state == "running", paused = state == "paused", waiting = state == "waiting", indexed = 412, total = 1706,
+                )
+            } }
+        }
 
+        val searchBefore = rule.onNodeWithText("Face search").top()
+        val chargingBefore = rule.onNodeWithText("Only while charging").top()
         val barBefore = rule.onNodeWithTag("indexBar").width()
         val actionBefore = rule.onNodeWithTag("indexAction").width()
-        rule.runOnIdle { indexing = false; paused = true }
-        assertSame("progress bar", barBefore, rule.onNodeWithTag("indexBar").width())
-        assertSame("Pause/Resume box", actionBefore, rule.onNodeWithTag("indexAction").width())
-    }
-
-    @Test fun library_waitingToRunning_progressBarKeepsLength() {
-        var waiting by mutableStateOf(true)
-        rule.setContent { MemoriaTheme { Surface { LibraryContent(library(), indexing = !waiting, waiting = waiting, indexed = 412) } } }
-
-        val barBefore = rule.onNodeWithTag("indexBar").width()
-        val actionBefore = rule.onNodeWithTag("indexAction").width()
-        rule.runOnIdle { waiting = false }
-        assertSame("progress bar", barBefore, rule.onNodeWithTag("indexBar").width())
-        assertSame("Pause box", actionBefore, rule.onNodeWithTag("indexAction").width())
+        for (s in listOf("paused", "waiting", "done")) {
+            rule.runOnIdle { state = s }
+            assertSame("Face search ($s)", searchBefore, rule.onNodeWithText("Face search").top())
+            assertSame("Only while charging ($s)", chargingBefore, rule.onNodeWithText("Only while charging").top())
+            if (s != "done") {
+                assertSame("progress bar ($s)", barBefore, rule.onNodeWithTag("indexBar").width())
+                assertSame("Pause/Resume ($s)", actionBefore, rule.onNodeWithTag("indexAction").width())
+            }
+        }
     }
 
     @Test fun settings_countLoadedAndAllowed_rowsBelowStayPut() {
@@ -192,6 +200,16 @@ class LayoutJumpTest {
         val before = rule.onNodeWithText("Favorites").top()
         rule.runOnIdle { data = library(places = listOf(Place(1, "Riverton", listOf(tile(1))))) }
         assertSame("Favorites", before, rule.onNodeWithText("Favorites").top())
+    }
+
+    /** Help recognize card: 3 faces down to 1, the text keeps its place. */
+    @Test fun library_fewerUnsureFaces_reviewTextStaysPut() {
+        var data by mutableStateOf(library(unsure = listOf(face(101, 0.3f), face(102, 0.3f), face(103, 0.3f))))
+        rule.setContent { MemoriaTheme { Surface { LibraryContent(data) } } }
+
+        val before = rule.onNodeWithText("Help recognize").getUnclippedBoundsInRoot().left
+        rule.runOnIdle { data = library(unsure = listOf(face(101, 0.3f))) }
+        assertSame("Help recognize", before, rule.onNodeWithText("Help recognize").getUnclippedBoundsInRoot().left)
     }
 
     @Test fun library_loadingToEmpty_peopleRowStaysSameHeight() {
@@ -419,7 +437,7 @@ class LayoutJumpTest {
     /** Photos select mode: the top bar swaps for "N selected" and the tiles grow a circle; the grid must not move. */
     /** New album: the picker opens in select mode; loading the timeline must not move its bar or footer. */
     @Test fun newAlbumPick_loadingToLoaded_topBarAndFooterStayPut() {
-        var items by mutableStateOf<List<Any>?>(null)
+        var items by mutableStateOf<List<TimelineItem>?>(null)
         val selection = PhotoSelection()
         rule.setContent {
             MemoriaTheme {
@@ -454,7 +472,7 @@ class LayoutJumpTest {
 
     @Test fun photos_selecting_keepsGridPut() {
         val tiles = (1L..9L).map { tile(it) }
-        val items: List<Any> = listOf(Header("m1", "October 2026", true), Header("d1", "Sat, 11 Oct", false)) + tiles
+        val items: List<TimelineItem> = listOf(Header("m1", "October 2026", true), Header("d1", "Sat, 11 Oct", false)) + tiles
         val selection = PhotoSelection()
         rule.setContent { MemoriaTheme { Surface { PhotosContent(items, selection = selection) } } }
 
@@ -469,7 +487,7 @@ class LayoutJumpTest {
 
     /** The wordmark, the month heading and the day heading start on one left edge. */
     @Test fun photos_wordmarkMonthAndDay_shareTheLeftEdge() {
-        val items: List<Any> = listOf(Header("m1", "October 2026", true), Header("d1", "Sat, 11 Oct", false)) + (1L..9L).map { tile(it) }
+        val items: List<TimelineItem> = listOf(Header("m1", "October 2026", true), Header("d1", "Sat, 11 Oct", false)) + (1L..9L).map { tile(it) }
         rule.setContent { MemoriaTheme { Surface { PhotosContent(items) } } }
 
         val left = rule.onNodeWithText("Memoria Photo").getUnclippedBoundsInRoot().left
@@ -480,7 +498,7 @@ class LayoutJumpTest {
     /** The top bar is hidden by scrolling: select mode puts its bar over the pinned month, and the grid must not move. */
     @Test fun photos_topBarHidden_selecting_keepsGridPut() {
         val tiles = (1L..80L).map { tile(it) }
-        val items: List<Any> = listOf(Header("m1", "October 2026", true), Header("d1", "Sat, 11 Oct", false)) + tiles
+        val items: List<TimelineItem> = listOf(Header("m1", "October 2026", true), Header("d1", "Sat, 11 Oct", false)) + tiles
         val selection = PhotoSelection()
         val grid = LazyGridState()
         rule.setContent { MemoriaTheme { Surface { PhotosContent(items, grid = grid, selection = selection) } } }
@@ -500,7 +518,7 @@ class LayoutJumpTest {
     /** New photos arrive while the user is scrolled down: they land above, and the tile on screen stays put. */
     @Test fun photos_newPhotosArriving_scrolledDown_keepsTilePut() {
         val old = (1L..80L).map { tile(it) }
-        val oldItems: List<Any> = listOf(Header("m1", "October 2026", true), Header("d1", "Sat, 11 Oct", false)) + old
+        val oldItems: List<TimelineItem> = listOf(Header("m1", "October 2026", true), Header("d1", "Sat, 11 Oct", false)) + old
         var items by mutableStateOf(oldItems)
         val grid = LazyGridState()
         rule.setContent { MemoriaTheme { Surface { PhotosContent(items, grid = grid) } } }
@@ -515,7 +533,7 @@ class LayoutJumpTest {
 
     /** New photos arrive while the grid is at the top (a new month too): they show, the grid does not stay on the old first month. */
     @Test fun photos_newPhotosArriving_atTop_showsThem() {
-        val old: List<Any> = listOf(Header("m1", "October 2026", true), Header("d1", "Sat, 11 Oct", false)) + (1L..9L).map { tile(it) }
+        val old: List<TimelineItem> = listOf(Header("m1", "October 2026", true), Header("d1", "Sat, 11 Oct", false)) + (1L..9L).map { tile(it) }
         var items by mutableStateOf(old)
         rule.setContent { MemoriaTheme { Surface { PhotosContent(items) } } }
 
@@ -735,7 +753,6 @@ class LayoutJumpTest {
                 "7 people · 412 faces",
                 (1L..7L).map { person(it, if (it % 2 == 0L) "Person $it" else null) },
                 emptyList(),
-                total = 1706,
             )
         }
         assertSame("top bar height", barBefore, rule.onNodeWithTag("topBar").height())
@@ -748,7 +765,7 @@ class LayoutJumpTest {
     @Test fun people_rowCards_sameHeight() {
         val named = (1L..3L).map { person(it, "Person $it") }
         val unnamed = (4L..8L).map { person(it, null) }
-        rule.setContent { MemoriaTheme { Surface { PeopleContent(PeopleData("8 people", named + unnamed, emptyList(), 412)) } } }
+        rule.setContent { MemoriaTheme { Surface { PeopleContent(PeopleData("8 people", named + unnamed, emptyList())) } } }
 
         fun heights(tag: String) = rule.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes().map { it.boundsInRoot.height }
         val namedH = heights("namedCard")
@@ -768,7 +785,7 @@ class LayoutJumpTest {
         val top = rule.onNodeWithTag("searchField").top()
         val height = rule.onNodeWithTag("searchField").height()
         rule.runOnIdle {
-            data = SearchData(listOf(person(1, "Dana")), listOf(Hit("person", "1", "Dana", "1 photo", face = face(1))), listOf(Hit("videos", "videos", "Videos")))
+            data = SearchData(listOf(person(1, "Dana")), listOf(Hit(HitKind.person, "1", "Dana", "1 photo", face = face(1))), listOf(Hit(HitKind.videos, "videos", "Videos")))
         }
         assertSame("field after loading", top, rule.onNodeWithTag("searchField").top())
         rule.runOnIdle { text = "d" }

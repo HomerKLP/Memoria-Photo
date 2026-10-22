@@ -85,20 +85,30 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 class MainActivity : ComponentActivity() {
+    // bumped by a tap on the index notification, so App opens Settings
+    private var openSettings by mutableIntStateOf(0)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // Light app: dark bar icons even when the phone is in dark mode
         val bars = SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
         enableEdgeToEdge(bars, bars)
         super.onCreate(savedInstanceState)
+        // not on a restore: the same intent comes back, and Settings would open again
+        if (savedInstanceState == null && intent.getBooleanExtra("openSettings", false)) openSettings++
         val dir = File(getExternalFilesDir(null), "test").apply { mkdirs() }
-        setContent { MemoriaTheme { Surface { App(dir) } } }
+        setContent { MemoriaTheme { Surface { App(dir, openSettings) } } }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        if (intent.getBooleanExtra("openSettings", false)) openSettings++
     }
 }
 
 /** Two tabs, Photos and Library. The test screen opens from Library. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun App(dir: File) {
+fun App(dir: File, openSettings: Int = 0) {
     var tab by rememberSaveable { mutableStateOf("photos") } // the tab under the opened screens
     // the screens opened over the tab, oldest first; Back closes the last one
     var stack by rememberSaveable { mutableStateOf(emptyList<Screen>()) }
@@ -125,7 +135,14 @@ fun App(dir: File) {
     val scope = rememberCoroutineScope()
     var photosScrollTop by remember { mutableIntStateOf(0) } // bumped by a tab tap; the Photos tab reacts by scrolling to the top
     var viewing by rememberSaveable { mutableStateOf<Long?>(null) }
-    var viewTiles by remember { mutableStateOf<List<Tile>>(emptyList()) }
+    // the index notification: Settings over Library, whatever was open
+    LaunchedEffect(openSettings) {
+        if (openSettings == 0) return@LaunchedEffect
+        viewing = null
+        repeat(stack.size) { back() }
+        tab = "library"
+        push(Screen.Settings)
+    }
     // Photos tab select mode (mockup "Photos, selecting"): the picked tiles, shared so the bottom bar swaps
     val selection = remember { PhotoSelection() }
     var photosReload by remember { mutableStateOf(0) } // bumped after a bulk action, so the grid refetches
@@ -207,9 +224,10 @@ fun App(dir: File) {
                         }
                     }
                 }) { padding ->
-                    Column(Modifier.padding(padding)) {
-                        tabs.SaveableStateProvider(tab) {
-                            if (tab == "photos") PhotosScreen(
+                    // tabs are side by side, so they fade; a push would read as going deeper
+                    Crossfade(tab, Modifier.padding(padding), animationSpec = tween(200), label = "tab") { t ->
+                        tabs.SaveableStateProvider(t) {
+                            if (t == "photos") PhotosScreen(
                                 onOpen = open, grid = photosGrid, selection = selection, reload = photosReload,
                                 onSearch = { push(Screen.Search) },
                                 scrollToTop = photosScrollTop,
@@ -233,20 +251,19 @@ fun App(dir: File) {
                     }
                 }
             }
-            // An opened screen slides in from the right, and back slides it out to the right. Settings and its
-            // pages push the same way; other screen to screen moves switch at once. Each screen paints its own
+            // An opened screen slides in from the right, and back slides it out to the right. Screen to screen
+            // pushes: the old one slides out to the left, Back reverses it. Each screen paints its own
             // background and takes the taps, so the tab under it neither shows through nor reacts.
             opened.AnimatedContent(contentKey = { it?.let { e -> screenKey(e.index, e.value) } }, transitionSpec = {
-                val from = initialState?.value
-                val to = targetState?.value
+                val from = initialState
+                val to = targetState
                 when {
                     from == null -> slideInHorizontally(tween(250)) { it } togetherWith ExitTransition.None
                     to == null -> EnterTransition.None togetherWith slideOutHorizontally(tween(250)) { it }
-                    from.isSettingsPage() && to.isSettingsPage() -> {
-                        val dir = if (to is Screen.Settings) -1 else 1
+                    else -> {
+                        val dir = if (to.index >= from.index) 1 else -1
                         slideInHorizontally(tween(250)) { it * dir } togetherWith slideOutHorizontally(tween(250)) { -it * dir }
                     }
-                    else -> EnterTransition.None togetherWith ExitTransition.None
                 }
             }) { target ->
                 // no screen is an empty full-size box: a zero size would clip the screen sliding in or out
@@ -302,12 +319,12 @@ fun App(dir: File) {
                                 onBack = back,
                                 onOpen = { h ->
                                     when (h.kind) {
-                                        "person" -> push(Screen.People(h.key.toLong(), direct = true))
-                                        "place" -> push(Screen.Place(h.key.toInt()))
-                                        "album" -> push(Screen.Album(h.key.toLong()))
-                                        "videos" -> push(Screen.Videos)
-                                        "favorites" -> push(Screen.Favorites)
-                                        else -> { // a year or a month: the Photos tab, scrolled to that month's header
+                                        HitKind.person -> push(Screen.People(h.key.toLong(), direct = true))
+                                        HitKind.place -> push(Screen.Place(h.key.toInt()))
+                                        HitKind.album -> push(Screen.Album(h.key.toLong()))
+                                        HitKind.videos -> push(Screen.Videos)
+                                        HitKind.favorites -> push(Screen.Favorites)
+                                        HitKind.year, HitKind.month -> { // the Photos tab, scrolled to that month's header
                                             back(); tab = "photos"
                                             val at = lastTimeline?.indexOfFirst { it is Header && it.key == h.key } ?: -1
                                             if (at >= 0) scope.launch { photosGrid.scrollToItem(at) }
@@ -332,6 +349,10 @@ fun App(dir: File) {
         }
     }
 }
+
+// ponytail: the viewer's photos live outside composition, so a dark mode or font switch keeps them;
+// after process death they are gone and the viewer closes. Reload them by the open id if that matters.
+private var viewTiles by mutableStateOf<List<Tile>>(emptyList())
 
 /** A screen opened over the tabs, with what it shows. Serializable, so the stack survives the app being restarted. */
 sealed interface Screen : Serializable {

@@ -61,7 +61,7 @@ class NavigationTest {
         photo = ContentUris.parseId(uri)
         runBlocking {
             dao.insert(
-                PhotoRow(photoId, "Pictures/NavTest/person.jpg", "camera"),
+                PhotoRow(photoId, "Pictures/NavTest/person.jpg", PhotoKind.camera),
                 listOf(FaceRow(photoId = photoId, box = FloatArray(4), score = 0.9f, landmarks = FloatArray(10), vector = FloatArray(4), quality = 0.9f, thumb = ByteArray(0))),
             )
             val face = dao.photoFaces(photoId).single().id
@@ -111,15 +111,15 @@ class NavigationTest {
         start()
         openLibrary()
         rule.onNodeWithContentDescription("Settings").performClick()
-        rule.onNodeWithText("Open source, GPL-3.0 · Licenses").performClick()
+        rule.onNodeWithText("Open source, GPL-3.0 · Licenses").performScrollTo().performClick() // below the fold at 360 dp
         rule.onNodeWithText("Licenses").assertIsDisplayed()
         back()
         rule.onNodeWithText("Licenses").assertDoesNotExist()
-        rule.onNodeWithText("Hidden people").performClick()
+        rule.onNodeWithText("Hidden people").performScrollTo().performClick()
         rule.onNodeWithText("Settings").assertDoesNotExist()
         rule.onNodeWithText("Hidden people").assertIsDisplayed()
         back()
-        rule.onNodeWithText("Settings").assertIsDisplayed()
+        rule.onNodeWithText("Settings").assertExists() // the title scrolled up with the page, so not on screen
         back()
         assertOnLibrary()
     }
@@ -210,12 +210,23 @@ class NavigationTest {
         restore.setContent { MemoriaTheme { Surface { App(dir) } } }
         openLibrary()
         rule.onNodeWithContentDescription("Settings").performClick()
-        rule.onNodeWithText("Open source, GPL-3.0 · Licenses").performClick()
+        rule.onNodeWithText("Open source, GPL-3.0 · Licenses").performScrollTo().performClick() // below the fold at 360 dp
         restore.emulateSavedInstanceStateRestore()
         rule.onNodeWithText("Licenses").assertIsDisplayed()
         back()
-        rule.onNodeWithText("Settings").assertIsDisplayed()
+        rule.onNodeWithText("Settings").assertExists() // the title scrolled up with the page, so not on screen
         back()
         assertOnLibrary()
+    }
+
+    /** A dark mode or font size switch restarts the Activity; the open photo stays open. */
+    @Test fun restore_keepsTheOpenPhoto() {
+        val restore = StateRestorationTester(rule)
+        restore.setContent { MemoriaTheme { Surface { App(dir) } } }
+        rule.waitUntil(5_000) { rule.onAllNodesWithTag("tile-$photo").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("tile-$photo").performClick()
+        rule.onNodeWithContentDescription("More").assertIsDisplayed()
+        restore.emulateSavedInstanceStateRestore()
+        rule.onNodeWithContentDescription("More").assertIsDisplayed()
     }
 }

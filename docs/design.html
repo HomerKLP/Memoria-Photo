@@ -102,8 +102,6 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 /* Empty, in a row: the same 72px item as a face, so the row keeps its height and nothing below moves */
 .empty-face { background: var(--surface); place-items: center; }
 .empty-face svg.i { width: 44%; height: 44%; fill: var(--muted); margin: 0; }
-.progress { margin: 14px 16px 0; display: grid; gap: 6px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
-.progress-foot { display: flex; align-items: center; gap: 12px; }
 .track { flex: 1; height: 4px; border-radius: 2px; background: var(--line); }
 .track div { width: 24%; height: 100%; border-radius: 2px; background: var(--accent); }
 .review { margin: 16px 16px 0; padding: 12px; border-radius: 16px; background: var(--accent-soft); display: flex; align-items: center; gap: 12px; }
@@ -275,11 +273,13 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .switch::after { content: ""; position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; border-radius: 50%; background: #fff; }
 .switch.off { background: var(--surface); box-shadow: inset 0 0 0 2px var(--muted); }
 .switch.off::after { top: 8px; right: auto; left: 8px; width: 16px; height: 16px; background: var(--muted); }
-/* Face models row: as tall as the other rows. The bar sits on its bottom edge and the button keeps its width in every state, so nothing moves */
-.set.models { position: relative; }
-.set.models .track { position: absolute; left: 56px; right: 120px; bottom: 4px; }
-.set.models .track.off { visibility: hidden; }
-.set.models .pill-btn { flex: none; width: 88px; padding: 0; }
+/* Face models and Face search rows: as tall as the other rows. The bar sits on the bottom edge and the button keeps its width in every state, so nothing moves */
+.set.models, .set.run { position: relative; }
+.set.models .track, .set.run .track { position: absolute; left: 56px; right: 120px; bottom: 4px; }
+.set.models .track.off, .set.run .track.off { visibility: hidden; }
+.set.models .pill-btn, .set.run .pill-btn { flex: none; width: 88px; padding: 0; }
+/* one line: a second line mid-run would push the rows below down */
+.set.run span { font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Confirm dialog */
 .phone.modal { position: relative; }
@@ -345,10 +345,10 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .empty b { font: 700 20px/1.2 var(--display); color: var(--fg); }
 .empty p { margin: 0; font-size: 13px; }
 
-/* App icon: drawn on Android's 108 canvas, the picture inside the middle circle so any launcher shape keeps it */
+/* App icon: drawn on Android's 108 canvas; launchers show only the middle 72, so the svg is cropped to it */
 .icons { display: flex; flex-wrap: wrap; align-items: end; gap: 20px; }
 .appicon { display: block; width: 96px; height: 96px; border-radius: 50%; overflow: hidden; }
-.appicon svg { display: block; width: 100%; height: 100%; }
+.appicon svg { display: block; width: 150%; height: 150%; margin: -25%; }
 .appicon.sq { border-radius: 30%; }
 .home { padding: 16px 18px 10px; border-radius: 16px; background: linear-gradient(160deg, #4F8FB0, #CFE6EA); display: grid; justify-items: center; gap: 6px; color: #fff; font-size: 12px; text-shadow: 0 1px 2px rgba(0, 0, 0, .4); }
 .home .appicon { width: 52px; height: 52px; }
@@ -633,14 +633,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="row">
             <div class="person wide">
               <div class="face empty-face"><svg class="i"><use href="#i-person"/></svg></div>
-              <span class="unnamed">No people yet</span>
-            </div>
-          </div>
-          <div class="progress">
-            <span>Finding faces · 412 of 1,706 photos · 3m left</span>
-            <div class="progress-foot">
-              <div class="track"><div></div></div>
-              <button class="pill-btn">Pause</button>
+              <span class="unnamed">Finding faces…</span>
             </div>
           </div>
   
@@ -665,7 +658,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="handle"></div>
         </div>
       </div>
-      <figcaption>Library while indexing: no people yet (one muted item at a face's size, see Empty) with the progress row under it. People and the Help recognize card appear only once a run has finished, when the progress row is gone.</figcaption>
+      <figcaption>Library while indexing: no people yet, so the row's one muted item (see Empty) reads "Finding faces…" instead of "No people yet". Progress and Pause are in Settings, Face search. People and the Help recognize card appear only once a run has finished.</figcaption>
     </figure>
     <figure>
       <div class="phone has-slider">
@@ -984,13 +977,6 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
             <div class="review-text"><b>Help recognize</b><span>24 faces to check</span></div>
             <button class="pill-btn">Review</button>
           </div>
-          <div class="progress">
-            <span>Finding faces · 412 of 1,706 photos · 3m left</span>
-            <div class="progress-foot">
-              <div class="track"><div></div></div>
-              <button class="pill-btn">Pause</button>
-            </div>
-          </div>
   
           <div class="head"><h3>Named</h3><span class="hint">4 people</span></div>
           <div class="people-grid named tight" id="people-grid"></div>
@@ -1207,6 +1193,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <div class="scroll">
           <div class="head"><h3>Finding faces</h3></div>
           <div class="set models"><svg class="i"><use href="#i-check"/></svg><div><b>Face models</b><span>Ready · 169 MB</span><div class="track off"><div></div></div></div></div>
+          <div class="set run"><svg class="i"><use href="#i-search"/></svg><div><b>Face search</b><span>412 of 1,706 · 3m left</span><div class="track"><div></div></div></div><button class="pill-btn">Pause</button></div>
           <div class="set"><svg class="i"><use href="#i-bolt"/></svg><div><b>Only while charging</b><span>Pause face search on battery</span></div><span class="switch off" role="switch" aria-checked="false"></span></div>
           <div class="set"><svg class="i"><use href="#i-battery"/></svg><div><b>Background work</b><span>Not allowed. The phone may stop face search</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
           <div class="set"><svg class="i"><use href="#i-folder"/></svg><div><b>Folders to skip</b><span>None, all photos are searched</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
@@ -1223,7 +1210,11 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Settings: opens from the gear on Library. Face models (shown ready, see the next three), face search, hidden people, face data backup, about. With "Only while charging" on battery, the progress row reads "Waiting for charger · 412 of 1,706 photos" and keeps Pause. The Developer section is last and only in debug builds; a release build has no such section</figcaption>
+      <figcaption>Settings: opens from the gear on Library, and from a tap on the face search notification. Face models (shown ready, see the next three), then Face search: the only place that shows a run, with photos done, time left and Pause. Paused, it reads "Paused · 412 of 1,706" with Resume; with "Only while charging" on battery, "Waiting for charger" and keeps Pause. One line, cut with … if long. Then face search options, hidden people, face data backup, about. The Developer section is last and only in debug builds; a release build has no such section</figcaption>
+    </figure>
+    <figure id="search-done">
+      <div class="phone" id="search-done-phone"></div>
+      <figcaption>Face search, no run going: "Done" and the photo count. The bar and the button go, the row keeps its height, so nothing moves. A run for new photos fills it again</figcaption>
     </figure>
     <figure id="models-missing">
       <div class="phone" id="models-missing-phone"></div>
@@ -1480,26 +1471,65 @@ Photos: …/files/test</div>
     <defs>
       <linearGradient id="g-honey" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F6C65B"/><stop offset="1" stop-color="#D98E1C"/></linearGradient>
     </defs>
-    <symbol id="logo-a" viewBox="0 0 108 108">
+    <symbol id="logo" viewBox="0 0 108 108">
       <rect width="108" height="108" fill="url(#g-honey)"/>
-      <circle cx="70" cy="31" r="5.5" fill="#FFF6E2"/>
-      <path d="M33 73 44 45l10 16 10-16 11 28" fill="none" stroke="#3A2410" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect y="60.67" width="108" height="47.33" fill="#C47A14"/>
+      <g transform="translate(54 54) scale(.667) translate(-54 -54)">
+        <circle cx="54" cy="35" r="7" fill="#FFF6E2"/>
+        <path d="M12 64 35 36l19 18 19-18 23 28z" fill="#3A2410" stroke="#3A2410" stroke-width="6" stroke-linejoin="round"/>
+        <path d="M12 64 35 92l19-18 19 18 23-28z" fill="#3A2410" opacity=".3"/>
+        <path d="M36 72h14M58 78h16M44 85h12" stroke="#FFF6E2" stroke-width="3" stroke-linecap="round" opacity=".8"/>
+      </g>
     </symbol>
-    <symbol id="logo-a-mono" viewBox="0 0 108 108">
-      <circle cx="70" cy="31" r="5.5" fill="currentColor"/>
-      <path d="M33 73 44 45l10 16 10-16 11 28" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+    <symbol id="logo-mono" viewBox="0 0 108 108">
+      <g transform="translate(54 54) scale(.667) translate(-54 -54)">
+        <circle cx="54" cy="35" r="7" fill="currentColor"/>
+        <path d="M12 64 35 36l19 18 19-18 23 28z" fill="currentColor" stroke="currentColor" stroke-width="6" stroke-linejoin="round"/>
+        <path d="M30 75h20M58 75h20M40 84h28" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+      </g>
+    </symbol>
+    <clipPath id="clip-print"><rect x="34" y="40" width="40" height="32" rx="3"/></clipPath>
+    <symbol id="logo-print" viewBox="0 0 108 108">
+      <rect width="108" height="108" fill="url(#g-honey)"/>
+      <rect x="32" y="30" width="50" height="42" rx="7" fill="#FFF6E2" opacity=".5" transform="rotate(8 57 51)"/>
+      <g transform="rotate(-6 54 56)">
+        <rect x="29" y="35" width="50" height="42" rx="7" fill="#FFF6E2"/>
+        <g clip-path="url(#clip-print)">
+          <rect x="34" y="40" width="40" height="32" fill="#F7CF72"/>
+          <circle cx="65" cy="47" r="4" fill="#FFF6E2"/>
+          <path d="M28 80V72L45 50l9 12 7-7 20 25z" fill="#3A2410" stroke="#3A2410" stroke-width="4" stroke-linejoin="round"/>
+        </g>
+      </g>
+    </symbol>
+    <symbol id="logo-print-mono" viewBox="0 0 108 108">
+      <g transform="rotate(-6 54 56)">
+        <rect x="31.5" y="37.5" width="45" height="37" rx="5" fill="none" stroke="currentColor" stroke-width="5"/>
+        <circle cx="65" cy="48" r="4" fill="currentColor"/>
+        <path d="M34 72 45 52l9 12 7-7 13 15z" fill="currentColor" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/>
+      </g>
     </symbol>
   </svg>
 
   <article class="part">
-    <h3>Sunrise M</h3>
+    <h3>Lake</h3>
     <div class="icons">
-      <span class="appicon"><svg><use href="#logo-a"/></svg></span>
-      <span class="appicon sq"><svg><use href="#logo-a"/></svg></span>
-      <div class="home"><span class="appicon"><svg><use href="#logo-a"/></svg></span>Memoria</div>
-      <div class="home themed"><span class="appicon"><svg><use href="#logo-a-mono"/></svg></span>Memoria</div>
+      <span class="appicon"><svg><use href="#logo"/></svg></span>
+      <span class="appicon sq"><svg><use href="#logo"/></svg></span>
+      <div class="home"><span class="appicon"><svg><use href="#logo"/></svg></span>Memoria</div>
+      <div class="home themed"><span class="appicon"><svg><use href="#logo-mono"/></svg></span>Memoria</div>
     </div>
-    <p>Two peaks and a sun: an M and a photo at once. Clear at small size and in one color.</p>
+    <p>The M mountain and its reflection in a still lake, the sun in the notch.</p>
+  </article>
+
+  <article class="part">
+    <h3>Photo print (spare, not used)</h3>
+    <div class="icons">
+      <span class="appicon"><svg><use href="#logo-print"/></svg></span>
+      <span class="appicon sq"><svg><use href="#logo-print"/></svg></span>
+      <div class="home"><span class="appicon"><svg><use href="#logo-print"/></svg></span>Memoria</div>
+      <div class="home themed"><span class="appicon"><svg><use href="#logo-print-mono"/></svg></span>Memoria</div>
+    </div>
+    <p>The M mountains on a print, a second print behind: kept in case we switch to it.</p>
   </article>
 </section>
 
@@ -1645,6 +1675,9 @@ for (const [id, [icon, sub, off, pct, btn]] of Object.entries(modelRows)) {
   phone.prepend(...[...document.querySelector("#settings .phone").children].map(n => n.cloneNode(true)));
   phone.querySelector(".set.models").innerHTML = `<svg class="i"><use href="#i-${icon}"/></svg><div><b>Face models</b><span>${sub}</span><div class="track ${off}"><div style="width:${pct}%"></div></div></div><button class="pill-btn">${btn}</button>`;
 }
+const searchDone = document.getElementById("search-done-phone");
+searchDone.prepend(...[...document.querySelector("#settings .phone").children].map(n => n.cloneNode(true)));
+searchDone.querySelector(".set.run").innerHTML = `<svg class="i"><use href="#i-check"/></svg><div><b>Face search</b><span>Done · 1,706 photos</span><div class="track off"><div></div></div></div>`;
 const rescan = document.getElementById("rescan-phone");
 rescan.prepend(...[...document.querySelector("#settings .phone").children].map(n => n.cloneNode(true)));
 document.getElementById("hide-phone").prepend(...[...document.querySelector("#person .phone").children].map(n => n.cloneNode(true)));
