@@ -1471,26 +1471,61 @@ Photos: …/files/test</div>
     <defs>
       <linearGradient id="g-honey" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F6C65B"/><stop offset="1" stop-color="#D98E1C"/></linearGradient>
     </defs>
-    <symbol id="logo-a" viewBox="0 0 108 108">
+    <symbol id="logo" viewBox="0 0 108 108">
       <rect width="108" height="108" fill="url(#g-honey)"/>
-      <circle cx="70" cy="31" r="5.5" fill="#FFF6E2"/>
-      <path d="M33 73 44 45l10 16 10-16 11 28" fill="none" stroke="#3A2410" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect y="64" width="108" height="44" fill="#C47A14"/>
+      <circle cx="54" cy="35" r="7" fill="#FFF6E2"/>
+      <path d="M12 64 35 36l19 18 19-18 23 28z" fill="#3A2410" stroke="#3A2410" stroke-width="6" stroke-linejoin="round"/>
+      <path d="M12 64 35 92l19-18 19 18 23-28z" fill="#3A2410" opacity=".3"/>
+      <path d="M36 72h14M58 78h16M44 85h12" stroke="#FFF6E2" stroke-width="3" stroke-linecap="round" opacity=".8"/>
     </symbol>
-    <symbol id="logo-a-mono" viewBox="0 0 108 108">
-      <circle cx="70" cy="31" r="5.5" fill="currentColor"/>
-      <path d="M33 73 44 45l10 16 10-16 11 28" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+    <symbol id="logo-mono" viewBox="0 0 108 108">
+      <circle cx="54" cy="35" r="7" fill="currentColor"/>
+      <path d="M12 64 35 36l19 18 19-18 23 28z" fill="currentColor" stroke="currentColor" stroke-width="6" stroke-linejoin="round"/>
+      <path d="M30 75h20M58 75h20M40 84h28" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+    </symbol>
+    <clipPath id="clip-print"><rect x="34" y="40" width="40" height="32" rx="3"/></clipPath>
+    <symbol id="logo-print" viewBox="0 0 108 108">
+      <rect width="108" height="108" fill="url(#g-honey)"/>
+      <rect x="32" y="30" width="50" height="42" rx="7" fill="#FFF6E2" opacity=".5" transform="rotate(8 57 51)"/>
+      <g transform="rotate(-6 54 56)">
+        <rect x="29" y="35" width="50" height="42" rx="7" fill="#FFF6E2"/>
+        <g clip-path="url(#clip-print)">
+          <rect x="34" y="40" width="40" height="32" fill="#F7CF72"/>
+          <circle cx="65" cy="47" r="4" fill="#FFF6E2"/>
+          <path d="M28 80V72L45 50l9 12 7-7 20 25z" fill="#3A2410" stroke="#3A2410" stroke-width="4" stroke-linejoin="round"/>
+        </g>
+      </g>
+    </symbol>
+    <symbol id="logo-print-mono" viewBox="0 0 108 108">
+      <g transform="rotate(-6 54 56)">
+        <rect x="31.5" y="37.5" width="45" height="37" rx="5" fill="none" stroke="currentColor" stroke-width="5"/>
+        <circle cx="65" cy="48" r="4" fill="currentColor"/>
+        <path d="M34 72 45 52l9 12 7-7 13 15z" fill="currentColor" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/>
+      </g>
     </symbol>
   </svg>
 
   <article class="part">
-    <h3>Sunrise M</h3>
+    <h3>Lake</h3>
     <div class="icons">
-      <span class="appicon"><svg><use href="#logo-a"/></svg></span>
-      <span class="appicon sq"><svg><use href="#logo-a"/></svg></span>
-      <div class="home"><span class="appicon"><svg><use href="#logo-a"/></svg></span>Memoria</div>
-      <div class="home themed"><span class="appicon"><svg><use href="#logo-a-mono"/></svg></span>Memoria</div>
+      <span class="appicon"><svg><use href="#logo"/></svg></span>
+      <span class="appicon sq"><svg><use href="#logo"/></svg></span>
+      <div class="home"><span class="appicon"><svg><use href="#logo"/></svg></span>Memoria</div>
+      <div class="home themed"><span class="appicon"><svg><use href="#logo-mono"/></svg></span>Memoria</div>
     </div>
-    <p>Two peaks and a sun: an M and a photo at once. Clear at small size and in one color.</p>
+    <p>The M mountain and its reflection in a still lake, the sun in the notch.</p>
+  </article>
+
+  <article class="part">
+    <h3>Photo print (spare, not used)</h3>
+    <div class="icons">
+      <span class="appicon"><svg><use href="#logo-print"/></svg></span>
+      <span class="appicon sq"><svg><use href="#logo-print"/></svg></span>
+      <div class="home"><span class="appicon"><svg><use href="#logo-print"/></svg></span>Memoria</div>
+      <div class="home themed"><span class="appicon"><svg><use href="#logo-print-mono"/></svg></span>Memoria</div>
+    </div>
+    <p>The M mountains on a print, a second print behind: kept in case we switch to it.</p>
   </article>
 </section>
 
