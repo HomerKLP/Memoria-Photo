@@ -345,10 +345,10 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .empty b { font: 700 20px/1.2 var(--display); color: var(--fg); }
 .empty p { margin: 0; font-size: 13px; }
 
-/* App icon: drawn on Android's 108 canvas, the picture inside the middle circle so any launcher shape keeps it */
+/* App icon: drawn on Android's 108 canvas; launchers show only the middle 72, so the svg is cropped to it */
 .icons { display: flex; flex-wrap: wrap; align-items: end; gap: 20px; }
 .appicon { display: block; width: 96px; height: 96px; border-radius: 50%; overflow: hidden; }
-.appicon svg { display: block; width: 100%; height: 100%; }
+.appicon svg { display: block; width: 150%; height: 150%; margin: -25%; }
 .appicon.sq { border-radius: 30%; }
 .home { padding: 16px 18px 10px; border-radius: 16px; background: linear-gradient(160deg, #4F8FB0, #CFE6EA); display: grid; justify-items: center; gap: 6px; color: #fff; font-size: 12px; text-shadow: 0 1px 2px rgba(0, 0, 0, .4); }
 .home .appicon { width: 52px; height: 52px; }
@@ -1473,16 +1473,20 @@ Photos: …/files/test</div>
     </defs>
     <symbol id="logo" viewBox="0 0 108 108">
       <rect width="108" height="108" fill="url(#g-honey)"/>
-      <rect y="64" width="108" height="44" fill="#C47A14"/>
-      <circle cx="54" cy="35" r="7" fill="#FFF6E2"/>
-      <path d="M12 64 35 36l19 18 19-18 23 28z" fill="#3A2410" stroke="#3A2410" stroke-width="6" stroke-linejoin="round"/>
-      <path d="M12 64 35 92l19-18 19 18 23-28z" fill="#3A2410" opacity=".3"/>
-      <path d="M36 72h14M58 78h16M44 85h12" stroke="#FFF6E2" stroke-width="3" stroke-linecap="round" opacity=".8"/>
+      <rect y="60.67" width="108" height="47.33" fill="#C47A14"/>
+      <g transform="translate(54 54) scale(.667) translate(-54 -54)">
+        <circle cx="54" cy="35" r="7" fill="#FFF6E2"/>
+        <path d="M12 64 35 36l19 18 19-18 23 28z" fill="#3A2410" stroke="#3A2410" stroke-width="6" stroke-linejoin="round"/>
+        <path d="M12 64 35 92l19-18 19 18 23-28z" fill="#3A2410" opacity=".3"/>
+        <path d="M36 72h14M58 78h16M44 85h12" stroke="#FFF6E2" stroke-width="3" stroke-linecap="round" opacity=".8"/>
+      </g>
     </symbol>
     <symbol id="logo-mono" viewBox="0 0 108 108">
-      <circle cx="54" cy="35" r="7" fill="currentColor"/>
-      <path d="M12 64 35 36l19 18 19-18 23 28z" fill="currentColor" stroke="currentColor" stroke-width="6" stroke-linejoin="round"/>
-      <path d="M30 75h20M58 75h20M40 84h28" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+      <g transform="translate(54 54) scale(.667) translate(-54 -54)">
+        <circle cx="54" cy="35" r="7" fill="currentColor"/>
+        <path d="M12 64 35 36l19 18 19-18 23 28z" fill="currentColor" stroke="currentColor" stroke-width="6" stroke-linejoin="round"/>
+        <path d="M30 75h20M58 75h20M40 84h28" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+      </g>
     </symbol>
     <clipPath id="clip-print"><rect x="34" y="40" width="40" height="32" rx="3"/></clipPath>
     <symbol id="logo-print" viewBox="0 0 108 108">
