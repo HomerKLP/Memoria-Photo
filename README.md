@@ -1,5 +1,3 @@
-<!-- DRAFT: structure only. Lines in <!-- --> say what goes there. -->
-
 <div align="center">
 
 <img src="docs/img/icon.png" width="112" alt="Memoria icon">
@@ -18,14 +16,12 @@ No cloud. No account. No trackers.
 
 [Download](#install) · [Features](#features) · [Privacy](#privacy) · [Build](#build-from-source)
 
-<!-- hero: 3 phone shots side by side (Photos, People, a person), demo library of free stock photos -->
-<img src="docs/img/hero.png" width="860" alt="Memoria screens">
+<img src="docs/img/library.png" width="360" alt="The Library screen: people, Help recognize, albums and places">
 
 </div>
 
 ## Why Memoria
 
-<!-- 4 short cards, one line each -->
 | | |
 |---|---|
 | 🧠 **Knows your people** | Finds every face and groups it into people, on its own. |
@@ -34,9 +30,6 @@ No cloud. No account. No trackers.
 | 💛 **Free and open** | GPL-3.0. No ads, no account, no paid tier. |
 
 ## Face recognition
-
-<!-- the star section: one GIF (People grid > person > photo) + short pitch -->
-<img src="docs/img/people.gif" width="300" align="right" alt="People">
 
 > ### 3,000+ faces. 0 in the wrong person.
 > Tested on a real phone library: every face the app put into a person was the right one.
@@ -62,7 +55,6 @@ The models were picked on real family photos, not only on paper: 3 face finders 
 
 ## Features
 
-<!-- grid of small screenshots with a caption each, or a short list per area -->
 - **Photos:** timeline by day and month, month slider, select many with a drag.
 - **Viewer:** zoom, swipe, details (date, time zone, place, camera, people).
 - **Albums:** phone folders, new albums, move photos.
@@ -81,7 +73,6 @@ The models were picked on real family photos, not only on paper: 3 face finders 
 
 ## Speed
 
-<!-- table from docs/face-pipeline.md "Speed by chip" + which phones get the NPU -->
 | | NPU | GPU | CPU |
 |---|---|---|---|
 | Face recognition, per photo | ~70 ms | ~85 ms | ~520 ms |
@@ -91,12 +82,12 @@ A library of 10,000 photos takes about **22 minutes** on the NPU, or about **24 
 
 <sub>Measured on a Snapdragon 8 Elite. Your phone may be faster or slower, depending on its chip.</sub>
 
-<!-- NPU: Snapdragon 8 Gen 1 to 8 Elite Gen 5. Others: GPU, then CPU. -->
+The NPU is used on Snapdragon 8 Gen 1 to 8 Elite Gen 5. Other phones use the GPU, then the CPU.
 
 ## Install
 
 1. Download `memoria-<version>.apk` from [Releases](https://github.com/HomerKLP/Memoria-Photo/releases) and open it on your phone.
-2. In the app, go to **Settings › Finding faces › Face models** and tap **Download** (about 170 MB, once).
+2. Open the app on Wi-Fi. It downloads the face models by itself (about 170 MB, once). On mobile data, tap **Download** in **Settings › Finding faces › Face models**.
 3. Done. Face search starts on its own when the models are ready.
 
 To check the APK is ours, its signing certificate SHA-256 must be:
@@ -146,7 +137,7 @@ Memoria stands on great open work:
 - [GeoNames](https://www.geonames.org) gives offline town names (CC BY 4.0).
 - [Bricolage Grotesque](https://github.com/ateliertriay/bricolage) and [Roboto](https://github.com/googlefonts/roboto-classic) fonts (SIL OFL 1.1).
 
-Full list in [THIRD_PARTY.md](THIRD_PARTY.md).
+Full list in [THIRD_PARTY.md](THIRD_PARTY.md). The photos in the screenshot are AI-generated.
 
 ## License
 
