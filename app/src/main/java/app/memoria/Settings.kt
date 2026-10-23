@@ -34,6 +34,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -55,6 +56,7 @@ import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -79,6 +81,10 @@ fun SettingsScreen(onBack: () -> Unit, onHidden: () -> Unit, onSkip: () -> Unit,
     }
     val version = remember { context.packageManager.getPackageInfo(context.packageName, 0).versionName }
     var rescan by remember { mutableStateOf(false) }
+    var models by remember { mutableStateOf(Models.status(context)) }
+    LaunchedEffect(models.first) {
+        while (models.first == Models.Status.Downloading) { delay(1000); models = withContext(Dispatchers.IO) { Models.status(context) } }
+    }
     val setCharging = { on: Boolean ->
         charging = on
         IndexProgress.setChargingOnly(context, on)
@@ -87,7 +93,10 @@ fun SettingsScreen(onBack: () -> Unit, onHidden: () -> Unit, onSkip: () -> Unit,
 
     SettingsContent(
         charging, allowed, hidden, version,
-        modelsReady = remember { modelsReady(context) },
+        models = models.first,
+        modelsDone = models.second,
+        onDownload = { Models.download(context); models = Models.status(context) },
+        onCancelDownload = { Models.cancel(context); models = Models.status(context) },
         indexing = running,
         waiting = !running && work.any { it.state == WorkInfo.State.ENQUEUED } && waitsForCharger(context),
         paused = !running && IndexProgress.paused(context),
@@ -173,7 +182,10 @@ fun SettingsContent(
     allowed: Boolean,
     hidden: Int?,
     version: String?,
-    modelsReady: Boolean = true,
+    models: Models.Status = Models.Status.Ready,
+    modelsDone: Long = 0,
+    onDownload: () -> Unit = {},
+    onCancelDownload: () -> Unit = {},
     indexing: Boolean = false,
     waiting: Boolean = false,
     paused: Boolean = false,
@@ -196,11 +208,7 @@ fun SettingsContent(
     Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
         TopBar("Settings", null, onBack = onBack)
         SectionHead("Finding faces")
-        // The download is not built yet: no onClick greys the row, and the button is off
-        SettingRow(
-            if (modelsReady) R.drawable.ic_check else R.drawable.ic_download, "Face models",
-            if (modelsReady) "Ready · 169 MB" else "Not downloaded · 169 MB",
-        ) { if (!modelsReady) PillButton("Download", {}, enabled = false) }
+        FaceModelsRow(models, modelsDone, onDownload, onCancelDownload)
         FaceSearchRow(indexing, waiting, paused, indexed, total, startedAt, base, onPauseIndex, onResumeIndex)
         SettingRow(R.drawable.ic_bolt, "Only while charging", "Pause face search on battery", { onCharging(!charging) }) {
             Switch(
@@ -255,6 +263,43 @@ fun SettingRow(icon: Int, title: String, info: String, onClick: (() -> Unit)? = 
             Text(info, fontSize = 13.sp, lineHeight = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         trailing()
+    }
+}
+
+/** Mockup "Face models": the same build as [FaceSearchRow], so its height and button width never change. */
+@Composable
+fun FaceModelsRow(status: Models.Status, done: Long, onDownload: () -> Unit, onCancel: () -> Unit) {
+    val total = Models.mb(Models.TOTAL)
+    val info = when (status) {
+        Models.Status.Ready -> "Ready · $total MB"
+        Models.Status.Missing -> "Not downloaded · $total MB"
+        Models.Status.Downloading -> "Downloading · ${Models.mb(done)} of $total MB"
+        Models.Status.Stopped -> "Stopped · ${Models.mb(done)} of $total MB"
+    }
+    Box(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 16.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(painterResource(if (status == Models.Status.Ready) R.drawable.ic_check else R.drawable.ic_download), null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Column(Modifier.weight(1f)) {
+                Text("Face models", fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium)
+                Text(info, fontSize = 13.sp, lineHeight = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            val button = Modifier.testTag("modelsAction").width(88.dp)
+            when (status) {
+                Models.Status.Ready -> {}
+                // no side padding, like the mockup: "Download" wraps in 88 dp with it
+                Models.Status.Missing -> PillButton("Download", onDownload, modifier = button, sides = 0.dp)
+                Models.Status.Downloading -> PillButton("Cancel", onCancel, modifier = button, sides = 0.dp)
+                Models.Status.Stopped -> PillButton("Retry", onDownload, modifier = button, sides = 0.dp)
+            }
+        }
+        if (status == Models.Status.Downloading || status == Models.Status.Stopped) LinearProgressIndicator(
+            { (done.toFloat() / Models.TOTAL).coerceIn(0f, 1f) },
+            Modifier.testTag("modelsBar").align(Alignment.BottomStart).padding(start = 56.dp, end = 120.dp, bottom = 4.dp).fillMaxWidth().height(4.dp),
+            color = MaterialTheme.colorScheme.primary,
+        )
     }
 }
 

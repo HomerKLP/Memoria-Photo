@@ -21,7 +21,7 @@ We changed them: only towns of 1000+ people are kept, and districts are left out
 
 ## Face models
 
-The APK does not ship these today. They are pushed to the phone (`bench/tflite.py` makes the half-size `.tflite` files).
+The APK does not ship these. The app downloads them once from the [`models-v1` release](https://github.com/HomerKLP/Memoria-Photo/releases/tag/models-v1) (`bench/tflite.py` makes the half-size `.tflite` files).
 
 | Model | Used for | Source | License |
 |---|---|---|---|

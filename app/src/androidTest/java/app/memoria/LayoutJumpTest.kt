@@ -141,17 +141,27 @@ class LayoutJumpTest {
         assertSame("Export face data", exportBefore, rule.onNodeWithText("Export face data").top())
     }
 
-    @Test fun settings_modelsReadyToMissing_rowsStayPut() {
-        var ready by mutableStateOf(true)
-        rule.setContent { MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", modelsReady = ready) } } }
+    /** Face models row (mockup "Face models"): every state keeps the row, its button width, its bar and the rows below in place. */
+    @Test fun settings_modelsStates_rowsStayPut() {
+        var status by mutableStateOf(Models.Status.Missing)
+        rule.setContent {
+            MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", models = status, modelsDone = 77_594_624) } }
+        }
 
         val modelsBefore = rule.onNodeWithText("Face models").top()
-        val chargingBefore = rule.onNodeWithText("Only while charging").top()
+        val searchBefore = rule.onNodeWithText("Face search").top()
         val exportBefore = rule.onNodeWithText("Export face data").top()
-        rule.runOnIdle { ready = false }
-        assertSame("Face models", modelsBefore, rule.onNodeWithText("Face models").top())
-        assertSame("Only while charging", chargingBefore, rule.onNodeWithText("Only while charging").top())
-        assertSame("Export face data", exportBefore, rule.onNodeWithText("Export face data").top())
+        val actionBefore = rule.onNodeWithTag("modelsAction").width()
+        rule.runOnIdle { status = Models.Status.Downloading }
+        val barBefore = rule.onNodeWithTag("modelsBar").width()
+        for (s in listOf(Models.Status.Stopped, Models.Status.Ready, Models.Status.Missing)) {
+            rule.runOnIdle { status = s }
+            assertSame("Face models ($s)", modelsBefore, rule.onNodeWithText("Face models").top())
+            assertSame("Face search ($s)", searchBefore, rule.onNodeWithText("Face search").top())
+            assertSame("Export face data ($s)", exportBefore, rule.onNodeWithText("Export face data").top())
+            if (s != Models.Status.Ready) assertSame("Download/Cancel/Retry ($s)", actionBefore, rule.onNodeWithTag("modelsAction").width())
+            if (s == Models.Status.Stopped) assertSame("progress bar ($s)", barBefore, rule.onNodeWithTag("modelsBar").width())
+        }
     }
 
     @Test fun licenses_longestInfoLine_isOneLineLikeTheShortest() {

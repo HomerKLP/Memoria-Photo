@@ -82,6 +82,8 @@ fun watchNewPhotos(context: Context, lifecycle: Lifecycle): Closeable {
                 burst.change(System.currentTimeMillis())
                 while (isActive) {
                     delay(1000)
+                    // models that just finished downloading count as a change, so face search starts by itself
+                    if (Models.settle(context)) burst.change(System.currentTimeMillis())
                     if (!burst.due(System.currentTimeMillis())) continue
                     // a going run listed its photos before this change, so keep the burst and try again when it ends
                     val busy = indexBusy(context)
