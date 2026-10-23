@@ -1238,11 +1238,11 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
     </figure>
     <figure id="models-missing">
       <div class="phone" id="models-missing-phone"></div>
-      <figcaption>Face models, not downloaded: the first row of Finding faces. The size is in the row, so the tap is the OK. Until they are here, face search does not start. The row is as tall as every other Settings row, and the button keeps its width in every state. The bar sits on the row's bottom edge (hidden here), so nothing moves</figcaption>
+      <figcaption>Face models, not downloaded: the first row of Finding faces. The app starts the download by itself on open, Wi-Fi only, so this shows on mobile data, where the tap is the OK (the size is in the row). If Wi-Fi drops midway, the download waits for it. Until they are here, face search does not start. The row is as tall as every other Settings row, and the button keeps its width in every state. The bar sits on the row's bottom edge (hidden here), so nothing moves</figcaption>
     </figure>
     <figure id="models-downloading">
       <div class="phone" id="models-downloading-phone"></div>
-      <figcaption>Face models, downloading: MB so far, the bar fills, Cancel stops it. The files are checked when done, then the row turns to Ready and face search starts by itself. The app may be closed meanwhile, the download goes on</figcaption>
+      <figcaption>Face models, downloading: MB so far, the bar fills, Cancel stops it, and after Cancel only Retry starts it again. The files are checked when done, then the row turns to Ready and face search starts by itself. The app may be closed meanwhile, the download goes on</figcaption>
     </figure>
     <figure id="models-stopped">
       <div class="phone" id="models-stopped-phone"></div>

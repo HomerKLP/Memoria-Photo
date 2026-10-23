@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
+import android.net.ConnectivityManager
 import android.os.Bundle
 import android.provider.MediaStore
 import androidx.activity.ComponentActivity
@@ -74,6 +75,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.lifecycleScope
 import androidx.work.WorkManager
 import androidx.work.WorkInfo
 import com.google.ai.edge.litert.Accelerator
@@ -98,6 +100,11 @@ class MainActivity : ComponentActivity() {
         // not on a restore: the same intent comes back, and Settings would open again
         if (savedInstanceState == null && intent.getBooleanExtra("openSettings", false)) openSettings++
         val dir = File(getExternalFilesDir(null), "test").apply { mkdirs() }
+        // the face models come by themselves on Wi-Fi; on mobile data, or after Cancel, the user taps Download or Retry
+        lifecycleScope.launch(Dispatchers.IO) {
+            val wifi = getSystemService(ConnectivityManager::class.java)?.isActiveNetworkMetered == false
+            if (wifi && Models.status(this@MainActivity).first == Models.Status.Missing) Models.download(this@MainActivity, wifiOnly = true)
+        }
         setContent { MemoriaTheme { Surface { App(dir, openSettings) } } }
     }
 
