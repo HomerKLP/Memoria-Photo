@@ -9,18 +9,11 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Settings > Background work: Android's own "allow" dialog, the OEM background manager freezes the index without it -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
-    <!-- ONNX Runtime adds INTERNET only for its Microsoft telemetry; the app has no internet use -->
-    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
     <application
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="${appName}"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
-        <!-- ONNX Runtime's telemetry client, started at launch -->
-        <provider
-            android:name="ai.onnxruntime.TelemetryInitializer"
-            android:authorities="${applicationId}.onnxruntime_telemetry_initializer"
-            tools:node="remove" />
         <!-- Qualcomm FastRPC, the NPU (QNN HTP) runs through it -->
         <uses-native-library android:name="libcdsprpc.so" android:required="false" />
         <!-- portrait only: a rotate recreated the activity and closed the viewer (bugs.md) -->

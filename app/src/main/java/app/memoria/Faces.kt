@@ -1,14 +1,15 @@
 package app.memoria
 
-import ai.onnxruntime.OnnxTensor
-import ai.onnxruntime.OrtEnvironment
-import ai.onnxruntime.OrtException
-import ai.onnxruntime.OrtSession
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.ImageDecoder
 import android.util.Log
+import com.google.ai.edge.litert.Accelerator
+import com.google.ai.edge.litert.BuiltinNpuAcceleratorProvider
+import com.google.ai.edge.litert.CompiledModel
+import com.google.ai.edge.litert.Environment
 import java.io.File
 import java.nio.FloatBuffer
 import kotlin.math.floor
@@ -31,54 +32,56 @@ fun loadPhoto(source: ImageDecoder.Source, side: Int = 4096): Bitmap = ImageDeco
     decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE // getPixels needs a CPU bitmap
 }
 
-/** The shared ONNX Runtime environment, with Microsoft telemetry off. */
-fun ortEnv(): OrtEnvironment = OrtEnvironment.getEnvironment().also { it.setTelemetry(false) }
+private var env: Environment? = null
 
-/** Snapdragon NPU (QNN HTP) in fp16. */
-fun npuOptions() = OrtSession.SessionOptions().apply {
-    addQnn(mapOf("backend_path" to "libQnnHtp.so", "htp_performance_mode" to "burst", "enable_htp_fp16_precision" to "1"))
+/** One LiteRT environment for the app. Its compile cache keeps the NPU builds in the app's cache dir, so only the first load builds them. */
+@Synchronized
+private fun liteEnv(context: Context): Environment = env ?: context.applicationContext.let {
+    Environment.create(it, BuiltinNpuAcceleratorProvider(it), emptyMap(), true)
+}.also { env = it }
+
+/** One model with its input and output buffers, on the first of [accelerators] the phone has and the model runs on. */
+private class Net(env: Environment, file: File, accelerators: List<Accelerator>) : AutoCloseable {
+    private val model = open(env, file, accelerators.filter { it in env.getAvailableAccelerators() })
+    private val inputs = model.createInputBuffers()
+    private val outputs = model.createOutputBuffers()
+
+    fun run(input: FloatArray): FloatArray {
+        inputs[0].writeFloat(input)
+        model.run(inputs, outputs)
+        return outputs[0].readFloat()
+    }
+
+    override fun close() {
+        (inputs + outputs).forEach { it.close() }
+        model.close()
+    }
+}
+
+private fun open(env: Environment, file: File, accelerators: List<Accelerator>): CompiledModel {
+    val on = accelerators.first()
+    val options = CompiledModel.Options(on).apply {
+        if (on == Accelerator.NPU) qualcommOptions = CompiledModel.QualcommOptions(htpPerformanceMode = CompiledModel.QualcommOptions.HtpPerformanceMode.BURST)
+        if (on == Accelerator.CPU) cpuOptions = CompiledModel.CpuOptions(numThreads = 4) // LiteRT's default is ~3x slower than ONNX Runtime was
+    }
+    return try {
+        CompiledModel.create(file.path, options, env).also { Log.i("Memoria", "${file.name} on $on") }
+    } catch (e: Exception) {
+        if (accelerators.size == 1) throw e
+        Log.w("Memoria", "${file.name} failed on $on", e)
+        open(env, file, accelerators.drop(1))
+    }
 }
 
 /**
- * Opens [model] on the NPU, but builds it for the NPU only once: the first load saves the built model in [cache], later loads read it.
- * The saved name holds the model's size and date, so a new model is built again. A saved file that fails to load is built again.
+ * YOLOv5m-face + AdaFace IR101 + EDifFIQA-T quality, same steps as uniface 4.0 so results match bench/bench.py.
+ * Reads the .tflite files in <app files>/models.
  */
-fun npuSession(env: OrtEnvironment, model: File, cache: File): OrtSession {
-    val saved = File(cache, "${model.nameWithoutExtension}-${model.length()}-${model.lastModified()}_ctx.onnx")
-    if (saved.exists()) try {
-        return env.createSession(saved.path, npuOptions())
-    } catch (e: OrtException) {
-        Log.w("Memoria", "saved ${saved.name} failed to load, building again", e)
-        saved.delete()
-    }
-    cache.mkdirs()
-    cache.listFiles { f -> f.name.startsWith("${model.nameWithoutExtension}-") }?.forEach { it.delete() } // an older model's build
-    // a temp name, renamed once whole, so a run killed mid-write never leaves half a file
-    val tmp = File.createTempFile("build", "_ctx.onnx", cache).apply { delete() }
-    return try {
-        env.createSession(model.path, npuOptions().apply {
-            addConfigEntry("ep.context_enable", "1")
-            addConfigEntry("ep.context_file_path", tmp.path)
-            addConfigEntry("ep.context_embed_mode", "1") // one file, not a separate .bin the rename would miss
-        }).also { tmp.renameTo(saved) }
-    } catch (e: OrtException) {
-        Log.w("Memoria", "saving the NPU build of ${model.name} failed, opening it plain", e)
-        tmp.delete()
-        env.createSession(model.path, npuOptions())
-    }
-}
-
-/** YOLOv5m-face + AdaFace IR101 + EDifFIQA-T quality, same steps as uniface 4.0 so results match bench/bench.py. */
-class FacePipeline(
-    private val env: OrtEnvironment,
-    detectorModel: String,
-    recognizerModel: String,
-    qualityModel: String,
-    open: (String) -> OrtSession,
-) : AutoCloseable {
-    private val detector = open(detectorModel)
-    private val recognizer = open(recognizerModel)
-    private val quality = open(qualityModel)
+class FacePipeline(context: Context, accelerators: List<Accelerator> = listOf(Accelerator.NPU, Accelerator.GPU, Accelerator.CPU)) : AutoCloseable {
+    private val models = File(context.getExternalFilesDir(null), "models")
+    private val detector = Net(liteEnv(context), File(models, "detector.tflite"), accelerators)
+    private val recognizer = Net(liteEnv(context), File(models, "recognizer.tflite"), accelerators)
+    private val quality = Net(liteEnv(context), File(models, "quality.tflite"), accelerators)
 
     fun detect(image: Bitmap): List<Face> {
         // Letterbox to 640x640, gray 114 padding, RGB, 0..1
@@ -96,15 +99,12 @@ class FacePipeline(
         boxed.getPixels(pixels, 0, 640, 0, 0, 640, 640)
         val input = FloatBuffer.allocate(3 * 640 * 640)
         for (shift in intArrayOf(16, 8, 0)) for (p in pixels) input.put((p shr shift and 0xFF) / 255f)
-        input.rewind()
 
-        // Rows: cx, cy, w, h, score, 10 landmark coords, class
-        @Suppress("UNCHECKED_CAST")
-        val rows = OnnxTensor.createTensor(env, input, longArrayOf(1, 3, 640, 640)).use { tensor ->
-            detector.run(mapOf(detector.inputNames.first() to tensor)).use { (it[0].value as Array<Array<FloatArray>>)[0] }
-        }
+        // Rows of 16: cx, cy, w, h, score, 10 landmark coords, class
+        val out = detector.run(input.array())
+        val rows = (0 until out.size / 16).filter { out[it * 16 + 4] >= 0.6f }.map { out.copyOfRange(it * 16, it * 16 + 16) }
         val kept = mutableListOf<FloatArray>()
-        for (r in rows.filter { it[4] >= 0.6f }.sortedByDescending { it[4] }) {
+        for (r in rows.sortedByDescending { it[4] }) {
             val box = floatArrayOf(r[0] - r[2] / 2, r[1] - r[3] / 2, r[0] + r[2] / 2, r[1] + r[3] / 2)
             if (kept.size < 750 && kept.none { iou(it, box) > 0.5f }) kept += box + r.copyOfRange(4, 15)
         }
@@ -124,21 +124,13 @@ class FacePipeline(
         // AdaFace wants BGR, (v - 127.5) / 127.5
         val input = FloatBuffer.allocate(3 * 112 * 112)
         for (shift in intArrayOf(0, 8, 16)) for (p in face112) input.put(((p shr shift and 0xFF) - 127.5f) / 127.5f)
-        input.rewind()
-        @Suppress("UNCHECKED_CAST")
-        val v = OnnxTensor.createTensor(env, input, longArrayOf(1, 3, 112, 112)).use { tensor ->
-            recognizer.run(mapOf(recognizer.inputNames.first() to tensor)).use { (it[0].value as Array<FloatArray>)[0] }
-        }
+        val v = recognizer.run(input.array())
         val norm = sqrt(v.sumOf { (it * it).toDouble() }).toFloat()
         face.vector = FloatArray(v.size) { v[it] / norm }
         // EDifFIQA wants RGB, same scale
         val rgb = FloatBuffer.allocate(3 * 112 * 112)
         for (shift in intArrayOf(16, 8, 0)) for (p in face112) rgb.put(((p shr shift and 0xFF) - 127.5f) / 127.5f)
-        rgb.rewind()
-        @Suppress("UNCHECKED_CAST")
-        face.quality = OnnxTensor.createTensor(env, rgb, longArrayOf(1, 3, 112, 112)).use { tensor ->
-            quality.run(mapOf(quality.inputNames.first() to tensor)).use { (it[0].value as Array<FloatArray>)[0][0] }
-        }
+        face.quality = quality.run(rgb.array())[0]
     }
 
     override fun close() {

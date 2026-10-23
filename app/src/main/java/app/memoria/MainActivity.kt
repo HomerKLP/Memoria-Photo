@@ -2,6 +2,7 @@ package app.memoria
 
 import android.Manifest
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
@@ -75,6 +76,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.work.WorkManager
 import androidx.work.WorkInfo
+import com.google.ai.edge.litert.Accelerator
 import java.io.File
 import java.io.Serializable
 import kotlinx.coroutines.Dispatchers
@@ -422,7 +424,7 @@ fun TestScreen(dir: File, onBack: () -> Unit) {
         busy = true
         scope.launch(Dispatchers.Default) {
             try {
-                runTest(dir, npu, { log += "\n$it" }) { preview = it }
+                runTest(context, dir, npu, { log += "\n$it" }) { preview = it }
             } catch (e: Exception) {
                 log += "\nError: $e"
             }
@@ -441,16 +443,11 @@ fun TestScreen(dir: File, onBack: () -> Unit) {
     )
 }
 
-fun runTest(dir: File, npu: Boolean, log: (String) -> Unit, show: (Pair<Bitmap, List<Face>>) -> Unit) {
+fun runTest(context: Context, dir: File, npu: Boolean, log: (String) -> Unit, show: (Pair<Bitmap, List<Face>>) -> Unit) {
     val mode = if (npu) "npu" else "cpu"
     var t = System.nanoTime()
     val ms = { (System.nanoTime() - t) / 1_000_000.0 }
-    val pipeline = FacePipeline(
-        ortEnv(),
-        File(dir.parentFile, "models/detector.onnx").path,
-        File(dir.parentFile, "models/recognizer.onnx").path,
-        File(dir.parentFile, "models/quality.onnx").path,
-    ) { if (npu) npuSession(ortEnv(), File(it), File(dir.parentFile, "npu")) else ortEnv().createSession(it) }
+    val pipeline = if (npu) FacePipeline(context) else FacePipeline(context, listOf(Accelerator.CPU))
     log("$mode: models loaded in %.0f ms".format(ms()))
     val photos = dir.walk().filter { it.isFile && it.extension.lowercase() in setOf("jpg", "jpeg", "png", "webp") }.sorted().toList()
     val results = JSONObject()

@@ -1028,7 +1028,7 @@ class BehaviorTest {
         rule.onNodeWithContentDescription("Back").performClick()
         assertTrue(back)
         rule.onNodeWithText("GeoNames").performClick()
-        rule.onNodeWithText("ONNX Runtime").performClick()
+        rule.onNodeWithText("LiteRT").performClick()
         assertEquals(0, texts)
         rule.onNodeWithText("Full license texts").performScrollTo().performClick()
         assertEquals(1, texts)

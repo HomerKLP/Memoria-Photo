@@ -257,3 +257,42 @@ YOLOv5m-640 finds the most faces at every size, is faster than RetinaFace, and i
 - Real code on the emulator, loaded with the DB from before your answers (33 Yes anchors): faces to check 91 to 8. 84 faces made sure: 83 are among your 91 and all 83 are in the person you picked, 0 different. 1 is a new face you did not check. 8 of your 91 would still be asked.
 - Limits: 0.5, 0.1 and 0.3 come from one library. The 1 new face and the 3 new sure faces on the phone are not checked by eye.
 - Tests: six new `PeopleLogicTest` cases (17 pass), `MigrationTest` and `DaoTest` pass on the emulator.
+
+### 2026-10-23: NPUs from other makers (research only, nothing built)
+- ONNX Runtime has no MediaTek, Samsung or Tensor EP. Its NNAPI EP reaches them through the phone's driver, but Google dropped NNAPI in Android 15 and ORT marked the EP deprecated (1.21); driver quality and fp16 support differ per phone.
+- LiteRT (`CompiledModel` API) covers all of them, with GPU/CPU fallback: Qualcomm (V69-V81), MediaTek Dimensity 7300-9500, Exynos 2500 and 2600 only, Google Tensor (beta, models built on a PC per chip only). Needs `.tflite` models, so a conversion and a new accuracy check; Google ships the NPU libs through Play, but since 2.3.0 they are also Maven packages.
+- ExecuTorch has Qualcomm, MediaTek and Exynos backends but wants PyTorch models, ours are ONNX.
+- Most apps run on the GPU (LiteRT GPU delegate works on almost every phone) and use an NPU only per vendor deal; Immich runs ML on a server.
+- No phone with these chips to test on, and the emulator has no NPU, so face quality can't be checked yet.
+
+### 2026-10-23: LiteRT on the NPU (ROADMAP LiteRT steps 1-2)
+- Conversion: `onnx2tf` on the fp32 uniface ONNX files. Fix the input shape and run `onnxsim` first: without it YOLOv5m fails (5-D head) and AdaFace keeps run-time shape ops that break on the NPU ("Failed to invoke", a Reshape gets 0). EDifFIQA-T also needs the Expand patch from `fp16.py` and `ReduceL2` swapped for `Sqrt(ReduceSumSquare)`. `-kat input` keeps inputs NCHW, so the pixel loops stay.
+- Mac, tflite vs fp32 ONNX (40 photos, 300 faces): fp32 files identical; fp16 files: boxes within 0.05 px, vectors 0.99993+, quality within 0.0004.
+- Test phone, LiteRT 2.3.0 NPU vs ONNX Runtime QNN on the same inputs (20 photos, 14 faces): same 161 detections, boxes within 0.13 px, vectors 1.00000, quality within 0.0005. Median run: detect 10.0 vs 11.4 ms, embed 3.6 vs 4.1 ms, quality 0.6 vs 0.7 ms.
+- Load: the first build takes ~4 s for all three, then LiteRT's compile cache (`Environment.create(..., true)`, app cache dir, ~171 MB) loads them in ~0.25 s (ONNX Runtime's saved builds: 0.55 s).
+- fp32 and fp16 files run the same on the NPU (it computes in fp16 either way), so ship fp16: half the size.
+- LiteRT 2.3.0 needs QNN 2.50 (`com.qualcomm.qti:qnn-runtime:2.50.0`). On ONNX Runtime's 2.42 it ran everything on the CPU, ~100x slower, with no error and no log. ONNX Runtime 1.29 runs fine on 2.50.
+- Debug APK 103 MB -> 123 MB with both runtimes.
+- Is a model on the NPU? Read logcat tag `litert`. "Replacing 1 out of 1 node(s) with delegate" plus "Creating new QNN context for bytecode (size ~ the model file)" means all of it. More partitions or a tiny bytecode mean parts run on the CPU. No `litert` lines at all mean the NPU never started (the QNN mismatch above).
+- Bumping LiteRT: the QNN version it needs is in `third_party/qairt/workspace.bzl` at that release tag of `google-ai-edge/LiteRT` (v2.3.0 -> 2.50.0). Set `qnn-runtime` to match.
+- Kotlin setup: `Environment.create(context, BuiltinNpuAcceleratorProvider(context), emptyMap(), true)` (last arg turns the compile cache on), `CompiledModel.Options(Accelerator.NPU)` with `QualcommOptions(htpPerformanceMode = BURST)`. The NPU libs ship in the APK (`litert-npu-runtime-qualcomm` + `qnn-runtime`), no Play needed.
+- The recipe is `bench/tflite.py`, in its own pinned env (inline metadata + `bench/tflite.py.lock`).
+- No TensorFlow (same day): `onnx2tf` 2.x writes `.tflite` directly. Its own float16 file is fp16 end to end (fp16 inputs, which the CPU and LiteRT's Kotlin API can't feed), so the script takes its fp32 file and casts the weights to fp16 with `ai-edge-quantizer`. Mac: boxes within 0.075 px, vectors 0.99998+, quality within 0.0003, as good as or better than the TensorFlow files. Phone: all three fully on the NPU, detect 9.1-9.7 ms, same results.
+- Cost: the detector's first NPU build takes ~40 s instead of 2.3 s (its output part becomes many small 5-D reshapes). The first index run waits for it; it comes back after an OS update, a LiteRT update, or when Android clears the app's cache (the Kotlin API can't move the cache out of `cacheDir`). Otherwise the cache loads it in 0.17 s. If it ever matters, cut the output decode out of the model and do it in Kotlin.
+
+### 2026-10-23: Faces.kt on LiteRT (ROADMAP LiteRT step 4)
+- `FacePipeline(context)` reads `files/models/{detector,recognizer,quality}.tflite`. Each model opens on the first of NPU, GPU, CPU that the phone has and that builds it; logcat tag `Memoria` says which ("detector.tflite on NPU"). Dev tools Run on CPU passes CPU only.
+- Test phone, 20 test photos: all three on the NPU, one QNN partition each. First build of all three 70.6 s, then 0.27 s from the compile cache. Detect 38 ms per photo, embed 26 ms per face (ONNX Runtime 2026-10-17: 53 and 27 ms).
+- CPU: LiteRT's default thread count made it ~3x slower than ONNX Runtime (detect 1211 ms, embed 591 ms). With 4 threads: detect 385 ms, embed 204 ms (ONNX Runtime: 401 and 410).
+- Same 14 faces everywhere. Phone NPU vs phone CPU: boxes within 1.76 px, vectors median 0.9986, min 0.982, quality within 0.009. Emulator GPU vs CPU: vectors 0.99999+. Emulator CPU = phone CPU.
+- Emulator: no OpenCL, so LiteRT's GPU uses OpenGL. The detector never builds there and falls back to the CPU. The other two build on the GPU only on the first try in a process ("Can't create program" after that), then fall back to the CPU. An index run of 169 photos finished in 172 s.
+- Phone index runs (4 runs of 1-2 new camera photos): all three on the NPU, one QNN partition each, models loaded from the cache in 0.13-0.41 s, ~1 s per run.
+- The phone's main log buffer is 256 KB, and LiteRT's build logs push the `litert` lines out. `adb logcat -G 16M` first.
+
+### 2026-10-23: LiteRT vs the Mac and the old DB (ROADMAP LiteRT step 5)
+- `compare_phone.py` on the 20 test photos (Mac: `bench.py detect --photos <test folder>`, then `group`): NPU 14 of 14 faces, 0 lost, 0 new, landmarks within 0.95% of face width, vectors median 0.9981, min 0.9653, quality within 0.017. CPU: vectors median 0.9994, min 0.9697. ONNX Runtime on the NPU was median 0.995-0.997 (363 faces, 2026-10-17).
+- The same photos are in the phone's DB, indexed with ONNX Runtime (16 faces). Old DB vectors vs LiteRT: median 0.9959, min 0.9517; old DB vs Mac: median 0.9946, min 0.9565. The gap is the index's small decode, not the runtime. 0.05 cosine distance at worst, far under the 0.68 group cut, so old and new vectors mix and no re-index is needed.
+
+### 2026-10-23: ONNX Runtime out of the app (ROADMAP LiteRT step 7)
+- Gone: `onnxruntime-android-qnn`, its telemetry provider and INTERNET removal in the manifest (no library adds INTERNET now), its 26 baseline profile lines, the `LiteRtSpike` test and the debug app's old NPU builds (`files/npu`, 171 MB). Only arm64 libs ship.
+- Debug APK 132.5 to 111.3 MB. Run on NPU after: all three on the NPU, 14 faces, models loaded in 0.42 s.

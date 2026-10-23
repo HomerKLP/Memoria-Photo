@@ -357,8 +357,6 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         }
         val base = total - todo.size // photos already in the DB, so the bar starts there
         IndexProgress.start(applicationContext, total, base)
-        val models = File(applicationContext.getExternalFilesDir(null), "models")
-        val npuCache = File(models.parentFile, "npu")
         // Foreground, or the system stops the job midway. Not allowed when started from the background (rerun after a stop), then it runs as a plain job.
         val notifications = applicationContext.getSystemService(NotificationManager::class.java)
         notifications.createNotificationChannel(NotificationChannel("index", "Indexing", NotificationManager.IMPORTANCE_LOW))
@@ -373,7 +371,7 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         var count = 0
         var nextSave = start + 30_000_000_000L
         try {
-            FacePipeline(ortEnv(), File(models, "detector.onnx").path, File(models, "recognizer.onnx").path, File(models, "quality.onnx").path) { npuSession(ortEnv(), File(it), npuCache) }.use { pipeline ->
+            FacePipeline(applicationContext).use { pipeline ->
                 Log.i("Memoria", "models loaded in ${(System.nanoTime() - start) / 1_000_000} ms")
                 for (photo in todo) {
                     if (isStopped) break

@@ -34,7 +34,7 @@ Current again since 2026-10-20. Phase 6 is paused.
 - [x] Remove verbose ONNX Runtime logging from the test screen.
 - [x] Decide how to ship the models in a release: download on first run, not in the APK (2026-10-20).
 - [x] Tap on the index notification opens Settings, where the run shows (changed from Library 2026-10-22, when progress moved there). Built 2026-10-22: `openSettings` extra, `MainActivity.onNewIntent`.
-- [ ] Face models download: Settings > Finding faces > Face models row (designed, mockup "Face models"). Saves to `files/models`, goes on after a stop, checks the files when done, then auto-index starts. Hosted as a GitHub release asset (2026-10-21), so it waits until the repo is public. Open: a first-run hint on Library.
+- [ ] Face models download: Settings > Finding faces > Face models row (designed, mockup "Face models"). Saves to `files/models`, goes on after a stop, checks the files when done, then auto-index starts. Hosted as a GitHub release asset (2026-10-21), the three `.tflite` files from `bench/tflite.py`, so it waits until the repo is public. Open: a first-run hint on Library.
 - [x] Background indexing with WorkManager, test folder `Pictures/MemoriaTest` only. Matches the Mac.
 - [x] Photo type from metadata: camera, other (downloads, messengers), skip (screenshots, GIFs, tiny).
 - [x] Store photos, faces and face vectors in Room.
@@ -62,6 +62,14 @@ Current again since 2026-10-20. Phase 6 is paused.
 - [x] Checked on the phone (2026-10-21): a Yes in Help recognize skips its look-alikes, and the faces made sure by neighbours are the right people. The skip has no UI test (the screen loads from the DB); only `Person.twinsOf` is unit-tested.
 - [x] Main face: the sharpest starting face (highest quality score), 2026-10-21. Was the one closest to the person's average.
 - [x] Folders to skip (Settings > Finding faces), built 2026-10-22 to the mockup: every album with its count, a check on the skipped ones (`SkipContent`, `Settings.kt`). Checking asks with the album's Ignore faces dialog (now shared, `IgnoreFacesDialog`), unchecking does not; the next index run drops or searches the album. The Settings row reads "N skipped". Tests: `skip_checkAsksFirst_uncheckDoesNot`, `skip_checking_rowsStayPut`, `foldersToSkip_backReturnsToSettings`; preview `SkipFolders`.
+- [x] Move from ONNX Runtime to LiteRT (decision 2026-10-23): one runtime for Snapdragon, MediaTek, Exynos and Tensor NPUs, GPU then CPU when there is none. ONNX Runtime leaves the app fully, no side-by-side.
+- [x] LiteRT step 1, test run (2026-10-23): all three models fully on the NPU, same results as ONNX Runtime and a bit faster (detect 10.0 vs 11.4 ms). Throwaway test in `app/src/debug/` (`LiteRtSpike`).
+- [x] LiteRT step 2: its compile cache works, ~4 s first build, then 0.25 s per run (ONNX Runtime: 0.55 s).
+- [x] LiteRT step 3, bench (2026-10-23): `uv run bench/tflite.py` writes `models/<name>_fp16.tflite` and checks them against fp32 ONNX, in its own pinned env, no TensorFlow. ONNX stays the reference.
+- [x] LiteRT step 4, app: `Faces.kt` on LiteRT `CompiledModel`, NPU then GPU (`litert-gpu`) then CPU. Inputs stay NCHW, so the pixel loops stay. Done (2026-10-23): Dev tools Run on NPU / CPU work on the phone, all three models on the NPU; an emulator index run finished on the fallback; phone index runs (new camera photos) load all three on the NPU from the cache in 0.13-0.41 s.
+- [x] LiteRT step 5, phone: `compare_phone.py` on the test folder, same faces and vectors as the Mac. Old DB vectors must still match, so no re-index (a re-index would risk names and answers). Done (2026-10-23): 14 of 14 faces, vectors median 0.998 to the Mac; old DB vectors vs LiteRT at most 0.05 cosine distance (groups cut at 0.68), so no re-index.
+- [x] LiteRT step 6, emulator: no NPU, an index run must finish on GPU or CPU. First run passed in step 4 (169 photos, detector on CPU, the other two on GPU).
+- [x] LiteRT step 7, clean up: drop `onnxruntime-android-qnn` and its `baseline-prof.txt` lines, keep QNN 2.50 (LiteRT needs it), arm64 libs only, delete `app/src/debug/` and the old saved builds in `files/npu`, update Licenses and `THIRD_PARTY.md` (LiteRT is Apache-2.0), ship `.tflite` in the models release asset. Done (2026-10-23): debug APK 132.5 to 111.3 MB, no INTERNET permission left, Run on NPU the same after. The release app's `files/npu` goes once a LiteRT release is installed on the phone (the current one still uses it); the release asset waits for the models download.
 
 ## Phase 3: photo type filter
 Goal: keep screenshots, memes and documents out of face search.
@@ -201,7 +209,8 @@ Today perf is found only after someone feels it (`bugs.md` holds the numbers). N
 - Duplicates finder: exact copies, burst shots, very similar shots. Keep the best one (sharpest, open eyes, best faces); deleting the rest needs the user's OK.
 - Blurry and bad photo cleanup.
 - Index: decode only the face regions (`ImageDecoder.setCrop`) instead of the whole 4096 photo. Saves 10–25% of one index run, once; risk is silent vector drift. If it comes back, measure first (time, vector similarity vs the full decode).
-- NPU on other Snapdragon chips: the APK only has the 8 Elite lib (HTP V79), `jniLibs.excludes` in `app/build.gradle.kts` drops the rest. Remove the excludes for V73, V75 and V81 (about 50 MB raw) and the runtime picks the lib that fits the phone. Can't be tested here, only the OnePlus 13 is at hand. Until then those phones index on the CPU: ONNX Runtime drops to it when the NPU can't start (checked on the arm64 emulator, 44 photos indexed). Other makers (MediaTek, Samsung, Tensor) need their own SDK, LiteRT maybe.
+- NPU on other Snapdragon chips: since 2026-10-23 the APK ships the NPU libs for HTP V69 to V81 (8 Gen 1 to 8 Elite Gen 5) and the runtime picks the one that fits. Only V79 is checked (the test phone); others need a phone. V68 (888) is left out: no fp16 on its NPU, so it runs on the CPU, like any phone whose NPU can't start (checked on the arm64 emulator, 44 photos indexed). Other makers (MediaTek, Samsung, Tensor) come with LiteRT (Phase 2) but need a phone to check. Tensor is beta and its NPU model is built on a PC per chip only, so Pixels get the GPU until that changes.
+- Detector's first NPU build takes ~40 s (LiteRT without TensorFlow, 2026-10-23; the first index run waits, again after an OS or LiteRT update or a cache clear). Its output decode becomes many small 5-D reshapes. Cut the decode out of the model in `bench/tflite.py`, do it in `Faces.kt` (sigmoid, grid and anchor math), check against the bench; it should then build in ~2 s. See `docs/face-pipeline.md`, 2026-10-23.
 
 ## Ideas
 - Map of photos by GPS (offline map tiles, or tiles fetched when online).

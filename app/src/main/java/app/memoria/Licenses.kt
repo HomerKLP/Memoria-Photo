@@ -50,7 +50,7 @@ fun LicensesContent(onBack: () -> Unit = {}, onFullTexts: () -> Unit = {}) {
         LicenseRow("Bricolage Grotesque", "Titles and headings · SIL OFL 1.1")
         LicenseRow("Roboto", "All other text · SIL OFL 1.1")
         SectionHead("Libraries")
-        LicenseRow("ONNX Runtime", "Runs the face models · MIT")
+        LicenseRow("LiteRT", "Runs the face models · Apache 2.0")
         LicenseRow("Qualcomm QNN libraries", "Runs the models on the NPU · Qualcomm's own license")
         LicenseRow("AndroidX, Compose, Material", "App code and UI · Apache 2.0")
         LicenseRow("Kotlin", "Language and runtime · Apache 2.0")
