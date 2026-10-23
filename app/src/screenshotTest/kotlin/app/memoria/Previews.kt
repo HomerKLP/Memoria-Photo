@@ -346,7 +346,21 @@ fun SettingsSearchDone() = MemoriaTheme { Surface { SettingsContent(charging = f
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 900)
 @Composable
-fun SettingsModelsMissing() = MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", modelsReady = false) } }
+fun SettingsModelsMissing() = MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", models = Models.Status.Missing) } }
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 900)
+@Composable
+fun SettingsModelsDownloading() = MemoriaTheme {
+    Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", models = Models.Status.Downloading, modelsDone = 77_594_624) }
+}
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 900)
+@Composable
+fun SettingsModelsStopped() = MemoriaTheme {
+    Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", models = Models.Status.Stopped, modelsDone = 77_594_624) }
+}
 
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 900)

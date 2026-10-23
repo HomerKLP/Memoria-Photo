@@ -50,6 +50,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.work.WorkInfo
@@ -210,11 +211,11 @@ fun SectionHead(title: String, action: String? = null, onAction: (() -> Unit)? =
 
 /** Small accent pill button, like the mockup's Review / Pause. */
 @Composable
-fun PillButton(text: String, onClick: () -> Unit, enabled: Boolean = true, modifier: Modifier = Modifier) {
+fun PillButton(text: String, onClick: () -> Unit, enabled: Boolean = true, modifier: Modifier = Modifier, sides: Dp = 16.dp) {
     Text(
         text,
         modifier.clip(RoundedCornerShape(18.dp)).background(MaterialTheme.colorScheme.primary)
-            .clickable(enabled = enabled, onClick = onClick).padding(horizontal = 16.dp, vertical = 9.dp),
+            .clickable(enabled = enabled, onClick = onClick).padding(horizontal = sides, vertical = 9.dp),
         // 18 sp line + 9 dp padding = the mockup's 36 dp; the default 24 sp line made it 42
         color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Medium, fontSize = 13.sp, lineHeight = 18.sp,
         textAlign = TextAlign.Center, // for a fixed [modifier] width

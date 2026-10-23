@@ -343,7 +343,7 @@ Steps:
 
 The two app bars hide, but the Android status and nav bars stay. The caller
 calls `insetsController.hide(WindowInsets.Type.systemBars())` (`Viewer.kt`),
-which the OnePlus 13 (ColorOS) seems to ignore. So the mockup's "Viewer, tapped"
+which the test phone seems to ignore. So the mockup's "Viewer, tapped"
 (nothing but the photo) is not reached on the phone.
 
 Fix ideas:

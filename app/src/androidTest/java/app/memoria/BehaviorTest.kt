@@ -991,15 +991,45 @@ class BehaviorTest {
         assertTrue(dev)
     }
 
-    @Test fun settings_modelsMissing_downloadIsOff() {
-        rule.setContent { MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", modelsReady = false) } } }
+    @Test fun settings_modelsMissing_downloadFires() {
+        var download = false
+        rule.setContent {
+            MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", models = Models.Status.Missing, onDownload = { download = true }) } }
+        }
 
         rule.onNodeWithText("Not downloaded · 169 MB").assertIsDisplayed()
-        rule.onNodeWithText("Download").assertIsNotEnabled()
+        rule.onNodeWithText("Download").performClick()
+        assertTrue(download)
+    }
+
+    @Test fun settings_modelsDownloading_cancelFires() {
+        var cancel = false
+        rule.setContent {
+            MemoriaTheme { Surface {
+                SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", models = Models.Status.Downloading, modelsDone = 77_594_624, onCancelDownload = { cancel = true })
+            } }
+        }
+
+        rule.onNodeWithText("Downloading · 74 of 169 MB").assertIsDisplayed()
+        rule.onNodeWithText("Cancel").performClick()
+        assertTrue(cancel)
+    }
+
+    @Test fun settings_modelsStopped_retryDownloads() {
+        var download = false
+        rule.setContent {
+            MemoriaTheme { Surface {
+                SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", models = Models.Status.Stopped, modelsDone = 77_594_624, onDownload = { download = true })
+            } }
+        }
+
+        rule.onNodeWithText("Stopped · 74 of 169 MB").assertIsDisplayed()
+        rule.onNodeWithText("Retry").performClick()
+        assertTrue(download)
     }
 
     @Test fun settings_modelsReady_hasNoDownloadButton() {
-        rule.setContent { MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", modelsReady = true) } } }
+        rule.setContent { MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", models = Models.Status.Ready) } } }
 
         rule.onNodeWithText("Ready · 169 MB").assertIsDisplayed()
         rule.onNodeWithText("Download").assertDoesNotExist()
