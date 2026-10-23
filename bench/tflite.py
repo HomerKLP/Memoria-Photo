@@ -45,7 +45,7 @@ def convert(name, size, work):
     model = onnx.load(SRC / f'{name}.onnx')
     g = model.graph
     if name == 'ediffiqa_t':
-        expand = next(n for n in g.node if n.op_type == 'Expand')  # same patch as fp16.py
+        expand = next(n for n in g.node if n.op_type == 'Expand')  # L2 normalize ends in Shape -> Expand -> Div; Div broadcasts, so drop them
         for n in g.node:
             n.input[:] = [expand.input[0] if i == expand.output[0] else i for i in n.input]
         g.node.remove(expand)

@@ -313,3 +313,15 @@ YOLOv5m-640 finds the most faces at every size, is faster than RetinaFace, and i
 - GPU (test build, Run on NPU set to GPU then CPU): the detector builds on the GPU now, detect 52 ms per photo (CPU fallback: 395 ms), embed 45 ms, load 3.0 s. 14 of 14 faces, vectors median 0.9983, min 0.9582 to the Mac.
 - Old DB vectors (ONNX Runtime) vs the new NPU run: 16 faces, median 0.9952, worst 0.045 cosine distance (GPU run: 0.057), far under the 0.68 group cut, so no re-index.
 - Emulator: all three on its GPU, the detector for the first time. Its GPU is software (SwiftShader), so an index run of 169 photos took 436 s (172 s with the detector on the CPU).
+
+### 2026-10-23: Speed by chip (for the README)
+- Snapdragon 8 Gen 1 to 8 Elite Gen 5: NPU (only the 8 Elite checked). Other Snapdragons, MediaTek, Exynos, Tensor and the rest: GPU, then CPU. MediaTek and Exynos NPUs need LiteRT's packages for them (ROADMAP Later).
+- Test phone, debug build, 20 test photos, ~0.7 faces per photo. Whole photo = open (~60 ms) + detect + embed for its faces.
+
+| | NPU | GPU | CPU |
+|---|---|---|---|
+| Detect, per photo | 42-47 ms | 52 ms | 380 ms |
+| Embed, per face | 29-37 ms | 45 ms | 201 ms |
+| Whole photo | ~130 ms | ~145 ms | ~580 ms |
+
+- A whole photo is ~4.5x faster on the NPU than on the CPU, ~4x on the GPU. The GPU is only 10-30% behind the NPU here, but this is a flagship GPU; mid-range MediaTek and Exynos GPUs are likely slower, and none is measured. Battery use is not measured.
