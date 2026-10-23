@@ -1,6 +1,10 @@
 # Third-party credits
 
-What Memoria uses that others made. Memoria itself is GPL-3.0 (`LICENSE`).
+What Memoria uses that others made. Memoria itself is GPL-3.0 (`LICENSE`), with this permission:
+
+> **Additional permission under GNU GPL version 3 section 7**
+>
+> If you modify this Program, or any covered work, by linking or combining it with the Qualcomm QNN runtime libraries (`com.qualcomm.qti:qnn-runtime`, or a modified version of those libraries), containing parts covered by the terms of the [Qualcomm AI Stack License](https://softwarecenter.qualcomm.com/api/download/software/licenses/ai_model_hub/v1/LICENSE.pdf), the licensors of this Program grant you additional permission to convey the resulting work.
 
 ## In the app
 
@@ -10,7 +14,7 @@ What Memoria uses that others made. Memoria itself is GPL-3.0 (`LICENSE`).
 | [Bricolage Grotesque](https://github.com/ateliertriay/bricolage) | Titles and headings | [SIL OFL 1.1](https://openfontlicense.org) |
 | [Roboto](https://github.com/googlefonts/roboto-classic) | All other text | [SIL OFL 1.1](https://openfontlicense.org) |
 | [LiteRT](https://github.com/google-ai-edge/LiteRT) (`litert`, `litert-gpu`, `litert-npu-runtime-qualcomm`) | Runs the face models | Apache 2.0 |
-| Qualcomm QNN libraries (`qnn-runtime`) | Runs the models on the phone's NPU | Qualcomm's own license |
+| Qualcomm QNN libraries (`qnn-runtime`) | Runs the models on the phone's NPU | [Qualcomm AI Stack License](https://softwarecenter.qualcomm.com/api/download/software/licenses/ai_model_hub/v1/LICENSE.pdf), linked under the permission above; its notices in [`licenses/qnn-NOTICE.txt`](licenses/qnn-NOTICE.txt) |
 | AndroidX (Room, WorkManager, Activity, Profile Installer), Jetpack Compose, Material 3 and Material icons | App code and UI | Apache 2.0 |
 | Kotlin | Language and runtime | Apache 2.0 |
 

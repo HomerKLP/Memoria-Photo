@@ -32,7 +32,7 @@ object Models {
         FILES.mapNotNull { m -> prefs(context).getLong(m.name, -1).takeIf { it >= 0 }?.let { m.name to it } }.toMap()
 
     /** Download and Retry: starts every file that is not here and not coming. */
-    fun download(context: Context) {
+    fun download(context: Context, wifiOnly: Boolean = false) {
         val coming = ids(context)
         val edit = prefs(context).edit().putBoolean("stopped", false)
         for (m in FILES) {
@@ -40,6 +40,7 @@ object Models {
             File(dir(context), "${m.name}.tflite.part").delete() // DownloadManager will not write over a file
             val request = DownloadManager.Request(Uri.parse("$URL${m.name}.tflite"))
                 .setTitle("Memoria face models").setDestinationInExternalFilesDir(context, "models", "${m.name}.tflite.part")
+                .setAllowedOverMetered(!wifiOnly)
             edit.putLong(m.name, manager(context).enqueue(request))
         }
         edit.apply()
