@@ -109,7 +109,7 @@ private fun canReadPhotos(context: Context): Boolean {
 }
 
 fun modelsReady(context: Context) =
-    listOf("detector", "recognizer", "quality").all { File(File(context.getExternalFilesDir(null), "models"), "$it.tflite").exists() }
+    listOf("detector_raw", "recognizer", "quality").all { File(File(context.getExternalFilesDir(null), "models"), "$it.tflite").exists() }
 
 /** A run is going, queued or blocked. On any doubt (WorkManager throws) treat it as busy, so we never double-start. */
 private fun indexBusy(context: Context): Boolean = runCatching {

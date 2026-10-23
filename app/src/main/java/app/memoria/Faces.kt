@@ -12,9 +12,11 @@ import com.google.ai.edge.litert.CompiledModel
 import com.google.ai.edge.litert.Environment
 import java.io.File
 import java.nio.FloatBuffer
+import kotlin.math.exp
 import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
@@ -46,10 +48,10 @@ private class Net(env: Environment, file: File, accelerators: List<Accelerator>)
     private val inputs = model.createInputBuffers()
     private val outputs = model.createOutputBuffers()
 
-    fun run(input: FloatArray): FloatArray {
+    fun run(input: FloatArray): List<FloatArray> {
         inputs[0].writeFloat(input)
         model.run(inputs, outputs)
-        return outputs[0].readFloat()
+        return outputs.map { it.readFloat() }
     }
 
     override fun close() {
@@ -79,7 +81,7 @@ private fun open(env: Environment, file: File, accelerators: List<Accelerator>):
  */
 class FacePipeline(context: Context, accelerators: List<Accelerator> = listOf(Accelerator.NPU, Accelerator.GPU, Accelerator.CPU)) : AutoCloseable {
     private val models = File(context.getExternalFilesDir(null), "models")
-    private val detector = Net(liteEnv(context), File(models, "detector.tflite"), accelerators)
+    private val detector = Net(liteEnv(context), File(models, "detector_raw.tflite"), accelerators)
     private val recognizer = Net(liteEnv(context), File(models, "recognizer.tflite"), accelerators)
     private val quality = Net(liteEnv(context), File(models, "quality.tflite"), accelerators)
 
@@ -100,9 +102,27 @@ class FacePipeline(context: Context, accelerators: List<Accelerator> = listOf(Ac
         val input = FloatBuffer.allocate(3 * 640 * 640)
         for (shift in intArrayOf(16, 8, 0)) for (p in pixels) input.put((p shr shift and 0xFF) / 255f)
 
-        // Rows of 16: cx, cy, w, h, score, 10 landmark coords, class
-        val out = detector.run(input.array())
-        val rows = (0 until out.size / 16).filter { out[it * 16 + 4] >= 0.6f }.map { out.copyOfRange(it * 16, it * 16 + 16) }
+        // 3 head grids (80, 40, 20 cells a side), each cell 3 anchors x 16: x, y, w, h, score, 10 landmark coords, class.
+        // Decoded here like bench/tflite.py decode: in the model it is 5-D, which the GPU can't run and the NPU builds in ~40 s.
+        val rows = mutableListOf<FloatArray>()
+        for ((g, out) in detector.run(input.array()).sortedByDescending { it.size }.withIndex()) {
+            val side = 80 shr g
+            val stride = 8 shl g
+            for (a in 0 until 3) for (y in 0 until side) for (x in 0 until side) {
+                val o = (y * side + x) * 48 + a * 16
+                val score = sigmoid(out[o + 4])
+                if (score < 0.6f) continue
+                val aw = ANCHORS[g][2 * a]
+                val ah = ANCHORS[g][2 * a + 1]
+                rows += floatArrayOf(
+                    (sigmoid(out[o]) * 2 - 0.5f + x) * stride,
+                    (sigmoid(out[o + 1]) * 2 - 0.5f + y) * stride,
+                    (sigmoid(out[o + 2]) * 2).pow(2) * aw,
+                    (sigmoid(out[o + 3]) * 2).pow(2) * ah,
+                    score,
+                ) + FloatArray(10) { i -> if (i % 2 == 0) out[o + 5 + i] * aw + x * stride else out[o + 5 + i] * ah + y * stride }
+            }
+        }
         val kept = mutableListOf<FloatArray>()
         for (r in rows.sortedByDescending { it[4] }) {
             val box = floatArrayOf(r[0] - r[2] / 2, r[1] - r[3] / 2, r[0] + r[2] / 2, r[1] + r[3] / 2)
@@ -124,13 +144,13 @@ class FacePipeline(context: Context, accelerators: List<Accelerator> = listOf(Ac
         // AdaFace wants BGR, (v - 127.5) / 127.5
         val input = FloatBuffer.allocate(3 * 112 * 112)
         for (shift in intArrayOf(0, 8, 16)) for (p in face112) input.put(((p shr shift and 0xFF) - 127.5f) / 127.5f)
-        val v = recognizer.run(input.array())
+        val v = recognizer.run(input.array())[0]
         val norm = sqrt(v.sumOf { (it * it).toDouble() }).toFloat()
         face.vector = FloatArray(v.size) { v[it] / norm }
         // EDifFIQA wants RGB, same scale
         val rgb = FloatBuffer.allocate(3 * 112 * 112)
         for (shift in intArrayOf(16, 8, 0)) for (p in face112) rgb.put(((p shr shift and 0xFF) - 127.5f) / 127.5f)
-        face.quality = quality.run(rgb.array())[0]
+        face.quality = quality.run(rgb.array())[0][0]
     }
 
     override fun close() {
@@ -139,6 +159,15 @@ class FacePipeline(context: Context, accelerators: List<Accelerator> = listOf(Ac
         quality.close()
     }
 }
+
+// YOLOv5-face anchors, w and h for each of 3 per head (stride 8, 16, 32)
+private val ANCHORS = arrayOf(
+    floatArrayOf(4f, 5f, 8f, 10f, 13f, 16f),
+    floatArrayOf(23f, 29f, 43f, 55f, 73f, 105f),
+    floatArrayOf(146f, 217f, 231f, 300f, 335f, 433f),
+)
+
+private fun sigmoid(x: Float) = 1 / (1 + exp(-x))
 
 // Standard ArcFace 112x112 positions of the 5 landmarks
 private val REFERENCE = floatArrayOf(38.2946f, 51.6963f, 73.5318f, 51.5014f, 56.0252f, 71.7366f, 41.5493f, 92.3655f, 70.7299f, 92.2041f)

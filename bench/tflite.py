@@ -56,6 +56,10 @@ def convert(name, size, work):
             g.node.remove(l2)
             g.node.insert(at, helper.make_node('Sqrt', [l2.output[0] + '_sq'], list(l2.output)))
             g.node.insert(at, helper.make_node('ReduceSumSquare', list(l2.input), [l2.output[0] + '_sq'], keepdims=keep))
+    if name == 'yolov5m':  # cut before the decode (5-D, the GPU fails on it, the NPU builds it in ~40 s): the 3 raw head grids
+        heads = [n.output[0] for n in g.node if n.op_type == 'Conv'][-3:]
+        del g.output[:]
+        g.output.extend(helper.make_tensor_value_info(h, onnx.TensorProto.FLOAT, [1, 48, side, side]) for h, side in zip(heads, (80, 40, 20)))
     # Fixed shapes, then onnxsim: without them YOLOv5m fails to convert and AdaFace keeps shape ops that break on the NPU
     make_input_shape_fixed(g, 'input', [1, 3, size, size])
     fix_output_shapes(model)
@@ -68,7 +72,7 @@ def convert(name, size, work):
     recipe = recipe_manager.RecipeManager()
     recipe.add_weight_only_config(regex='.*', operation_name=qtyping.TFLOperationName.ALL_SUPPORTED, num_bits=16,
                                   algorithm_key=AlgorithmName.FLOAT_CASTING)
-    dst = ROOT / 'models' / f'{name}_fp16.tflite'
+    dst = ROOT / 'models' / f'{name}{"_raw" if name == "yolov5m" else ""}_fp16.tflite'
     quantizer.Quantizer(str(work / name / f'{name}_float32.tflite'), recipe.get_quantization_recipe()).quantize() \
         .export_model(str(dst), overwrite=True)
     print(f'{name}: {(SRC / f"{name}.onnx").stat().st_size >> 20} MB -> {dst.stat().st_size >> 20} MB')
@@ -78,13 +82,31 @@ def convert(name, size, work):
 def tflite(path):
     it = Interpreter(model_path=str(path))
     it.allocate_tensors()
-    i, o = it.get_input_details()[0]['index'], it.get_output_details()[0]['index']
+    i, outs = it.get_input_details()[0]['index'], [o['index'] for o in it.get_output_details()]
 
     def run(x):
         it.set_tensor(i, x)
         it.invoke()
-        return it.get_tensor(o)
+        return [it.get_tensor(o) for o in outs]
     return run
+
+
+ANCHORS = [[(4, 5), (8, 10), (13, 16)], [(23, 29), (43, 55), (73, 105)], [(146, 217), (231, 300), (335, 433)]]
+
+
+def decode(heads):
+    """FacePipeline.detect's decode: 3 head grids (1, side, side, 3 anchors x 16) -> the ONNX output rows, no class."""
+    rows = []
+    for out, stride, anchors in zip(sorted(heads, key=lambda h: -h.size), (8, 16, 32), ANCHORS):
+        side = 640 // stride
+        t = out.reshape(side, side, 3, 16).transpose(2, 0, 1, 3)  # anchor, y, x, field: the ONNX row order
+        sig = 1 / (1 + np.exp(-t))
+        y, x = np.mgrid[:side, :side]
+        grid = np.stack([x, y], -1)
+        wh = np.array(anchors, np.float32)[:, None, None]
+        rows.append(np.concatenate([(sig[..., 0:2] * 2 - 0.5 + grid) * stride, (sig[..., 2:4] * 2) ** 2 * wh, sig[..., 4:5],
+                                    t[..., 5:15] * np.tile(wh, 5) + np.tile(grid, 5) * stride], -1).reshape(-1, 15))
+    return np.concatenate(rows)
 
 
 def fp32(name):
@@ -123,7 +145,7 @@ if __name__ == '__main__':
     crops = []  # boxes cut from the letterboxed photo, not aligned: enough to compare two runtimes
     for p in photos:
         x = letterbox(p)
-        a, b = det(x)[0], det_lite(x)[0]
+        a, b = det(x)[0][:, :15], decode(det_lite(x))
         keep = a[:, 4] >= 0.6
         rows, rows_lite = rows + keep.sum(), rows_lite + (b[:, 4] >= 0.6).sum()
         if keep.any():
@@ -138,10 +160,10 @@ if __name__ == '__main__':
     rec, rec_lite = fp32('adaface_ir_101'), tflite(out['adaface_ir_101'])
     sims = []
     for c in crops:
-        a, b = rec(face(c, True))[0], rec_lite(face(c, True))[0]
+        a, b = rec(face(c, True))[0], rec_lite(face(c, True))[0][0]
         sims.append(a @ b / np.linalg.norm(a) / np.linalg.norm(b))
     print(f'adaface fp16: {len(sims)} faces, similarity to fp32 min {min(sims):.5f} median {np.median(sims):.5f}')
 
     q, q_lite = fp32('ediffiqa_t'), tflite(out['ediffiqa_t'])
-    diffs = [abs(q(face(c, False))[0, 0] - q_lite(face(c, False))[0, 0]) for c in crops]
+    diffs = [abs(q(face(c, False))[0, 0] - q_lite(face(c, False))[0][0, 0]) for c in crops]
     print(f'ediffiqa fp16: {len(diffs)} faces, quality diff to fp32 max {max(diffs):.4f} median {np.median(diffs):.5f}')

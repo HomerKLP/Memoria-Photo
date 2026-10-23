@@ -296,3 +296,20 @@ YOLOv5m-640 finds the most faces at every size, is faster than RetinaFace, and i
 ### 2026-10-23: ONNX Runtime out of the app (ROADMAP LiteRT step 7)
 - Gone: `onnxruntime-android-qnn`, its telemetry provider and INTERNET removal in the manifest (no library adds INTERNET now), its 26 baseline profile lines, the `LiteRtSpike` test and the debug app's old NPU builds (`files/npu`, 171 MB). Only arm64 libs ship.
 - Debug APK 132.5 to 111.3 MB. Run on NPU after: all three on the NPU, 14 faces, models loaded in 0.42 s.
+
+### 2026-10-23: LiteRT on the test phone's GPU
+- What MediaTek and Samsung phones get today. A test build ran Dev tools on GPU, then CPU (OpenCL, unlike the emulator).
+- The detector fails on the GPU ("Failed to compile model": its output decode has 5-D CONCATENATION and LOGISTIC ops, the GPU takes at most 4-D) and falls back to the CPU: 395 ms per photo. Recognizer and quality build fully on the GPU: embed 47 ms per face (NPU 26, CPU 204). Models load in 1.3 s.
+- A second run in the same process builds on the GPU again (the emulator's OpenGL could not).
+- Same results: 14 of 14 faces, vectors 0.9994+ to the phone CPU run, median 0.9993 to the Mac.
+- Cutting the decode out of the detector (ROADMAP LiteRT step 8, below) would let it run on the GPU too.
+
+### 2026-10-23: detector decode in Kotlin (ROADMAP LiteRT step 8)
+- `bench/tflite.py` cuts YOLOv5m after its 3 head convs. `yolov5m_raw_fp16.tflite` (`detector_raw.tflite` on the phone) outputs 3 grids, NHWC (1,80,80,48), (1,40,40,48), (1,20,20,48): each cell 3 anchors x 16. Only 4-D ops are left.
+- The decode, read from the ONNX graph: sigmoid on x, y, w, h, score and class, not on the landmarks. cx = (2 sig - 0.5 + grid x) * stride, w = (2 sig)^2 * anchor w, landmark x = raw * anchor w + grid x * stride (y the same with h). `decode()` in `bench/tflite.py` and `FacePipeline.detect` keep the ONNX row order, so NMS ties don't change.
+- Mac, tflite + Python decode vs fp32 ONNX (40 photos): 502 of 502 rows at 0.6+, max diff 0.075 px, as before the cut.
+- Test phone NPU: one QNN partition, first build 2.9 s (was ~40 s), then 0.15-0.28 s from the cache. Detect 42-47 ms per photo (debug build; step 4: 38 ms), embed 29-37 ms per face. vs the Mac: 14 of 14 faces, landmarks within 0.92% of face width, vectors median 0.9979, min 0.9672, quality within 0.013 (step 5: 0.9981, 0.9653).
+- CPU: detect 380 ms, embed 201 ms, vectors median 0.9994, min 0.9697 to the Mac.
+- GPU (test build, Run on NPU set to GPU then CPU): the detector builds on the GPU now, detect 52 ms per photo (CPU fallback: 395 ms), embed 45 ms, load 3.0 s. 14 of 14 faces, vectors median 0.9983, min 0.9582 to the Mac.
+- Old DB vectors (ONNX Runtime) vs the new NPU run: 16 faces, median 0.9952, worst 0.045 cosine distance (GPU run: 0.057), far under the 0.68 group cut, so no re-index.
+- Emulator: all three on its GPU, the detector for the first time. Its GPU is software (SwiftShader), so an index run of 169 photos took 436 s (172 s with the detector on the CPU).
