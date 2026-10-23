@@ -322,6 +322,13 @@ YOLOv5m-640 finds the most faces at every size, is faster than RetinaFace, and i
 |---|---|---|---|
 | Detect, per photo | 42-47 ms | 52 ms | 380 ms |
 | Embed, per face | 29-37 ms | 45 ms | 201 ms |
+| Recognition, per photo (detect + embed) | ~70 ms | ~85 ms | ~520 ms |
 | Whole photo | ~130 ms | ~145 ms | ~580 ms |
 
 - A whole photo is ~4.5x faster on the NPU than on the CPU, ~4x on the GPU. The GPU is only 10-30% behind the NPU here, but this is a flagship GPU; mid-range MediaTek and Exynos GPUs are likely slower, and none is measured. Battery use is not measured.
+
+### 2026-10-23: phone GPU on the demo photos (bug check)
+- Dev tools has a Run on GPU row now (GPU only, no CPU fallback). 113 photos: the 20 test photos plus the 93 demo photos in `files/test/demo/`.
+- Two GPU runs in one app process, then a CPU run. The second run: 106 faces, 106 different vectors, no repeats; the 14 old faces match the first run exactly.
+- GPU vs phone CPU, 106 faces: vectors median 0.9982, min 0.80 (one demo face, quality fine on both, next worst 0.980); quality within 0.035, median 0.002, no face crosses the 0.4 cut.
+- So the stuck results in `bugs.md` are the emulator's OpenGL GPU only. The phone's GPU (OpenCL) is fine.

@@ -66,6 +66,7 @@ fun DevToolsContent(
     preview: Pair<Bitmap, List<Face>>? = null,
     onBack: () -> Unit = {},
     onRunCpu: () -> Unit = {},
+    onRunGpu: () -> Unit = {},
     onRunNpu: () -> Unit = {},
     onIndexTest: () -> Unit = {},
 ) {
@@ -73,6 +74,7 @@ fun DevToolsContent(
         TopBar("Dev tools", "Debug builds only", onBack = onBack)
         SectionHead("Models")
         SettingRow(R.drawable.ic_play, "Run on CPU", "Time the models on the test photos", onRunCpu.takeIf { !busy })
+        SettingRow(R.drawable.ic_play, "Run on GPU", "Same photos, on the GPU", onRunGpu.takeIf { !busy })
         SettingRow(R.drawable.ic_bolt, "Run on NPU", "Same photos, on the NPU", onRunNpu.takeIf { !busy })
         SectionHead("Index")
         SettingRow(R.drawable.ic_folder, "Index test folder", "Pictures/MemoriaTest only", onIndexTest)

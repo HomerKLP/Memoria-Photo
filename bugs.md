@@ -2,6 +2,22 @@
 
 Style: one-line description, steps to reproduce, fix ideas. Code paths only when they help.
 
+## Emulator GPU gives every face after face 51 the same result, so people never form
+
+Found 2026-10-23 on the `Memoria_Demo` emulator (no NPU, so the models ran on LiteRT's GPU over OpenGL, a software GPU there). The first 49 faces are fine. All 43 faces after them have the exact same quality (0.396484375, just under the 0.4 start cut) and the exact same vector, so only 4 of 9 people formed. It is face 51's real result: the Mac scores that photo 0.387, and the vector best matches another photo of the same person. So both GPU models ran right once, then gave that answer for every new face. Not fp16 overflow: the quality model's largest inner value is 15.5 in fp32. Had face 51 scored over 0.4, all 43 faces would have merged into one person.
+
+Steps:
+1. `Memoria_Demo` emulator, debug app, models pushed; 93 demo photos (9 people) in `DCIM/Camera` (`testdata/demo/photos/`).
+2. Let the index run, pull the DB: `select quality, count(*) from face group by quality order by 2 desc`.
+3. One value repeats for dozens of faces, all at the end (`order by id`), all with one vector.
+
+Not on the phone: two Dev tools GPU runs in one process on the same 93 demo photos gave no repeats and matched the CPU (`docs/face-pipeline.md`, 2026-10-23). So it is the emulator's OpenGL GPU only.
+
+Fix ideas:
+- Find the trigger: rerun on the emulator with logcat. Maybe a second `FacePipeline` in the same process (a new worker run, or Dev tools): `docs/face-pipeline.md` already says the emulator's GPU builds only on the first try in a process.
+- Done for now: `FacePipeline` uses the CPU on the emulator (`Build.HARDWARE == "ranchu"`). Dev tools Run on GPU still forces the GPU there, to test a fix.
+- Guard: if faces from two different photos get the exact same vector, the GPU is broken; reopen the pipeline on the CPU and redo that photo. Keeps any other broken GPU from a mass merge.
+
 ## Photos tab stutters on first load
 
 Closed 2026-10-22: release builds are smooth (0% janky frames on a cold fling, 2026-10-16); the rest was the debug build.
