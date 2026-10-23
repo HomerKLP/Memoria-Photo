@@ -115,6 +115,21 @@ Fix ideas:
 
 2026-10-18: fixed. `Thumb` decodes the photo at 480 px when the thumbnail's short side is under 200 px (memory cache only). Checked on the phone: the tile is sharp, and the viewer opens at the right size.
 
+## Viewer: photo jumps from thumbnail to the real one
+
+Some photos open with one framing, then shift and grow when the sharp decode fades in. Cause: the camera's EXIF preview is not the final photo (a wider view on zoomed shots, or an earlier frame), and MediaStore's thumbnail is that preview, so grid tiles show it too. It is 510 x 384, same aspect as the photo, so the `small` check in `Thumb` misses it. Found 2026-10-22: of 40 sampled photos from one phone camera, about 15 previews differ visibly: every zoomed one (EXIF DigitalZoomRatio > 1) and some 1x ones.
+
+Steps:
+1. Open a zoomed camera photo from the grid.
+2. Watch the fade from thumbnail to photo: the picture moves.
+
+Fix ideas (after release):
+- `Thumb`: decode the photo itself at 480 px for every photo, like the old-camera fix. Right picture always, but a decode per tile on each app start; check blank tiles with `make perf`.
+- Same, plus a disk cache of those thumbnails in the app's cache folder, so only the first scroll pays.
+- Only when EXIF DigitalZoomRatio > 1: cheap, but misses the 1x shots with an older frame.
+
+Other apps: Immich calls `loadThumbnail` for anything up to 768 px (its `LocalImagesImpl.kt`), so it should get the same wrong preview. The phone's own gallery shows no jump, so it likely makes its own thumbnails from the photo and keeps them on disk; Google Photos' code is not public.
+
 ## People: blurry face pictures
 
 Face pictures were saved at 160 px (with margin) while indexing, but People shows them at up to 96 dp = 288 px on the test phone (3x), so they were stretched ~1.8x.
@@ -622,3 +637,12 @@ Fix (done on the phone):
 - `chmod 666` the model files, `chmod 2777` `models/` and `npu/` (so the app can also write NPU builds), `chmod 666` the files in `npu/`.
 - Keep the model files' dates (`cp -p` or `touch -r`): an NPU build's name holds the model's size and date, so a new date means a rebuild, and a rebuild into a folder the app cannot write fails.
 - A fresh install also re-cuts every face picture once (`recutThumbs`, no `recutTo` pref yet) before it indexes anything, so its first run takes minutes.
+
+## Viewer freezes for a moment on the first photos (debug build)
+
+Seen 2026-10-22 in Memoria Debug, right after a `make install`: opening the first photo of a place lags, and each swipe to the 2nd and 3rd photo freezes for about half a second. Measured once (frame times per step): 365, 375 and 236 ms frames, then the 4th photo was smooth. Not seen again: the same photos a second time, new photos in the same run, a cold restart and a fresh reinstall all stayed under 45 ms. No index run at the time (WorkManager's last run was 40 minutes earlier). The release build, cold, on an album: every frame under 17 ms. Cause unknown; judge viewer speed on release.
+
+Steps:
+1. `make install`, open a place, tap its first photo, swipe to the next two.
+
+Next time: record a Perfetto trace while it happens, so the slow frame shows what the main thread was doing.

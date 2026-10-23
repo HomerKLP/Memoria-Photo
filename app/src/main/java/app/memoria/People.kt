@@ -4,6 +4,8 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.LruCache
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -65,6 +67,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -73,6 +76,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.offset
 import androidx.compose.ui.unit.sp
 import androidx.room.withTransaction
 import kotlinx.coroutines.Dispatchers
@@ -432,6 +436,11 @@ fun PeopleContent(
     val open = data?.people?.firstOrNull { it.id == openId }
     // hoisted: switching to a person and back must not lose the list scroll
     val listState = rememberLazyListState()
+    val gridState = rememberLazyGridState()
+    // people a regroup adds fade in; the first load shows at once
+    var loaded by remember { mutableStateOf(false) }
+    LaunchedEffect(data != null) { if (data != null) loaded = true }
+    val fadeIn = if (loaded) spring<Float>(stiffness = Spring.StiffnessMediumLow) else null
     // People come in rows of 4, the mockup's grid: 16 dp sides like the parts above it, 6 dp gaps
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         if (open == null && hiddenOnly) {
@@ -453,34 +462,37 @@ fun PeopleContent(
             }
         } else if (open == null) {
             TopBar("People", data?.summary, onBack = onBack)
-            LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 24.dp)) {
+            // one grid, not rows, so a card that leaves lets the next ones slide over. 15 columns: a named card takes 5, an unnamed one 3.
+            LazyVerticalGrid(
+                GridCells.Fixed(15), state = gridState,
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
                 data?.let { d ->
-                    if (d.unsure.isNotEmpty()) item {
-                        ReviewCard(d.unsure, { onHelpRecognize(null) })
+                    if (d.unsure.isNotEmpty()) item("review", { GridItemSpan(maxLineSpan) }) {
+                        Box(Modifier.animateItem(fadeInSpec = fadeIn).overSides()) { ReviewCard(d.unsure, { onHelpRecognize(null) }) }
                     }
                     val shown = d.people.filter { !it.hidden }
                     // the mockup splits them: named 96 dp 3 a row (name and count), unnamed 56 dp 5 a row (faces only)
                     val (named, unnamed) = shown.partition { !it.name.isNullOrBlank() }
                     if (named.isNotEmpty()) {
-                        item { SectionHead("Named", hint = "${named.size} ${if (named.size == 1) "person" else "people"}") }
-                        items(named.chunked(3), key = { "n${it.first().id}" }) { row ->
-                            Row(Modifier.padding(horizontal = 16.dp, vertical = 7.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                row.forEach { PersonCard(it, Modifier.weight(1f).testTag("namedCard"), faceSize = 96.dp, tight = true) { onOpenPerson(it.id) } }
-                                repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
-                            }
+                        item("namedHead", { GridItemSpan(maxLineSpan) }) {
+                            Box(Modifier.animateItem(fadeInSpec = fadeIn).overSides()) { SectionHead("Named", hint = "${named.size} ${if (named.size == 1) "person" else "people"}") }
+                        }
+                        items(named, key = { "n${it.id}" }, span = { GridItemSpan(5) }) {
+                            PersonCard(it, Modifier.animateItem(fadeInSpec = fadeIn).padding(vertical = 7.dp).testTag("namedCard"), faceSize = 96.dp, tight = true) { onOpenPerson(it.id) }
                         }
                     }
                     if (unnamed.isNotEmpty()) {
-                        item { SectionHead("No name yet", hint = "Name them to move them up") }
-                        items(unnamed.chunked(5), key = { "u${it.first().id}" }) { row ->
-                            Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                row.forEach { PersonCard(it, Modifier.weight(1f).testTag("unnamedCard"), faceSize = 56.dp, tight = true, showName = false, showCount = false) { onOpenPerson(it.id) } }
-                                repeat(5 - row.size) { Spacer(Modifier.weight(1f)) }
-                            }
+                        item("unnamedHead", { GridItemSpan(maxLineSpan) }) {
+                            Box(Modifier.animateItem(fadeInSpec = fadeIn).overSides()) { SectionHead("No name yet", hint = "Name them to move them up") }
+                        }
+                        items(unnamed, key = { "u${it.id}" }, span = { GridItemSpan(3) }) {
+                            PersonCard(it, Modifier.animateItem(fadeInSpec = fadeIn).padding(vertical = 4.dp).testTag("unnamedCard"), faceSize = 56.dp, tight = true, showName = false, showCount = false) { onOpenPerson(it.id) }
                         }
                     }
-                    if (shown.isEmpty()) item {
-                        EmptyState(R.drawable.ic_person, "No people yet", "Index your photos in Library, then faces group into people here.")
+                    if (shown.isEmpty()) item("empty", { GridItemSpan(maxLineSpan) }) {
+                        EmptyState(R.drawable.ic_person, "No people yet", "Index your photos in Library, then faces group into people here.", Modifier.overSides())
                     }
                 }
             }
@@ -491,6 +503,13 @@ fun PeopleContent(
             )
         }
     }
+}
+
+/** Widens a full-width row of the People grid over the grid's 16 dp sides: the row pads its own sides. */
+private fun Modifier.overSides() = layout { m, c ->
+    val side = 16.dp.roundToPx()
+    val p = m.measure(c.offset(horizontal = 2 * side))
+    layout(c.maxWidth, p.height) { p.place(-side, 0) }
 }
 
 /**

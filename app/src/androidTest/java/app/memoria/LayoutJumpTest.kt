@@ -30,6 +30,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeUp
@@ -210,6 +211,19 @@ class LayoutJumpTest {
         val before = rule.onNodeWithText("Help recognize").getUnclippedBoundsInRoot().left
         rule.runOnIdle { data = library(unsure = listOf(face(101, 0.3f))) }
         assertSame("Help recognize", before, rule.onNodeWithText("Help recognize").getUnclippedBoundsInRoot().left)
+    }
+
+    /** Folders to skip: a check comes and goes in its own slot, so the count and the rows below stay put. */
+    @Test fun skip_checking_rowsStayPut() {
+        val albums = listOf(Album(1, "Camera", listOf(tile(1))), Album(2, "WhatsApp", listOf(tile(2))), Album(3, "Telegram", listOf(tile(3))))
+        var skipped by mutableStateOf(setOf<Long>())
+        rule.setContent { MemoriaTheme { Surface { SkipContent(albums, skipped) } } }
+
+        val countBefore = rule.onNodeWithText("WhatsApp").getUnclippedBoundsInRoot()
+        val belowBefore = rule.onNodeWithText("Telegram").top()
+        rule.runOnIdle { skipped = setOf(2L) }
+        assertSame("WhatsApp row height", countBefore.bottom - countBefore.top, rule.onNodeWithText("WhatsApp").height())
+        assertSame("Telegram", belowBefore, rule.onNodeWithText("Telegram").top())
     }
 
     @Test fun library_loadingToEmpty_peopleRowStaysSameHeight() {
@@ -774,6 +788,16 @@ class LayoutJumpTest {
         val unnamedH = heights("unnamedCard")
         assertEquals("unnamed cards on screen", 5, unnamedH.size)
         assertTrue("unnamed cards differ in height: $unnamedH", unnamedH.all { it == unnamedH.first() })
+
+        // one grid now, not rows: it keeps the mockup's 16 dp sides and 6 dp gaps, and the heads their 16 dp
+        val cards = rule.onAllNodesWithTag("namedCard", useUnmergedTree = true)
+        val first = cards[0].getUnclippedBoundsInRoot()
+        val second = cards[1].getUnclippedBoundsInRoot()
+        val screen = rule.onRoot().getUnclippedBoundsInRoot().right
+        assertEquals("left side", 16f, first.left.value, 0.5f)
+        assertEquals("gap", 6f, (second.left - first.right).value, 0.5f)
+        assertEquals("right side", 16f, (screen - cards[2].getUnclippedBoundsInRoot().right).value, 0.5f)
+        assertEquals("head left", 16f, rule.onNodeWithText("Named").getUnclippedBoundsInRoot().left.value, 0.5f)
     }
 
     /** Search: the field is the top bar, so loading, typing (the × shows, hits replace the lists) and clearing never move it. */

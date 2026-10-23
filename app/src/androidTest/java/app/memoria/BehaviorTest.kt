@@ -15,11 +15,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsNotFocused
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
@@ -362,6 +368,23 @@ class BehaviorTest {
         assertEquals(false, ignored)
     }
 
+    @Test fun skip_checkAsksFirst_uncheckDoesNot() {
+        val albums = listOf(Album(1, "Camera", listOf(tile(1))), Album(2, "WhatsApp", listOf(tile(2))))
+        var skipped by mutableStateOf(setOf<Long>())
+        rule.setContent { MemoriaTheme { Surface { SkipContent(albums, skipped, onSkip = { id, on -> skipped = if (on) skipped + id else skipped - id }) } } }
+
+        rule.onNodeWithText("WhatsApp").assertIsOff().performClick()
+        rule.onNodeWithText("Ignore faces in WhatsApp?").assertIsDisplayed()
+        assertEquals(emptySet<Long>(), skipped)
+        rule.onNodeWithText("Ignore faces").performClick()
+        assertEquals(setOf(2L), skipped)
+        rule.onNodeWithText("WhatsApp").assertIsOn()
+
+        rule.onNodeWithText("WhatsApp").performClick()
+        rule.onNodeWithText("Ignore faces in WhatsApp?").assertDoesNotExist()
+        assertEquals(emptySet<Long>(), skipped)
+    }
+
     // --- Select on Favorites, Videos, Place, Person ---------------------------------------------
 
     @Test fun favorites_selecting_unfavoritesThePicked() {
@@ -539,11 +562,12 @@ class BehaviorTest {
         var charging: Boolean? = null
         var rescan = false
         var hidden = false
+        var skip = false
         rule.setContent {
             MemoriaTheme { Surface {
                 SettingsContent(
                     charging = false, allowed = false, hidden = 2, version = "0.1",
-                    onCharging = { charging = it }, onRescan = { rescan = true }, onHidden = { hidden = true },
+                    onCharging = { charging = it }, onRescan = { rescan = true }, onHidden = { hidden = true }, onSkip = { skip = true },
                 )
             } }
         }
@@ -554,6 +578,8 @@ class BehaviorTest {
         assertTrue(rescan)
         rule.onNodeWithText("Hidden people").performScrollTo().performClick()
         assertTrue(hidden)
+        rule.onNodeWithText("Folders to skip").performScrollTo().performClick()
+        assertTrue(skip)
     }
 
     // --- Search --------------------------------------------------------------------------------
@@ -579,6 +605,24 @@ class BehaviorTest {
         rule.onNodeWithText("Andy's phone").assertDoesNotExist()
         rule.onNodeWithText("Downloads").performClick()
         assertEquals("5", opened?.key)
+    }
+
+    @Test fun search_opensWithTheFieldFocused() {
+        rule.setContent { MemoriaTheme { Surface { SearchContent(search, "") } } }
+        rule.onNodeWithTag("searchField").assertIsFocused()
+    }
+
+    @Test fun search_backToAQuery_leavesTheFieldUnfocused() {
+        rule.setContent { MemoriaTheme { Surface { SearchContent(search, "da") } } }
+        rule.onNodeWithTag("searchField").assertIsNotFocused()
+    }
+
+    @Test fun search_tapOnTheIcon_focusesTheField() {
+        rule.setContent { MemoriaTheme { Surface { SearchContent(search, "da") } } }
+
+        // the search icon, 24 dp left of the field: still the box, not the field
+        rule.onNodeWithTag("searchField").performTouchInput { click(Offset(-24.dp.toPx(), centerY)) }
+        rule.onNodeWithTag("searchField").assertIsFocused()
     }
 
     @Test fun search_clear_emptiesTheField() {
@@ -984,7 +1028,7 @@ class BehaviorTest {
         rule.onNodeWithContentDescription("Back").performClick()
         assertTrue(back)
         rule.onNodeWithText("GeoNames").performClick()
-        rule.onNodeWithText("ONNX Runtime").performClick()
+        rule.onNodeWithText("LiteRT").performClick()
         assertEquals(0, texts)
         rule.onNodeWithText("Full license texts").performScrollTo().performClick()
         assertEquals(1, texts)

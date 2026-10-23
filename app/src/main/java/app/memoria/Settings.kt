@@ -11,6 +11,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,6 +20,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -55,9 +58,9 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** Settings from the Library gear. Folders to skip and backup wait for their design. */
+/** Settings from the Library gear. Backup waits for its design. */
 @Composable
-fun SettingsScreen(onBack: () -> Unit, onHidden: () -> Unit, onLicenses: () -> Unit, onDev: () -> Unit) {
+fun SettingsScreen(onBack: () -> Unit, onHidden: () -> Unit, onSkip: () -> Unit, onLicenses: () -> Unit, onDev: () -> Unit) {
     val context = LocalContext.current
     val debug = (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
     val dao = remember { Db.get(context).index() }
@@ -105,6 +108,7 @@ fun SettingsScreen(onBack: () -> Unit, onHidden: () -> Unit, onLicenses: () -> U
         onHidden = onHidden,
         onLicenses = onLicenses,
         skipped = remember { IndexProgress.skipped(context).size },
+        onSkip = onSkip,
         onDev = onDev.takeIf { debug },
     )
 
@@ -136,6 +140,32 @@ fun SettingsScreen(onBack: () -> Unit, onHidden: () -> Unit, onLicenses: () -> U
     )
 }
 
+/** Folders to skip: every album, a check on the ones face search skips. The next index run drops or searches them. */
+@Composable
+fun SkipScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val albums by cachedProduceState("albums") { withContext(Dispatchers.IO) { albums(context) } }
+    var skipped by remember { mutableStateOf(IndexProgress.skipped(context)) }
+    SkipContent(albums, skipped, onBack) { id, on -> IndexProgress.setSkipped(context, id, on); skipped = IndexProgress.skipped(context) }
+}
+
+/** Mockup "Folders to skip". Checking an album asks first, unchecking does not. [albums] null: still loading. */
+@Composable
+fun SkipContent(albums: List<Album>?, skipped: Set<Long>, onBack: () -> Unit = {}, onSkip: (Long, Boolean) -> Unit = { _, _ -> }) {
+    var asking by remember { mutableStateOf<Album?>(null) }
+    Column(Modifier.fillMaxSize().safeDrawingPadding()) {
+        TopBar("Folders to skip", if (skipped.isEmpty()) "None skipped" else "${skipped.size} skipped", onBack = onBack)
+        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(bottom = 16.dp)) {
+            item { Note(R.drawable.ic_info, "No face search in a checked album. Its photos stay", Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp)) }
+            items(albums.orEmpty(), key = { it.id }) { a ->
+                val on = a.id in skipped
+                PickRow(a.tiles.first(), label = a.name, note = "${a.tiles.size}", checked = on) { if (on) onSkip(a.id, false) else asking = a }
+            }
+        }
+    }
+    asking?.let { a -> IgnoreFacesDialog(a.name, onDismiss = { asking = null }) { asking = null; onSkip(a.id, true) } }
+}
+
 /** Settings rows per the mockup. [hidden] null: still counting. */
 @Composable
 fun SettingsContent(
@@ -160,6 +190,7 @@ fun SettingsContent(
     onHidden: () -> Unit = {},
     onLicenses: () -> Unit = {},
     skipped: Int = 0,
+    onSkip: () -> Unit = {},
     onDev: (() -> Unit)? = null, // null: a release build, no Developer section
 ) {
     Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
@@ -188,7 +219,8 @@ fun SettingsContent(
         ) { Chevron() }
         SettingRow(
             R.drawable.ic_folder, "Folders to skip",
-            if (skipped == 0) "None, all photos are searched" else "$skipped ${if (skipped == 1) "album" else "albums"}",
+            if (skipped == 0) "None, all photos are searched" else "$skipped skipped",
+            onSkip,
         ) { Chevron() }
         SettingRow(R.drawable.ic_refresh, "Find faces again", "Deletes faces and names, scans all photos again", onRescan)
         SectionHead("People")

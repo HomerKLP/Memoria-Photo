@@ -278,21 +278,23 @@ fun AlbumContent(
             ),
         )
     }
-    if (asking) AlertDialog(
-        onDismissRequest = { asking = false },
-        icon = { Icon(painterResource(R.drawable.ic_block), null) },
-        title = { Text("Ignore faces in ${a?.name}?") },
-        text = { Text("Faces found in this album will be deleted from the index, and its photos will not be searched for faces. People seen only here go away, names too. The photos stay.") },
-        confirmButton = {
-            TextButton({ asking = false; onIgnore(true) }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
-                Text("Ignore faces")
-            }
-        },
-        dismissButton = { TextButton({ asking = false }) { Text("Cancel") } },
-        containerColor = MaterialTheme.colorScheme.background,
-        iconContentColor = MaterialTheme.colorScheme.error,
-    )
+    if (asking) IgnoreFacesDialog(a?.name, onDismiss = { asking = false }) { asking = false; onIgnore(true) }
 }
+
+/** Mockup "Ignore faces": asks before an album's faces go. From the album's More and from Folders to skip. */
+@Composable
+fun IgnoreFacesDialog(name: String?, onDismiss: () -> Unit, onConfirm: () -> Unit) = AlertDialog(
+    onDismissRequest = onDismiss,
+    icon = { Icon(painterResource(R.drawable.ic_block), null) },
+    title = { Text("Ignore faces in $name?") },
+    text = { Text("Faces found in this album will be deleted from the index, and its photos will not be searched for faces. People seen only here go away, names too. The photos stay.") },
+    confirmButton = {
+        TextButton(onConfirm, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Ignore faces") }
+    },
+    dismissButton = { TextButton(onDismiss) { Text("Cancel") } },
+    containerColor = MaterialTheme.colorScheme.background,
+    iconContentColor = MaterialTheme.colorScheme.error,
+)
 
 @Composable
 fun AlbumScreen(id: Long, onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit) {

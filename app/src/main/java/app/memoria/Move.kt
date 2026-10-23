@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -38,6 +39,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
@@ -129,10 +131,15 @@ internal fun AlbumNameField(name: String, onName: (String) -> Unit, modifier: Mo
     }
 }
 
-/** One row of the sheet (mockup `.pick`): an accent icon or an album cover, both square, a label, a count. */@Composable
-private fun PickRow(cover: Tile? = null, icon: Int? = null, label: String, note: String?, onClick: () -> Unit) {
+/**
+ * One row of the sheet (mockup `.pick`): an accent icon or an album cover, both square, a label, a count.
+ * [checked] not null: a checkbox row with a check slot at the end (Folders to skip).
+ */
+@Composable
+fun PickRow(cover: Tile? = null, icon: Int? = null, label: String, note: String?, checked: Boolean? = null, onClick: () -> Unit) {
+    val tap = if (checked == null) Modifier.clickable(onClick = onClick) else Modifier.toggleable(checked, role = Role.Checkbox) { onClick() }
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 52.dp).clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 4.dp),
+        Modifier.fillMaxWidth().heightIn(min = 52.dp).then(tap).padding(horizontal = 16.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
@@ -147,6 +154,10 @@ private fun PickRow(cover: Tile? = null, icon: Int? = null, label: String, note:
         }
         Text(label, Modifier.weight(1f), fontWeight = FontWeight.Medium)
         note?.let { Text(it, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        // the check keeps its slot when off, so the count never shifts
+        if (checked != null) Box(Modifier.size(24.dp)) {
+            if (checked) Icon(painterResource(R.drawable.ic_check), null, tint = MaterialTheme.colorScheme.primary)
+        }
     }
 }
 
@@ -156,7 +167,7 @@ fun MoveToAlbumSheet(photo: Tile, onDismiss: () -> Unit, onMove: (String) -> Uni
     val context = LocalContext.current
     val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val current by produceState<TileAlbum?>(null, photo.id) { value = withContext(Dispatchers.IO) { albumOf(context, photo.id) } }
-    val targets by cachedProduceState("moveTo${photo.id}", current?.id) { withContext(Dispatchers.IO) { moveTargets(context, current?.id ?: -1L) } }
+    val targets by cachedProduceState("moveTo", current?.id) { withContext(Dispatchers.IO) { moveTargets(context, current?.id ?: -1L) } }
     var naming by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("") }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet, containerColor = MaterialTheme.colorScheme.background) {

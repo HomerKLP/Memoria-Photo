@@ -315,6 +315,9 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .pick > svg.i, .pick .icon-btn { color: var(--muted); }
 .pick .icon-btn { margin-right: -12px; }
 .pick mark { background: none; color: var(--accent); }
+/* Folders to skip: the check keeps its slot when off, so the count never shifts */
+.pick > svg.i.tick { color: var(--accent); }
+.pick > svg.i.tick.off { visibility: hidden; }
 /* Keyboard: mockup only, shows how much room is left above it */
 .kbd { flex: none; padding: 10px 4px 6px; background: #E6DCCB; display: grid; gap: 10px; }
 .kbd div { display: flex; justify-content: center; gap: 5px; }
@@ -354,6 +357,23 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .home .appicon { width: 52px; height: 52px; }
 .home.themed { background: #E6E3DA; color: #3B3A33; text-shadow: none; }
 .home.themed .appicon { background: #D3D7C4; color: #3A4630; }
+/* Notification icon: one color on a 24 canvas; the status bar draws it at 17 dp */
+.ni { display: grid; gap: 10px; }
+.ni-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.ni-big { width: 72px; height: 72px; border-radius: 16px; background: var(--viewer); color: #fff; }
+.ni-big svg { display: block; width: 72px; height: 72px; }
+.sbar { width: 120px; height: 24px; padding: 0 10px; border-radius: 8px; display: flex; align-items: center; gap: 6px; font: 500 13px var(--body); }
+.sbar svg { width: 17px; height: 17px; }
+.sbar.dark { background: #000; color: #fff; }
+.sbar.light { background: #fff; color: #1F1F1F; border: 1px solid var(--line); }
+.notif { width: 280px; max-width: 100%; box-sizing: border-box; padding: 12px 16px; border-radius: 20px; background: #fff; border: 1px solid var(--line); display: grid; gap: 4px; }
+.notif .nhead { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.notif .nhead i { width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; }
+.notif .nhead svg { width: 16px; height: 16px; }
+.notif b { font-weight: 500; }
+.notif span { font-size: 13px; color: var(--muted); }
+.notif .bar { height: 4px; border-radius: 2px; background: var(--accent-soft); margin-top: 4px; }
+.notif .bar::before { content: ""; display: block; width: 24%; height: 100%; border-radius: 2px; background: var(--accent); }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
@@ -1241,6 +1261,21 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
       </div>
       <figcaption>Find faces again: asks first, from Settings. Wipes the whole index, names too</figcaption>
     </figure>
+    <figure id="skip">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="title"><b>Folders to skip</b><span>2 skipped</span></div>
+        </div>
+        <div class="scroll">
+          <div class="note"><svg class="i"><use href="#i-info"/></svg>No face search in a checked album. Its photos stay</div>
+          <div id="skip-list"></div>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Folders to skip: opens from Settings. Every album, in the Albums order, with its photo count; a check marks a skipped one. Tap an unchecked album: the Ignore faces dialog asks first, then it gets the check. Tap a checked one: the check goes, no question, and the next run searches it again. The same list as an album's More > Ignore faces in this album. Rows never move: the check has its own slot in every row, and a skipped album stays where it is. The Settings row then reads "2 skipped"</figcaption>
+    </figure>
     <figure id="hidden">
       <div class="phone">
         <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
@@ -1287,7 +1322,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="set"><div><b>Bricolage Grotesque</b><span>Titles and headings · SIL OFL 1.1</span></div></div>
           <div class="set"><div><b>Roboto</b><span>All other text · SIL OFL 1.1</span></div></div>
           <div class="head"><h3>Libraries</h3></div>
-          <div class="set"><div><b>ONNX Runtime</b><span>Runs the face models · MIT</span></div></div>
+          <div class="set"><div><b>LiteRT</b><span>Runs the face models · Apache 2.0</span></div></div>
           <div class="set"><div><b>Qualcomm QNN libraries</b><span>Runs the models on the NPU · Qualcomm's own license</span></div></div>
           <div class="set"><div><b>AndroidX, Compose, Material</b><span>App code and UI · Apache 2.0</span></div></div>
           <div class="set"><div><b>Kotlin</b><span>Language and runtime · Apache 2.0</span></div></div>
@@ -1501,6 +1536,12 @@ Photos: …/files/test</div>
         </g>
       </g>
     </symbol>
+    <!-- Notification icon: the Lake art without the launcher's 2/3 shrink, so it fills 20 of 24 dp -->
+    <symbol id="notif-lake" viewBox="0 3 108 108">
+      <circle cx="54" cy="35" r="7" fill="currentColor"/>
+      <path d="M12 64 35 36l19 18 19-18 23 28z" fill="currentColor" stroke="currentColor" stroke-width="6" stroke-linejoin="round"/>
+      <path d="M30 75h20M58 75h20M40 84h28" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+    </symbol>
     <symbol id="logo-print-mono" viewBox="0 0 108 108">
       <g transform="rotate(-6 54 56)">
         <rect x="31.5" y="37.5" width="45" height="37" rx="5" fill="none" stroke="currentColor" stroke-width="5"/>
@@ -1530,6 +1571,24 @@ Photos: …/files/test</div>
       <div class="home themed"><span class="appicon"><svg><use href="#logo-print-mono"/></svg></span>Memoria</div>
     </div>
     <p>The M mountains on a print, a second print behind: kept in case we switch to it.</p>
+  </article>
+
+  <article class="part">
+    <h3>Notification icon</h3>
+    <p>The small icon in the status bar and on the face search notification. Android draws it in one color, so it is the Lake art alone, filling 20 of 24 dp. Our own, since phone makers restyle Android's built-in icons.</p>
+    <div class="ni">
+      <div class="ni-row">
+        <span class="ni-big"><svg><use href="#notif-lake"/></svg></span>
+        <span class="sbar dark">12:30 <svg><use href="#notif-lake"/></svg></span>
+        <span class="sbar light">12:30 <svg><use href="#notif-lake"/></svg></span>
+        <div class="notif">
+          <div class="nhead"><i><svg><use href="#notif-lake"/></svg></i>Memoria · now</div>
+          <b>Finding faces</b>
+          <span>412 / 1706 photos · 3m left</span>
+          <div class="bar"></div>
+        </div>
+      </div>
+    </div>
   </article>
 </section>
 
@@ -1715,6 +1774,9 @@ fill("place-photos", [["October 2026", 5], ["September 2026", 8], ["July 2026", 
 // Move to album: filled last so the photos above keep their colors.
 fill("move-list", [["Screenshots", "214"], ["Telegram", "96"], ["Holidays 2024", "47"], ["Instagram", "21"], ["Edits", "9"]]
   .map(([n, c]) => `<div class="pick"><span class="thumb" style="background:${photo()}"></span><b>${n}</b><span>${c}</span></div>`).join(""));
+// Folders to skip: every album, two checked.
+fill("skip-list", [["Camera", "1,204", 0], ["WhatsApp", "312", 1], ["Screenshots", "214", 1], ["Telegram", "96", 0], ["Holidays 2024", "47", 0], ["Instagram", "21", 0], ["Downloads", "18", 0], ["Edits", "9", 0]]
+  .map(([n, c, on]) => `<div class="pick" role="checkbox" aria-checked="${!!on}"><span class="thumb" style="background:${photo()}"></span><b>${n}</b><span>${c}</span><svg class="i tick${on ? "" : " off"}"><use href="#i-check"/></svg></div>`).join(""));
 // Album, selecting: same tiles as an album, three picked.
 fill("album-picked", [["October 2026", 5, [1, 2], [4]], ["September 2026", 6, [1], []], ["August 2026", 4, [], []]]
   .map(([m, n, on, v]) => `<section class="month-sec"><h3 class="month">${m}</h3><div class="grid big">${Array.from({ length: n }, (_, i) => `<div class="tile${on.includes(i) ? " on" : ""}" style="background:${photo()}"><span class="sel">${

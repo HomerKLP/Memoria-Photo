@@ -17,6 +17,7 @@ android {
         versionCode = 1
         versionName = "0.1"
         manifestPlaceholders["appName"] = "Memoria"
+        ndk { abiFilters += "arm64-v8a" } // Android 13+ phones and the Mac emulator are arm64
     }
     buildTypes {
         // its own package, so debug and release sit side by side on the phone, each with its own data
@@ -36,8 +37,8 @@ android {
     sourceSets.getByName("androidTest").assets.srcDir("$projectDir/schemas")
     packaging {
         jniLibs.useLegacyPackaging = true // QNN needs its .so files on disk
-        // ponytail: only the Snapdragon 8 Elite NPU (HTP V79), add other versions for other phones
-        jniLibs.excludes += listOf("**/libQnnDsp*.so", "**/libQnnGpu.so", "**/libQnnHtpV6*.so", "**/libQnnHtpV73*.so", "**/libQnnHtpV75*.so", "**/libQnnHtpV81*.so")
+        // NPU libs for Snapdragon 8 Gen 1 to 8 Elite Gen 5 (HTP V69-V81); V68 has no fp16, so it runs on the CPU
+        jniLibs.excludes += listOf("**/libQnnDsp*.so", "**/libQnnGpu.so", "**/libQnnHtpV68*.so")
     }
 }
 
@@ -49,7 +50,10 @@ dependencies {
     implementation(platform("androidx.compose:compose-bom:2026.09.00"))
     implementation("androidx.compose.material3:material3")
     implementation("androidx.activity:activity-compose:1.13.0")
-    implementation("com.microsoft.onnxruntime:onnxruntime-android-qnn:1.29.0")
+    implementation("com.google.ai.edge.litert:litert:2.3.0")
+    implementation("com.google.ai.edge.litert:litert-gpu:2.3.0")
+    implementation("com.google.ai.edge.litert:litert-npu-runtime-qualcomm:2.3.0")
+    implementation("com.qualcomm.qti:qnn-runtime:2.50.0") // LiteRT 2.3.0 is built on QNN 2.50; on an older QNN it silently runs on the CPU
     implementation("androidx.room:room-runtime:2.8.5")
     implementation("androidx.room:room-ktx:2.8.5")
     ksp("androidx.room:room-compiler:2.8.5")

@@ -2,6 +2,7 @@ package app.memoria
 
 import android.Manifest
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
@@ -75,6 +76,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.work.WorkManager
 import androidx.work.WorkInfo
+import com.google.ai.edge.litert.Accelerator
 import java.io.File
 import java.io.Serializable
 import kotlinx.coroutines.Dispatchers
@@ -274,8 +276,10 @@ fun App(dir: File, openSettings: Int = 0) {
                         when (val s = target.value) {
                             Screen.Dev -> TestScreen(dir, back)
                             Screen.Settings -> SettingsScreen(
-                                onBack = back, onHidden = { push(Screen.Hidden()) }, onLicenses = { push(Screen.Licenses) }, onDev = { push(Screen.Dev) },
+                                onBack = back, onHidden = { push(Screen.Hidden()) }, onSkip = { push(Screen.Skip) }, onLicenses = { push(Screen.Licenses) },
+                                onDev = { push(Screen.Dev) },
                             )
+                            Screen.Skip -> SkipScreen(onBack = back)
                             Screen.Licenses -> LicensesScreen(onBack = back)
                             is Screen.Hidden -> PeopleScreen(
                                 openId = s.person,
@@ -358,6 +362,7 @@ private var viewTiles by mutableStateOf<List<Tile>>(emptyList())
 sealed interface Screen : Serializable {
     data object Settings : Screen
     data object Licenses : Screen
+    data object Skip : Screen
     data object Dev : Screen
     data class Hidden(val person: Long? = null) : Screen
     /** [person] is open, if set; [direct]: People opened right at the person, so back from the person closes it. */
@@ -380,7 +385,7 @@ sealed interface Screen : Serializable {
 /** A stack entry's id for its saved state: the kind and the depth, not the arguments, so [Screen.People] keeps its state as a person opens. */
 internal fun screenKey(depth: Int, screen: Screen) = "$depth ${screen.javaClass.simpleName}"
 
-private fun Screen?.isSettingsPage() = this is Screen.Settings || this is Screen.Licenses || this is Screen.Hidden || this is Screen.Dev
+private fun Screen?.isSettingsPage() = this is Screen.Settings || this is Screen.Licenses || this is Screen.Skip || this is Screen.Hidden || this is Screen.Dev
 
 /** Library shortcut card from the mockup (Favorites, Videos, Trash). One line each, so the two cards in a row stay the same height. */
 @Composable
@@ -419,7 +424,7 @@ fun TestScreen(dir: File, onBack: () -> Unit) {
         busy = true
         scope.launch(Dispatchers.Default) {
             try {
-                runTest(dir, npu, { log += "\n$it" }) { preview = it }
+                runTest(context, dir, npu, { log += "\n$it" }) { preview = it }
             } catch (e: Exception) {
                 log += "\nError: $e"
             }
@@ -438,16 +443,11 @@ fun TestScreen(dir: File, onBack: () -> Unit) {
     )
 }
 
-fun runTest(dir: File, npu: Boolean, log: (String) -> Unit, show: (Pair<Bitmap, List<Face>>) -> Unit) {
+fun runTest(context: Context, dir: File, npu: Boolean, log: (String) -> Unit, show: (Pair<Bitmap, List<Face>>) -> Unit) {
     val mode = if (npu) "npu" else "cpu"
     var t = System.nanoTime()
     val ms = { (System.nanoTime() - t) / 1_000_000.0 }
-    val pipeline = FacePipeline(
-        ortEnv(),
-        File(dir.parentFile, "models/detector.onnx").path,
-        File(dir.parentFile, "models/recognizer.onnx").path,
-        File(dir.parentFile, "models/quality.onnx").path,
-    ) { if (npu) npuSession(ortEnv(), File(it), File(dir.parentFile, "npu")) else ortEnv().createSession(it) }
+    val pipeline = if (npu) FacePipeline(context) else FacePipeline(context, listOf(Accelerator.CPU))
     log("$mode: models loaded in %.0f ms".format(ms()))
     val photos = dir.walk().filter { it.isFile && it.extension.lowercase() in setOf("jpg", "jpeg", "png", "webp") }.sorted().toList()
     val results = JSONObject()
