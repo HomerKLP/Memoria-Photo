@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.ImageDecoder
+import android.os.Build
 import android.util.Log
 import com.google.ai.edge.litert.Accelerator
 import com.google.ai.edge.litert.BuiltinNpuAcceleratorProvider
@@ -77,9 +78,12 @@ private fun open(env: Environment, file: File, accelerators: List<Accelerator>):
 
 /**
  * YOLOv5m-face + AdaFace IR101 + EDifFIQA-T quality, same steps as uniface 4.0 so results match bench/bench.py.
- * Reads the .tflite files in <app files>/models.
+ * Reads the .tflite files in <app files>/models. The emulator runs on the CPU: its software GPU gives every face after some point the same result (bugs.md).
  */
-class FacePipeline(context: Context, accelerators: List<Accelerator> = listOf(Accelerator.NPU, Accelerator.GPU, Accelerator.CPU)) : AutoCloseable {
+class FacePipeline(
+    context: Context,
+    accelerators: List<Accelerator> = if (Build.HARDWARE == "ranchu") listOf(Accelerator.CPU) else listOf(Accelerator.NPU, Accelerator.GPU, Accelerator.CPU),
+) : AutoCloseable {
     private val models = File(context.getExternalFilesDir(null), "models")
     private val detector = Net(liteEnv(context), File(models, "detector_raw.tflite"), accelerators)
     private val recognizer = Net(liteEnv(context), File(models, "recognizer.tflite"), accelerators)

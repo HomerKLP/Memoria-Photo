@@ -6,7 +6,7 @@ Hardest part first, UI last. Phases are the order of work; Later and Ideas at th
 
 **Index upgrades:** a new index step (search labels, OCR, video towns) fills in only what an existing index is missing, like `recutThumbs` does for face pictures. Never re-index from scratch, so names, merges, hidden people, covers and answers stay.
 
-**Next step:** `README.md` and the first app release, v0.1.0 (Phase 8), then Phase 3. Phase 2 is done. Phase 6 (design and UI polish) is paused and its UX pass list stays open.
+**Next step:** `README.md` (Phase 8), then Phase 3. v0.1.0 is out (2026-10-23). Phase 2 is done. Phase 6 (design and UI polish) is paused and its UX pass list stays open.
 ## Phase 1: face pipeline quality (done)
 Pick the best models on real photos before writing app code. Details: `docs/face-pipeline.md`.
 - [x] Python bench: `bench/bench.py` (detect, group).
@@ -165,7 +165,7 @@ Items marked **Important** must be done before the first public release.
 - [x] No photo paths in release logs. Done 2026-10-22: the index error log names the MediaStore id, not the path (`Index.kt`); it was the only log with a path. Exception messages are not ours; photos open by content URI, so they show ids too.
 - [x] **Important:** going public. Public since 2026-10-23, as is, old commits and PRs included (the user's call). The tree has no phone model, names or photo names left. Then the `models-v1` release and the download (Phase 2).
 - [x] **Important:** GPL-3.0 with closed Qualcomm libs. Done 2026-10-23: the GPLv3 section 7 permission is in `THIRD_PARTY.md` (and the README draft), so `LICENSE` stays the plain GPL text GitHub detects. Qualcomm's AI Stack License lets us ship the libs inside our app, not on their own. Its notice file is in `licenses/qnn-NOTICE.txt`, since the APK drops it.
-- [ ] GitHub releases: tag each build, attach the signed APK, keep a changelog.
+- [ ] GitHub releases: tag each build, attach the signed APK, keep a changelog. First one: v0.1.0 (2026-10-23), `memoria-0.1.0.apk` from `make apk` on `master` `9d27925`, short notes on the release page, no changelog file yet.
 - [ ] OTA updates from GitHub release APKs: the app notices a newer release, downloads the APK, and installs it through Android's own installer (PackageInstaller, `REQUEST_INSTALL_PACKAGES`). Needs its own screen (mockup first) and an INTERNET permission scoped to the update check (see Open questions).
 
 ## Phase 9: tests (regression)

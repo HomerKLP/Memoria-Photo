@@ -1066,6 +1066,7 @@ class BehaviorTest {
 
     @Test fun devTools_rows_fireTheirCallbacks() {
         var cpu = false
+        var gpu = false
         var npu = false
         var folder = false
         var back = false
@@ -1073,13 +1074,15 @@ class BehaviorTest {
             MemoriaTheme { Surface {
                 DevToolsContent(
                     busy = false, numbers = null, log = "Index SUCCEEDED",
-                    onBack = { back = true }, onRunCpu = { cpu = true }, onRunNpu = { npu = true }, onIndexTest = { folder = true },
+                    onBack = { back = true }, onRunCpu = { cpu = true }, onRunGpu = { gpu = true }, onRunNpu = { npu = true }, onIndexTest = { folder = true },
                 )
             } }
         }
 
         rule.onNodeWithText("Run on CPU").performClick()
         assertTrue(cpu)
+        rule.onNodeWithText("Run on GPU").performClick()
+        assertTrue(gpu)
         rule.onNodeWithText("Run on NPU").performClick()
         assertTrue(npu)
         rule.onNodeWithText("Index test folder").performClick()
@@ -1090,20 +1093,23 @@ class BehaviorTest {
 
     @Test fun devTools_busy_runRowsDoNothing_indexStillWorks() {
         var cpu = false
+        var gpu = false
         var npu = false
         var folder = false
         rule.setContent {
             MemoriaTheme { Surface {
                 DevToolsContent(
                     busy = true, numbers = null, log = "",
-                    onRunCpu = { cpu = true }, onRunNpu = { npu = true }, onIndexTest = { folder = true },
+                    onRunCpu = { cpu = true }, onRunGpu = { gpu = true }, onRunNpu = { npu = true }, onIndexTest = { folder = true },
                 )
             } }
         }
 
         rule.onNodeWithText("Run on CPU").performClick()
+        rule.onNodeWithText("Run on GPU").performClick()
         rule.onNodeWithText("Run on NPU").performClick()
         assertFalse(cpu)
+        assertFalse(gpu)
         assertFalse(npu)
         rule.onNodeWithText("Index test folder").performClick()
         assertTrue(folder)

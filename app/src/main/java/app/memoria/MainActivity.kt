@@ -410,7 +410,7 @@ fun Shortcut(icon: Int, name: String, info: String, modifier: Modifier, onClick:
     }
 }
 
-/** Runs models from <app files>/models on photos in <app files>/test, writes results_cpu/npu.json. */
+/** Runs models from <app files>/models on photos in <app files>/test, writes results_cpu/gpu/npu.json. */
 @Composable
 fun TestScreen(dir: File, onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
@@ -427,11 +427,11 @@ fun TestScreen(dir: File, onBack: () -> Unit) {
     val index = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
         if (granted[photos] == true) IndexControl.start(context, testOnly = true) else log += "\nNo photo permission"
     }
-    val start = { npu: Boolean ->
+    val start = { on: Accelerator ->
         busy = true
         scope.launch(Dispatchers.Default) {
             try {
-                runTest(context, dir, npu, { log += "\n$it" }) { preview = it }
+                runTest(context, dir, on, { log += "\n$it" }) { preview = it }
             } catch (e: Exception) {
                 log += "\nError: $e"
             }
@@ -444,17 +444,18 @@ fun TestScreen(dir: File, onBack: () -> Unit) {
         log = "Index ${work.firstOrNull()?.state ?: "-"}\n$log",
         preview = preview,
         onBack = onBack,
-        onRunCpu = { start(false) },
-        onRunNpu = { start(true) },
+        onRunCpu = { start(Accelerator.CPU) },
+        onRunGpu = { start(Accelerator.GPU) },
+        onRunNpu = { start(Accelerator.NPU) },
         onIndexTest = { index.launch(arrayOf(photos, Manifest.permission.POST_NOTIFICATIONS)) },
     )
 }
 
-fun runTest(context: Context, dir: File, npu: Boolean, log: (String) -> Unit, show: (Pair<Bitmap, List<Face>>) -> Unit) {
-    val mode = if (npu) "npu" else "cpu"
+fun runTest(context: Context, dir: File, on: Accelerator, log: (String) -> Unit, show: (Pair<Bitmap, List<Face>>) -> Unit) {
+    val mode = on.name.lowercase()
     var t = System.nanoTime()
     val ms = { (System.nanoTime() - t) / 1_000_000.0 }
-    val pipeline = if (npu) FacePipeline(context) else FacePipeline(context, listOf(Accelerator.CPU))
+    val pipeline = if (on == Accelerator.NPU) FacePipeline(context) else FacePipeline(context, listOf(on))
     log("$mode: models loaded in %.0f ms".format(ms()))
     val photos = dir.walk().filter { it.isFile && it.extension.lowercase() in setOf("jpg", "jpeg", "png", "webp") }.sorted().toList()
     val results = JSONObject()
