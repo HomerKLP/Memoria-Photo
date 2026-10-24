@@ -72,6 +72,19 @@ fun PersonScreen() = MemoriaTheme {
     }
 }
 
+/** Person with a 40-letter name: the top bar stays one line. Pairs with topBar_longName_keepsHeight. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 900)
+@Composable
+fun PersonLongName() = MemoriaTheme {
+    Surface {
+        PeopleContent(
+            data = PeopleData(summary = "1 person · 7 faces", people = listOf(fakePerson(1, "W".repeat(40))), unsure = emptyList()),
+            openId = 1,
+        )
+    }
+}
+
 /** Person, selecting (mockup): the bar swaps, the chips and faces stay. Pairs with personDetail_selecting_keepsTopBarAndChips. */
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 900)
@@ -477,6 +490,21 @@ fun MoveToAlbumSheetPreview() = MemoriaTheme {
                 MoveTarget("Telegram", "Pictures/Telegram/", null, 96),
                 MoveTarget("Holidays 2024", "Pictures/Holidays 2024/", null, 47),
             ),
+            false, "", {}, {}, {}, {}, {},
+        )
+    }
+}
+
+/** Move to album with a 40-letter album name: the row stays one line. Pairs with moveToAlbum_longAlbumName_keepsRowsPut. */
+@PreviewTest
+@Preview(widthDp = 360)
+@Composable
+fun MoveToAlbumLongName() = MemoriaTheme {
+    Surface {
+        MoveToAlbumContent(
+            Tile(1, android.net.Uri.parse("content://media/external/images/media/1"), 1_700_000_000_000L, null),
+            "Camera",
+            listOf(MoveTarget("W".repeat(40), "Pictures/Long/", null, 214), MoveTarget("Telegram", "Pictures/Telegram/", null, 96)),
             false, "", {}, {}, {}, {}, {},
         )
     }

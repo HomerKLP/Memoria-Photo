@@ -907,7 +907,7 @@ fun NamePersonContent(person: Person, text: String, onText: (String) -> Unit, on
         ) {
             if (text.isEmpty()) Text("Type a name", color = MaterialTheme.colorScheme.onSurfaceVariant)
             BasicTextField(
-                text, onText, singleLine = true,
+                text, { if (it.length <= 40) onText(it) }, singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),

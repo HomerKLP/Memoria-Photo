@@ -63,6 +63,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -143,9 +144,9 @@ fun TopBar(
         if (onBack != null) IconButton(onBack) { Icon(painterResource(backIcon), backLabel) }
         leading()
         Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.titleMedium, fontSize = 20.sp)
+            Text(title, style = MaterialTheme.typography.titleMedium, fontSize = 20.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             // "\u00A0" and not "": an empty string may measure to nothing and the line would collapse
-            Text(subtitle ?: "\u00A0", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(subtitle ?: "\u00A0", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         trailing()
     }

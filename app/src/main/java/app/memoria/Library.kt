@@ -197,7 +197,8 @@ fun SectionHead(title: String, action: String? = null, onAction: (() -> Unit)? =
         Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 22.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontSize = 18.sp)
+        // with a hint, the hint shrinks and ends with …, not the title
+        Text(title, if (hint == null) Modifier.weight(1f) else Modifier, style = MaterialTheme.typography.titleMedium, fontSize = 18.sp)
         if (action != null) Row(
             Modifier.clip(RoundedCornerShape(18.dp)).clickable(enabled = onAction != null) { onAction?.invoke() }.padding(vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -205,7 +206,10 @@ fun SectionHead(title: String, action: String? = null, onAction: (() -> Unit)? =
             Text(action, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary)
             if (chevron) Icon(painterResource(R.drawable.ic_chevron), null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
         }
-        if (hint != null) Text(hint, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (hint != null) Text(
+            hint, Modifier.weight(1f).padding(start = 12.dp), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.End, maxLines = 1, overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -246,7 +250,7 @@ fun PeopleRow(faces: List<Person>?, onOpen: (Long) -> Unit, onSeeAll: () -> Unit
                 FaceImage(p.cover, Modifier.size(72.dp).clip(CircleShape))
                 Spacer(Modifier.height(6.dp))
                 // empty line for unnamed people too: the row's height follows the visible items, so it jumped while scrolling
-                Text(p.name.orEmpty(), fontSize = 13.sp, minLines = 1, maxLines = 1)
+                Text(p.name.orEmpty(), fontSize = 13.sp, minLines = 1, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
         if ((faces?.size ?: 0) > 12) item {
@@ -293,7 +297,7 @@ fun ReviewCard(unsure: List<FaceVec>, onReview: () -> Unit, title: String = "Hel
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
-            Text(note ?: "${unsure.size} face${if (unsure.size == 1) "" else "s"} to check", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(note ?: "${unsure.size} face${if (unsure.size == 1) "" else "s"} to check", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
         PillButton("Review", onReview)
     }

@@ -229,6 +229,15 @@ class BehaviorTest {
         assertEquals("Dana", saved)
     }
 
+    @Test fun namePerson_name_stopsAt40() {
+        var text by mutableStateOf("")
+        rule.setContent { MemoriaTheme { Surface { NamePersonContent(person(1), text, { text = it }, {}, {}) } } }
+
+        rule.onNode(hasSetTextAction()).performTextInput("a".repeat(40))
+        rule.onNode(hasSetTextAction()).performTextInput("b")
+        assertEquals("a".repeat(40), text)
+    }
+
     @Test fun whoIsThis_pickNamed_picksThatPerson() {
         var picked: Person? = null
         val people = listOf(person(1, "Dana"), person(2, "Arman"))
@@ -255,6 +264,15 @@ class BehaviorTest {
         rule.onNode(hasSetTextAction()).performTextInput("Bota")
         rule.onNodeWithText("New person").assertIsEnabled().performClick()
         assertEquals("Bota", created)
+    }
+
+    @Test fun whoIsThis_name_stopsAt40() {
+        var text by mutableStateOf("")
+        rule.setContent { MemoriaTheme { Surface { WhoIsThisContent(face(9), null, emptyList(), text, { text = it }, {}, null, {}) } } }
+
+        rule.onNode(hasSetTextAction()).performTextInput("a".repeat(40))
+        rule.onNode(hasSetTextAction()).performTextInput("b")
+        assertEquals("a".repeat(40), text)
     }
 
     @Test fun merge_pickThenMerge_mergesThePick() {
@@ -517,6 +535,15 @@ class BehaviorTest {
 
         rule.onNode(hasSetTextAction()).performTextInput("a/b")
         assertEquals("ab", name)
+    }
+
+    @Test fun newAlbum_name_stopsAt40() {
+        var name by mutableStateOf("")
+        rule.setContent { MemoriaTheme { Surface { NewAlbumContent(name, { name = it }, false, {}, {}) } } }
+
+        rule.onNode(hasSetTextAction()).performTextInput("a".repeat(40))
+        rule.onNode(hasSetTextAction()).performTextInput("b")
+        assertEquals("a".repeat(40), name)
     }
 
     @Test fun newAlbumPick_moveHereOffUntilPicked() {

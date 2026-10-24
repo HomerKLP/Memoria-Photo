@@ -274,6 +274,26 @@ class LayoutJumpTest {
         assertSame("top bar height", before, rule.onNodeWithTag("topBar").height())
     }
 
+    @Test fun sectionHead_longHint_keepsTitleAndHeight() {
+        var hint by mutableStateOf("These faces match Dana")
+        rule.setContent { MemoriaTheme { Surface { Column { SectionHead("Faces", hint = hint); Text("anchor") } } } }
+
+        val title = rule.onNodeWithText("Faces").width()
+        val below = rule.onNodeWithText("anchor").top()
+        rule.runOnIdle { hint = "These faces match " + "W".repeat(40) }
+        assertSame("title width", title, rule.onNodeWithText("Faces").width())
+        assertSame("below the head", below, rule.onNodeWithText("anchor").top())
+    }
+
+    @Test fun topBar_longName_keepsHeight() {
+        var name by mutableStateOf("Dana")
+        rule.setContent { MemoriaTheme { Surface { Column { TopBar(name, "$name · 7.4 MB", onBack = {}) } } } }
+
+        val before = rule.onNodeWithTag("topBar").height()
+        rule.runOnIdle { name = "W".repeat(40) }
+        assertSame("top bar height", before, rule.onNodeWithTag("topBar").height())
+    }
+
     /** The name sheet: the typing placeholder must not move the field or the buttons under it. */
     @Test fun namePerson_typingPlaceholder_keepsFieldAndButtonsPut() {
         var text by mutableStateOf("")
@@ -300,6 +320,15 @@ class LayoutJumpTest {
         rule.runOnIdle { text = "Arman" }
         assertSame("title", titleBefore, rule.onNodeWithText("Who is this?").top())
         assertSame("New person row", newBefore, rule.onNodeWithText("New person").top())
+    }
+
+    @Test fun whoIsThis_longTaggedName_keepsFieldPut() {
+        var now by mutableStateOf(person(1, "Dana"))
+        rule.setContent { MemoriaTheme { Surface { WhoIsThisContent(face(9), now, listOf(person(2, "Arman")), "", {}, {}, null, {}) } } }
+
+        val before = rule.onNodeWithText("Arman").top()
+        rule.runOnIdle { now = person(1, "W".repeat(40)) }
+        assertSame("Arman row", before, rule.onNodeWithText("Arman").top())
     }
 
     /** Merge with: the grid is a fixed height, so filtering people must not move the buttons. */
@@ -456,6 +485,25 @@ class LayoutJumpTest {
         rule.runOnIdle { naming = true }
         assertSame("head top", head, rule.onNodeWithText("Move to album").top())
         assertSame("now in top", now, rule.onNodeWithText("Now in Camera").top())
+    }
+
+    @Test fun moveToAlbum_longAlbumName_keepsRowsPut() {
+        var name by mutableStateOf("Screenshots")
+        rule.setContent {
+            MemoriaTheme {
+                Surface {
+                    MoveToAlbumContent(
+                        tile(1), "Camera",
+                        listOf(MoveTarget(name, "Pictures/Screenshots/", null, 214), MoveTarget("Telegram", "Pictures/Telegram/", null, 96)),
+                        false, "", {}, {}, {}, {}, {},
+                    )
+                }
+            }
+        }
+
+        val before = rule.onNodeWithText("Telegram").top()
+        rule.runOnIdle { name = "W".repeat(40) }
+        assertSame("next album", before, rule.onNodeWithText("Telegram").top())
     }
 
     /** Photos select mode: the top bar swaps for "N selected" and the tiles grow a circle; the grid must not move. */

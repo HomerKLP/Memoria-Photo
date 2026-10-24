@@ -91,7 +91,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .head h3 { margin: 0; font: 700 18px/1.2 var(--display); }
 .head a { color: var(--accent); font-weight: 500; font-size: 13px; text-decoration: none; display: flex; align-items: center; }
 .head a svg.i { width: 18px; height: 18px; }
-.head .hint { color: var(--muted); font-size: 12px; }
+.head .hint { color: var(--muted); font-size: 12px; min-width: 0; padding-left: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row { display: flex; gap: 14px; overflow-x: auto; padding: 0 16px 2px; scrollbar-width: none; }
 .row::-webkit-scrollbar { display: none; }
 .person { flex: none; width: 72px; display: grid; justify-items: center; gap: 6px; font-size: 13px; text-align: center; }
@@ -109,7 +109,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .stack .face { margin-left: -12px; border: 2px solid var(--accent-soft); }
 .stack .face:first-child { margin-left: 0; }
 .review-text { flex: 1; min-width: 0; display: grid; }
-.review-text span { color: var(--muted); font-size: 12px; }
+.review-text span { color: var(--muted); font-size: 12px; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 .pill-btn { height: 36px; padding: 0 16px; border: 0; border-radius: 18px; background: var(--accent); color: #fff; font-weight: 500; font-size: 13px; }
 .places { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px 8px; padding: 0 16px; }
 .shortcut span { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
@@ -209,6 +209,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .subbar .title { flex: 1; min-width: 0; display: grid; }
 .subbar .title b { font: 700 20px/1.2 var(--display); }
 .subbar .title span { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.subbar .title b, .subbar .title span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .text-btn { border: 0; background: transparent; color: var(--accent); font-weight: 500; padding: 10px 12px; border-radius: 20px; display: flex; align-items: center; gap: 6px; }
 .text-btn svg.i { width: 20px; height: 20px; }
 .text-btn:hover { background: var(--surface); }
@@ -233,7 +234,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .sheet-head span { color: var(--muted); font-size: 12px; }
 .field { margin: 0 16px 6px; height: 48px; padding: 0 16px; border-radius: 24px; background: var(--surface); color: var(--muted); display: flex; align-items: center; gap: 12px; }
 .pick { display: flex; align-items: center; gap: 16px; min-height: 52px; padding: 4px 16px; }
-.pick b { flex: 1; font-weight: 500; }
+.pick b { flex: 1; min-width: 0; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pick span { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .pick .round { width: 40px; height: 40px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; flex: none; }
 .pick.danger { margin-top: 4px; border-top: 1px solid var(--line); color: var(--danger); }
