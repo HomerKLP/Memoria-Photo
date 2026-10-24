@@ -85,7 +85,44 @@ fun PersonLongName() = MemoriaTheme {
     }
 }
 
-/** Person, selecting (mockup): the bar swaps, the chips and faces stay. Pairs with personDetail_selecting_keepsTopBarAndChips. */
+/** Person, unnamed (mockup): "Add name" in the accent color. Pairs with personDetail_naming_keepsGridPut. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 900)
+@Composable
+fun PersonUnnamed() = MemoriaTheme {
+    Surface {
+        PeopleContent(
+            data = PeopleData(summary = "1 person · 7 faces", people = listOf(fakePerson(1, null)), unsure = emptyList()),
+            openId = 1,
+        )
+    }
+}
+
+/** Person, More (mockup): the person's fixes, Hide person under a line. Pairs with personMore_opening_keepsContentPut. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 900)
+@Composable
+fun PersonMore() = MemoriaTheme {
+    Surface {
+        Box(Modifier.fillMaxSize()) {
+            PeopleContent(
+                data = PeopleData(summary = "7 people · 412 faces", people = listOf(fakePerson(1, "Dana")), unsure = emptyList()),
+                openId = 1,
+            )
+            Menu(
+                true, onDismiss = {},
+                items = listOf(
+                    MenuItem(R.drawable.ic_person, "Rename") {},
+                    MenuItem(R.drawable.ic_person_add, "Merge with") {},
+                    MenuItem(R.drawable.ic_photo, "Change cover") {},
+                    MenuItem(R.drawable.ic_block, "Hide person", dividerBefore = true) {},
+                ),
+            )
+        }
+    }
+}
+
+/** Person, selecting (mockup): the bar swaps, the faces stay. Pairs with personDetail_selecting_keepsTopBarAndFaces. */
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 900)
 @Composable

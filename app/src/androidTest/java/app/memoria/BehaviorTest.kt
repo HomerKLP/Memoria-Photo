@@ -33,6 +33,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -744,7 +745,7 @@ class BehaviorTest {
         assertTrue(back)
     }
 
-    @Test fun person_chips_fire() {
+    @Test fun person_menu_fires() {
         var named = false
         var merge = false
         var cover = false
@@ -758,25 +759,48 @@ class BehaviorTest {
             } }
         }
 
-        rule.onNodeWithText("Rename").performScrollTo().performClick()
+        rule.onNodeWithText("Rename").assertDoesNotExist()
+        rule.onNodeWithContentDescription("More").performClick()
+        rule.onNodeWithText("Rename").performClick()
         assertTrue(named)
-        rule.onNodeWithText("Merge with").performScrollTo().performClick()
+        rule.onNodeWithText("Rename").assertDoesNotExist() // a pick closes the menu
+        rule.onNodeWithContentDescription("More").performClick()
+        rule.onNodeWithText("Merge with").performClick()
         assertTrue(merge)
-        rule.onNodeWithText("Change cover").performScrollTo().performClick()
+        rule.onNodeWithContentDescription("More").performClick()
+        rule.onNodeWithText("Change cover").performClick()
         assertTrue(cover)
-        rule.onNodeWithText("Hide person").performScrollTo().performClick()
+        rule.onNodeWithContentDescription("More").performClick()
+        rule.onNodeWithText("Hide person").performClick()
         assertTrue(hide)
     }
 
-    @Test fun person_unnamed_chipAddsName() {
+    @Test fun person_unnamed_menuAddsName() {
         var named = false
         rule.setContent { MemoriaTheme { Surface { PeopleContent(peopleData, openId = 3, onName = { named = true }) } } }
 
-        rule.onNodeWithText("Add name").performScrollTo().performClick()
+        rule.onNodeWithContentDescription("More").performClick()
+        rule.onAllNodesWithText("Add name").onLast().performClick() // the menu's, over the title's
         assertTrue(named)
     }
 
-    @Test fun person_hidden_chipShowsPerson() {
+    @Test fun person_nameTap_renames() {
+        var named = false
+        rule.setContent { MemoriaTheme { Surface { PeopleContent(peopleData, openId = 1, onName = { named = true }) } } }
+
+        rule.onNodeWithText("Dana").performClick()
+        assertTrue(named)
+    }
+
+    @Test fun person_unnamed_titleAddsName() {
+        var named = false
+        rule.setContent { MemoriaTheme { Surface { PeopleContent(peopleData, openId = 3, onName = { named = true }) } } }
+
+        rule.onNodeWithText("Add name").performClick()
+        assertTrue(named)
+    }
+
+    @Test fun person_hidden_menuShowsPerson() {
         var hide = false
         rule.setContent {
             MemoriaTheme { Surface {
@@ -787,7 +811,8 @@ class BehaviorTest {
             } }
         }
 
-        rule.onNodeWithText("Show person").performScrollTo().performClick()
+        rule.onNodeWithContentDescription("More").performClick()
+        rule.onNodeWithText("Show person").performClick()
         assertTrue(hide)
     }
 

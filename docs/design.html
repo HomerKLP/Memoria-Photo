@@ -210,6 +210,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .subbar .title b { font: 700 20px/1.2 var(--display); }
 .subbar .title span { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .subbar .title b, .subbar .title span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.subbar .title b.add { color: var(--accent); }
 .text-btn { border: 0; background: transparent; color: var(--accent); font-weight: 500; padding: 10px 12px; border-radius: 20px; display: flex; align-items: center; gap: 6px; }
 .text-btn svg.i { width: 20px; height: 20px; }
 .text-btn:hover { background: var(--surface); }
@@ -1018,13 +1019,6 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
         </div>
         <div class="scroll vids">
-          <div class="chips">
-            <button class="chip"><svg class="i"><use href="#i-person"/></svg>Rename</button>
-            <button class="chip"><svg class="i"><use href="#i-person-add"/></svg>Merge with</button>
-            <button class="chip"><svg class="i"><use href="#i-photo"/></svg>Change cover</button>
-            <button class="chip"><svg class="i"><use href="#i-block"/></svg>Hide person</button>
-          </div>
-  
           <div class="head"><h3>Faces</h3><span class="hint">These faces match Dana</span></div>
           <div class="row" id="person-faces"></div>
   
@@ -1039,7 +1033,23 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Person: opens from the People grid. Name, fixes, the faces that match, their photos by month, newest first. Unnamed: the card says "12 to check" (one line). Hidden person: the last chip is "Show person" with the eye icon. Long press a photo selects</figcaption>
+      <figcaption>Person: opens from the People grid. Name, the faces that match, their photos by month, newest first. Tap the name to rename. Fixes (rename, merge, cover, hide) are in More. Long press a photo selects</figcaption>
+    </figure>
+    <figure id="person-more">
+      <div class="phone" id="person-more-phone">
+        <div class="menu" role="menu">
+          <button class="mi" role="menuitem"><svg class="i"><use href="#i-person"/></svg>Rename</button>
+          <button class="mi" role="menuitem"><svg class="i"><use href="#i-person-add"/></svg>Merge with</button>
+          <button class="mi" role="menuitem"><svg class="i"><use href="#i-photo"/></svg>Change cover</button>
+          <hr>
+          <button class="mi" role="menuitem"><svg class="i"><use href="#i-block"/></svg>Hide person</button>
+        </div>
+      </div>
+      <figcaption>Person, More: the person's fixes. Unnamed: Rename is "Add name". Hidden person: the last item is "Show person" with the eye icon. Tap outside or Back closes it</figcaption>
+    </figure>
+    <figure id="person-unnamed">
+      <div class="phone" id="person-unnamed-phone"></div>
+      <figcaption>Person, unnamed: the title says "Add name" in the accent color; tap it to name the person. The faces hint says "this person", the card "12 to check" (one line). Same height as a name, so nothing moves when one is added</figcaption>
     </figure>
     <figure id="person-scrolled">
       <div class="phone has-slider">
@@ -1057,7 +1067,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Person, scrolled: the chips, faces and Unsure faces card scroll away with the page, then the month stays pinned and the month slider fades in. At the top it stays hidden (see Person). It starts under the pinned month and hides in select mode, like Album. The slider covers the photos only: months, not the card above them</figcaption>
+      <figcaption>Person, scrolled: the faces and Unsure faces card scroll away with the page, then the month stays pinned and the month slider fades in. At the top it stays hidden (see Person). It starts under the pinned month and hides in select mode, like Album. The slider covers the photos only: months, not the card above them</figcaption>
     </figure>
     <figure id="person-select">
       <div class="phone">
@@ -1077,7 +1087,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="handle"></div>
         </div>
       </div>
-      <figcaption>Person, selecting: same as an album, without Move. Only the top bar swaps; the chips, faces and card above the photos stay put</figcaption>
+      <figcaption>Person, selecting: same as an album, without Move. Only the top bar swaps; the faces and card above the photos stay put</figcaption>
     </figure>
     <figure>
       <div class="phone">
@@ -1149,7 +1159,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="gesture light"><div class="handle"></div></div>
         </div>
       </div>
-      <figcaption>Name a person: opens from "Add name" / "Rename" on the person screen (and from a face in the viewer). Type a name; the field alone, no list of existing names (reusing a name is not reusing a person — that is Merge with). On Rename, clearing the field and saving removes the name. Tapping a person in Library or People opens their screen, never this sheet.</figcaption>
+      <figcaption>Name a person: opens from the person screen's title (tap the name or "Add name") or its More (and from a face in the viewer). Type a name; the field alone, no list of existing names (reusing a name is not reusing a person — that is Merge with). On Rename, clearing the field and saving removes the name. Tapping a person in Library or People opens their screen, never this sheet.</figcaption>
     </figure>
     <figure id="merge">
       <div class="phone dark">
@@ -1167,7 +1177,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="gesture light"><div class="handle"></div></div>
         </div>
       </div>
-      <figcaption>Merge with: opens from the chip on the person screen. Every other person, most alike first, so the other halves of a split person are on top. Tap one to pick it (accent ring and check), Merge joins it into this person. One at a time: after a merge the order is worked out again, so the next part moves up. This person's name stays; if it has none, the picked one's name is used. Merge is off until something is picked. The grid scrolls, the field and buttons stay</figcaption>
+      <figcaption>Merge with: opens from More on the person screen. Every other person, most alike first, so the other halves of a split person are on top. Tap one to pick it (accent ring and check), Merge joins it into this person. One at a time: after a merge the order is worked out again, so the next part moves up. This person's name stays; if it has none, the picked one's name is used. Merge is off until something is picked. The grid scrolls, the field and buttons stay</figcaption>
     </figure>
     <figure id="change-cover">
       <div class="phone dark">
@@ -1184,7 +1194,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="gesture light"><div class="handle"></div></div>
         </div>
       </div>
-      <figcaption>Change cover: opens from the chip on the person screen. The current cover first (shown in the header too), then the person's sure faces, clearest first. Tap a face to pick it (accent ring and check), Save sets it, Cancel keeps the old one. Save is off until another face is picked. The grid scrolls, the buttons stay. The cover is only the picture (People, Library, the top bar), not the face the app matches with, so answers and merges are not touched. If the cover face leaves the person, the app picks one again</figcaption>
+      <figcaption>Change cover: opens from More on the person screen. The current cover first (shown in the header too), then the person's sure faces, clearest first. Tap a face to pick it (accent ring and check), Save sets it, Cancel keeps the old one. Save is off until another face is picked. The grid scrolls, the buttons stay. The cover is only the picture (People, Library, the top bar), not the face the app matches with, so answers and merges are not touched. If the cover face leaves the person, the app picks one again</figcaption>
     </figure>
     <figure id="hide">
       <div class="phone modal" id="hide-phone">
@@ -1197,7 +1207,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           </div>
         </div>
       </div>
-      <figcaption>Hide person: asks first, from the chip on the person screen. On Hide, back to where the person was opened</figcaption>
+      <figcaption>Hide person: asks first, from More on the person screen. On Hide, back to where the person was opened</figcaption>
     </figure>
   </div>
 </section>
@@ -1290,7 +1300,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Hidden people: opens from Settings. 68 faces, 4 a row, each with its count. A tap opens the person screen, where the last chip is "Show person"</figcaption>
+      <figcaption>Hidden people: opens from Settings. 68 faces, 4 a row, each with its count. A tap opens the person screen, where More has "Show person"</figcaption>
     </figure>
     <figure id="hidden-empty">
       <div class="phone">
@@ -1391,7 +1401,7 @@ Photos: …/files/test</div>
       <div class="title" style="margin-left:12px"><b>Dana</b><span>230 photos · 96 faces</span></div>
       <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
     </div>
-    <p>One title, one subtitle line, one trailing button. The subtitle is always there, empty or not, so the bar keeps the same height in every mode. Take it away and everything under it jumps up. An optional leading slot sits between Back and the title (the person's picture on the Person screen).</p>
+    <p>One title, one subtitle line, one trailing button. The subtitle is always there, empty or not, so the bar keeps the same height in every mode. Take it away and everything under it jumps up. An optional leading slot sits between Back and the title (the person's picture on the Person screen). The title can be tappable: on Person it names the person.</p>
   </article>
 
   <article class="part">
@@ -1741,6 +1751,12 @@ searchDone.prepend(...[...document.querySelector("#settings .phone").children].m
 searchDone.querySelector(".set.run").innerHTML = `<svg class="i"><use href="#i-check"/></svg><div><b>Face search</b><span>Done · 1,706 photos</span><div class="track off"><div></div></div></div>`;
 const rescan = document.getElementById("rescan-phone");
 rescan.prepend(...[...document.querySelector("#settings .phone").children].map(n => n.cloneNode(true)));
+document.getElementById("person-more-phone").prepend(...[...document.querySelector("#person .phone").children].map(n => n.cloneNode(true)));
+const unnamed = document.getElementById("person-unnamed-phone");
+unnamed.prepend(...[...document.querySelector("#person .phone").children].map(n => n.cloneNode(true)));
+unnamed.querySelector(".subbar .title b").outerHTML = `<b class="add">Add name</b>`;
+unnamed.querySelector(".head .hint").textContent = "These faces match this person";
+unnamed.querySelector(".review-text span").textContent = "12 to check";
 document.getElementById("hide-phone").prepend(...[...document.querySelector("#person .phone").children].map(n => n.cloneNode(true)));
 document.getElementById("viewer-more-phone").prepend(...[...document.querySelector("#viewer .phone").children].map(n => n.cloneNode(true)));
 // The slider stays out of these two: the list is at the top, where it is hidden.

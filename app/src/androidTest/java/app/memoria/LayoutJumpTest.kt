@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -28,9 +27,11 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeUp
@@ -661,7 +662,7 @@ class LayoutJumpTest {
             }
         }
 
-        // scroll past the "Photos" heading (grid index 3); it is off-screen while the scroll holds
+        // scroll past the "Photos" heading (grid index 2); it is off-screen while the scroll holds
         rule.onNodeWithTag("personPhotos").performScrollToIndex(35)
         rule.onNodeWithText("Photos").assertDoesNotExist()
 
@@ -765,8 +766,8 @@ class LayoutJumpTest {
         assertSame("grid top", gridBefore, rule.onNodeWithTag("placeGrid").top())
     }
 
-    /** Person, selecting: the bar loses the face and More, but keeps its height; the chips and grid above the photos stay put. */
-    @Test fun personDetail_selecting_keepsTopBarAndChips() {
+    /** Person, selecting: the bar loses the face and More, but keeps its height; the faces and grid above the photos stay put. */
+    @Test fun personDetail_selecting_keepsTopBarAndFaces() {
         val faces = (1L..6L).map { face(it) }
         val person = Person(faces, faces.first(), 1, "Dana")
         var ids by mutableStateOf<Set<Long>?>(null)
@@ -774,11 +775,39 @@ class LayoutJumpTest {
 
         val barBefore = rule.onNodeWithTag("topBar").height()
         val gridBefore = rule.onNodeWithTag("personPhotos").top()
-        val chipBefore = rule.onNodeWithText("Rename").top()
+        val facesBefore = rule.onNodeWithText("Faces").top()
         rule.runOnIdle { ids = setOf(1001L) }
         assertSame("top bar height", barBefore, rule.onNodeWithTag("topBar").height())
         assertSame("grid top", gridBefore, rule.onNodeWithTag("personPhotos").top())
-        assertSame("chips", chipBefore, rule.onNodeWithText("Rename").top())
+        assertSame("faces", facesBefore, rule.onNodeWithText("Faces").top())
+    }
+
+    /** Person: "Add name" and a name are one line each, so naming the person must not move the grid. */
+    @Test fun personDetail_naming_keepsGridPut() {
+        val faces = (1L..6L).map { face(it) }
+        var person by mutableStateOf(Person(faces, faces.first(), 1, null))
+        rule.setContent { MemoriaTheme { Surface { PersonDetail(person, onBack = {}, onName = {}, onOpen = { _, _ -> }, loadPhotos = { albumTiles(1, 6) }) } } }
+
+        val barBefore = rule.onNodeWithTag("topBar").height()
+        val gridBefore = rule.onNodeWithTag("personPhotos").top()
+        rule.runOnIdle { person = Person(faces, faces.first(), 1, "Dana") }
+        rule.onNodeWithText("Dana").assertIsDisplayed()
+        assertSame("top bar height", barBefore, rule.onNodeWithTag("topBar").height())
+        assertSame("grid top", gridBefore, rule.onNodeWithTag("personPhotos").top())
+    }
+
+    /** Person More: the menu drops over the screen (no dim, no reflow), so opening it must not move the bar or the grid. */
+    @Test fun personMore_opening_keepsContentPut() {
+        val faces = (1L..6L).map { face(it) }
+        val person = Person(faces, faces.first(), 1, "Dana")
+        rule.setContent { MemoriaTheme { Surface { PersonDetail(person, onBack = {}, onName = {}, onOpen = { _, _ -> }, loadPhotos = { albumTiles(1, 6) }) } } }
+
+        val barTop = rule.onNodeWithTag("topBar").top()
+        val gridTop = rule.onNodeWithTag("personPhotos").top()
+        rule.onNodeWithContentDescription("More").performClick()
+        rule.onNodeWithText("Rename").assertIsDisplayed()
+        assertSame("bar top", barTop, rule.onNodeWithTag("topBar").top())
+        assertSame("grid top", gridTop, rule.onNodeWithTag("personPhotos").top())
     }
 
     /** Details: faces, place and camera facts fill in below the date; the date header must not move. */
@@ -798,20 +827,6 @@ class LayoutJumpTest {
             info = full
         }
         assertSame("date", dateBefore, rule.onNodeWithText(dateText).top())
-    }
-
-    /**
-     * Person: the chips are a horizontal scroll. With the row wide enough to hold them all, the
-     * last chip ("Hide person") must keep the mockup's 16 dp right padding, not run to the edge.
-     */
-    @Test fun personDetail_lastChip_keepsRightPadding() {
-        val faces = (1L..3L).map { face(it) }
-        val person = Person(faces, faces.first(), 1, "Dana")
-        val wide = 600.dp
-        rule.setContent { MemoriaTheme { Surface { Box(Modifier.width(wide)) { PersonDetail(person, onBack = {}, onName = {}, onOpen = { _, _ -> }, loadPhotos = { emptyList() }) } } } }
-
-        val right = rule.onNodeWithText("Hide person").getUnclippedBoundsInRoot().right.value
-        assertTrue("last chip runs into the right edge: right=$right", right <= wide.value - 16f + 0.5f)
     }
 
     /** People: the bar keeps its height while the list loads, and the grid below must not shift. */

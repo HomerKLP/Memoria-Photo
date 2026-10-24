@@ -442,7 +442,8 @@ fun PeopleContent(
     LaunchedEffect(data != null) { if (data != null) loaded = true }
     val fadeIn = if (loaded) spring<Float>(stiffness = Spring.StiffnessMediumLow) else null
     // People come in rows of 4, the mockup's grid: 16 dp sides like the parts above it, 6 dp gaps
-    Column(Modifier.fillMaxSize().safeDrawingPadding()) {
+    // the person screen pads itself, so its More menu can cover the whole screen, like Album's
+    Column(Modifier.fillMaxSize().then(if (open == null) Modifier.safeDrawingPadding() else Modifier)) {
         if (open == null && hiddenOnly) {
             val hidden = data?.people.orEmpty().filter { it.hidden }
             TopBar("Hidden people", data?.let { if (hidden.isEmpty()) "No people" else "${hidden.size} ${if (hidden.size == 1) "person" else "people"}" }, onBack = onBack)
@@ -562,7 +563,7 @@ private fun PersonCard(
     }
 }
 
-/** One person: name, fixes, the faces that match, their photos. Layout per docs/design.html. */
+/** One person: name (tap to rename), the faces that match, their photos; fixes are in More. Layout per docs/design.html. */
 @Composable
 fun PersonDetail(
     p: Person,
@@ -598,92 +599,94 @@ fun PersonDetail(
         shownPhotos.groupBy { month.format(Instant.ofEpochMilli(it.date).atZone(zone)) }.entries.toList()
     }
     // one (grid item index, month name) per month heading, so the slider can jump to it; the items
-    // before the first month are the chips, the Faces head and row, the Unsure card (if any), the Photos head
-    val lead = if (unsure.isNotEmpty()) 5 else 4
+    // before the first month are the Faces head and row, the Unsure card (if any), the Photos head
+    val lead = if (unsure.isNotEmpty()) 4 else 3
     val months = remember(groups, lead) {
         var i = lead
         groups.map { (m, tiles) -> (i to m).also { i += 1 + tiles.size } }
     }
-    // own Column: the Select bar goes under the grid
-    Column(Modifier.fillMaxSize()) {
-        if (sel != null) TopBar(
-            "${sel.size} selected", "$name · ${formatBytes(pick.size)}",
-            onBack = { pick.set(null) }, backIcon = R.drawable.ic_close, backLabel = "Cancel",
-        ) {
-            if (sel.size < shownPhotos.size) TextButton({ pick.set(shownPhotos.map { it.id }.toSet()) }) { Text("Select all") }
-        }
-        else TopBar(
-            title = name,
-            subtitle = "${p.photos} photo${if (p.photos == 1) "" else "s"} · ${p.faces.size} face${if (p.faces.size == 1) "" else "s"}",
-            onBack = onBack,
-            leading = { FaceImage(p.cover, Modifier.padding(end = 12.dp).size(40.dp).clip(CircleShape)) },
-            trailing = { // TODO: more menu
-                IconButton({}) { Icon(painterResource(R.drawable.ic_more), "More") }
-            },
-        )
-        val grid = rememberLazyGridState()
-        FollowViewer(grid, shownPhotos)
-        MonthSliderBox(grid = grid, months = months, enabled = sel == null, top = monthHeadingHeight(below = 10.dp), modifier = Modifier.weight(1f)) {
-            LazyVerticalGrid(
-                GridCells.Fixed(3), modifier = Modifier.testTag("personPhotos"), state = grid,
-                contentPadding = PaddingValues(bottom = 24.dp),
-                horizontalArrangement = Arrangement.spacedBy(1.dp), verticalArrangement = Arrangement.spacedBy(1.dp),
+    var more by remember { mutableStateOf(false) }
+    Box(Modifier.fillMaxSize()) {
+        // own Column: the Select bar goes under the grid
+        Column(Modifier.fillMaxSize().safeDrawingPadding()) {
+            if (sel != null) TopBar(
+                "${sel.size} selected", "$name · ${formatBytes(pick.size)}",
+                onBack = { pick.set(null) }, backIcon = R.drawable.ic_close, backLabel = "Cancel",
             ) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    Row(
-                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Chip(if (p.name.isNullOrBlank()) "Add name" else "Rename", R.drawable.ic_person, onName)
-                        Chip("Merge with", R.drawable.ic_person_add, onMerge)
-                        Chip("Change cover", R.drawable.ic_photo, onCover)
-                        if (p.hidden) Chip("Show person", R.drawable.ic_eye, onHide) else Chip("Hide person", R.drawable.ic_block, onHide)
+                if (sel.size < shownPhotos.size) TextButton({ pick.set(shownPhotos.map { it.id }.toSet()) }) { Text("Select all") }
+            }
+            else TopBar(
+                title = if (p.name.isNullOrBlank()) "Add name" else name,
+                subtitle = "${p.photos} photo${if (p.photos == 1) "" else "s"} · ${p.faces.size} face${if (p.faces.size == 1) "" else "s"}",
+                onBack = onBack,
+                leading = { FaceImage(p.cover, Modifier.padding(end = 12.dp).size(40.dp).clip(CircleShape)) },
+                onTitle = onName,
+                titleColor = if (p.name.isNullOrBlank()) MaterialTheme.colorScheme.primary else Color.Unspecified,
+                trailing = { IconButton({ more = true }) { Icon(painterResource(R.drawable.ic_more), "More") } },
+            )
+            val grid = rememberLazyGridState()
+            FollowViewer(grid, shownPhotos)
+            MonthSliderBox(grid = grid, months = months, enabled = sel == null, top = monthHeadingHeight(below = 10.dp), modifier = Modifier.weight(1f)) {
+                LazyVerticalGrid(
+                    GridCells.Fixed(3), modifier = Modifier.testTag("personPhotos"), state = grid,
+                    contentPadding = PaddingValues(bottom = 24.dp),
+                    horizontalArrangement = Arrangement.spacedBy(1.dp), verticalArrangement = Arrangement.spacedBy(1.dp),
+                ) {
+                    item(span = { GridItemSpan(maxLineSpan) }) { SectionHead("Faces", hint = "These faces match $who") }
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Row(
+                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 2.dp),
+                            horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        ) {
+                            sure.take(30).forEach { FaceImage(it, Modifier.size(44.dp).clip(CircleShape)) }
+                        }
                     }
-                }
-                item(span = { GridItemSpan(maxLineSpan) }) { SectionHead("Faces", hint = "These faces match $who") }
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    Row(
-                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 2.dp),
-                        horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    ) {
-                        sure.take(30).forEach { FaceImage(it, Modifier.size(44.dp).clip(CircleShape)) }
+                    if (unsure.isNotEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
+                        // "may be this person" wraps next to the face stack
+                        ReviewCard(unsure, onReview, title = "Unsure faces", note = if (p.name.isNullOrBlank()) "${unsure.size} to check" else "${unsure.size} may be ${p.name}")
                     }
-                }
-                if (unsure.isNotEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
-                    // "may be this person" wraps next to the face stack
-                    ReviewCard(unsure, onReview, title = "Unsure faces", note = if (p.name.isNullOrBlank()) "${unsure.size} to check" else "${unsure.size} may be ${p.name}")
-                }
-                item(span = { GridItemSpan(maxLineSpan) }) { SectionHead("Photos", hint = "${p.photos} · by date") }
-                groups.forEach { (m, tiles) ->
-                    stickyHeader(key = m) {
-                        // background: the pinned month covers the tiles passing under it
-                        Text(
-                            m, Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(start = 16.dp, top = 20.dp, bottom = 10.dp),
-                            style = MaterialTheme.typography.titleLarge,
-                        )
-                    }
-                    items(tiles, key = { it.id }) { t ->
-                        val on = sel != null && t.id in sel
-                        TileImage(
-                            t,
-                            Modifier.combinedClickable(
-                                onClick = { if (sel == null) onOpen(shownPhotos, t) else pick.set(if (on) sel - t.id else sel + t.id) },
-                                onLongClick = { pick.set(sel.orEmpty() + t.id) },
-                            ).testTag("tile-${t.id}").animateItem(fadeInSpec = null), // no fade in: a first load shows at once
-                            selecting = sel != null, selected = on,
-                        )
+                    item(span = { GridItemSpan(maxLineSpan) }) { SectionHead("Photos", hint = "${p.photos} · by date") }
+                    groups.forEach { (m, tiles) ->
+                        stickyHeader(key = m) {
+                            // background: the pinned month covers the tiles passing under it
+                            Text(
+                                m, Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(start = 16.dp, top = 20.dp, bottom = 10.dp),
+                                style = MaterialTheme.typography.titleLarge,
+                            )
+                        }
+                        items(tiles, key = { it.id }) { t ->
+                            val on = sel != null && t.id in sel
+                            TileImage(
+                                t,
+                                Modifier.combinedClickable(
+                                    onClick = { if (sel == null) onOpen(shownPhotos, t) else pick.set(if (on) sel - t.id else sel + t.id) },
+                                    onLongClick = { pick.set(sel.orEmpty() + t.id) },
+                                ).testTag("tile-${t.id}").animateItem(fadeInSpec = null), // no fade in: a first load shows at once
+                                selecting = sel != null, selected = on,
+                            )
+                        }
                     }
                 }
             }
+            if (sel != null) {
+                val picked = shownPhotos.filter { it.id in sel }
+                SelectBar(picked.isNotEmpty() && picked.all { it.favorite }, { pick.share(picked) }, { pick.favorite(picked) }, { pick.delete(picked) })
+            }
         }
-        if (sel != null) {
-            val picked = shownPhotos.filter { it.id in sel }
-            SelectBar(picked.isNotEmpty() && picked.all { it.favorite }, { pick.share(picked) }, { pick.favorite(picked) }, { pick.delete(picked) })
-        }
+        Menu(
+            more, onDismiss = { more = false },
+            items = listOf(
+                MenuItem(R.drawable.ic_person, if (p.name.isNullOrBlank()) "Add name" else "Rename") { more = false; onName() },
+                MenuItem(R.drawable.ic_person_add, "Merge with") { more = false; onMerge() },
+                MenuItem(R.drawable.ic_photo, "Change cover") { more = false; onCover() },
+                if (p.hidden) MenuItem(R.drawable.ic_eye, "Show person", dividerBefore = true) { more = false; onHide() }
+                else MenuItem(R.drawable.ic_block, "Hide person", dividerBefore = true) { more = false; onHide() },
+            ),
+        )
     }
 }
 
-/** Bordered action chip, like the mockup's Rename / Merge with. */
+/** Bordered action chip, like the mockup's Search chips. */
 @Composable
 fun Chip(label: String, icon: Int, onClick: () -> Unit) {
     Row(

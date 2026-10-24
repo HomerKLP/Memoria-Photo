@@ -129,6 +129,7 @@ fun <T> CloseWhenEmpty(value: T?, empty: Boolean, onClose: () -> Unit) {
  * One title, one subtitle line, one trailing button. The subtitle keeps its line even when it is
  * empty, so the bar is the same height in every mode and the list under it never shifts.
  * [leading] sits between Back and the title (the Person screen puts the face there).
+ * [onTitle] makes the title tappable (Person: rename).
  */
 @Composable
 fun TopBar(
@@ -138,13 +139,15 @@ fun TopBar(
     backIcon: Int = R.drawable.ic_back,
     backLabel: String = "Back",
     leading: @Composable () -> Unit = {},
+    onTitle: (() -> Unit)? = null,
+    titleColor: Color = Color.Unspecified,
     trailing: @Composable () -> Unit = {},
 ) {
     Row(Modifier.testTag("topBar").fillMaxWidth().padding(start = 4.dp, end = 8.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         if (onBack != null) IconButton(onBack) { Icon(painterResource(backIcon), backLabel) }
         leading()
-        Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.titleMedium, fontSize = 20.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Column(Modifier.weight(1f).then(if (onTitle != null) Modifier.clickable(onClick = onTitle) else Modifier)) {
+            Text(title, style = MaterialTheme.typography.titleMedium, fontSize = 20.sp, color = titleColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
             // "\u00A0" and not "": an empty string may measure to nothing and the line would collapse
             Text(subtitle ?: "\u00A0", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
