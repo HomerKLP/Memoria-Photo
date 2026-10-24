@@ -50,6 +50,7 @@ dependencies {
     implementation(platform("androidx.compose:compose-bom:2026.09.00"))
     implementation("androidx.compose.material3:material3")
     implementation("androidx.activity:activity-compose:1.13.0")
+    implementation("sh.calvin.reorderable:reorderable:3.1.0") // drag to reorder named people
     implementation("com.google.ai.edge.litert:litert:2.3.0")
     implementation("com.google.ai.edge.litert:litert-gpu:2.3.0")
     implementation("com.google.ai.edge.litert:litert-npu-runtime-qualcomm:2.3.0")

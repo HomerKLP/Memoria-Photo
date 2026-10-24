@@ -17,6 +17,7 @@ What Memoria uses that others made. Memoria itself is GPL-3.0 (`LICENSE`), with 
 | Qualcomm QNN libraries (`qnn-runtime`) | Runs the models on the phone's NPU | [Qualcomm AI Stack License](https://softwarecenter.qualcomm.com/api/download/software/licenses/ai_model_hub/v1/LICENSE.pdf), linked under the permission above; its notices in [`licenses/qnn-NOTICE.txt`](licenses/qnn-NOTICE.txt) |
 | AndroidX (Room, WorkManager, Activity, Profile Installer), Jetpack Compose, Material 3 and Material icons | App code and UI | Apache 2.0 |
 | Kotlin | Language and runtime | Apache 2.0 |
+| [Reorderable](https://github.com/Calvin-LL/Reorderable) | Drag to reorder people | Apache 2.0 |
 
 ### GeoNames
 

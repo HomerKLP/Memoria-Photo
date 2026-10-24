@@ -80,10 +80,11 @@ emulator:
 	@echo "ready: $(SERIAL) at $(DENSITY) density"
 
 # Boots a headless emulator if none is up and closes it again at the end, even on failure or Ctrl-C.
+# The close waits until it is gone, or a run right after sees it still up and waits for it forever.
 # UI_FILTER narrows the run to one class; `make behavior` sets it (target-specific, inherited here).
 layout:
 	@if ! $(ADB) -s $(SERIAL) get-state >/dev/null 2>&1; then \
-		trap '$(ADB) -s $(SERIAL) emu kill >/dev/null 2>&1' EXIT; \
+		trap '$(ADB) -s $(SERIAL) emu kill >/dev/null 2>&1; while $(ADB) -s $(SERIAL) get-state >/dev/null 2>&1; do sleep 1; done' EXIT; \
 		echo "booting $(AVD) headless..."; \
 		$(EMULATOR) -avd $(AVD) -no-window -no-snapshot-save -no-audio -no-boot-anim -gpu swiftshader_indirect >/dev/null 2>&1 & \
 	fi; \

@@ -42,6 +42,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
@@ -122,7 +123,7 @@ internal fun AlbumNameField(name: String, onName: (String) -> Unit, modifier: Mo
     ) {
         if (name.isEmpty()) Text("Album name", color = MaterialTheme.colorScheme.onSurfaceVariant)
         BasicTextField(
-            name, { onName(it.replace("/", "")) }, singleLine = true, // a slash would make a nested folder
+            name, { n -> n.replace("/", "").takeIf { it.length <= 40 }?.let(onName) }, singleLine = true, // a slash would make a nested folder
             modifier = Modifier.fillMaxWidth(),
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
             textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
@@ -152,7 +153,7 @@ fun PickRow(cover: Tile? = null, icon: Int? = null, label: String, note: String?
                 cover?.let { Thumb(it.copy(duration = null), Modifier.fillMaxSize()) }
             }
         }
-        Text(label, Modifier.weight(1f), fontWeight = FontWeight.Medium)
+        Text(label, Modifier.weight(1f), fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         note?.let { Text(it, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         // the check keeps its slot when off, so the count never shifts
         if (checked != null) Box(Modifier.size(24.dp)) {

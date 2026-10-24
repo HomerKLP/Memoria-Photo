@@ -102,6 +102,7 @@ bc1c500550d9e3bd73e27f44132877189329f88875ace0bd6049a828e792b240
 
 - **Smart search:** type "documents", "receipts" or "beach at sunset".
 - **Photo types:** browse selfies, group photos and screenshots.
+- **Pets:** your cats and dogs, found and grouped like people.
 - **Video compression** with no visible loss.
 - **Google Takeout import:** bring your old Google Photos home.
 - **Dark theme.**

@@ -32,6 +32,7 @@ class MigrationTest {
             assertEquals("Dana", person.name)
             assertTrue(person.hidden)
             assertNull(person.coverFaceId)
+            assertNull(person.pos) // v11: never moved
             assertEquals(1L, dao.faceVecs().single().personId)
             assertTrue(dao.answers().single().yes)
             assertEquals(12L, dao.merges().single().face)

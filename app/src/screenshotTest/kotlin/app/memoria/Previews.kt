@@ -72,7 +72,57 @@ fun PersonScreen() = MemoriaTheme {
     }
 }
 
-/** Person, selecting (mockup): the bar swaps, the chips and faces stay. Pairs with personDetail_selecting_keepsTopBarAndChips. */
+/** Person with a 40-letter name: the top bar stays one line. Pairs with topBar_longName_keepsHeight. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 900)
+@Composable
+fun PersonLongName() = MemoriaTheme {
+    Surface {
+        PeopleContent(
+            data = PeopleData(summary = "1 person · 7 faces", people = listOf(fakePerson(1, "W".repeat(40))), unsure = emptyList()),
+            openId = 1,
+        )
+    }
+}
+
+/** Person, unnamed (mockup): "Add name" in the accent color. Pairs with personDetail_naming_keepsGridPut. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 900)
+@Composable
+fun PersonUnnamed() = MemoriaTheme {
+    Surface {
+        PeopleContent(
+            data = PeopleData(summary = "1 person · 7 faces", people = listOf(fakePerson(1, null)), unsure = emptyList()),
+            openId = 1,
+        )
+    }
+}
+
+/** Person, More (mockup): the person's fixes, Hide person under a line. Pairs with personMore_opening_keepsContentPut. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 900)
+@Composable
+fun PersonMore() = MemoriaTheme {
+    Surface {
+        Box(Modifier.fillMaxSize()) {
+            PeopleContent(
+                data = PeopleData(summary = "7 people · 412 faces", people = listOf(fakePerson(1, "Dana")), unsure = emptyList()),
+                openId = 1,
+            )
+            Menu(
+                true, onDismiss = {},
+                items = listOf(
+                    MenuItem(R.drawable.ic_person, "Rename") {},
+                    MenuItem(R.drawable.ic_person_add, "Merge with") {},
+                    MenuItem(R.drawable.ic_photo, "Change cover") {},
+                    MenuItem(R.drawable.ic_block, "Hide person", dividerBefore = true) {},
+                ),
+            )
+        }
+    }
+}
+
+/** Person, selecting (mockup): the bar swaps, the faces stay. Pairs with personDetail_selecting_keepsTopBarAndFaces. */
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 900)
 @Composable
@@ -477,6 +527,21 @@ fun MoveToAlbumSheetPreview() = MemoriaTheme {
                 MoveTarget("Telegram", "Pictures/Telegram/", null, 96),
                 MoveTarget("Holidays 2024", "Pictures/Holidays 2024/", null, 47),
             ),
+            false, "", {}, {}, {}, {}, {},
+        )
+    }
+}
+
+/** Move to album with a 40-letter album name: the row stays one line. Pairs with moveToAlbum_longAlbumName_keepsRowsPut. */
+@PreviewTest
+@Preview(widthDp = 360)
+@Composable
+fun MoveToAlbumLongName() = MemoriaTheme {
+    Surface {
+        MoveToAlbumContent(
+            Tile(1, android.net.Uri.parse("content://media/external/images/media/1"), 1_700_000_000_000L, null),
+            "Camera",
+            listOf(MoveTarget("W".repeat(40), "Pictures/Long/", null, 214), MoveTarget("Telegram", "Pictures/Telegram/", null, 96)),
             false, "", {}, {}, {}, {}, {},
         )
     }

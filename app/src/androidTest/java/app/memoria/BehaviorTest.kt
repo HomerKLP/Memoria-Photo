@@ -33,6 +33,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -40,6 +41,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
@@ -229,6 +231,28 @@ class BehaviorTest {
         assertEquals("Dana", saved)
     }
 
+    @Test fun namePerson_clearingName_savesEmpty() {
+        var text by mutableStateOf("Dana")
+        var saved: String? = null
+        rule.setContent {
+            MemoriaTheme { Surface { NamePersonContent(person(1, "Dana"), text, { text = it }, {}, { saved = it }) } }
+        }
+
+        rule.onNode(hasSetTextAction()).performTextClearance()
+        rule.onNodeWithText("Save").assertIsEnabled()
+        rule.onNodeWithText("Save").performClick()
+        assertEquals("", saved)
+    }
+
+    @Test fun namePerson_name_stopsAt40() {
+        var text by mutableStateOf("")
+        rule.setContent { MemoriaTheme { Surface { NamePersonContent(person(1), text, { text = it }, {}, {}) } } }
+
+        rule.onNode(hasSetTextAction()).performTextInput("a".repeat(40))
+        rule.onNode(hasSetTextAction()).performTextInput("b")
+        assertEquals("a".repeat(40), text)
+    }
+
     @Test fun whoIsThis_pickNamed_picksThatPerson() {
         var picked: Person? = null
         val people = listOf(person(1, "Dana"), person(2, "Arman"))
@@ -255,6 +279,15 @@ class BehaviorTest {
         rule.onNode(hasSetTextAction()).performTextInput("Bota")
         rule.onNodeWithText("New person").assertIsEnabled().performClick()
         assertEquals("Bota", created)
+    }
+
+    @Test fun whoIsThis_name_stopsAt40() {
+        var text by mutableStateOf("")
+        rule.setContent { MemoriaTheme { Surface { WhoIsThisContent(face(9), null, emptyList(), text, { text = it }, {}, null, {}) } } }
+
+        rule.onNode(hasSetTextAction()).performTextInput("a".repeat(40))
+        rule.onNode(hasSetTextAction()).performTextInput("b")
+        assertEquals("a".repeat(40), text)
     }
 
     @Test fun merge_pickThenMerge_mergesThePick() {
@@ -519,6 +552,15 @@ class BehaviorTest {
         assertEquals("ab", name)
     }
 
+    @Test fun newAlbum_name_stopsAt40() {
+        var name by mutableStateOf("")
+        rule.setContent { MemoriaTheme { Surface { NewAlbumContent(name, { name = it }, false, {}, {}) } } }
+
+        rule.onNode(hasSetTextAction()).performTextInput("a".repeat(40))
+        rule.onNode(hasSetTextAction()).performTextInput("b")
+        assertEquals("a".repeat(40), name)
+    }
+
     @Test fun newAlbumPick_moveHereOffUntilPicked() {
         val selection = PhotoSelection()
         rule.setContent {
@@ -695,6 +737,36 @@ class BehaviorTest {
         assertEquals(3L, opened)
     }
 
+    @Test fun people_dragNamed_savesTheNewOrder() {
+        var order: List<Long>? = null
+        rule.setContent { MemoriaTheme { Surface { PeopleContent(peopleData, onReorder = { order = it }) } } }
+
+        // Dana (first) is lifted and dragged over Arman, in small steps like a finger
+        rule.onAllNodesWithTag("namedCard")[0].performTouchInput {
+            down(center)
+            advanceEventTime(viewConfiguration.longPressTimeoutMillis + 100)
+            repeat(12) { moveBy(Offset(width * 0.1f, 0f)) }
+            up()
+        }
+        rule.runOnIdle { assertEquals(listOf(2L, 1L), order) }
+    }
+
+    @Test fun people_liftAndDropInPlace_opensNobodySavesNothing() {
+        var order: List<Long>? = null
+        var opened: Long? = null
+        rule.setContent { MemoriaTheme { Surface { PeopleContent(peopleData, onOpenPerson = { opened = it }, onReorder = { order = it }) } } }
+
+        rule.onAllNodesWithTag("namedCard")[0].performTouchInput {
+            down(center)
+            advanceEventTime(viewConfiguration.longPressTimeoutMillis + 100)
+            up()
+        }
+        rule.runOnIdle {
+            assertEquals(null, opened)
+            assertEquals(null, order)
+        }
+    }
+
     @Test fun people_list_back_fires() {
         var back = false
         rule.setContent { MemoriaTheme { Surface { PeopleContent(peopleData, onBack = { back = true }) } } }
@@ -703,7 +775,7 @@ class BehaviorTest {
         assertTrue(back)
     }
 
-    @Test fun person_chips_fire() {
+    @Test fun person_menu_fires() {
         var named = false
         var merge = false
         var cover = false
@@ -717,25 +789,48 @@ class BehaviorTest {
             } }
         }
 
-        rule.onNodeWithText("Rename").performScrollTo().performClick()
+        rule.onNodeWithText("Rename").assertDoesNotExist()
+        rule.onNodeWithContentDescription("More").performClick()
+        rule.onNodeWithText("Rename").performClick()
         assertTrue(named)
-        rule.onNodeWithText("Merge with").performScrollTo().performClick()
+        rule.onNodeWithText("Rename").assertDoesNotExist() // a pick closes the menu
+        rule.onNodeWithContentDescription("More").performClick()
+        rule.onNodeWithText("Merge with").performClick()
         assertTrue(merge)
-        rule.onNodeWithText("Change cover").performScrollTo().performClick()
+        rule.onNodeWithContentDescription("More").performClick()
+        rule.onNodeWithText("Change cover").performClick()
         assertTrue(cover)
-        rule.onNodeWithText("Hide person").performScrollTo().performClick()
+        rule.onNodeWithContentDescription("More").performClick()
+        rule.onNodeWithText("Hide person").performClick()
         assertTrue(hide)
     }
 
-    @Test fun person_unnamed_chipAddsName() {
+    @Test fun person_unnamed_menuAddsName() {
         var named = false
         rule.setContent { MemoriaTheme { Surface { PeopleContent(peopleData, openId = 3, onName = { named = true }) } } }
 
-        rule.onNodeWithText("Add name").performScrollTo().performClick()
+        rule.onNodeWithContentDescription("More").performClick()
+        rule.onAllNodesWithText("Add name").onLast().performClick() // the menu's, over the title's
         assertTrue(named)
     }
 
-    @Test fun person_hidden_chipShowsPerson() {
+    @Test fun person_nameTap_renames() {
+        var named = false
+        rule.setContent { MemoriaTheme { Surface { PeopleContent(peopleData, openId = 1, onName = { named = true }) } } }
+
+        rule.onNodeWithText("Dana").performClick()
+        assertTrue(named)
+    }
+
+    @Test fun person_unnamed_titleAddsName() {
+        var named = false
+        rule.setContent { MemoriaTheme { Surface { PeopleContent(peopleData, openId = 3, onName = { named = true }) } } }
+
+        rule.onNodeWithText("Add name").performClick()
+        assertTrue(named)
+    }
+
+    @Test fun person_hidden_menuShowsPerson() {
         var hide = false
         rule.setContent {
             MemoriaTheme { Surface {
@@ -746,7 +841,8 @@ class BehaviorTest {
             } }
         }
 
-        rule.onNodeWithText("Show person").performScrollTo().performClick()
+        rule.onNodeWithContentDescription("More").performClick()
+        rule.onNodeWithText("Show person").performClick()
         assertTrue(hide)
     }
 

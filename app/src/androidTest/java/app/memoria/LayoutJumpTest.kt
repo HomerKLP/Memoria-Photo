@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -28,9 +27,11 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeUp
@@ -245,6 +246,17 @@ class LayoutJumpTest {
         assertSame("People row height", before, rule.onNodeWithTag("peopleRow").height())
     }
 
+    /** A drag on People moves the first person back: a row at its start stays there instead of following them to the end. */
+    @Test fun library_firstPersonMoved_rowStaysAtStart() {
+        val people = (1L..8L).map { i -> face(i).let { Person(listOf(it), it, i, "Person $i") } }
+        var data by mutableStateOf(library(people = people))
+        rule.setContent { MemoriaTheme { Surface { LibraryContent(data) } } }
+
+        val start = rule.onNodeWithText("Person 1").getUnclippedBoundsInRoot().left
+        rule.runOnIdle { data = library(people = people.drop(1) + people.first()) }
+        assertSame("Person 2", start, rule.onNodeWithText("Person 2").getUnclippedBoundsInRoot().left)
+    }
+
     @Test fun library_unnamedPeople_rowStaysSameHeight() {
         var data by mutableStateOf(library(named = true))
         rule.setContent { MemoriaTheme { Surface { LibraryContent(data) } } }
@@ -274,6 +286,26 @@ class LayoutJumpTest {
         assertSame("top bar height", before, rule.onNodeWithTag("topBar").height())
     }
 
+    @Test fun sectionHead_longHint_keepsTitleAndHeight() {
+        var hint by mutableStateOf("These faces match Dana")
+        rule.setContent { MemoriaTheme { Surface { Column { SectionHead("Faces", hint = hint); Text("anchor") } } } }
+
+        val title = rule.onNodeWithText("Faces").width()
+        val below = rule.onNodeWithText("anchor").top()
+        rule.runOnIdle { hint = "These faces match " + "W".repeat(40) }
+        assertSame("title width", title, rule.onNodeWithText("Faces").width())
+        assertSame("below the head", below, rule.onNodeWithText("anchor").top())
+    }
+
+    @Test fun topBar_longName_keepsHeight() {
+        var name by mutableStateOf("Dana")
+        rule.setContent { MemoriaTheme { Surface { Column { TopBar(name, "$name · 7.4 MB", onBack = {}) } } } }
+
+        val before = rule.onNodeWithTag("topBar").height()
+        rule.runOnIdle { name = "W".repeat(40) }
+        assertSame("top bar height", before, rule.onNodeWithTag("topBar").height())
+    }
+
     /** The name sheet: the typing placeholder must not move the field or the buttons under it. */
     @Test fun namePerson_typingPlaceholder_keepsFieldAndButtonsPut() {
         var text by mutableStateOf("")
@@ -300,6 +332,15 @@ class LayoutJumpTest {
         rule.runOnIdle { text = "Arman" }
         assertSame("title", titleBefore, rule.onNodeWithText("Who is this?").top())
         assertSame("New person row", newBefore, rule.onNodeWithText("New person").top())
+    }
+
+    @Test fun whoIsThis_longTaggedName_keepsFieldPut() {
+        var now by mutableStateOf(person(1, "Dana"))
+        rule.setContent { MemoriaTheme { Surface { WhoIsThisContent(face(9), now, listOf(person(2, "Arman")), "", {}, {}, null, {}) } } }
+
+        val before = rule.onNodeWithText("Arman").top()
+        rule.runOnIdle { now = person(1, "W".repeat(40)) }
+        assertSame("Arman row", before, rule.onNodeWithText("Arman").top())
     }
 
     /** Merge with: the grid is a fixed height, so filtering people must not move the buttons. */
@@ -458,6 +499,25 @@ class LayoutJumpTest {
         assertSame("now in top", now, rule.onNodeWithText("Now in Camera").top())
     }
 
+    @Test fun moveToAlbum_longAlbumName_keepsRowsPut() {
+        var name by mutableStateOf("Screenshots")
+        rule.setContent {
+            MemoriaTheme {
+                Surface {
+                    MoveToAlbumContent(
+                        tile(1), "Camera",
+                        listOf(MoveTarget(name, "Pictures/Screenshots/", null, 214), MoveTarget("Telegram", "Pictures/Telegram/", null, 96)),
+                        false, "", {}, {}, {}, {}, {},
+                    )
+                }
+            }
+        }
+
+        val before = rule.onNodeWithText("Telegram").top()
+        rule.runOnIdle { name = "W".repeat(40) }
+        assertSame("next album", before, rule.onNodeWithText("Telegram").top())
+    }
+
     /** Photos select mode: the top bar swaps for "N selected" and the tiles grow a circle; the grid must not move. */
     /** New album: the picker opens in select mode; loading the timeline must not move its bar or footer. */
     @Test fun newAlbumPick_loadingToLoaded_topBarAndFooterStayPut() {
@@ -613,7 +673,7 @@ class LayoutJumpTest {
             }
         }
 
-        // scroll past the "Photos" heading (grid index 3); it is off-screen while the scroll holds
+        // scroll past the "Photos" heading (grid index 2); it is off-screen while the scroll holds
         rule.onNodeWithTag("personPhotos").performScrollToIndex(35)
         rule.onNodeWithText("Photos").assertDoesNotExist()
 
@@ -633,6 +693,16 @@ class LayoutJumpTest {
         val headerBefore = rule.onNodeWithText("On this device").top()
         rule.runOnIdle { albums = listOf(album(1, "Camera", 5), album(2, "Screenshots", 3)) }
         assertSame("On this device", headerBefore, rule.onNodeWithText("On this device").top())
+    }
+
+    /** Albums: alone in the grid while loading, the New album tile would slide from the first slot to the last. */
+    @Test fun albums_newAlbumTile_waitsForTheLoad() {
+        var albums by mutableStateOf<List<Album>?>(null)
+        rule.setContent { MemoriaTheme { Surface { AlbumsContent(albums) } } }
+
+        rule.onNodeWithText("New album").assertDoesNotExist()
+        rule.runOnIdle { albums = listOf(album(1, "Camera", 5), album(2, "Screenshots", 3)) }
+        rule.onNodeWithText("New album").assertExists()
     }
 
     /** Album: the title is a space while loading so the bar keeps its height; it must not move. */
@@ -717,8 +787,8 @@ class LayoutJumpTest {
         assertSame("grid top", gridBefore, rule.onNodeWithTag("placeGrid").top())
     }
 
-    /** Person, selecting: the bar loses the face and More, but keeps its height; the chips and grid above the photos stay put. */
-    @Test fun personDetail_selecting_keepsTopBarAndChips() {
+    /** Person, selecting: the bar loses the face and More, but keeps its height; the faces and grid above the photos stay put. */
+    @Test fun personDetail_selecting_keepsTopBarAndFaces() {
         val faces = (1L..6L).map { face(it) }
         val person = Person(faces, faces.first(), 1, "Dana")
         var ids by mutableStateOf<Set<Long>?>(null)
@@ -726,11 +796,39 @@ class LayoutJumpTest {
 
         val barBefore = rule.onNodeWithTag("topBar").height()
         val gridBefore = rule.onNodeWithTag("personPhotos").top()
-        val chipBefore = rule.onNodeWithText("Rename").top()
+        val facesBefore = rule.onNodeWithText("Faces").top()
         rule.runOnIdle { ids = setOf(1001L) }
         assertSame("top bar height", barBefore, rule.onNodeWithTag("topBar").height())
         assertSame("grid top", gridBefore, rule.onNodeWithTag("personPhotos").top())
-        assertSame("chips", chipBefore, rule.onNodeWithText("Rename").top())
+        assertSame("faces", facesBefore, rule.onNodeWithText("Faces").top())
+    }
+
+    /** Person: "Add name" and a name are one line each, so naming the person must not move the grid. */
+    @Test fun personDetail_naming_keepsGridPut() {
+        val faces = (1L..6L).map { face(it) }
+        var person by mutableStateOf(Person(faces, faces.first(), 1, null))
+        rule.setContent { MemoriaTheme { Surface { PersonDetail(person, onBack = {}, onName = {}, onOpen = { _, _ -> }, loadPhotos = { albumTiles(1, 6) }) } } }
+
+        val barBefore = rule.onNodeWithTag("topBar").height()
+        val gridBefore = rule.onNodeWithTag("personPhotos").top()
+        rule.runOnIdle { person = Person(faces, faces.first(), 1, "Dana") }
+        rule.onNodeWithText("Dana").assertIsDisplayed()
+        assertSame("top bar height", barBefore, rule.onNodeWithTag("topBar").height())
+        assertSame("grid top", gridBefore, rule.onNodeWithTag("personPhotos").top())
+    }
+
+    /** Person More: the menu drops over the screen (no dim, no reflow), so opening it must not move the bar or the grid. */
+    @Test fun personMore_opening_keepsContentPut() {
+        val faces = (1L..6L).map { face(it) }
+        val person = Person(faces, faces.first(), 1, "Dana")
+        rule.setContent { MemoriaTheme { Surface { PersonDetail(person, onBack = {}, onName = {}, onOpen = { _, _ -> }, loadPhotos = { albumTiles(1, 6) }) } } }
+
+        val barTop = rule.onNodeWithTag("topBar").top()
+        val gridTop = rule.onNodeWithTag("personPhotos").top()
+        rule.onNodeWithContentDescription("More").performClick()
+        rule.onNodeWithText("Rename").assertIsDisplayed()
+        assertSame("bar top", barTop, rule.onNodeWithTag("topBar").top())
+        assertSame("grid top", gridTop, rule.onNodeWithTag("personPhotos").top())
     }
 
     /** Details: faces, place and camera facts fill in below the date; the date header must not move. */
@@ -750,20 +848,6 @@ class LayoutJumpTest {
             info = full
         }
         assertSame("date", dateBefore, rule.onNodeWithText(dateText).top())
-    }
-
-    /**
-     * Person: the chips are a horizontal scroll. With the row wide enough to hold them all, the
-     * last chip ("Hide person") must keep the mockup's 16 dp right padding, not run to the edge.
-     */
-    @Test fun personDetail_lastChip_keepsRightPadding() {
-        val faces = (1L..3L).map { face(it) }
-        val person = Person(faces, faces.first(), 1, "Dana")
-        val wide = 600.dp
-        rule.setContent { MemoriaTheme { Surface { Box(Modifier.width(wide)) { PersonDetail(person, onBack = {}, onName = {}, onOpen = { _, _ -> }, loadPhotos = { emptyList() }) } } } }
-
-        val right = rule.onNodeWithText("Hide person").getUnclippedBoundsInRoot().right.value
-        assertTrue("last chip runs into the right edge: right=$right", right <= wide.value - 16f + 0.5f)
     }
 
     /** People: the bar keeps its height while the list loads, and the grid below must not shift. */

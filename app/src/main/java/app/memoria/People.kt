@@ -4,9 +4,15 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.LruCache
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -61,14 +67,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -83,6 +93,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.rememberReorderableLazyGridState
 import java.io.ByteArrayOutputStream
 import java.time.Instant
 import java.time.ZoneId
@@ -120,7 +132,7 @@ class LightFace(
     fun toVec() = FaceVec(id, photoId, box, FloatArray(0), quality, kind, personId, yes, rejected, nearSure)
 }
 
-class Person(val faces: List<FaceVec>, val main: FaceVec, val id: Long = 0, val name: String? = null, val hidden: Boolean = false, val coverFaceId: Long? = null) {
+class Person(val faces: List<FaceVec>, val main: FaceVec, val id: Long = 0, val name: String? = null, val hidden: Boolean = false, val coverFaceId: Long? = null, val pos: Int? = null) {
     /** The unsure faces of this person that look like [face] (0.3 or closer): one Yes on [face] settles them too. */
     fun twinsOf(face: FaceVec) = faces.filter { !it.sure && it.id != face.id && it.distanceTo(face) <= 0.3f }
 
@@ -132,7 +144,7 @@ class Person(val faces: List<FaceVec>, val main: FaceVec, val id: Long = 0, val 
 }
 
 /** The same person with a new cover, for updating a cached list in place (see [updateCached]). */
-fun Person.withCover(cover: Long?) = Person(faces, main, id, name, hidden, cover)
+fun Person.withCover(cover: Long?) = Person(faces, main, id, name, hidden, cover, pos)
 
 /** Everything the People screen shows, loaded in one pass. */
 data class PeopleData(val summary: String, val people: List<Person>, val unsure: List<FaceVec>)
@@ -316,8 +328,8 @@ fun PeopleScreen(
             val faces = dao.taggedFaces()
             val byPerson = faces.groupBy { it.personId }
             // getValue would crash on a person with no faces (stopped index, manual edit); skip it
-            val people = dao.people().mapNotNull { p -> byPerson[p.id]?.let { fs -> Person(fs.map { it.toVec() }, (fs.firstOrNull { it.id == p.mainFaceId } ?: fs.first()).toVec(), p.id, p.name, p.hidden, p.coverFaceId) } }
-                .sortedWith(compareBy({ it.name.isNullOrBlank() }, { -it.photos })) // named first, then by photo count
+            val people = dao.people().mapNotNull { p -> byPerson[p.id]?.let { fs -> Person(fs.map { it.toVec() }, (fs.firstOrNull { it.id == p.mainFaceId } ?: fs.first()).toVec(), p.id, p.name, p.hidden, p.coverFaceId, p.pos) } }
+                .sortedWith(compareBy({ it.name.isNullOrBlank() }, { it.pos ?: Int.MAX_VALUE }, { -it.photos })) // named first, moved ones in their order, then by photo count
             // hidden people stay in the list, so one opened from Hidden people still shows
             val shown = people.filter { !it.hidden }
             val unsure = shown.flatMap { p -> p.faces.filter { !it.sure } }.sortedBy { it.quality }
@@ -354,6 +366,14 @@ fun PeopleScreen(
         onHide = { p ->
             // NonCancellable: Back right after a tap closes this scope, and the write must still land
             if (p.hidden) scope.launch { withContext(Dispatchers.IO + NonCancellable) { dao.setHidden(p.id, false) }; reload++ } else hiding = p
+        },
+        onReorder = { ids ->
+            scope.launch {
+                withContext(Dispatchers.IO + NonCancellable) { db.withTransaction { ids.forEachIndexed { i, id -> dao.setPos(id, i) } } }
+                // the Library row starts from its cache on Back, so its first frame shows the new order too
+                updateCached("library", LibraryData::class.java) { d -> d.copy(faces = d.faces.sortedBy { ids.indexOf(it.id).let { i -> if (i < 0) Int.MAX_VALUE else i } }) }
+                reload++
+            }
         },
     )
     merging?.let { p ->
@@ -432,8 +452,8 @@ fun PeopleContent(
     onMerge: (Person) -> Unit = {},
     onCover: (Person) -> Unit = {},
     onHide: (Person) -> Unit = {},
+    onReorder: (List<Long>) -> Unit = {}, // the named people's ids in their new order, after a drag
 ) {
-    val open = data?.people?.firstOrNull { it.id == openId }
     // hoisted: switching to a person and back must not lose the list scroll
     val listState = rememberLazyListState()
     val gridState = rememberLazyGridState()
@@ -441,66 +461,95 @@ fun PeopleContent(
     var loaded by remember { mutableStateOf(false) }
     LaunchedEffect(data != null) { if (data != null) loaded = true }
     val fadeIn = if (loaded) spring<Float>(stiffness = Spring.StiffnessMediumLow) else null
-    // People come in rows of 4, the mockup's grid: 16 dp sides like the parts above it, 6 dp gaps
-    Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-        if (open == null && hiddenOnly) {
-            val hidden = data?.people.orEmpty().filter { it.hidden }
-            TopBar("Hidden people", data?.let { if (hidden.isEmpty()) "No people" else "${hidden.size} ${if (hidden.size == 1) "person" else "people"}" }, onBack = onBack)
-            LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 24.dp)) {
-                if (hidden.isNotEmpty()) item {
-                    Note(R.drawable.ic_info, "Not in People, Library or search. Tap one, then Show person", Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp))
-                }
-                items(hidden.chunked(4), key = { it.first().id }) { row ->
-                    Row(Modifier.padding(horizontal = 16.dp, vertical = 7.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        row.forEach { PersonCard(it, Modifier.weight(1f), tight = true) { onOpenPerson(it.id) } }
-                        repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
-                    }
-                }
-                if (data != null && hidden.isEmpty()) item {
-                    EmptyState(R.drawable.ic_eye, "No hidden people", "Hide a person from their screen, they show up here")
-                }
-            }
-        } else if (open == null) {
-            TopBar("People", data?.summary, onBack = onBack)
-            // one grid, not rows, so a card that leaves lets the next ones slide over. 15 columns: a named card takes 5, an unnamed one 3.
-            LazyVerticalGrid(
-                GridCells.Fixed(15), state = gridState,
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                data?.let { d ->
-                    if (d.unsure.isNotEmpty()) item("review", { GridItemSpan(maxLineSpan) }) {
-                        Box(Modifier.animateItem(fadeInSpec = fadeIn).overSides()) { ReviewCard(d.unsure, { onHelpRecognize(null) }) }
-                    }
-                    val shown = d.people.filter { !it.hidden }
-                    // the mockup splits them: named 96 dp 3 a row (name and count), unnamed 56 dp 5 a row (faces only)
-                    val (named, unnamed) = shown.partition { !it.name.isNullOrBlank() }
-                    if (named.isNotEmpty()) {
-                        item("namedHead", { GridItemSpan(maxLineSpan) }) {
-                            Box(Modifier.animateItem(fadeInSpec = fadeIn).overSides()) { SectionHead("Named", hint = "${named.size} ${if (named.size == 1) "person" else "people"}") }
-                        }
-                        items(named, key = { "n${it.id}" }, span = { GridItemSpan(5) }) {
-                            PersonCard(it, Modifier.animateItem(fadeInSpec = fadeIn).padding(vertical = 7.dp).testTag("namedCard"), faceSize = 96.dp, tight = true) { onOpenPerson(it.id) }
-                        }
-                    }
-                    if (unnamed.isNotEmpty()) {
-                        item("unnamedHead", { GridItemSpan(maxLineSpan) }) {
-                            Box(Modifier.animateItem(fadeInSpec = fadeIn).overSides()) { SectionHead("No name yet", hint = "Name them to move them up") }
-                        }
-                        items(unnamed, key = { "u${it.id}" }, span = { GridItemSpan(3) }) {
-                            PersonCard(it, Modifier.animateItem(fadeInSpec = fadeIn).padding(vertical = 4.dp).testTag("unnamedCard"), faceSize = 56.dp, tight = true, showName = false, showCount = false) { onOpenPerson(it.id) }
-                        }
-                    }
-                    if (shown.isEmpty()) item("empty", { GridItemSpan(maxLineSpan) }) {
-                        EmptyState(R.drawable.ic_person, "No people yet", "Index your photos in Library, then faces group into people here.", Modifier.overSides())
-                    }
-                }
-            }
-        } else if (data != null) {
-            PersonDetail(
+    // A person slides in from the right and Back slides them out, like a screen push in MainActivity.
+    // Keyed by id, not the person, so a direct open waits for the data instead of showing the list first.
+    AnimatedContent(openId, transitionSpec = {
+        val dir = if (targetState != null) 1 else -1
+        slideInHorizontally(tween(250)) { it * dir } togetherWith slideOutHorizontally(tween(250)) { -it * dir }
+    }, label = "person") { id ->
+        val open = data?.people?.firstOrNull { it.id == id }
+        if (id != null) {
+            // the person screen pads itself, so its More menu can cover the whole screen, like Album's
+            if (open != null) PersonDetail(
                 open, onBack = onClosePerson, onName = { onName(open) }, onOpen = onOpen, onReview = { onHelpRecognize(open.id) },
                 onMerge = { onMerge(open) }, onCover = { onCover(open) }, onHide = { onHide(open) }, pick = pick,
             )
+            // a zero size would clip the slide
+            else Box(Modifier.fillMaxSize())
+        }
+        // People come in rows of 4, the mockup's grid: 16 dp sides like the parts above it, 6 dp gaps
+        else Column(Modifier.fillMaxSize().safeDrawingPadding()) {
+            if (hiddenOnly) {
+                val hidden = data?.people.orEmpty().filter { it.hidden }
+                TopBar("Hidden people", data?.let { if (hidden.isEmpty()) "No people" else "${hidden.size} ${if (hidden.size == 1) "person" else "people"}" }, onBack = onBack)
+                LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 24.dp)) {
+                    if (hidden.isNotEmpty()) item {
+                        Note(R.drawable.ic_info, "Not in People, Library or search. Tap one, then Show person", Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp))
+                    }
+                    items(hidden.chunked(4), key = { it.first().id }) { row ->
+                        Row(Modifier.padding(horizontal = 16.dp, vertical = 7.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            row.forEach { PersonCard(it, Modifier.weight(1f), tight = true) { onOpenPerson(it.id) } }
+                            repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+                        }
+                    }
+                    if (data != null && hidden.isEmpty()) item {
+                        EmptyState(R.drawable.ic_eye, "No hidden people", "Hide a person from their screen, they show up here")
+                    }
+                }
+            } else {
+                TopBar("People", data?.summary, onBack = onBack)
+                val shown = data?.people.orEmpty().filter { !it.hidden }
+                // the mockup splits them: named 96 dp 3 a row (name and count), unnamed 56 dp 5 a row (faces only)
+                val (named, unnamed) = shown.partition { !it.name.isNullOrBlank() }
+                // the order while dragging; the next load starts it over from the saved one
+                var order by remember(named) { mutableStateOf(named) }
+                val haptic = LocalHapticFeedback.current
+                // only the named cards are ReorderableItems, so a drag never lands among the unnamed or on a head
+                val reorder = rememberReorderableLazyGridState(gridState) { from, to ->
+                    order = order.toMutableList().apply { add(indexOfFirst { "n${it.id}" == to.key }, removeAt(indexOfFirst { "n${it.id}" == from.key })) }
+                }
+                // saved on drop, here and not in the handle's onDragStopped: the handle keeps its first lambda, which can hold an old [order]
+                LaunchedEffect(reorder.isAnyItemDragging) { if (!reorder.isAnyItemDragging && order != named) onReorder(order.map { it.id }) }
+                // one grid, not rows, so a card that leaves lets the next ones slide over. 15 columns: a named card takes 5, an unnamed one 3.
+                LazyVerticalGrid(
+                    GridCells.Fixed(15), state = gridState,
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    data?.let { d ->
+                        if (d.unsure.isNotEmpty()) item("review", { GridItemSpan(maxLineSpan) }) {
+                            Box(Modifier.animateItem(fadeInSpec = fadeIn).overSides()) { ReviewCard(d.unsure, { onHelpRecognize(null) }) }
+                        }
+                        if (named.isNotEmpty()) {
+                            item("namedHead", { GridItemSpan(maxLineSpan) }) {
+                                Box(Modifier.animateItem(fadeInSpec = fadeIn).overSides()) { SectionHead("Named", hint = "${named.size} ${if (named.size == 1) "person" else "people"}") }
+                            }
+                            items(order, key = { "n${it.id}" }, span = { GridItemSpan(5) }) {
+                                ReorderableItem(reorder, "n${it.id}", animateItemModifier = Modifier.animateItem(fadeInSpec = fadeIn)) { lifted ->
+                                    PersonCard(
+                                        it,
+                                        // fillMaxWidth: ReorderableItem's Box lets the card shrink to its face and sit left in the cell
+                                        Modifier.longPressDraggableHandle(onDragStarted = { haptic.performHapticFeedback(HapticFeedbackType.LongPress) })
+                                            .fillMaxWidth().padding(vertical = 7.dp).testTag("namedCard"),
+                                        faceSize = 96.dp, tight = true, lifted = lifted,
+                                    ) { if (!reorder.isAnyItemDragging) onOpenPerson(it.id) } // a lift dropped in place is not a tap
+                                }
+                            }
+                        }
+                        if (unnamed.isNotEmpty()) {
+                            item("unnamedHead", { GridItemSpan(maxLineSpan) }) {
+                                Box(Modifier.animateItem(fadeInSpec = fadeIn).overSides()) { SectionHead("No name yet", hint = "Name them to move them up") }
+                            }
+                            items(unnamed, key = { "u${it.id}" }, span = { GridItemSpan(3) }) {
+                                PersonCard(it, Modifier.animateItem(fadeInSpec = fadeIn).padding(vertical = 4.dp).testTag("unnamedCard"), faceSize = 56.dp, tight = true, showName = false, showCount = false) { onOpenPerson(it.id) }
+                            }
+                        }
+                        if (shown.isEmpty()) item("empty", { GridItemSpan(maxLineSpan) }) {
+                            EmptyState(R.drawable.ic_person, "No people yet", "Index your photos in Library, then faces group into people here.", Modifier.overSides())
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -518,13 +567,13 @@ private fun Modifier.overSides() = layout { m, c ->
  * outside the face, so picking never moves the grid.
  */
 @Composable
-private fun PickFace(face: FaceVec, faceSize: Dp, picked: Boolean) {
+private fun PickFace(face: FaceVec, faceSize: Dp, picked: Boolean, lifted: Boolean = false) {
     val ring = MaterialTheme.colorScheme.primary
     Box {
         FaceImage(
             face,
             Modifier.drawBehind { if (picked) drawCircle(ring, size.minDimension / 2 + 4.5.dp.toPx(), style = Stroke(3.dp.toPx())) }
-                .size(faceSize).clip(CircleShape),
+                .shadow(if (lifted) 8.dp else 0.dp, CircleShape).size(faceSize).clip(CircleShape),
         )
         if (picked) Box(
             Modifier.align(Alignment.TopEnd).testTag("pickCheck").size(22.dp).clip(CircleShape).background(ring),
@@ -537,7 +586,7 @@ private fun PickFace(face: FaceVec, faceSize: Dp, picked: Boolean) {
  * Circular face, the name if any, and the photo count. 68 dp by default (Hidden people).
  * [tight] is the People screen's and Merge with's card (mockup `.tight`): 6 dp under the face and the
  * count right under the name, no gap. [showName] / [showCount] hide a line without losing the space,
- * for the unnamed grid (faces only). [picked]: accent ring and check (Merge with).
+ * for the unnamed grid (faces only). [picked]: accent ring and check (Merge with). [lifted]: being dragged, a bit bigger with a shadow (mockup `.pcard.lifted`).
  */
 @Composable
 private fun PersonCard(
@@ -548,13 +597,16 @@ private fun PersonCard(
     tight: Boolean = false,
     showName: Boolean = true,
     showCount: Boolean = true,
+    lifted: Boolean = false,
     onClick: () -> Unit,
 ) {
     Column(
-        modifier.clickable(onClick = onClick),
+        // no ripple once lifted: the held press would show as a grey box around the card
+        modifier.graphicsLayer { if (lifted) { scaleX = 1.08f; scaleY = 1.08f } }
+            .clickable(interactionSource = null, indication = if (lifted) null else LocalIndication.current, onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        PickFace(p.cover, faceSize, picked)
+        PickFace(p.cover, faceSize, picked, lifted)
         if (showName || showCount) Spacer(Modifier.height(if (tight) 6.dp else 8.dp))
         // 1.25 line height like the mockup: the plain Text default (a 24 sp line) left a big gap between name and count
         if (showName && !p.name.isNullOrBlank()) Text(p.name, fontSize = 13.sp, lineHeight = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
@@ -562,7 +614,7 @@ private fun PersonCard(
     }
 }
 
-/** One person: name, fixes, the faces that match, their photos. Layout per docs/design.html. */
+/** One person: name (tap to rename), the faces that match, their photos; fixes are in More. Layout per docs/design.html. */
 @Composable
 fun PersonDetail(
     p: Person,
@@ -598,92 +650,94 @@ fun PersonDetail(
         shownPhotos.groupBy { month.format(Instant.ofEpochMilli(it.date).atZone(zone)) }.entries.toList()
     }
     // one (grid item index, month name) per month heading, so the slider can jump to it; the items
-    // before the first month are the chips, the Faces head and row, the Unsure card (if any), the Photos head
-    val lead = if (unsure.isNotEmpty()) 5 else 4
+    // before the first month are the Faces head and row, the Unsure card (if any), the Photos head
+    val lead = if (unsure.isNotEmpty()) 4 else 3
     val months = remember(groups, lead) {
         var i = lead
         groups.map { (m, tiles) -> (i to m).also { i += 1 + tiles.size } }
     }
-    // own Column: the Select bar goes under the grid
-    Column(Modifier.fillMaxSize()) {
-        if (sel != null) TopBar(
-            "${sel.size} selected", "$name · ${formatBytes(pick.size)}",
-            onBack = { pick.set(null) }, backIcon = R.drawable.ic_close, backLabel = "Cancel",
-        ) {
-            if (sel.size < shownPhotos.size) TextButton({ pick.set(shownPhotos.map { it.id }.toSet()) }) { Text("Select all") }
-        }
-        else TopBar(
-            title = name,
-            subtitle = "${p.photos} photo${if (p.photos == 1) "" else "s"} · ${p.faces.size} face${if (p.faces.size == 1) "" else "s"}",
-            onBack = onBack,
-            leading = { FaceImage(p.cover, Modifier.padding(end = 12.dp).size(40.dp).clip(CircleShape)) },
-            trailing = { // TODO: more menu
-                IconButton({}) { Icon(painterResource(R.drawable.ic_more), "More") }
-            },
-        )
-        val grid = rememberLazyGridState()
-        FollowViewer(grid, shownPhotos)
-        MonthSliderBox(grid = grid, months = months, enabled = sel == null, top = monthHeadingHeight(below = 10.dp), modifier = Modifier.weight(1f)) {
-            LazyVerticalGrid(
-                GridCells.Fixed(3), modifier = Modifier.testTag("personPhotos"), state = grid,
-                contentPadding = PaddingValues(bottom = 24.dp),
-                horizontalArrangement = Arrangement.spacedBy(1.dp), verticalArrangement = Arrangement.spacedBy(1.dp),
+    var more by remember { mutableStateOf(false) }
+    Box(Modifier.fillMaxSize()) {
+        // own Column: the Select bar goes under the grid
+        Column(Modifier.fillMaxSize().safeDrawingPadding()) {
+            if (sel != null) TopBar(
+                "${sel.size} selected", "$name · ${formatBytes(pick.size)}",
+                onBack = { pick.set(null) }, backIcon = R.drawable.ic_close, backLabel = "Cancel",
             ) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    Row(
-                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Chip(if (p.name.isNullOrBlank()) "Add name" else "Rename", R.drawable.ic_person, onName)
-                        Chip("Merge with", R.drawable.ic_person_add, onMerge)
-                        Chip("Change cover", R.drawable.ic_photo, onCover)
-                        if (p.hidden) Chip("Show person", R.drawable.ic_eye, onHide) else Chip("Hide person", R.drawable.ic_block, onHide)
+                if (sel.size < shownPhotos.size) TextButton({ pick.set(shownPhotos.map { it.id }.toSet()) }) { Text("Select all") }
+            }
+            else TopBar(
+                title = if (p.name.isNullOrBlank()) "Add name" else name,
+                subtitle = "${p.photos} photo${if (p.photos == 1) "" else "s"} · ${p.faces.size} face${if (p.faces.size == 1) "" else "s"}",
+                onBack = onBack,
+                leading = { FaceImage(p.cover, Modifier.padding(end = 12.dp).size(40.dp).clip(CircleShape)) },
+                onTitle = onName,
+                titleColor = if (p.name.isNullOrBlank()) MaterialTheme.colorScheme.primary else Color.Unspecified,
+                trailing = { IconButton({ more = true }) { Icon(painterResource(R.drawable.ic_more), "More") } },
+            )
+            val grid = rememberLazyGridState()
+            FollowViewer(grid, shownPhotos)
+            MonthSliderBox(grid = grid, months = months, enabled = sel == null, top = monthHeadingHeight(below = 10.dp), modifier = Modifier.weight(1f)) {
+                LazyVerticalGrid(
+                    GridCells.Fixed(3), modifier = Modifier.testTag("personPhotos"), state = grid,
+                    contentPadding = PaddingValues(bottom = 24.dp),
+                    horizontalArrangement = Arrangement.spacedBy(1.dp), verticalArrangement = Arrangement.spacedBy(1.dp),
+                ) {
+                    item(span = { GridItemSpan(maxLineSpan) }) { SectionHead("Faces", hint = "These faces match $who") }
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Row(
+                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 2.dp),
+                            horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        ) {
+                            sure.take(30).forEach { FaceImage(it, Modifier.size(44.dp).clip(CircleShape)) }
+                        }
                     }
-                }
-                item(span = { GridItemSpan(maxLineSpan) }) { SectionHead("Faces", hint = "These faces match $who") }
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    Row(
-                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 2.dp),
-                        horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    ) {
-                        sure.take(30).forEach { FaceImage(it, Modifier.size(44.dp).clip(CircleShape)) }
+                    if (unsure.isNotEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
+                        // "may be this person" wraps next to the face stack
+                        ReviewCard(unsure, onReview, title = "Unsure faces", note = if (p.name.isNullOrBlank()) "${unsure.size} to check" else "${unsure.size} may be ${p.name}")
                     }
-                }
-                if (unsure.isNotEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
-                    // "may be this person" wraps next to the face stack
-                    ReviewCard(unsure, onReview, title = "Unsure faces", note = if (p.name.isNullOrBlank()) "${unsure.size} to check" else "${unsure.size} may be ${p.name}")
-                }
-                item(span = { GridItemSpan(maxLineSpan) }) { SectionHead("Photos", hint = "${p.photos} · by date") }
-                groups.forEach { (m, tiles) ->
-                    stickyHeader(key = m) {
-                        // background: the pinned month covers the tiles passing under it
-                        Text(
-                            m, Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(start = 16.dp, top = 20.dp, bottom = 10.dp),
-                            style = MaterialTheme.typography.titleLarge,
-                        )
-                    }
-                    items(tiles, key = { it.id }) { t ->
-                        val on = sel != null && t.id in sel
-                        TileImage(
-                            t,
-                            Modifier.combinedClickable(
-                                onClick = { if (sel == null) onOpen(shownPhotos, t) else pick.set(if (on) sel - t.id else sel + t.id) },
-                                onLongClick = { pick.set(sel.orEmpty() + t.id) },
-                            ).testTag("tile-${t.id}").animateItem(fadeInSpec = null), // no fade in: a first load shows at once
-                            selecting = sel != null, selected = on,
-                        )
+                    item(span = { GridItemSpan(maxLineSpan) }) { SectionHead("Photos", hint = "${p.photos} · by date") }
+                    groups.forEach { (m, tiles) ->
+                        stickyHeader(key = m) {
+                            // background: the pinned month covers the tiles passing under it
+                            Text(
+                                m, Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(start = 16.dp, top = 20.dp, bottom = 10.dp),
+                                style = MaterialTheme.typography.titleLarge,
+                            )
+                        }
+                        items(tiles, key = { it.id }) { t ->
+                            val on = sel != null && t.id in sel
+                            TileImage(
+                                t,
+                                Modifier.combinedClickable(
+                                    onClick = { if (sel == null) onOpen(shownPhotos, t) else pick.set(if (on) sel - t.id else sel + t.id) },
+                                    onLongClick = { pick.set(sel.orEmpty() + t.id) },
+                                ).testTag("tile-${t.id}").animateItem(fadeInSpec = null), // no fade in: a first load shows at once
+                                selecting = sel != null, selected = on,
+                            )
+                        }
                     }
                 }
             }
+            if (sel != null) {
+                val picked = shownPhotos.filter { it.id in sel }
+                SelectBar(picked.isNotEmpty() && picked.all { it.favorite }, { pick.share(picked) }, { pick.favorite(picked) }, { pick.delete(picked) })
+            }
         }
-        if (sel != null) {
-            val picked = shownPhotos.filter { it.id in sel }
-            SelectBar(picked.isNotEmpty() && picked.all { it.favorite }, { pick.share(picked) }, { pick.favorite(picked) }, { pick.delete(picked) })
-        }
+        Menu(
+            more, onDismiss = { more = false },
+            items = listOf(
+                MenuItem(R.drawable.ic_person, if (p.name.isNullOrBlank()) "Add name" else "Rename") { more = false; onName() },
+                MenuItem(R.drawable.ic_person_add, "Merge with") { more = false; onMerge() },
+                MenuItem(R.drawable.ic_photo, "Change cover") { more = false; onCover() },
+                if (p.hidden) MenuItem(R.drawable.ic_eye, "Show person", dividerBefore = true) { more = false; onHide() }
+                else MenuItem(R.drawable.ic_block, "Hide person", dividerBefore = true) { more = false; onHide() },
+            ),
+        )
     }
 }
 
-/** Bordered action chip, like the mockup's Rename / Merge with. */
+/** Bordered action chip, like the mockup's Search chips. */
 @Composable
 fun Chip(label: String, icon: Int, onClick: () -> Unit) {
     Row(
@@ -874,7 +928,7 @@ fun ChangeCoverContent(person: Person, picked: Long?, onPick: (Long) -> Unit, on
 
 /**
  * "Name this person" sheet from the mockup: just a name field.
- * Saves a blank name as no name.
+ * Saving a cleared field removes the person's name.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -891,6 +945,7 @@ fun NamePersonSheet(person: Person, onDismiss: () -> Unit, onSave: (String) -> U
 /** The sheet's body without the bottom-sheet chrome, so tests can render it directly. */
 @Composable
 fun NamePersonContent(person: Person, text: String, onText: (String) -> Unit, onCancel: () -> Unit, onSave: (String) -> Unit) {
+    val canSave = text.isNotBlank() || !person.name.isNullOrBlank()
     Column(Modifier.padding(bottom = 28.dp).verticalScroll(rememberScrollState())) {
         Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             FaceImage(person.cover, Modifier.size(48.dp).clip(CircleShape))
@@ -907,7 +962,7 @@ fun NamePersonContent(person: Person, text: String, onText: (String) -> Unit, on
         ) {
             if (text.isEmpty()) Text("Type a name", color = MaterialTheme.colorScheme.onSurfaceVariant)
             BasicTextField(
-                text, onText, singleLine = true,
+                text, { if (it.length <= 40) onText(it) }, singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
@@ -923,11 +978,11 @@ fun NamePersonContent(person: Person, text: String, onText: (String) -> Unit, on
             ) { Text("Cancel", fontWeight = FontWeight.Medium) }
             Row(
                 Modifier.weight(1f).height(52.dp).clip(RoundedCornerShape(26.dp))
-                    .background(if (text.isBlank()) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primary)
-                    .clickable(enabled = text.isNotBlank()) { onSave(text) },
+                    .background(if (canSave) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+                    .clickable(enabled = canSave) { onSave(text) },
                 horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
             ) {
-                val color = if (text.isBlank()) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary
+                val color = if (canSave) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
                 Icon(painterResource(R.drawable.ic_check), null, Modifier.size(18.dp), tint = color)
                 Spacer(Modifier.width(8.dp))
                 Text("Save", color = color, fontWeight = FontWeight.Medium)

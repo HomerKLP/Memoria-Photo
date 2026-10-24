@@ -54,6 +54,7 @@ fun LicensesContent(onBack: () -> Unit = {}, onFullTexts: () -> Unit = {}) {
         LicenseRow("Qualcomm QNN libraries", "Runs the models on the NPU · Qualcomm's own license")
         LicenseRow("AndroidX, Compose, Material", "App code and UI · Apache 2.0")
         LicenseRow("Kotlin", "Language and runtime · Apache 2.0")
+        LicenseRow("Reorderable", "Drag to reorder people · Apache 2.0")
         SectionHead("Face models")
         LicenseRow("YOLOv5m-face", "Finds faces · GPL-3.0")
         LicenseRow("AdaFace IR101", "Face vector · MIT")

@@ -264,7 +264,7 @@ fun WhoIsThisContent(
                         now.name.isNullOrBlank() -> "Now with an unnamed person"
                         else -> "Now tagged as ${now.name}"
                     },
-                    fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
             }
         }
@@ -278,7 +278,7 @@ fun WhoIsThisContent(
             Box(Modifier.padding(start = 12.dp).weight(1f)) {
                 if (text.isEmpty()) Text("Search or type a new name", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 BasicTextField(
-                    text, onText, singleLine = true,
+                    text, { if (it.length <= 40) onText(it) }, singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                     textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
