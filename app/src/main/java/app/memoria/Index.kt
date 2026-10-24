@@ -70,11 +70,12 @@ class FaceRow(
 )
 
 /**
- * People saved by the last index run, see savePeople. `name`, `hidden` and `coverFaceId` are the user's; kept across re-index runs.
+ * People saved by the last index run, see savePeople. `name`, `hidden`, `coverFaceId` and `pos` are the user's; kept across re-index runs.
  * `mainFaceId` is the face the app matches and merges with; `coverFaceId` is only the picture shown for the person (Change cover), null = the main face.
+ * `pos`: the named person's place after a drag on People, null = never moved.
  */
 @Entity(tableName = "person")
-class PersonRow(@PrimaryKey val id: Long, val mainFaceId: Long, val name: String? = null, val hidden: Boolean = false, val coverFaceId: Long? = null)
+class PersonRow(@PrimaryKey val id: Long, val mainFaceId: Long, val name: String? = null, val hidden: Boolean = false, val coverFaceId: Long? = null, val pos: Int? = null)
 
 /**
  * Help recognize answer: face [faceId] is (yes) or is not (no) the person that [personFace] belongs to.
@@ -127,7 +128,9 @@ interface IndexDao {
     )
     suspend fun taggedFaces(): List<LightFace>
     @Query("SELECT * FROM person ORDER BY id") suspend fun people(): List<PersonRow>
-    @Query("UPDATE person SET name = :name WHERE id = :id") suspend fun setName(id: Long, name: String?)
+    /** A removed name drops the place too, so a name given later goes after the moved people. */
+    @Query("UPDATE person SET name = :name, pos = CASE WHEN :name IS NULL THEN NULL ELSE pos END WHERE id = :id") suspend fun setName(id: Long, name: String?)
+    @Query("UPDATE person SET pos = :pos WHERE id = :id") suspend fun setPos(id: Long, pos: Int)
     @Query("DELETE FROM person") suspend fun deletePeople()
     @Query("UPDATE face SET personId = NULL, nearSure = 0") suspend fun clearPersonIds()
     @Query("UPDATE face SET nearSure = 1 WHERE id IN (:faces)") suspend fun setNearSure(faces: List<Long>)
@@ -154,7 +157,7 @@ interface IndexDao {
     suspend fun setPlace(id: Long, lat: Double?, lon: Double?, townId: Int, town: String?)
 }
 
-@Database(entities = [PhotoRow::class, FaceRow::class, PersonRow::class, AnswerRow::class, MergeRow::class], version = 10)
+@Database(entities = [PhotoRow::class, FaceRow::class, PersonRow::class, AnswerRow::class, MergeRow::class], version = 11)
 @TypeConverters(Converters::class)
 abstract class Db : RoomDatabase() {
     abstract fun index(): IndexDao
@@ -192,7 +195,11 @@ abstract class Db : RoomDatabase() {
         private val MIGRATION_9_10 = object : Migration(9, 10) {
             override fun migrate(db: SupportSQLiteDatabase) = db.execSQL("ALTER TABLE face ADD COLUMN nearSure INTEGER NOT NULL DEFAULT 0")
         }
-        internal val MIGRATIONS = arrayOf(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
+        /** v11: person.pos, the order of named people after a drag on People. */
+        private val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) = db.execSQL("ALTER TABLE person ADD COLUMN pos INTEGER")
+        }
+        internal val MIGRATIONS = arrayOf(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
         private var db: Db? = null
         @Synchronized fun get(context: Context) =
             db ?: // a missing migration crashes instead of wiping names; MigrationTest checks each bump
@@ -483,7 +490,7 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                 val match = carry(ids, old, oldFaces, taken)
                 val pid = match?.id ?: next++
                 // the cover follows the person only while its face is still with them; else the app picks one again (main face)
-                dao.insertPerson(PersonRow(pid, p.main.id, match?.name, match?.hidden ?: false, match?.coverFaceId?.takeIf { it in ids }))
+                dao.insertPerson(PersonRow(pid, p.main.id, match?.name, match?.hidden ?: false, match?.coverFaceId?.takeIf { it in ids }, match?.pos))
                 dao.setPerson(ids, pid)
                 val near = p.faces.filter { it.nearSure }.map { it.id }
                 if (near.isNotEmpty()) dao.setNearSure(near)

@@ -139,6 +139,9 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .tight .pcard .face + * { margin-top: 6px; }
 .tight .pcard b, .tight .pcard span:not(.sel) { line-height: 1.25; }
 .people-grid.nameless { grid-template-columns: repeat(5, 1fr); gap: 8px 6px; }
+/* A named person being dragged: a bit bigger, a shadow under the face, drawn over the others */
+.pcard.lifted { transform: translate(-12px, -8px) scale(1.08); z-index: 1; }
+.pcard.lifted .face { box-shadow: 0 10px 20px -6px rgba(70, 45, 20, .55); }
 
 /* Person screen */
 .chips { display: flex; gap: 8px; padding: 12px 16px 0; overflow-x: auto; scrollbar-width: none; }
@@ -1007,7 +1010,29 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>People: opens from Library, "See all". Review card, then named people (96, 3 a row, name and count), then unnamed (56, 5 a row, no text), each by photo count</figcaption>
+      <figcaption>People: opens from Library, "See all". Review card, then named people (96, 3 a row, name and count) in the user's order, then unnamed (56, 5 a row, no text) by photo count</figcaption>
+    </figure>
+    <figure id="people-move">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="title"><b>People</b><span>18 people · 1,214 faces</span></div>
+        </div>
+        <div class="scroll">
+          <div class="review">
+            <div class="stack" id="people-move-unsure"></div>
+            <div class="review-text"><b>Help recognize</b><span>24 faces to check</span></div>
+            <button class="pill-btn">Review</button>
+          </div>
+          <div class="head"><h3>Named</h3><span class="hint">4 people</span></div>
+          <div class="people-grid named tight" id="people-move-grid"></div>
+          <div class="head"><h3>No name yet</h3><span class="hint">Name them to move them up</span></div>
+          <div class="people-grid nameless" id="people-move-nameless"></div>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>People, moving a person: long press a named person to lift them (a bit bigger, with a shadow) and drag; the others slide to make room, and the order is saved on drop. It stays across face search runs. Named people only. Someone named later goes after them, by photo count</figcaption>
     </figure>
     <figure id="person">
       <div class="phone">
@@ -1337,6 +1362,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="set"><div><b>Qualcomm QNN libraries</b><span>Runs the models on the NPU · Qualcomm's own license</span></div></div>
           <div class="set"><div><b>AndroidX, Compose, Material</b><span>App code and UI · Apache 2.0</span></div></div>
           <div class="set"><div><b>Kotlin</b><span>Language and runtime · Apache 2.0</span></div></div>
+          <div class="set"><div><b>Reorderable</b><span>Drag to reorder people · Apache 2.0</span></div></div>
           <div class="head"><h3>Face models</h3></div>
           <div class="set"><div><b>YOLOv5m-face</b><span>Finds faces · GPL-3.0</span></div></div>
           <div class="set"><div><b>AdaFace IR101</b><span>Face vector · MIT</span></div></div>
@@ -1667,6 +1693,10 @@ fill("people-unsure", [2, 5, 0].map(i => face(i, 36)).join(""));
 // People screen: 4 named, 14 unnamed, like a real library.
 fill("people-grid", [["Me", 412], ["Mom", 230], ["Dana", 96], ["Arman", 64]].map(([n, c], i) => `<div class="pcard">${face(i, 96)}<b>${n}</b><span>${c}</span></div>`).join(""));
 fill("people-nameless", Array.from({ length: 14 }, (_, i) => `<div class="pcard">${face((i + 4) % 7, 56)}</div>`).join(""));
+// People, moving a person: Dana lifted on her way to the second spot, Mom already slid over
+fill("people-move-unsure", document.getElementById("people-unsure").innerHTML);
+fill("people-move-grid", [["Me", 412, 0], ["Dana", 96, 2], ["Mom", 230, 1], ["Arman", 64, 3]].map(([n, c, i]) => `<div class="pcard${n === "Dana" ? " lifted" : ""}">${face(i, 96)}<b>${n}</b><span>${c}</span></div>`).join(""));
+fill("people-move-nameless", document.getElementById("people-nameless").innerHTML);
 
 const tiles = (n, vids = [], favs = []) => Array.from({ length: n }, (_, i) =>
   `<div class="tile" style="background:${photo()}">${

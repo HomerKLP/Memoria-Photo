@@ -737,6 +737,36 @@ class BehaviorTest {
         assertEquals(3L, opened)
     }
 
+    @Test fun people_dragNamed_savesTheNewOrder() {
+        var order: List<Long>? = null
+        rule.setContent { MemoriaTheme { Surface { PeopleContent(peopleData, onReorder = { order = it }) } } }
+
+        // Dana (first) is lifted and dragged over Arman, in small steps like a finger
+        rule.onAllNodesWithTag("namedCard")[0].performTouchInput {
+            down(center)
+            advanceEventTime(viewConfiguration.longPressTimeoutMillis + 100)
+            repeat(12) { moveBy(Offset(width * 0.1f, 0f)) }
+            up()
+        }
+        rule.runOnIdle { assertEquals(listOf(2L, 1L), order) }
+    }
+
+    @Test fun people_liftAndDropInPlace_opensNobodySavesNothing() {
+        var order: List<Long>? = null
+        var opened: Long? = null
+        rule.setContent { MemoriaTheme { Surface { PeopleContent(peopleData, onOpenPerson = { opened = it }, onReorder = { order = it }) } } }
+
+        rule.onAllNodesWithTag("namedCard")[0].performTouchInput {
+            down(center)
+            advanceEventTime(viewConfiguration.longPressTimeoutMillis + 100)
+            up()
+        }
+        rule.runOnIdle {
+            assertEquals(null, opened)
+            assertEquals(null, order)
+        }
+    }
+
     @Test fun people_list_back_fires() {
         var back = false
         rule.setContent { MemoriaTheme { Surface { PeopleContent(peopleData, onBack = { back = true }) } } }

@@ -12,6 +12,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -66,14 +67,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -88,6 +93,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.rememberReorderableLazyGridState
 import java.io.ByteArrayOutputStream
 import java.time.Instant
 import java.time.ZoneId
@@ -125,7 +132,7 @@ class LightFace(
     fun toVec() = FaceVec(id, photoId, box, FloatArray(0), quality, kind, personId, yes, rejected, nearSure)
 }
 
-class Person(val faces: List<FaceVec>, val main: FaceVec, val id: Long = 0, val name: String? = null, val hidden: Boolean = false, val coverFaceId: Long? = null) {
+class Person(val faces: List<FaceVec>, val main: FaceVec, val id: Long = 0, val name: String? = null, val hidden: Boolean = false, val coverFaceId: Long? = null, val pos: Int? = null) {
     /** The unsure faces of this person that look like [face] (0.3 or closer): one Yes on [face] settles them too. */
     fun twinsOf(face: FaceVec) = faces.filter { !it.sure && it.id != face.id && it.distanceTo(face) <= 0.3f }
 
@@ -137,7 +144,7 @@ class Person(val faces: List<FaceVec>, val main: FaceVec, val id: Long = 0, val 
 }
 
 /** The same person with a new cover, for updating a cached list in place (see [updateCached]). */
-fun Person.withCover(cover: Long?) = Person(faces, main, id, name, hidden, cover)
+fun Person.withCover(cover: Long?) = Person(faces, main, id, name, hidden, cover, pos)
 
 /** Everything the People screen shows, loaded in one pass. */
 data class PeopleData(val summary: String, val people: List<Person>, val unsure: List<FaceVec>)
@@ -321,8 +328,8 @@ fun PeopleScreen(
             val faces = dao.taggedFaces()
             val byPerson = faces.groupBy { it.personId }
             // getValue would crash on a person with no faces (stopped index, manual edit); skip it
-            val people = dao.people().mapNotNull { p -> byPerson[p.id]?.let { fs -> Person(fs.map { it.toVec() }, (fs.firstOrNull { it.id == p.mainFaceId } ?: fs.first()).toVec(), p.id, p.name, p.hidden, p.coverFaceId) } }
-                .sortedWith(compareBy({ it.name.isNullOrBlank() }, { -it.photos })) // named first, then by photo count
+            val people = dao.people().mapNotNull { p -> byPerson[p.id]?.let { fs -> Person(fs.map { it.toVec() }, (fs.firstOrNull { it.id == p.mainFaceId } ?: fs.first()).toVec(), p.id, p.name, p.hidden, p.coverFaceId, p.pos) } }
+                .sortedWith(compareBy({ it.name.isNullOrBlank() }, { it.pos ?: Int.MAX_VALUE }, { -it.photos })) // named first, moved ones in their order, then by photo count
             // hidden people stay in the list, so one opened from Hidden people still shows
             val shown = people.filter { !it.hidden }
             val unsure = shown.flatMap { p -> p.faces.filter { !it.sure } }.sortedBy { it.quality }
@@ -359,6 +366,14 @@ fun PeopleScreen(
         onHide = { p ->
             // NonCancellable: Back right after a tap closes this scope, and the write must still land
             if (p.hidden) scope.launch { withContext(Dispatchers.IO + NonCancellable) { dao.setHidden(p.id, false) }; reload++ } else hiding = p
+        },
+        onReorder = { ids ->
+            scope.launch {
+                withContext(Dispatchers.IO + NonCancellable) { db.withTransaction { ids.forEachIndexed { i, id -> dao.setPos(id, i) } } }
+                // the Library row starts from its cache on Back, so its first frame shows the new order too
+                updateCached("library", LibraryData::class.java) { d -> d.copy(faces = d.faces.sortedBy { ids.indexOf(it.id).let { i -> if (i < 0) Int.MAX_VALUE else i } }) }
+                reload++
+            }
         },
     )
     merging?.let { p ->
@@ -437,6 +452,7 @@ fun PeopleContent(
     onMerge: (Person) -> Unit = {},
     onCover: (Person) -> Unit = {},
     onHide: (Person) -> Unit = {},
+    onReorder: (List<Long>) -> Unit = {}, // the named people's ids in their new order, after a drag
 ) {
     // hoisted: switching to a person and back must not lose the list scroll
     val listState = rememberLazyListState()
@@ -482,6 +498,18 @@ fun PeopleContent(
                 }
             } else {
                 TopBar("People", data?.summary, onBack = onBack)
+                val shown = data?.people.orEmpty().filter { !it.hidden }
+                // the mockup splits them: named 96 dp 3 a row (name and count), unnamed 56 dp 5 a row (faces only)
+                val (named, unnamed) = shown.partition { !it.name.isNullOrBlank() }
+                // the order while dragging; the next load starts it over from the saved one
+                var order by remember(named) { mutableStateOf(named) }
+                val haptic = LocalHapticFeedback.current
+                // only the named cards are ReorderableItems, so a drag never lands among the unnamed or on a head
+                val reorder = rememberReorderableLazyGridState(gridState) { from, to ->
+                    order = order.toMutableList().apply { add(indexOfFirst { "n${it.id}" == to.key }, removeAt(indexOfFirst { "n${it.id}" == from.key })) }
+                }
+                // saved on drop, here and not in the handle's onDragStopped: the handle keeps its first lambda, which can hold an old [order]
+                LaunchedEffect(reorder.isAnyItemDragging) { if (!reorder.isAnyItemDragging && order != named) onReorder(order.map { it.id }) }
                 // one grid, not rows, so a card that leaves lets the next ones slide over. 15 columns: a named card takes 5, an unnamed one 3.
                 LazyVerticalGrid(
                     GridCells.Fixed(15), state = gridState,
@@ -492,15 +520,20 @@ fun PeopleContent(
                         if (d.unsure.isNotEmpty()) item("review", { GridItemSpan(maxLineSpan) }) {
                             Box(Modifier.animateItem(fadeInSpec = fadeIn).overSides()) { ReviewCard(d.unsure, { onHelpRecognize(null) }) }
                         }
-                        val shown = d.people.filter { !it.hidden }
-                        // the mockup splits them: named 96 dp 3 a row (name and count), unnamed 56 dp 5 a row (faces only)
-                        val (named, unnamed) = shown.partition { !it.name.isNullOrBlank() }
                         if (named.isNotEmpty()) {
                             item("namedHead", { GridItemSpan(maxLineSpan) }) {
                                 Box(Modifier.animateItem(fadeInSpec = fadeIn).overSides()) { SectionHead("Named", hint = "${named.size} ${if (named.size == 1) "person" else "people"}") }
                             }
-                            items(named, key = { "n${it.id}" }, span = { GridItemSpan(5) }) {
-                                PersonCard(it, Modifier.animateItem(fadeInSpec = fadeIn).padding(vertical = 7.dp).testTag("namedCard"), faceSize = 96.dp, tight = true) { onOpenPerson(it.id) }
+                            items(order, key = { "n${it.id}" }, span = { GridItemSpan(5) }) {
+                                ReorderableItem(reorder, "n${it.id}", animateItemModifier = Modifier.animateItem(fadeInSpec = fadeIn)) { lifted ->
+                                    PersonCard(
+                                        it,
+                                        // fillMaxWidth: ReorderableItem's Box lets the card shrink to its face and sit left in the cell
+                                        Modifier.longPressDraggableHandle(onDragStarted = { haptic.performHapticFeedback(HapticFeedbackType.LongPress) })
+                                            .fillMaxWidth().padding(vertical = 7.dp).testTag("namedCard"),
+                                        faceSize = 96.dp, tight = true, lifted = lifted,
+                                    ) { if (!reorder.isAnyItemDragging) onOpenPerson(it.id) } // a lift dropped in place is not a tap
+                                }
                             }
                         }
                         if (unnamed.isNotEmpty()) {
@@ -534,13 +567,13 @@ private fun Modifier.overSides() = layout { m, c ->
  * outside the face, so picking never moves the grid.
  */
 @Composable
-private fun PickFace(face: FaceVec, faceSize: Dp, picked: Boolean) {
+private fun PickFace(face: FaceVec, faceSize: Dp, picked: Boolean, lifted: Boolean = false) {
     val ring = MaterialTheme.colorScheme.primary
     Box {
         FaceImage(
             face,
             Modifier.drawBehind { if (picked) drawCircle(ring, size.minDimension / 2 + 4.5.dp.toPx(), style = Stroke(3.dp.toPx())) }
-                .size(faceSize).clip(CircleShape),
+                .shadow(if (lifted) 8.dp else 0.dp, CircleShape).size(faceSize).clip(CircleShape),
         )
         if (picked) Box(
             Modifier.align(Alignment.TopEnd).testTag("pickCheck").size(22.dp).clip(CircleShape).background(ring),
@@ -553,7 +586,7 @@ private fun PickFace(face: FaceVec, faceSize: Dp, picked: Boolean) {
  * Circular face, the name if any, and the photo count. 68 dp by default (Hidden people).
  * [tight] is the People screen's and Merge with's card (mockup `.tight`): 6 dp under the face and the
  * count right under the name, no gap. [showName] / [showCount] hide a line without losing the space,
- * for the unnamed grid (faces only). [picked]: accent ring and check (Merge with).
+ * for the unnamed grid (faces only). [picked]: accent ring and check (Merge with). [lifted]: being dragged, a bit bigger with a shadow (mockup `.pcard.lifted`).
  */
 @Composable
 private fun PersonCard(
@@ -564,13 +597,16 @@ private fun PersonCard(
     tight: Boolean = false,
     showName: Boolean = true,
     showCount: Boolean = true,
+    lifted: Boolean = false,
     onClick: () -> Unit,
 ) {
     Column(
-        modifier.clickable(onClick = onClick),
+        // no ripple once lifted: the held press would show as a grey box around the card
+        modifier.graphicsLayer { if (lifted) { scaleX = 1.08f; scaleY = 1.08f } }
+            .clickable(interactionSource = null, indication = if (lifted) null else LocalIndication.current, onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        PickFace(p.cover, faceSize, picked)
+        PickFace(p.cover, faceSize, picked, lifted)
         if (showName || showCount) Spacer(Modifier.height(if (tight) 6.dp else 8.dp))
         // 1.25 line height like the mockup: the plain Text default (a 24 sp line) left a big gap between name and count
         if (showName && !p.name.isNullOrBlank()) Text(p.name, fontSize = 13.sp, lineHeight = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)

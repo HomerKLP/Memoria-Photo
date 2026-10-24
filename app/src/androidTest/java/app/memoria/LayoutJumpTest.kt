@@ -246,6 +246,17 @@ class LayoutJumpTest {
         assertSame("People row height", before, rule.onNodeWithTag("peopleRow").height())
     }
 
+    /** A drag on People moves the first person back: a row at its start stays there instead of following them to the end. */
+    @Test fun library_firstPersonMoved_rowStaysAtStart() {
+        val people = (1L..8L).map { i -> face(i).let { Person(listOf(it), it, i, "Person $i") } }
+        var data by mutableStateOf(library(people = people))
+        rule.setContent { MemoriaTheme { Surface { LibraryContent(data) } } }
+
+        val start = rule.onNodeWithText("Person 1").getUnclippedBoundsInRoot().left
+        rule.runOnIdle { data = library(people = people.drop(1) + people.first()) }
+        assertSame("Person 2", start, rule.onNodeWithText("Person 2").getUnclippedBoundsInRoot().left)
+    }
+
     @Test fun library_unnamedPeople_rowStaysSameHeight() {
         var data by mutableStateOf(library(named = true))
         rule.setContent { MemoriaTheme { Surface { LibraryContent(data) } } }

@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -34,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -103,8 +105,8 @@ fun LibraryScreen(
             val faces = dao.taggedFaces()
             val byId = faces.associateBy { it.id }
             val byPerson = faces.groupBy { it.personId }
-            val people = dao.people().filter { !it.hidden }.mapNotNull { p -> byId[p.mainFaceId]?.let { m -> Person((byPerson[p.id] ?: listOf(m)).map { it.toVec() }, m.toVec(), p.id, p.name, false, p.coverFaceId) } }
-                .sortedWith(compareBy({ it.name.isNullOrBlank() }, { -it.photos })) // named first, then by photo count
+            val people = dao.people().filter { !it.hidden }.mapNotNull { p -> byId[p.mainFaceId]?.let { m -> Person((byPerson[p.id] ?: listOf(m)).map { it.toVec() }, m.toVec(), p.id, p.name, false, p.coverFaceId, p.pos) } }
+                .sortedWith(compareBy({ it.name.isNullOrBlank() }, { it.pos ?: Int.MAX_VALUE }, { -it.photos })) // named first, moved ones in their order, then by photo count
             val albums = albums(context)
             val all = albums.flatMap { it.tiles }
             LibraryData(
@@ -232,8 +234,15 @@ fun PeopleRow(faces: List<Person>?, onOpen: (Long) -> Unit, onSeeAll: () -> Unit
     // people a regroup adds fade in; the first load shows at once
     var loaded by remember { mutableStateOf(false) }
     LaunchedEffect(faces != null) { if (faces != null) loaded = true }
+    // A row follows its first person when they move (a drag on People), so it scrolled to the end; at the start, stay there.
+    // Read without observing, or every scroll would recompose the row.
+    val state = rememberLazyListState()
+    remember(faces?.firstOrNull()?.id) {
+        Snapshot.withoutReadObservation { if (state.firstVisibleItemIndex == 0 && state.firstVisibleItemScrollOffset == 0) state.requestScrollToItem(0) }
+    }
     LazyRow(
         Modifier.testTag("peopleRow").fillMaxWidth().padding(bottom = 2.dp),
+        state = state,
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {

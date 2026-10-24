@@ -203,7 +203,7 @@ Today perf is found only after someone feels it (`bugs.md` holds the numbers). N
 - Google Takeout import: copy photos not already on the phone, dates from the JSON, skip duplicates. Plan: `docs/library-unification.md`.
 - Names from Takeout: match Google's people tags to our people (photos with one tag and one face, then a majority vote per person, like `bench.py eval`).
 - Split a person. Ignore a face (strangers in the back).
-- Reorder people: the user sets the order on People (and the Library row follows), instead of named first by photo count. The order survives regroups. Not in the mockup yet: design first.
+- Reorder people: long press and drag a named person on People; the Library row follows and the order survives regroups. Done 2026-10-24, checked on the phone.
 - Dark theme: a dark Honey palette that follows the system setting. Replaces the light-only call (2026-10-15). Not in the mockup yet: design first.
 - Locked folder behind PIN or fingerprint (Library card in the mockup, no screen yet).
 - Simple edit: crop, rotate. Other edits open in another app (Viewer, More > Edit in…).
@@ -211,13 +211,13 @@ Today perf is found only after someone feels it (`bugs.md` holds the numbers). N
 - "On this day" memories.
 - Duplicates finder: exact copies, burst shots, very similar shots. Keep the best one (sharpest, open eyes, best faces); deleting the rest needs the user's OK.
 - Blurry and bad photo cleanup.
+- Pet recognition: find cats and dogs and group each pet like a person, with a name. Needs its own models: the face pipeline drops animal faces on purpose (quality cut 0.4). Not in the mockup yet: design first.
 - Index: decode only the face regions (`ImageDecoder.setCrop`) instead of the whole 4096 photo. Saves 10–25% of one index run, once; risk is silent vector drift. If it comes back, measure first (time, vector similarity vs the full decode).
 - NPU on other Snapdragon chips: since 2026-10-23 the APK ships the NPU libs for HTP V69 to V81 (8 Gen 1 to 8 Elite Gen 5) and the runtime picks the one that fits. Only V79 is checked (the test phone); others need a phone. V68 (888) is left out: no fp16 on its NPU, so it runs on the CPU, like any phone whose NPU can't start (checked on the arm64 emulator, 44 photos indexed). Google Tensor's NPU is beta and its model is built on a PC per chip only, so Pixels get the GPU until that changes.
 - NPU on MediaTek and Samsung: the APK has only Qualcomm's NPU parts, so these phones run on the GPU, then the CPU. Add LiteRT's MediaTek and Samsung NPU packages (Dimensity 7300-9500, Exynos 2500 and 2600 only), check how much they add to the APK, and test on a phone with each chip. Until then they get what the test phone's GPU gave (2026-10-23, after LiteRT step 8): all three models on the GPU, detect 52 ms per photo (NPU 42-47 ms).
 
 ## Ideas
 - Map of photos by GPS (offline map tiles, or tiles fetched when online).
-- Pets.
 - Search text inside photos (OCR).
 
 ## Not planned
