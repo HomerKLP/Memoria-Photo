@@ -156,8 +156,8 @@ fun AlbumsContent(albums: List<Album>?, onBack: () -> Unit = {}, onOpenAlbum: (L
             horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             items(albums.orEmpty(), key = { it.id }) { CoverTile(it.tiles.first(), it.name, "${it.tiles.size}", Modifier.animateItem(fadeInSpec = null).clickable { onOpenAlbum(it.id) }) }
-            // the New album tile stays last, like the mockup, and does not depend on the load
-            item(key = "newAlbum") { NewAlbumTile(Modifier.animateItem(fadeInSpec = null), onClick = onNewAlbum) }
+            // the New album tile stays last, like the mockup; shown before the load, it would slide from the first slot to the last
+            if (albums != null) item(key = "newAlbum") { NewAlbumTile(Modifier.animateItem(fadeInSpec = null), onClick = onNewAlbum) }
         }
     }
 }

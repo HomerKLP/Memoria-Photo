@@ -695,6 +695,16 @@ class LayoutJumpTest {
         assertSame("On this device", headerBefore, rule.onNodeWithText("On this device").top())
     }
 
+    /** Albums: alone in the grid while loading, the New album tile would slide from the first slot to the last. */
+    @Test fun albums_newAlbumTile_waitsForTheLoad() {
+        var albums by mutableStateOf<List<Album>?>(null)
+        rule.setContent { MemoriaTheme { Surface { AlbumsContent(albums) } } }
+
+        rule.onNodeWithText("New album").assertDoesNotExist()
+        rule.runOnIdle { albums = listOf(album(1, "Camera", 5), album(2, "Screenshots", 3)) }
+        rule.onNodeWithText("New album").assertExists()
+    }
+
     /** Album: the title is a space while loading so the bar keeps its height; it must not move. */
     @Test fun album_loadingToLoaded_topBarStaysPut() {
         var album by mutableStateOf<Album?>(null)
