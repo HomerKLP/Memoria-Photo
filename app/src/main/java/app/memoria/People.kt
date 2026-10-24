@@ -874,7 +874,7 @@ fun ChangeCoverContent(person: Person, picked: Long?, onPick: (Long) -> Unit, on
 
 /**
  * "Name this person" sheet from the mockup: just a name field.
- * Saves a blank name as no name.
+ * Saving a cleared field removes the person's name.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -891,6 +891,7 @@ fun NamePersonSheet(person: Person, onDismiss: () -> Unit, onSave: (String) -> U
 /** The sheet's body without the bottom-sheet chrome, so tests can render it directly. */
 @Composable
 fun NamePersonContent(person: Person, text: String, onText: (String) -> Unit, onCancel: () -> Unit, onSave: (String) -> Unit) {
+    val canSave = text.isNotBlank() || !person.name.isNullOrBlank()
     Column(Modifier.padding(bottom = 28.dp).verticalScroll(rememberScrollState())) {
         Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             FaceImage(person.cover, Modifier.size(48.dp).clip(CircleShape))
@@ -923,11 +924,11 @@ fun NamePersonContent(person: Person, text: String, onText: (String) -> Unit, on
             ) { Text("Cancel", fontWeight = FontWeight.Medium) }
             Row(
                 Modifier.weight(1f).height(52.dp).clip(RoundedCornerShape(26.dp))
-                    .background(if (text.isBlank()) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primary)
-                    .clickable(enabled = text.isNotBlank()) { onSave(text) },
+                    .background(if (canSave) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+                    .clickable(enabled = canSave) { onSave(text) },
                 horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
             ) {
-                val color = if (text.isBlank()) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary
+                val color = if (canSave) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
                 Icon(painterResource(R.drawable.ic_check), null, Modifier.size(18.dp), tint = color)
                 Spacer(Modifier.width(8.dp))
                 Text("Save", color = color, fontWeight = FontWeight.Medium)

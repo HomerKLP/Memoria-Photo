@@ -40,6 +40,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
@@ -227,6 +228,19 @@ class BehaviorTest {
         rule.onNodeWithText("Save").assertIsEnabled()
         rule.onNodeWithText("Save").performClick()
         assertEquals("Dana", saved)
+    }
+
+    @Test fun namePerson_clearingName_savesEmpty() {
+        var text by mutableStateOf("Dana")
+        var saved: String? = null
+        rule.setContent {
+            MemoriaTheme { Surface { NamePersonContent(person(1, "Dana"), text, { text = it }, {}, { saved = it }) } }
+        }
+
+        rule.onNode(hasSetTextAction()).performTextClearance()
+        rule.onNodeWithText("Save").assertIsEnabled()
+        rule.onNodeWithText("Save").performClick()
+        assertEquals("", saved)
     }
 
     @Test fun namePerson_name_stopsAt40() {
