@@ -143,13 +143,15 @@ fun fallbackDate(name: String, added: Long, modified: Long, zone: ZoneId): Long 
 
 /**
  * All photos and videos, newest first, with month and day headers between them.
+ * App folders (`Android/media`, `Android/data`: WhatsApp, Telegram) show only in Albums and Favorites.
  * favoritesOnly keeps MediaStore's own favorite flag (`QUERY_ARG_MATCH_FAVORITE`), so nothing is copied.
  */
 fun timeline(context: Context, favoritesOnly: Boolean = false): List<TimelineItem> {
     val zone = ZoneId.systemDefault()
     val tiles = mutableListOf<Tile>()
     val cols = arrayOf(FileColumns._ID, FileColumns.MEDIA_TYPE, FileColumns.DATE_TAKEN, FileColumns.DATE_ADDED, FileColumns.DURATION, FileColumns.DATE_MODIFIED, FileColumns.DISPLAY_NAME, FileColumns.IS_FAVORITE)
-    val where = "${FileColumns.MEDIA_TYPE} IN (${FileColumns.MEDIA_TYPE_IMAGE}, ${FileColumns.MEDIA_TYPE_VIDEO})"
+    val where = "${FileColumns.MEDIA_TYPE} IN (${FileColumns.MEDIA_TYPE_IMAGE}, ${FileColumns.MEDIA_TYPE_VIDEO})" +
+        if (favoritesOnly) "" else " AND ${FileColumns.RELATIVE_PATH} NOT LIKE 'Android/media/%' AND ${FileColumns.RELATIVE_PATH} NOT LIKE 'Android/data/%'"
     val args = Bundle().apply {
         putString(ContentResolver.QUERY_ARG_SQL_SELECTION, where)
         if (favoritesOnly) putInt(MediaStore.QUERY_ARG_MATCH_FAVORITE, MediaStore.MATCH_ONLY)
