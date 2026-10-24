@@ -4,8 +4,13 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.LruCache
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -433,7 +438,6 @@ fun PeopleContent(
     onCover: (Person) -> Unit = {},
     onHide: (Person) -> Unit = {},
 ) {
-    val open = data?.people?.firstOrNull { it.id == openId }
     // hoisted: switching to a person and back must not lose the list scroll
     val listState = rememberLazyListState()
     val gridState = rememberLazyGridState()
@@ -441,67 +445,78 @@ fun PeopleContent(
     var loaded by remember { mutableStateOf(false) }
     LaunchedEffect(data != null) { if (data != null) loaded = true }
     val fadeIn = if (loaded) spring<Float>(stiffness = Spring.StiffnessMediumLow) else null
-    // People come in rows of 4, the mockup's grid: 16 dp sides like the parts above it, 6 dp gaps
-    // the person screen pads itself, so its More menu can cover the whole screen, like Album's
-    Column(Modifier.fillMaxSize().then(if (open == null) Modifier.safeDrawingPadding() else Modifier)) {
-        if (open == null && hiddenOnly) {
-            val hidden = data?.people.orEmpty().filter { it.hidden }
-            TopBar("Hidden people", data?.let { if (hidden.isEmpty()) "No people" else "${hidden.size} ${if (hidden.size == 1) "person" else "people"}" }, onBack = onBack)
-            LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 24.dp)) {
-                if (hidden.isNotEmpty()) item {
-                    Note(R.drawable.ic_info, "Not in People, Library or search. Tap one, then Show person", Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp))
-                }
-                items(hidden.chunked(4), key = { it.first().id }) { row ->
-                    Row(Modifier.padding(horizontal = 16.dp, vertical = 7.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        row.forEach { PersonCard(it, Modifier.weight(1f), tight = true) { onOpenPerson(it.id) } }
-                        repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
-                    }
-                }
-                if (data != null && hidden.isEmpty()) item {
-                    EmptyState(R.drawable.ic_eye, "No hidden people", "Hide a person from their screen, they show up here")
-                }
-            }
-        } else if (open == null) {
-            TopBar("People", data?.summary, onBack = onBack)
-            // one grid, not rows, so a card that leaves lets the next ones slide over. 15 columns: a named card takes 5, an unnamed one 3.
-            LazyVerticalGrid(
-                GridCells.Fixed(15), state = gridState,
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                data?.let { d ->
-                    if (d.unsure.isNotEmpty()) item("review", { GridItemSpan(maxLineSpan) }) {
-                        Box(Modifier.animateItem(fadeInSpec = fadeIn).overSides()) { ReviewCard(d.unsure, { onHelpRecognize(null) }) }
-                    }
-                    val shown = d.people.filter { !it.hidden }
-                    // the mockup splits them: named 96 dp 3 a row (name and count), unnamed 56 dp 5 a row (faces only)
-                    val (named, unnamed) = shown.partition { !it.name.isNullOrBlank() }
-                    if (named.isNotEmpty()) {
-                        item("namedHead", { GridItemSpan(maxLineSpan) }) {
-                            Box(Modifier.animateItem(fadeInSpec = fadeIn).overSides()) { SectionHead("Named", hint = "${named.size} ${if (named.size == 1) "person" else "people"}") }
-                        }
-                        items(named, key = { "n${it.id}" }, span = { GridItemSpan(5) }) {
-                            PersonCard(it, Modifier.animateItem(fadeInSpec = fadeIn).padding(vertical = 7.dp).testTag("namedCard"), faceSize = 96.dp, tight = true) { onOpenPerson(it.id) }
-                        }
-                    }
-                    if (unnamed.isNotEmpty()) {
-                        item("unnamedHead", { GridItemSpan(maxLineSpan) }) {
-                            Box(Modifier.animateItem(fadeInSpec = fadeIn).overSides()) { SectionHead("No name yet", hint = "Name them to move them up") }
-                        }
-                        items(unnamed, key = { "u${it.id}" }, span = { GridItemSpan(3) }) {
-                            PersonCard(it, Modifier.animateItem(fadeInSpec = fadeIn).padding(vertical = 4.dp).testTag("unnamedCard"), faceSize = 56.dp, tight = true, showName = false, showCount = false) { onOpenPerson(it.id) }
-                        }
-                    }
-                    if (shown.isEmpty()) item("empty", { GridItemSpan(maxLineSpan) }) {
-                        EmptyState(R.drawable.ic_person, "No people yet", "Index your photos in Library, then faces group into people here.", Modifier.overSides())
-                    }
-                }
-            }
-        } else if (data != null) {
-            PersonDetail(
+    // A person slides in from the right and Back slides them out, like a screen push in MainActivity.
+    // Keyed by id, not the person, so a direct open waits for the data instead of showing the list first.
+    AnimatedContent(openId, transitionSpec = {
+        val dir = if (targetState != null) 1 else -1
+        slideInHorizontally(tween(250)) { it * dir } togetherWith slideOutHorizontally(tween(250)) { -it * dir }
+    }, label = "person") { id ->
+        val open = data?.people?.firstOrNull { it.id == id }
+        if (id != null) {
+            // the person screen pads itself, so its More menu can cover the whole screen, like Album's
+            if (open != null) PersonDetail(
                 open, onBack = onClosePerson, onName = { onName(open) }, onOpen = onOpen, onReview = { onHelpRecognize(open.id) },
                 onMerge = { onMerge(open) }, onCover = { onCover(open) }, onHide = { onHide(open) }, pick = pick,
             )
+            // a zero size would clip the slide
+            else Box(Modifier.fillMaxSize())
+        }
+        // People come in rows of 4, the mockup's grid: 16 dp sides like the parts above it, 6 dp gaps
+        else Column(Modifier.fillMaxSize().safeDrawingPadding()) {
+            if (hiddenOnly) {
+                val hidden = data?.people.orEmpty().filter { it.hidden }
+                TopBar("Hidden people", data?.let { if (hidden.isEmpty()) "No people" else "${hidden.size} ${if (hidden.size == 1) "person" else "people"}" }, onBack = onBack)
+                LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 24.dp)) {
+                    if (hidden.isNotEmpty()) item {
+                        Note(R.drawable.ic_info, "Not in People, Library or search. Tap one, then Show person", Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp))
+                    }
+                    items(hidden.chunked(4), key = { it.first().id }) { row ->
+                        Row(Modifier.padding(horizontal = 16.dp, vertical = 7.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            row.forEach { PersonCard(it, Modifier.weight(1f), tight = true) { onOpenPerson(it.id) } }
+                            repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+                        }
+                    }
+                    if (data != null && hidden.isEmpty()) item {
+                        EmptyState(R.drawable.ic_eye, "No hidden people", "Hide a person from their screen, they show up here")
+                    }
+                }
+            } else {
+                TopBar("People", data?.summary, onBack = onBack)
+                // one grid, not rows, so a card that leaves lets the next ones slide over. 15 columns: a named card takes 5, an unnamed one 3.
+                LazyVerticalGrid(
+                    GridCells.Fixed(15), state = gridState,
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    data?.let { d ->
+                        if (d.unsure.isNotEmpty()) item("review", { GridItemSpan(maxLineSpan) }) {
+                            Box(Modifier.animateItem(fadeInSpec = fadeIn).overSides()) { ReviewCard(d.unsure, { onHelpRecognize(null) }) }
+                        }
+                        val shown = d.people.filter { !it.hidden }
+                        // the mockup splits them: named 96 dp 3 a row (name and count), unnamed 56 dp 5 a row (faces only)
+                        val (named, unnamed) = shown.partition { !it.name.isNullOrBlank() }
+                        if (named.isNotEmpty()) {
+                            item("namedHead", { GridItemSpan(maxLineSpan) }) {
+                                Box(Modifier.animateItem(fadeInSpec = fadeIn).overSides()) { SectionHead("Named", hint = "${named.size} ${if (named.size == 1) "person" else "people"}") }
+                            }
+                            items(named, key = { "n${it.id}" }, span = { GridItemSpan(5) }) {
+                                PersonCard(it, Modifier.animateItem(fadeInSpec = fadeIn).padding(vertical = 7.dp).testTag("namedCard"), faceSize = 96.dp, tight = true) { onOpenPerson(it.id) }
+                            }
+                        }
+                        if (unnamed.isNotEmpty()) {
+                            item("unnamedHead", { GridItemSpan(maxLineSpan) }) {
+                                Box(Modifier.animateItem(fadeInSpec = fadeIn).overSides()) { SectionHead("No name yet", hint = "Name them to move them up") }
+                            }
+                            items(unnamed, key = { "u${it.id}" }, span = { GridItemSpan(3) }) {
+                                PersonCard(it, Modifier.animateItem(fadeInSpec = fadeIn).padding(vertical = 4.dp).testTag("unnamedCard"), faceSize = 56.dp, tight = true, showName = false, showCount = false) { onOpenPerson(it.id) }
+                            }
+                        }
+                        if (shown.isEmpty()) item("empty", { GridItemSpan(maxLineSpan) }) {
+                            EmptyState(R.drawable.ic_person, "No people yet", "Index your photos in Library, then faces group into people here.", Modifier.overSides())
+                        }
+                    }
+                }
+            }
         }
     }
 }
