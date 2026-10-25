@@ -662,3 +662,16 @@ Steps:
 1. `make install`, open a place, tap its first photo, swipe to the next two.
 
 Next time: record a Perfetto trace while it happens, so the slow frame shows what the main thread was doing.
+
+## Opening a photo: the grow animation sometimes skips or breaks
+
+Found 2026-10-24 by the user on the phone. Tapping a photo in the Photos grid sometimes does not grow it out of its tile: the animation is skipped or looks broken. The user also wants the motion itself reworked: now the photo's crop window widens step by step from the tile to full screen (`photoMotion`, `Viewer.kt`), which looks cheap; it should feel like a mature gallery app.
+
+Steps:
+1. Photos tab, tap photos in different spots (top, bottom edge, right after a scroll). Not every time.
+
+Fix ideas:
+- Find when it falls back to the fade: `fly` is false when `onScreen(start)` fails, and `motion()` drops to no-tile when the tile's node is gone (the crash guard above). Log which path each open takes.
+- The 300 ms tween starts in `LaunchedEffect(Unit)` with the viewer's first composition; if that frame is slow, most of the motion is gone before it shows. Start it after the first frame, or drive it from frame time.
+- Rework: the whole photo scales from the tile to full screen (a spring, no step-by-step crop reveal), the grid behind dims. Check on a release build.
+- Parallax when opening an album or a place: the page under it slides out slower than the new page comes in. Same "mature" goal.
