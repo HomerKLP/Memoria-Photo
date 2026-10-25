@@ -278,11 +278,12 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .switch::after { content: ""; position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; border-radius: 50%; background: #fff; }
 .switch.off { background: var(--surface); box-shadow: inset 0 0 0 2px var(--muted); }
 .switch.off::after { top: 8px; right: auto; left: 8px; width: 16px; height: 16px; background: var(--muted); }
-/* Face models and Face search rows: as tall as the other rows. The bar sits on the bottom edge and the button keeps its width in every state, so nothing moves */
-.set.models, .set.run { position: relative; }
-.set.models .track, .set.run .track { position: absolute; left: 56px; right: 120px; bottom: 4px; }
-.set.models .track.off, .set.run .track.off { visibility: hidden; }
-.set.models .pill-btn, .set.run .pill-btn { flex: none; width: 88px; padding: 0; }
+/* Face models, Face search and Updates rows: as tall as the other rows. The bar sits on the bottom edge and the button keeps its width in every state, so nothing moves */
+.set.models, .set.run, .set.update { position: relative; }
+.set.models .track, .set.run .track, .set.update .track { position: absolute; left: 56px; right: 120px; bottom: 4px; }
+.set.models .track.off, .set.run .track.off, .set.update .track.off { visibility: hidden; }
+.set.models .pill-btn, .set.run .pill-btn, .set.update .pill-btn { flex: none; width: 88px; padding: 0; }
+.set div > span em { color: var(--accent); font-style: normal; font-weight: 500; }
 /* one line: a second line mid-run would push the rows below down */
 .set.run span { font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
@@ -1260,13 +1261,15 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="set"><svg class="i"><use href="#i-download"/></svg><div><b>Export face data</b><span>Save to a file</span></div></div>
           <div class="set"><svg class="i"><use href="#i-upload"/></svg><div><b>Import face data</b><span>From an export file</span></div></div>
           <div class="head"><h3>About</h3></div>
-          <div class="set"><svg class="i"><use href="#i-info"/></svg><div><b>Memoria Photo 0.1</b><span>Open source, GPL-3.0 · Licenses</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
+          <div class="set"><svg class="i"><use href="#i-info"/></svg><div><b>Memoria Photo 0.2.0</b><span>Open source, GPL-3.0 · Licenses</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
+          <div class="set update"><svg class="i"><use href="#i-check"/></svg><div><b>Updates</b><span>Up to date · checked today</span><div class="track off"><div></div></div></div><button class="pill-btn">Check</button></div>
+          <div class="set"><svg class="i"><use href="#i-history"/></svg><div><b>Check for updates</b><span>Once a day, notifies you of a new version</span></div><span class="switch" role="switch" aria-checked="true"></span></div>
           <div class="head"><h3>Developer</h3><span class="hint">Debug builds only</span></div>
           <div class="set"><svg class="i"><use href="#i-settings"/></svg><div><b>Dev tools</b><span>Test the models, index the test folder</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Settings: opens from the gear on Library, and from a tap on the face search notification. Face models (shown ready, see the next three), then Face search: the only place that shows a run, with photos done, time left and Pause. Paused, it reads "Paused · 412 of 1,706" with Resume; with "Only while charging" on battery, "Waiting for charger" and keeps Pause. One line, cut with … if long. Then face search options, hidden people, face data backup, about. The Developer section is last and only in debug builds; a release build has no such section</figcaption>
+      <figcaption>Settings: opens from the gear on Library, and from a tap on the face search notification. Face models (shown ready, see the next three), then Face search: the only place that shows a run, with photos done, time left and Pause. Paused, it reads "Paused · 412 of 1,706" with Resume; with "Only while charging" on battery, "Waiting for charger" and keeps Pause. One line, cut with … if long. Then face search options, hidden people, face data backup, about: the version row opens Licenses, then Updates (see the update states below) and the daily check switch, both in release builds only. The Developer section is last and only in debug builds; a release build has no such section</figcaption>
     </figure>
     <figure id="search-done">
       <div class="phone" id="search-done-phone"></div>
@@ -1283,6 +1286,18 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
     <figure id="models-stopped">
       <div class="phone" id="models-stopped-phone"></div>
       <figcaption>Face models, stopped: the server failed or a file was damaged (no connection only pauses the download). The bar shows the files already here, Retry downloads the rest. The same row after Cancel</figcaption>
+    </figure>
+    <figure id="update-new">
+      <div class="phone" id="update-new-phone"></div>
+      <figcaption>Updates, new version: found by the daily check or by Check (then "Checking…", button greyed; on failure "Couldn't check"; before the first check "Not checked yet"). The size is in the row, Update downloads on any network. While a new version is known, a tap on the row opens its GitHub release page. With the switch off, the app checks only on Check</figcaption>
+    </figure>
+    <figure id="update-downloading">
+      <div class="phone" id="update-downloading-phone"></div>
+      <figcaption>Updates, downloading: like Face models. The bar fills, Cancel goes back to Update. If the download fails it reads "Stopped · 98 MB" with Retry, which starts over. The download goes on with the app closed</figcaption>
+    </figure>
+    <figure id="update-ready">
+      <div class="phone" id="update-ready-phone"></div>
+      <figcaption>Updates, downloaded: Install opens Android's installer. The first time, Android asks to allow installs from Memoria. Android checks the APK has the same signing key, then updates in place and keeps all data. Backing out of the installer leaves this row</figcaption>
     </figure>
     <figure id="rescan">
       <div class="phone modal" id="rescan-phone">
@@ -1613,7 +1628,7 @@ Photos: …/files/test</div>
 
   <article class="part">
     <h3>Notification icon</h3>
-    <p>The small icon in the status bar and on the face search notification. Android draws it in one color, so it is the Lake art alone, filling 20 of 24 dp. Our own, since phone makers restyle Android's built-in icons.</p>
+    <p>The small icon in the status bar and on the face search and update notifications. Android draws it in one color, so it is the Lake art alone, filling 20 of 24 dp. Our own, since phone makers restyle Android's built-in icons.</p>
     <div class="ni">
       <div class="ni-row">
         <span class="ni-big"><svg><use href="#notif-lake"/></svg></span>
@@ -1625,7 +1640,13 @@ Photos: …/files/test</div>
           <span>412 / 1706 photos · 3m left</span>
           <div class="bar"></div>
         </div>
+        <div class="notif">
+          <div class="nhead"><i><svg><use href="#notif-lake"/></svg></i>Memoria · now</div>
+          <b>New Memoria version is out</b>
+          <span>0.3.0 · Tap to update</span>
+        </div>
       </div>
+      <p>Update notification: from the daily check, once per version, in its own "Updates" channel so it can be muted alone. A tap opens Settings at Updates. Swiping it away is fine: the row still shows the new version.</p>
     </div>
   </article>
 </section>
@@ -1775,6 +1796,18 @@ for (const [id, [icon, sub, off, pct, btn]] of Object.entries(modelRows)) {
   const phone = document.getElementById(id + "-phone");
   phone.prepend(...[...document.querySelector("#settings .phone").children].map(n => n.cloneNode(true)));
   phone.querySelector(".set.models").innerHTML = `<svg class="i"><use href="#i-${icon}"/></svg><div><b>Face models</b><span>${sub}</span><div class="track ${off}"><div style="width:${pct}%"></div></div></div><button class="pill-btn">${btn}</button>`;
+}
+// Settings with the Updates row in each state, scrolled down to About.
+const updateRows = {
+  "update-new": ["download", "0.3.0 · 98 MB · <em>What's new</em>", "off", 0, "Update"],
+  "update-downloading": ["download", "Downloading · 41 of 98 MB", "", 42, "Cancel"],
+  "update-ready": ["download", "0.3.0 downloaded · <em>What's new</em>", "off", 0, "Install"],
+};
+for (const [id, [icon, sub, off, pct, btn]] of Object.entries(updateRows)) {
+  const phone = document.getElementById(id + "-phone");
+  phone.prepend(...[...document.querySelector("#settings .phone").children].map(n => n.cloneNode(true)));
+  phone.querySelector(".set.update").innerHTML = `<svg class="i"><use href="#i-${icon}"/></svg><div><b>Updates</b><span>${sub}</span><div class="track ${off}"><div style="width:${pct}%"></div></div></div><button class="pill-btn">${btn}</button>`;
+  phone.querySelector(".scroll").scrollTop = 9999;
 }
 const searchDone = document.getElementById("search-done-phone");
 searchDone.prepend(...[...document.querySelector("#settings .phone").children].map(n => n.cloneNode(true)));

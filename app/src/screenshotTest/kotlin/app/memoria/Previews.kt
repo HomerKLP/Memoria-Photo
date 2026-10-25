@@ -412,6 +412,35 @@ fun SettingsModelsStopped() = MemoriaTheme {
     Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", models = Models.Status.Stopped, modelsDone = 77_594_624) }
 }
 
+/** Release Settings with the Updates row; taller, so About is in the shot. Pairs with settings_updateStates_rowsStayPut. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 1100)
+@Composable
+fun SettingsUpdateUpToDate() = MemoriaTheme {
+    Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.2.0", update = Updates.State(Updates.Status.UpToDate, checkedAt = System.currentTimeMillis())) }
+}
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 1100)
+@Composable
+fun SettingsUpdateNew() = MemoriaTheme {
+    Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.2.0", update = Updates.State(Updates.Status.New, "0.3.0", 102_760_448)) }
+}
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 1100)
+@Composable
+fun SettingsUpdateDownloading() = MemoriaTheme {
+    Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.2.0", update = Updates.State(Updates.Status.Downloading, "0.3.0", 102_760_448, 42_991_616)) }
+}
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 1100)
+@Composable
+fun SettingsUpdateReady() = MemoriaTheme {
+    Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.2.0", update = Updates.State(Updates.Status.Ready, "0.3.0", 102_760_448, 102_760_448)) }
+}
+
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 900)
 @Composable

@@ -165,6 +165,29 @@ class LayoutJumpTest {
         }
     }
 
+    /** Updates row (mockup "Updates"): every state keeps the row, its button width and the switch below in place. */
+    @Test fun settings_updateStates_rowsStayPut() {
+        var status by mutableStateOf(Updates.Status.UpToDate)
+        rule.setContent {
+            MemoriaTheme { Surface {
+                SettingsContent(
+                    charging = false, allowed = false, hidden = 2, version = "0.2.0",
+                    update = Updates.State(status, "0.3.0", 102_760_448, 42_991_616, System.currentTimeMillis()),
+                )
+            } }
+        }
+
+        val updatesBefore = rule.onNodeWithText("Updates").top()
+        val switchBefore = rule.onNodeWithText("Check for updates").top()
+        val actionBefore = rule.onNodeWithTag("updateAction").width()
+        for (s in Updates.Status.entries) {
+            rule.runOnIdle { status = s }
+            assertSame("Updates ($s)", updatesBefore, rule.onNodeWithText("Updates").top())
+            assertSame("Check for updates ($s)", switchBefore, rule.onNodeWithText("Check for updates").top())
+            assertSame("Check/Update/Cancel/Retry/Install ($s)", actionBefore, rule.onNodeWithTag("updateAction").width())
+        }
+    }
+
     @Test fun licenses_longestInfoLine_isOneLineLikeTheShortest() {
         rule.setContent { MemoriaTheme { Surface { LicensesContent() } } }
 

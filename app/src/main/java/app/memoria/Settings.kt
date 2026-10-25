@@ -5,6 +5,7 @@ import android.content.pm.ApplicationInfo
 import android.net.Uri
 import android.os.PowerManager
 import android.provider.Settings
+import android.text.format.DateUtils
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -47,8 +49,11 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.room.withTransaction
@@ -59,10 +64,13 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 /** Settings from the Library gear. Backup waits for its design. */
 @Composable
-fun SettingsScreen(onBack: () -> Unit, onHidden: () -> Unit, onSkip: () -> Unit, onLicenses: () -> Unit, onDev: () -> Unit) {
+fun SettingsScreen(onBack: () -> Unit, onHidden: () -> Unit, onSkip: () -> Unit, onLicenses: () -> Unit, onDev: () -> Unit, atUpdates: Boolean = false) {
     val context = LocalContext.current
     val debug = (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
     val dao = remember { Db.get(context).index() }
@@ -85,6 +93,14 @@ fun SettingsScreen(onBack: () -> Unit, onHidden: () -> Unit, onSkip: () -> Unit,
     LaunchedEffect(models.first) {
         while (models.first == Models.Status.Downloading) { delay(1000); models = withContext(Dispatchers.IO) { Models.status(context) } }
     }
+    var update by remember { mutableStateOf(Updates.status(context)) }
+    LaunchedEffect(update.status) {
+        while (update.status == Updates.Status.Downloading) { delay(1000); update = withContext(Dispatchers.IO) { Updates.status(context) } }
+    }
+    var autoUpdate by remember { mutableStateOf(Updates.auto(context)) }
+    // the update notification: About is at the bottom
+    val scroll = rememberScrollState()
+    LaunchedEffect(Unit) { if (atUpdates) scroll.scrollTo(Int.MAX_VALUE) }
     val setCharging = { on: Boolean ->
         charging = on
         IndexProgress.setChargingOnly(context, on)
@@ -119,6 +135,22 @@ fun SettingsScreen(onBack: () -> Unit, onHidden: () -> Unit, onSkip: () -> Unit,
         skipped = remember { IndexProgress.skipped(context).size },
         onSkip = onSkip,
         onDev = onDev.takeIf { debug },
+        update = update.takeUnless { debug },
+        autoUpdate = autoUpdate,
+        onCheck = {
+            update = update.copy(status = Updates.Status.Checking)
+            scope.launch {
+                val ok = Updates.check(context, notify = false)
+                // a failed check keeps a version found before
+                update = Updates.status(context).let { if (!ok && it.status == Updates.Status.UpToDate) it.copy(status = Updates.Status.Failed) else it }
+            }
+        },
+        onUpdate = { Updates.download(context); update = Updates.status(context) },
+        onCancelUpdate = { Updates.cancel(context); update = Updates.status(context) },
+        onInstall = { Updates.install(context) },
+        onReleasePage = { Updates.openPage(context) },
+        onAutoUpdate = { on -> autoUpdate = on; Updates.setAuto(context, on) },
+        scroll = scroll,
     )
 
     if (rescan) AlertDialog(
@@ -204,8 +236,17 @@ fun SettingsContent(
     skipped: Int = 0,
     onSkip: () -> Unit = {},
     onDev: (() -> Unit)? = null, // null: a release build, no Developer section
+    update: Updates.State? = null, // null: a debug build, no Updates rows
+    autoUpdate: Boolean = true,
+    onCheck: () -> Unit = {},
+    onUpdate: () -> Unit = {},
+    onCancelUpdate: () -> Unit = {},
+    onInstall: () -> Unit = {},
+    onReleasePage: () -> Unit = {},
+    onAutoUpdate: (Boolean) -> Unit = {},
+    scroll: ScrollState = rememberScrollState(),
 ) {
-    Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
+    Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(scroll).padding(bottom = 16.dp)) {
         TopBar("Settings", null, onBack = onBack)
         SectionHead("Finding faces")
         FaceModelsRow(models, modelsDone, onDownload, onCancelDownload)
@@ -242,6 +283,19 @@ fun SettingsContent(
         SettingRow(R.drawable.ic_upload, "Import face data", "From an export file")
         SectionHead("About")
         SettingRow(R.drawable.ic_info, "Memoria Photo $version", "Open source, GPL-3.0 · Licenses", onLicenses) { Chevron() }
+        if (update != null) {
+            UpdatesRow(update, onCheck, onUpdate, onCancelUpdate, onInstall, onReleasePage)
+            SettingRow(R.drawable.ic_history, "Check for updates", "Once a day, notifies you of a new version", { onAutoUpdate(!autoUpdate) }) {
+                Switch(
+                    autoUpdate, onAutoUpdate,
+                    colors = SwitchDefaults.colors(
+                        uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+                        uncheckedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    ),
+                )
+            }
+        }
         if (onDev != null) {
             SectionHead("Developer", hint = "Debug builds only")
             SettingRow(R.drawable.ic_settings, "Dev tools", "Test the models, index the test folder", onDev) { Chevron() }
@@ -298,6 +352,57 @@ fun FaceModelsRow(status: Models.Status, done: Long, onDownload: () -> Unit, onC
         if (status == Models.Status.Downloading || status == Models.Status.Stopped) LinearProgressIndicator(
             { (done.toFloat() / Models.TOTAL).coerceIn(0f, 1f) },
             Modifier.testTag("modelsBar").align(Alignment.BottomStart).padding(start = 56.dp, end = 120.dp, bottom = 4.dp).fillMaxWidth().height(4.dp),
+            color = MaterialTheme.colorScheme.primary,
+        )
+    }
+}
+
+/** Mockup "Updates": built like [FaceModelsRow]. While a newer version is known, a tap on the row opens its release page. */
+@Composable
+fun UpdatesRow(
+    state: Updates.State, onCheck: () -> Unit, onUpdate: () -> Unit, onCancel: () -> Unit, onInstall: () -> Unit, onReleasePage: () -> Unit,
+) {
+    val size = Models.mb(state.size)
+    val whatsNew = SpanStyle(color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)
+    val info = buildAnnotatedString {
+        when (state.status) {
+            Updates.Status.UpToDate -> append(
+                if (state.checkedAt == 0L) "Not checked yet"
+                else "Up to date · checked " + if (DateUtils.isToday(state.checkedAt)) "today"
+                else DateTimeFormatter.ofPattern("d MMM").format(Instant.ofEpochMilli(state.checkedAt).atZone(ZoneId.systemDefault()))
+            )
+            Updates.Status.Checking -> append("Checking…")
+            Updates.Status.Failed -> append("Couldn't check")
+            Updates.Status.New -> { append("${state.version} · $size MB · "); withStyle(whatsNew) { append("What's new") } }
+            Updates.Status.Downloading -> append("Downloading · ${Models.mb(state.done)} of $size MB")
+            Updates.Status.Stopped -> append("Stopped · $size MB")
+            Updates.Status.Ready -> { append("${state.version} downloaded · "); withStyle(whatsNew) { append("What's new") } }
+        }
+    }
+    val known = state.status in listOf(Updates.Status.New, Updates.Status.Downloading, Updates.Status.Stopped, Updates.Status.Ready)
+    Box(Modifier.fillMaxWidth().clickable(enabled = known, onClick = onReleasePage)) {
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 16.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(painterResource(if (known) R.drawable.ic_download else R.drawable.ic_check), null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Column(Modifier.weight(1f)) {
+                Text("Updates", fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium)
+                Text(info, fontSize = 13.sp, lineHeight = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            val button = Modifier.testTag("updateAction").width(88.dp)
+            when (state.status) {
+                Updates.Status.UpToDate, Updates.Status.Failed -> PillButton("Check", onCheck, modifier = button, sides = 0.dp)
+                Updates.Status.Checking -> PillButton("Check", onCheck, enabled = false, modifier = button.alpha(0.38f), sides = 0.dp)
+                Updates.Status.New -> PillButton("Update", onUpdate, modifier = button, sides = 0.dp)
+                Updates.Status.Downloading -> PillButton("Cancel", onCancel, modifier = button, sides = 0.dp)
+                Updates.Status.Stopped -> PillButton("Retry", onUpdate, modifier = button, sides = 0.dp)
+                Updates.Status.Ready -> PillButton("Install", onInstall, modifier = button, sides = 0.dp)
+            }
+        }
+        if (state.status == Updates.Status.Downloading) LinearProgressIndicator(
+            { if (state.size > 0) (state.done.toFloat() / state.size).coerceIn(0f, 1f) else 0f },
+            Modifier.testTag("updateBar").align(Alignment.BottomStart).padding(start = 56.dp, end = 120.dp, bottom = 4.dp).fillMaxWidth().height(4.dp),
             color = MaterialTheme.colorScheme.primary,
         )
     }

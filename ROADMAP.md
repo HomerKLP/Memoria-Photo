@@ -166,7 +166,7 @@ Items marked **Important** must be done before the first public release.
 - [x] **Important:** going public. Public since 2026-10-23, as is, old commits and PRs included (the user's call). The tree has no phone model, names or photo names left. Then the `models-v1` release and the download (Phase 2).
 - [x] **Important:** GPL-3.0 with closed Qualcomm libs. Done 2026-10-23: the GPLv3 section 7 permission is in `THIRD_PARTY.md` (and the README draft), so `LICENSE` stays the plain GPL text GitHub detects. Qualcomm's AI Stack License lets us ship the libs inside our app, not on their own. Its notice file is in `licenses/qnn-NOTICE.txt`, since the APK drops it.
 - [ ] GitHub releases: tag each build, attach the signed APK, keep a changelog. First one: v0.1.0 (2026-10-23), `memoria-0.1.0.apk` from `make apk` on `master` `9d27925`, short notes on the release page, no changelog file yet.
-- [ ] OTA updates from GitHub release APKs: the app notices a newer release, downloads the APK, and installs it through Android's own installer (PackageInstaller, `REQUEST_INSTALL_PACKAGES`). Needs its own screen (mockup first) and an INTERNET permission scoped to the update check (see Open questions).
+- [ ] OTA updates from GitHub release APKs: the app notices a newer release, downloads the APK, and installs it through Android's own installer (PackageInstaller, `REQUEST_INSTALL_PACKAGES`). Built 2026-10-25 (`Updates.kt`, Settings > About, release builds only), checked on the emulator up to Android's installer. Left: a real in-place update on the phone, from the first release that has it to the next one.
 
 ## Phase 9: tests (regression)
 - [x] Unit tests (`app/src/test/`, `./gradlew :app:testDebugUnitTest`): pure logic. `fallbackDate`, `groupFaces` (6-photo gate, quality cut, camera-only, small faces), `etaMillis` / `formatEta`, `zoneLabel`, `monthAt` / `trackY`, NN-chain grouping = the old closest-pair-first loop. 23 tests. First win: `DetailsZoneTest` caught the "GMT-" bug (now fixed).
@@ -228,5 +228,4 @@ Today perf is found only after someone feels it (`bugs.md` holds the numbers). N
 
 ## Open questions
 - Spots inside places: what to call them, where offline names come from (GeoNames lakes, parks, peaks; OpenStreetMap; or the user names a cluster of photos), and which town a spot outside town limits joins. Bench (`bench/places.py`): the nearest town of 1000+ is right; the nearest town of 15000+ sends resort and lake towns 13–22 km away.
-- OTA updates: check the GitHub releases API for a newer tag, download the APK, install it through Android's own installer. Needs `REQUEST_INSTALL_PACKAGES` and the release page URL / repo. Decide the check (on open, daily, or manual).
 - Districts of very big cities: GeoNames lists some as their own towns (district seats), so a few photos get a district tile instead of the city's. Maybe a big city takes every place within a radius that grows with its population.

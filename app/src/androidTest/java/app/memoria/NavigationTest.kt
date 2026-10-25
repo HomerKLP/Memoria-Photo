@@ -107,6 +107,16 @@ class NavigationTest {
     // the Photos tab is the only one with a Search button
     private fun assertOnPhotos() = rule.onNodeWithContentDescription("Search").assertIsDisplayed()
 
+    @Test fun updateNotification_opensSettingsAtTheBottom_backGoesToLibrary() {
+        rule.setContent { MemoriaTheme { Surface { App(dir, openSettings = 1, atUpdates = true) } } }
+        waitFor("Dev tools")
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Dev tools").assertIsDisplayed()
+        back()
+        assertOnLibrary()
+    }
+
     @Test fun settingsPages_backGoesUpOnePageAtATime() {
         start()
         openLibrary()

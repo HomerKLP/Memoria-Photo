@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.net.ConnectivityManager
@@ -89,8 +90,9 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 class MainActivity : ComponentActivity() {
-    // bumped by a tap on the index notification, so App opens Settings
+    // bumped by a tap on the index or update notification, so App opens Settings; the update one scrolls to Updates
     private var openSettings by mutableIntStateOf(0)
+    private var atUpdates by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // Light app: dark bar icons even when the phone is in dark mode
@@ -98,26 +100,29 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge(bars, bars)
         super.onCreate(savedInstanceState)
         // not on a restore: the same intent comes back, and Settings would open again
-        if (savedInstanceState == null && intent.getBooleanExtra("openSettings", false)) openSettings++
+        if (savedInstanceState == null && intent.getBooleanExtra("openSettings", false)) { atUpdates = intent.getBooleanExtra("atUpdates", false); openSettings++ }
         val dir = File(getExternalFilesDir(null), "test").apply { mkdirs() }
         // the face models come by themselves on Wi-Fi; on mobile data, or after Cancel, the user taps Download or Retry
         lifecycleScope.launch(Dispatchers.IO) {
             val wifi = getSystemService(ConnectivityManager::class.java)?.isActiveNetworkMetered == false
             if (wifi && Models.status(this@MainActivity).first == Models.Status.Missing) Models.download(this@MainActivity, wifiOnly = true)
+            Updates.tidy(this@MainActivity)
         }
-        setContent { MemoriaTheme { Surface { App(dir, openSettings) } } }
+        val debug = (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+        if (!debug && Updates.auto(this)) Updates.schedule(this)
+        setContent { MemoriaTheme { Surface { App(dir, openSettings, atUpdates) } } }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        if (intent.getBooleanExtra("openSettings", false)) openSettings++
+        if (intent.getBooleanExtra("openSettings", false)) { atUpdates = intent.getBooleanExtra("atUpdates", false); openSettings++ }
     }
 }
 
 /** Two tabs, Photos and Library. The test screen opens from Library. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun App(dir: File, openSettings: Int = 0) {
+fun App(dir: File, openSettings: Int = 0, atUpdates: Boolean = false) {
     var tab by rememberSaveable { mutableStateOf("photos") } // the tab under the opened screens
     // the screens opened over the tab, oldest first; Back closes the last one
     var stack by rememberSaveable { mutableStateOf(emptyList<Screen>()) }
@@ -144,13 +149,13 @@ fun App(dir: File, openSettings: Int = 0) {
     val scope = rememberCoroutineScope()
     var photosScrollTop by remember { mutableIntStateOf(0) } // bumped by a tab tap; the Photos tab reacts by scrolling to the top
     var viewing by rememberSaveable { mutableStateOf<Long?>(null) }
-    // the index notification: Settings over Library, whatever was open
+    // the index or update notification: Settings over Library, whatever was open
     LaunchedEffect(openSettings) {
         if (openSettings == 0) return@LaunchedEffect
         viewing = null
         repeat(stack.size) { back() }
         tab = "library"
-        push(Screen.Settings)
+        push(Screen.Settings(atUpdates))
     }
     // Photos tab select mode (mockup "Photos, selecting"): the picked tiles, shared so the bottom bar swaps
     val selection = remember { PhotoSelection() }
@@ -253,7 +258,7 @@ fun App(dir: File, openSettings: Int = 0) {
                                 onOpenVideos = { push(Screen.Videos) },
                                 onOpenTrash = { push(Screen.Trash) },
                                 onHelpRecognize = { push(Screen.Recognize()) },
-                                onOpenSettings = { push(Screen.Settings) },
+                                onOpenSettings = { push(Screen.Settings()) },
                                 reload = returns,
                             )
                         }
@@ -282,9 +287,9 @@ fun App(dir: File, openSettings: Int = 0) {
                     tabs.SaveableStateProvider(screenKey(target.index, target.value)) {
                         when (val s = target.value) {
                             Screen.Dev -> TestScreen(dir, back)
-                            Screen.Settings -> SettingsScreen(
+                            is Screen.Settings -> SettingsScreen(
                                 onBack = back, onHidden = { push(Screen.Hidden()) }, onSkip = { push(Screen.Skip) }, onLicenses = { push(Screen.Licenses) },
-                                onDev = { push(Screen.Dev) },
+                                onDev = { push(Screen.Dev) }, atUpdates = s.atUpdates,
                             )
                             Screen.Skip -> SkipScreen(onBack = back)
                             Screen.Licenses -> LicensesScreen(onBack = back)
@@ -367,7 +372,7 @@ private var viewTiles by mutableStateOf<List<Tile>>(emptyList())
 
 /** A screen opened over the tabs, with what it shows. Serializable, so the stack survives the app being restarted. */
 sealed interface Screen : Serializable {
-    data object Settings : Screen
+    data class Settings(val atUpdates: Boolean = false) : Screen
     data object Licenses : Screen
     data object Skip : Screen
     data object Dev : Screen

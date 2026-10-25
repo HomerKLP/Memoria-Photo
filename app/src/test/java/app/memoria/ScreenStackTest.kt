@@ -14,7 +14,7 @@ class ScreenStackTest {
     // Android saves the stack the same way when it stops the app; a screen that can't be written crashes that save
     @Test fun everyScreen_survivesASaveAndRestore() {
         val stack = listOf(
-            Screen.Settings, Screen.Licenses, Screen.Skip, Screen.Dev, Screen.Hidden(3), Screen.People(5, direct = true), Screen.Recognize(5),
+            Screen.Settings(atUpdates = true), Screen.Licenses, Screen.Skip, Screen.Dev, Screen.Hidden(3), Screen.People(5, direct = true), Screen.Recognize(5),
             Screen.Favorites, Screen.Albums(naming = "Trip"), Screen.NewAlbum("Trip"), Screen.Album(7), Screen.Places, Screen.Place(9),
             Screen.Videos, Screen.Search, Screen.Trash,
         )

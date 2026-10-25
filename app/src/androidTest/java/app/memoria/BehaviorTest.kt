@@ -1146,6 +1146,119 @@ class BehaviorTest {
         assertTrue(licenses)
     }
 
+    @Test fun settings_updateUpToDate_checkFires_rowDoesNotOpenPage() {
+        var check = false
+        var page = false
+        rule.setContent {
+            MemoriaTheme { Surface {
+                SettingsContent(
+                    charging = false, allowed = false, hidden = 2, version = "0.2.0",
+                    update = Updates.State(Updates.Status.UpToDate, checkedAt = System.currentTimeMillis()), onCheck = { check = true }, onReleasePage = { page = true },
+                )
+            } }
+        }
+
+        rule.onNodeWithText("Up to date · checked today").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("Updates").performClick()
+        assertFalse(page)
+        rule.onNodeWithText("Check").performClick()
+        assertTrue(check)
+    }
+
+    @Test fun settings_updateChecking_checkIsOff() {
+        rule.setContent {
+            MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.2.0", update = Updates.State(Updates.Status.Checking)) } }
+        }
+
+        rule.onNodeWithText("Checking…").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("Check").assertIsNotEnabled()
+    }
+
+    @Test fun settings_updateNew_updateFires_rowOpensPage() {
+        var update = false
+        var page = false
+        rule.setContent {
+            MemoriaTheme { Surface {
+                SettingsContent(
+                    charging = false, allowed = false, hidden = 2, version = "0.2.0",
+                    update = Updates.State(Updates.Status.New, "0.3.0", 102_760_448), onUpdate = { update = true }, onReleasePage = { page = true },
+                )
+            } }
+        }
+
+        rule.onNodeWithText("0.3.0 · 98 MB · What's new").performScrollTo().performClick()
+        assertTrue(page)
+        rule.onNodeWithText("Update").performClick()
+        assertTrue(update)
+    }
+
+    @Test fun settings_updateDownloading_cancelFires() {
+        var cancel = false
+        rule.setContent {
+            MemoriaTheme { Surface {
+                SettingsContent(
+                    charging = false, allowed = false, hidden = 2, version = "0.2.0",
+                    update = Updates.State(Updates.Status.Downloading, "0.3.0", 102_760_448, 42_991_616), onCancelUpdate = { cancel = true },
+                )
+            } }
+        }
+
+        rule.onNodeWithText("Downloading · 41 of 98 MB").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("Cancel").performClick()
+        assertTrue(cancel)
+    }
+
+    @Test fun settings_updateStopped_retryDownloads() {
+        var update = false
+        rule.setContent {
+            MemoriaTheme { Surface {
+                SettingsContent(
+                    charging = false, allowed = false, hidden = 2, version = "0.2.0",
+                    update = Updates.State(Updates.Status.Stopped, "0.3.0", 102_760_448), onUpdate = { update = true },
+                )
+            } }
+        }
+
+        rule.onNodeWithText("Stopped · 98 MB").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("Retry").performClick()
+        assertTrue(update)
+    }
+
+    @Test fun settings_updateReady_installFires() {
+        var install = false
+        rule.setContent {
+            MemoriaTheme { Surface {
+                SettingsContent(
+                    charging = false, allowed = false, hidden = 2, version = "0.2.0",
+                    update = Updates.State(Updates.Status.Ready, "0.3.0", 102_760_448, 102_760_448), onInstall = { install = true },
+                )
+            } }
+        }
+
+        rule.onNodeWithText("0.3.0 downloaded · What's new").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("Install").performClick()
+        assertTrue(install)
+    }
+
+    @Test fun settings_updateSwitch_turnsOff() {
+        var auto: Boolean? = null
+        rule.setContent {
+            MemoriaTheme { Surface {
+                SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.2.0", update = Updates.State(Updates.Status.UpToDate), onAutoUpdate = { auto = it })
+            } }
+        }
+
+        rule.onNodeWithText("Check for updates").performScrollTo().performClick()
+        assertEquals(false, auto)
+    }
+
+    @Test fun settings_withoutUpdate_hasNoUpdateRows() {
+        rule.setContent { MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.2.0") } } }
+
+        rule.onNodeWithText("Updates").assertDoesNotExist()
+        rule.onNodeWithText("Check for updates").assertDoesNotExist()
+    }
+
     @Test fun licenses_onlyTheFullTextsRowFires() {
         var back = false
         var texts = 0
