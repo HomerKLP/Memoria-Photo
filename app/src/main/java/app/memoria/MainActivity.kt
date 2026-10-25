@@ -415,7 +415,7 @@ fun Shortcut(icon: Int, name: String, info: String, modifier: Modifier, onClick:
     }
 }
 
-/** Runs models from <app files>/models on photos in <app files>/test, writes results_cpu/gpu/npu.json. */
+/** Runs models from <app files>/models on photos in <app files>/test, writes results_cpu/gpu/npu.json, and tags_*.json when tagger.tflite is there. */
 @Composable
 fun TestScreen(dir: File, onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
@@ -462,15 +462,25 @@ fun runTest(context: Context, dir: File, on: Accelerator, log: (String) -> Unit,
     val ms = { (System.nanoTime() - t) / 1_000_000.0 }
     val pipeline = if (on == Accelerator.NPU) FacePipeline(context) else FacePipeline(context, listOf(on))
     log("$mode: models loaded in %.0f ms".format(ms()))
+    t = System.nanoTime()
+    val tagger = if (!File(File(context.getExternalFilesDir(null), "models"), "tagger.tflite").exists()) null
+        else if (on == Accelerator.NPU) Tagger(context) else Tagger(context, listOf(on))
+    if (tagger != null) log("$mode: tagger loaded in %.0f ms".format(ms()))
     val photos = dir.walk().filter { it.isFile && it.extension.lowercase() in setOf("jpg", "jpeg", "png", "webp") }.sorted().toList()
     val results = JSONObject()
     var decode = 0.0; var detect = 0.0; var embed = 0.0; var faces = 0; var most = -1
-    pipeline.use {
+    val tags = JSONObject()
+    var resize = 0.0; var tag = 0.0
+    tagger.use { pipeline.use {
         for ((i, file) in photos.withIndex()) {
             t = System.nanoTime(); val image = loadPhoto(ImageDecoder.createSource(file)); decode += ms()
             t = System.nanoTime(); val found = pipeline.detect(image); detect += ms()
             t = System.nanoTime(); found.forEach { pipeline.embed(image, it) }; embed += ms()
             faces += found.size
+            if (tagger != null) {
+                t = System.nanoTime(); val input = tagger.input(image); resize += ms()
+                t = System.nanoTime(); tags.put(file.relativeTo(dir).path, JSONArray(tagger.vector(input).toList())); tag += ms()
+            }
             results.put(file.relativeTo(dir).path, JSONArray(found.map { f ->
                 JSONObject().put("box", JSONArray(f.box.toList())).put("score", f.score.toDouble())
                     .put("lm", JSONArray(f.landmarks.toList())).put("vec", JSONArray(f.vector!!.toList())).put("q", f.quality!!.toDouble())
@@ -483,8 +493,12 @@ fun runTest(context: Context, dir: File, on: Accelerator, log: (String) -> Unit,
             }
             if (i % 20 == 19) log("${i + 1}/${photos.size}")
         }
-    }
+    } }
     File(dir.parentFile, "results_$mode.json").writeText(results.toString())
     val n = photos.size.coerceAtLeast(1)
     log("$mode: ${photos.size} photos, $faces faces. Per photo: decode %.0f ms, detect %.0f ms. Per face: embed %.0f ms".format(decode / n, detect / n, embed / faces.coerceAtLeast(1)))
+    if (tagger != null) {
+        File(dir.parentFile, "tags_$mode.json").writeText(tags.toString())
+        log("$mode tagger: per photo resize %.0f ms, model %.0f ms".format(resize / n, tag / n))
+    }
 }

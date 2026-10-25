@@ -39,12 +39,12 @@ private var env: Environment? = null
 
 /** One LiteRT environment for the app. Its compile cache keeps the NPU builds in the app's cache dir, so only the first load builds them. */
 @Synchronized
-private fun liteEnv(context: Context): Environment = env ?: context.applicationContext.let {
+fun liteEnv(context: Context): Environment = env ?: context.applicationContext.let {
     Environment.create(it, BuiltinNpuAcceleratorProvider(it), emptyMap(), true)
 }.also { env = it }
 
 /** One model with its input and output buffers, on the first of [accelerators] the phone has and the model runs on. */
-private class Net(env: Environment, file: File, accelerators: List<Accelerator>) : AutoCloseable {
+class Net(env: Environment, file: File, accelerators: List<Accelerator>) : AutoCloseable {
     private val model = open(env, file, accelerators.filter { it in env.getAvailableAccelerators() })
     private val inputs = model.createInputBuffers()
     private val outputs = model.createOutputBuffers()

@@ -75,7 +75,13 @@ Current again since 2026-10-20. Phase 6 is paused.
 ## Phase 3: photo type filter
 Goal: keep screenshots, memes and documents out of face search.
 - [x] Metadata filter (screenshots, messengers, no camera EXIF): done in Phase 2. Only camera faces start a person; messenger faces can join one.
-- [ ] Classifier for selfie, group, meme, screenshot, document. Main gain is clean people (no celebrity faces from memes), not speed.
+- [ ] Classifier for selfie, group, meme, screenshot, document. Main gain is clean people (no celebrity faces from memes), not speed. A general CLIP-style tagger instead (also Phase 10 labels and search): 4 models benched 2026-10-25 (`bench/tags.py`, `docs/tagger.md`), SigLIP2 B/16 picked 2026-10-26.
+- [x] Tagger step 1, `.tflite` (2026-10-26): `bench/tags.py onnx`, then `bench/tflite.py --models siglip2_b16`, 175 MB fp16, same tags as PyTorch on all 3441 photos. The export rewrites parts of the model, same math, so the fp16 cast covers it, the NPU's fp16 does not overflow, and the GPU takes it.
+- [x] Tagger step 2, phone (2026-10-26): NPU 12 ms per photo, GPU 18 ms, CPU 286 ms, +335 MB during a run. `Tagger.kt`; Dev tools runs it when `models/tagger.tflite` is pushed.
+- [ ] Tagger step 3, resize: rescore all photos on the Mac with the app's resize from the indexer's 640 decode (the phone's vectors are 0.96-0.99 to the bench's bicubic); resize closer to bicubic if tags drop.
+- [ ] Tagger step 4, index: one vector per photo in a new table (DB 11 -> 12, new table only), with its own done mark and model version, so faces are never touched. Uses the face pass's 640 decode, no second open. Skipped photos (screenshots, GIFs, tiny) get one small decode; photos indexed before the tagger get one pass.
+- [ ] Tagger step 5, download: `tagger.tflite` in a `models-v2` release with a pinned hash, like the face models.
+- [ ] Tagger step 6, tags: the tag vectors ship as a small file; where tags show in the app goes into the mockup first.
 - [ ] Save the labels so the user can browse Selfies, Group photos, Screenshots.
 
 ## Phase 4: gallery basics (paused, basics done)
@@ -180,7 +186,8 @@ Items marked **Important** must be done before the first public release.
 
 ## Phase 10: smart search (later)
 - [ ] AI labels on every photo (document, ID card, receipt, meme, food, pet...): type "documents" or "id", see all of them. Builds on the Phase 3 classifier.
-- [ ] Free text search ("beach at sunset") with an on-device CLIP-style model.
+- [ ] Free text search ("beach at sunset") with an on-device CLIP-style model (SigLIP2's text side; English and Russian).
+- [ ] Optional: OCR, so search finds the text inside documents, receipts and screenshots. Runs only on photos the tagger marks as one; an open model, no ML Kit.
 
 ## Phase 11: performance (feels slow; measure first)
 Today perf is found only after someone feels it (`bugs.md` holds the numbers). No repeatable measurement, no gate. Goal: a number per screen, then fix the load costs, then keep them from coming back.
