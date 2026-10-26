@@ -110,6 +110,12 @@ Emulator, 180 new photos (faces and tagger together, CPU): 235 s, every photo go
 
 Against the Mac (`tags.py phone <memoria.db>` vs `siglip2_b16_app`, 3277 photos found by name): median 0.997, 385 under 0.99, 5 under 0.95 (one at 0.71). Almost all of the 385 take one decode path, libjpeg 1/2 then every 3rd pixel (12 MP camera photos), and have the same file size as the Mac's copy. So the phone's 1/2 JPEG decode differs a little from Pillow's; other guesses (other pixel offsets, averaging, 1/4, full decode) matched worse. The tags don't care: scored with the phone's own vectors on the 3256 photos the bench has, P@20 / R-precision 0.89 / 0.71, as the Mac copy (0.89 / 0.71) and bicubic (0.89 / 0.70).
 
+## Download (2026-10-26)
+`tagger.tflite` is the only file in the `models-v2` GitHub pre-release; the face models stay in `models-v1`. Each file in `Models.kt` names its release, with its size and pinned SHA-256 (tagger `bd1a62d0…`). Same flow as the face models: `.part`, hash check, rename.
+- Settings, Finding faces: the row is now "Models", 344 MB. A phone with only the face models shows "Not downloaded · 169 of 344 MB" and downloads just the tagger, by itself on Wi-Fi.
+- Face search never waits for the tagger (`modelsReady` checks the face files only).
+- Emulator, face models already there: the tagger came in ~15 s, passed the hash, and the run started with it on.
+
 ## Open
-- A `tagger.tflite` that won't load makes every app open start a run that tags nothing. Step 5's hash check should keep a bad file off the phone.
+- A `tagger.tflite` that won't load makes every app open start a run that tags nothing. The hash check keeps a bad download off the phone; an `adb push` is not checked.
 - Videos: same model on a few frames, not benched.

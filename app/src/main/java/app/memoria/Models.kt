@@ -7,19 +7,20 @@ import java.io.File
 import java.security.MessageDigest
 
 /**
- * The face models, downloaded once from the `models-v1` GitHub release by Android's DownloadManager, so the
+ * The models, downloaded once from GitHub releases by Android's DownloadManager (`models-v1` the face models, `models-v2` the tagger), so the
  * download goes on with the app closed. A file lands as `.part` and gets its real name only once its SHA-256
  * matches, so [modelsReady] never sees a half or broken file. `adb push` into the same folder still works.
  */
 object Models {
     enum class Status { Ready, Missing, Downloading, Stopped }
 
-    private const val URL = "https://github.com/HomerKLP/Memoria-Photo/releases/download/models-v1/"
-    private class Model(val name: String, val size: Long, val sha256: String)
+    private const val URL = "https://github.com/HomerKLP/Memoria-Photo/releases/download/"
+    private class Model(val name: String, val release: String, val size: Long, val sha256: String)
     private val FILES = listOf(
-        Model("detector_raw", 42_198_336, "2c72b06c7776541c515eaf832160e018102be228326c8b98210173a054a4cb66"),
-        Model("recognizer", 130_504_752, "651c0272e24f5f074bf76506d7aa4f59f06aade74eb5b44024608fdf7c241c09"),
-        Model("quality", 4_045_216, "9914a7b2054e92a6747e4c2672b1400eb8350979388a56ffee7a773d9db6cae6"),
+        Model("detector_raw", "models-v1", 42_198_336, "2c72b06c7776541c515eaf832160e018102be228326c8b98210173a054a4cb66"),
+        Model("recognizer", "models-v1", 130_504_752, "651c0272e24f5f074bf76506d7aa4f59f06aade74eb5b44024608fdf7c241c09"),
+        Model("quality", "models-v1", 4_045_216, "9914a7b2054e92a6747e4c2672b1400eb8350979388a56ffee7a773d9db6cae6"),
+        Model("tagger", "models-v2", 184_129_376, "bd1a62d03c718770af3c63c6d092a8d868a2710c2b32d4e8a02df50a53f4777b"),
     )
     val TOTAL = FILES.sumOf { it.size }
 
@@ -38,8 +39,8 @@ object Models {
         for (m in FILES) {
             if (m.name in coming || File(dir(context), "${m.name}.tflite").exists()) continue
             File(dir(context), "${m.name}.tflite.part").delete() // DownloadManager will not write over a file
-            val request = DownloadManager.Request(Uri.parse("$URL${m.name}.tflite"))
-                .setTitle("Memoria face models").setDestinationInExternalFilesDir(context, "models", "${m.name}.tflite.part")
+            val request = DownloadManager.Request(Uri.parse("$URL${m.release}/${m.name}.tflite"))
+                .setTitle("Memoria models").setDestinationInExternalFilesDir(context, "models", "${m.name}.tflite.part")
                 .setAllowedOverMetered(!wifiOnly)
             edit.putLong(m.name, manager(context).enqueue(request))
         }
@@ -69,7 +70,7 @@ object Models {
 
     /**
      * Checks the finished files and gives them their real name; a failed or damaged one is dropped and the row
-     * says Stopped. Hashes up to 125 MB, so off the main thread. True when this call made the models ready.
+     * says Stopped. Hashes up to 176 MB, so off the main thread. True when this call made the models ready.
      */
     fun settle(context: Context): Boolean {
         val ids = ids(context)

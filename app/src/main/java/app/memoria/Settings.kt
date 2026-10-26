@@ -320,13 +320,14 @@ fun SettingRow(icon: Int, title: String, info: String, onClick: (() -> Unit)? = 
     }
 }
 
-/** Mockup "Face models": the same build as [FaceSearchRow], so its height and button width never change. */
+/** Mockup "Models": the same build as [FaceSearchRow], so its height and button width never change. */
 @Composable
 fun FaceModelsRow(status: Models.Status, done: Long, onDownload: () -> Unit, onCancel: () -> Unit) {
     val total = Models.mb(Models.TOTAL)
     val info = when (status) {
         Models.Status.Ready -> "Ready · $total MB"
-        Models.Status.Missing -> "Not downloaded · $total MB"
+        // an app update that brings a new model: the files already here count
+        Models.Status.Missing -> if (done > 0) "Not downloaded · ${Models.mb(done)} of $total MB" else "Not downloaded · $total MB"
         Models.Status.Downloading -> "Downloading · ${Models.mb(done)} of $total MB"
         Models.Status.Stopped -> "Stopped · ${Models.mb(done)} of $total MB"
     }
@@ -337,7 +338,7 @@ fun FaceModelsRow(status: Models.Status, done: Long, onDownload: () -> Unit, onC
         ) {
             Icon(painterResource(if (status == Models.Status.Ready) R.drawable.ic_check else R.drawable.ic_download), null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
             Column(Modifier.weight(1f)) {
-                Text("Face models", fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium)
+                Text("Models", fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium)
                 Text(info, fontSize = 13.sp, lineHeight = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             val button = Modifier.testTag("modelsAction").width(88.dp)

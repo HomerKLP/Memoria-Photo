@@ -80,7 +80,7 @@ Goal: keep screenshots, memes and documents out of face search.
 - [x] Tagger step 2, phone (2026-10-26): NPU 12 ms per photo, GPU 18 ms, CPU 286 ms, +335 MB during a run. `Tagger.kt`; Dev tools runs it when `models/tagger.tflite` is pushed.
 - [x] Tagger step 3, resize (2026-10-26): with the app's 640 decode and halving + bilinear, all 3441 photos score the same as bicubic (0.90 / 0.70). `Tagger.kt` stays as it is.
 - [x] Tagger step 4, index (2026-10-26): one vector per photo in `photo_vector` (DB 12, new table only, with the model version). New photos use the face pass's 640 decode; skipped and older photos get one 640 decode. Test phone: 4383 photos in 240 s on the NPU, tags from the phone's vectors score as on the Mac.
-- [ ] Tagger step 5, download: `tagger.tflite` in a `models-v2` release with a pinned hash, like the face models.
+- [x] Tagger step 5, download (2026-10-26): `tagger.tflite` alone in the `models-v2` pre-release (face models stay in `models-v1`), pinned hash in `Models.kt`. The Settings row is now "Models", 344 MB; phones with the face models download only the tagger, by itself on Wi-Fi.
 - [ ] Tagger step 6, tags: the tag vectors ship as a small file; where tags show in the app goes into the mockup first.
 - [ ] Save the labels so the user can browse Selfies, Group photos, Screenshots.
 

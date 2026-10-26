@@ -278,7 +278,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .switch::after { content: ""; position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; border-radius: 50%; background: #fff; }
 .switch.off { background: var(--surface); box-shadow: inset 0 0 0 2px var(--muted); }
 .switch.off::after { top: 8px; right: auto; left: 8px; width: 16px; height: 16px; background: var(--muted); }
-/* Face models, Face search and Updates rows: as tall as the other rows. The bar sits on the bottom edge and the button keeps its width in every state, so nothing moves */
+/* Models, Face search and Updates rows: as tall as the other rows. The bar sits on the bottom edge and the button keeps its width in every state, so nothing moves */
 .set.models, .set.run, .set.update { position: relative; }
 .set.models .track, .set.run .track, .set.update .track { position: absolute; left: 56px; right: 120px; bottom: 4px; }
 .set.models .track.off, .set.run .track.off, .set.update .track.off { visibility: hidden; }
@@ -1249,7 +1249,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         </div>
         <div class="scroll">
           <div class="head"><h3>Finding faces</h3></div>
-          <div class="set models"><svg class="i"><use href="#i-check"/></svg><div><b>Face models</b><span>Ready · 169 MB</span><div class="track off"><div></div></div></div></div>
+          <div class="set models"><svg class="i"><use href="#i-check"/></svg><div><b>Models</b><span>Ready · 344 MB</span><div class="track off"><div></div></div></div></div>
           <div class="set run"><svg class="i"><use href="#i-search"/></svg><div><b>Face search</b><span>412 of 1,706 · 3m left</span><div class="track"><div></div></div></div><button class="pill-btn">Pause</button></div>
           <div class="set"><svg class="i"><use href="#i-bolt"/></svg><div><b>Only while charging</b><span>Pause face search on battery</span></div><span class="switch off" role="switch" aria-checked="false"></span></div>
           <div class="set"><svg class="i"><use href="#i-battery"/></svg><div><b>Background work</b><span>Not allowed. The phone may stop face search</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
@@ -1269,7 +1269,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Settings: opens from the gear on Library, and from a tap on the face search notification. Face models (shown ready, see the next three), then Face search: the only place that shows a run, with photos done, time left and Pause. A photo is done once every step is: its faces, and its tag vector when the tagger is on the phone; a new tagger fills the bar again from the start. Paused, it reads "Paused · 412 of 1,706" with Resume; with "Only while charging" on battery, "Waiting for charger" and keeps Pause. One line, cut with … if long. Then face search options, hidden people, face data backup, about: the version row opens Licenses, then Updates (see the update states below) and the daily check switch, both in release builds only. The Developer section is last and only in debug builds; a release build has no such section</figcaption>
+      <figcaption>Settings: opens from the gear on Library, and from a tap on the face search notification. Models (the face models and the photo tagger; shown ready, see the next three), then Face search: the only place that shows a run, with photos done, time left and Pause. A photo is done once every step is: its faces, and its tag vector when the tagger is on the phone; a new tagger fills the bar again from the start. Paused, it reads "Paused · 412 of 1,706" with Resume; with "Only while charging" on battery, "Waiting for charger" and keeps Pause. One line, cut with … if long. Then face search options, hidden people, face data backup, about: the version row opens Licenses, then Updates (see the update states below) and the daily check switch, both in release builds only. The Developer section is last and only in debug builds; a release build has no such section</figcaption>
     </figure>
     <figure id="search-done">
       <div class="phone" id="search-done-phone"></div>
@@ -1277,15 +1277,15 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
     </figure>
     <figure id="models-missing">
       <div class="phone" id="models-missing-phone"></div>
-      <figcaption>Face models, not downloaded: the first row of Finding faces. The app starts the download by itself on open, Wi-Fi only, so this shows on mobile data, where the tap is the OK (the size is in the row). If Wi-Fi drops midway, the download waits for it. Until they are here, face search does not start. The row is as tall as every other Settings row, and the button keeps its width in every state. The bar sits on the row's bottom edge (hidden here), so nothing moves</figcaption>
+      <figcaption>Models, not downloaded: the first row of Finding faces. The app starts the download by itself on open, Wi-Fi only, so this shows on mobile data, where the tap is the OK (the size is in the row). When an app update brings a new model, the files already here count: "Not downloaded · 169 of 344 MB", and only the new one downloads. If Wi-Fi drops midway, the download waits for it. Until they are here, face search does not start. The row is as tall as every other Settings row, and the button keeps its width in every state. The bar sits on the row's bottom edge (hidden here), so nothing moves</figcaption>
     </figure>
     <figure id="models-downloading">
       <div class="phone" id="models-downloading-phone"></div>
-      <figcaption>Face models, downloading: MB so far, the bar fills, Cancel stops it, and after Cancel only Retry starts it again. The files are checked when done, then the row turns to Ready and face search starts by itself. The app may be closed meanwhile, the download goes on</figcaption>
+      <figcaption>Models, downloading: MB so far, the bar fills, Cancel stops it, and after Cancel only Retry starts it again. The files are checked when done, then the row turns to Ready and face search starts by itself. The app may be closed meanwhile, the download goes on</figcaption>
     </figure>
     <figure id="models-stopped">
       <div class="phone" id="models-stopped-phone"></div>
-      <figcaption>Face models, stopped: the server failed or a file was damaged (no connection only pauses the download). The bar shows the files already here, Retry downloads the rest. The same row after Cancel</figcaption>
+      <figcaption>Models, stopped: the server failed or a file was damaged (no connection only pauses the download). The bar shows the files already here, Retry downloads the rest. The same row after Cancel</figcaption>
     </figure>
     <figure id="update-new">
       <div class="phone" id="update-new-phone"></div>
@@ -1293,7 +1293,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
     </figure>
     <figure id="update-downloading">
       <div class="phone" id="update-downloading-phone"></div>
-      <figcaption>Updates, downloading: like Face models. The bar fills, Cancel goes back to Update. If the download fails it reads "Stopped · 98 MB" with Retry, which starts over. The download goes on with the app closed</figcaption>
+      <figcaption>Updates, downloading: like Models. The bar fills, Cancel goes back to Update. If the download fails it reads "Stopped · 98 MB" with Retry, which starts over. The download goes on with the app closed</figcaption>
     </figure>
     <figure id="update-ready">
       <div class="phone" id="update-ready-phone"></div>
@@ -1373,21 +1373,22 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="set"><div><b>Bricolage Grotesque</b><span>Titles and headings · SIL OFL 1.1</span></div></div>
           <div class="set"><div><b>Roboto</b><span>All other text · SIL OFL 1.1</span></div></div>
           <div class="head"><h3>Libraries</h3></div>
-          <div class="set"><div><b>LiteRT</b><span>Runs the face models · Apache 2.0</span></div></div>
+          <div class="set"><div><b>LiteRT</b><span>Runs the models · Apache 2.0</span></div></div>
           <div class="set"><div><b>Qualcomm QNN libraries</b><span>Runs the models on the NPU · Qualcomm's own license</span></div></div>
           <div class="set"><div><b>AndroidX, Compose, Material</b><span>App code and UI · Apache 2.0</span></div></div>
           <div class="set"><div><b>Kotlin</b><span>Language and runtime · Apache 2.0</span></div></div>
           <div class="set"><div><b>Reorderable</b><span>Drag to reorder people · Apache 2.0</span></div></div>
-          <div class="head"><h3>Face models</h3></div>
+          <div class="head"><h3>Models</h3></div>
           <div class="set"><div><b>YOLOv5m-face</b><span>Finds faces · GPL-3.0</span></div></div>
           <div class="set"><div><b>AdaFace IR101</b><span>Face vector · MIT</span></div></div>
           <div class="set"><div><b>eDifFIQA-T</b><span>Face quality · MIT</span></div></div>
+          <div class="set"><div><b>SigLIP 2 B/16</b><span>Photo tags · Apache 2.0</span></div></div>
           <div class="head"><h3>More</h3></div>
           <div class="set"><div><b>Full license texts</b><span>Opens THIRD_PARTY.md on GitHub</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Licenses: opens from the About row in Settings. One row per thing Memoria uses, grouped App, Data, Fonts, Libraries, Face models: name, what it is for, license. The rows are plain text, they open nothing; the GeoNames row carries the CC BY change notice. The last row opens THIRD_PARTY.md on GitHub in the browser (the full texts live there, so the app stays offline). Every row is the same height, the sub line is one line. The list is the same as <code>THIRD_PARTY.md</code></figcaption>
+      <figcaption>Licenses: opens from the About row in Settings. One row per thing Memoria uses, grouped App, Data, Fonts, Libraries, Models: name, what it is for, license. The rows are plain text, they open nothing; the GeoNames row carries the CC BY change notice. The last row opens THIRD_PARTY.md on GitHub in the browser (the full texts live there, so the app stays offline). Every row is the same height, the sub line is one line. The list is the same as <code>THIRD_PARTY.md</code></figcaption>
     </figure>
     <figure id="devtools">
       <div class="phone">
@@ -1787,16 +1788,16 @@ document.querySelectorAll("[data-shot]").forEach(el => el.style.background = sho
 document.querySelectorAll("[data-photo]").forEach(el => el.style.background = photo());
 document.getElementById("dim").style.background = `linear-gradient(rgba(0,0,0,.55), rgba(0,0,0,.55)), ${shot}`;
 document.getElementById("move-dim").style.background = document.getElementById("dim").style.background;
-// Settings with the Face models row in each state: the same screen, only that row changes.
+// Settings with the Models row in each state: the same screen, only that row changes.
 const modelRows = {
-  "models-missing": ["download", "Not downloaded · 169 MB", "off", 0, "Download"],
-  "models-downloading": ["download", "Downloading · 74 of 169 MB", "", 44, "Cancel"],
-  "models-stopped": ["download", "Stopped · 74 of 169 MB", "", 44, "Retry"],
+  "models-missing": ["download", "Not downloaded · 344 MB", "off", 0, "Download"],
+  "models-downloading": ["download", "Downloading · 151 of 344 MB", "", 44, "Cancel"],
+  "models-stopped": ["download", "Stopped · 151 of 344 MB", "", 44, "Retry"],
 };
 for (const [id, [icon, sub, off, pct, btn]] of Object.entries(modelRows)) {
   const phone = document.getElementById(id + "-phone");
   phone.prepend(...[...document.querySelector("#settings .phone").children].map(n => n.cloneNode(true)));
-  phone.querySelector(".set.models").innerHTML = `<svg class="i"><use href="#i-${icon}"/></svg><div><b>Face models</b><span>${sub}</span><div class="track ${off}"><div style="width:${pct}%"></div></div></div><button class="pill-btn">${btn}</button>`;
+  phone.querySelector(".set.models").innerHTML = `<svg class="i"><use href="#i-${icon}"/></svg><div><b>Models</b><span>${sub}</span><div class="track ${off}"><div style="width:${pct}%"></div></div></div><button class="pill-btn">${btn}</button>`;
 }
 // Settings with the Updates row in each state, scrolled down to About.
 const updateRows = {

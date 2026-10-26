@@ -142,14 +142,14 @@ class LayoutJumpTest {
         assertSame("Export face data", exportBefore, rule.onNodeWithText("Export face data").top())
     }
 
-    /** Face models row (mockup "Face models"): every state keeps the row, its button width, its bar and the rows below in place. */
+    /** Models row (mockup "Models"): every state keeps the row, its button width, its bar and the rows below in place. */
     @Test fun settings_modelsStates_rowsStayPut() {
         var status by mutableStateOf(Models.Status.Missing)
         rule.setContent {
             MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", models = status, modelsDone = 77_594_624) } }
         }
 
-        val modelsBefore = rule.onNodeWithText("Face models").top()
+        val modelsBefore = rule.onNodeWithText("Models").top()
         val searchBefore = rule.onNodeWithText("Face search").top()
         val exportBefore = rule.onNodeWithText("Export face data").top()
         val actionBefore = rule.onNodeWithTag("modelsAction").width()
@@ -157,7 +157,7 @@ class LayoutJumpTest {
         val barBefore = rule.onNodeWithTag("modelsBar").width()
         for (s in listOf(Models.Status.Stopped, Models.Status.Ready, Models.Status.Missing)) {
             rule.runOnIdle { status = s }
-            assertSame("Face models ($s)", modelsBefore, rule.onNodeWithText("Face models").top())
+            assertSame("Models ($s)", modelsBefore, rule.onNodeWithText("Models").top())
             assertSame("Face search ($s)", searchBefore, rule.onNodeWithText("Face search").top())
             assertSame("Export face data ($s)", exportBefore, rule.onNodeWithText("Export face data").top())
             if (s != Models.Status.Ready) assertSame("Download/Cancel/Retry ($s)", actionBefore, rule.onNodeWithTag("modelsAction").width())

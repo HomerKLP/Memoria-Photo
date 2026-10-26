@@ -102,7 +102,7 @@ class MainActivity : ComponentActivity() {
         // not on a restore: the same intent comes back, and Settings would open again
         if (savedInstanceState == null && intent.getBooleanExtra("openSettings", false)) { atUpdates = intent.getBooleanExtra("atUpdates", false); openSettings++ }
         val dir = File(getExternalFilesDir(null), "test").apply { mkdirs() }
-        // the face models come by themselves on Wi-Fi; on mobile data, or after Cancel, the user taps Download or Retry
+        // the models come by themselves on Wi-Fi; on mobile data, or after Cancel, the user taps Download or Retry
         lifecycleScope.launch(Dispatchers.IO) {
             val wifi = getSystemService(ConnectivityManager::class.java)?.isActiveNetworkMetered == false
             if (wifi && Models.status(this@MainActivity).first == Models.Status.Missing) Models.download(this@MainActivity, wifiOnly = true)
