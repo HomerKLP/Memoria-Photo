@@ -140,6 +140,11 @@ Against the Mac (`tags.py phone <memoria.db>` vs `siglip2_b16_app`, 3277 photos 
 - Pets, selfies and groups stop where the labels end, so they could show a few more.
 - Left out: screenshot (Search's Screenshots chip opens the album), receipt (5 photos), child (~60% right).
 
+## App (2026-10-26)
+`Categories.kt` scores the tags when Library, Search, Categories or a Category opens: every vector of `Tagger.VERSION` in `photo_vector` (empty ones skipped) against each tag, kept above its cutoff. Nothing is stored, so a new `tags.json` shows on the next open; a `tags.json` made for another model shows no categories.
+- Test phone, debug build, 4383 photos: read ~50 ms, score ~55 ms; the first open after an install 100 + 177 ms. Later opens show the last data at once, so no cache.
+- Library has the Categories row (under Places, See all opens Categories); Search shows categories only as typed hits.
+
 ## Open
 - A `tagger.tflite` that won't load makes every app open start a run that tags nothing. The hash check keeps a bad download off the phone; an `adb push` is not checked.
 - Videos: same model on a few frames, not benched.

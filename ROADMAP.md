@@ -81,10 +81,11 @@ Goal: keep screenshots, memes and documents out of face search.
 - [x] Tagger step 3, resize (2026-10-26): with the app's 640 decode and halving + bilinear, all 3441 photos score the same as bicubic (0.90 / 0.70). `Tagger.kt` stays as it is.
 - [x] Tagger step 4, index (2026-10-26): one vector per photo in `photo_vector` (DB 12, new table only, with the model version). New photos use the face pass's 640 decode; skipped and older photos get one 640 decode. Test phone: 4383 photos in 240 s on the NPU, tags from the phone's vectors score as on the Mac.
 - [x] Tagger step 5, download (2026-10-26): `tagger.tflite` alone in the `models-v2` pre-release (face models stay in `models-v1`), pinned hash in `Models.kt`. The Settings row is now "Models", 344 MB; phones with the face models download only the tagger, by itself on Wi-Fi.
-- [ ] Tagger step 6, tags: the tag vectors ship as a small file; where tags show in the app goes into the mockup first.
+- [x] Tagger step 6, tags (2026-10-26): the tag vectors ship as a small file; where tags show in the app goes into the mockup first.
   - [x] Part A, the file (2026-10-26): `tags.py export` -> `assets/tags.json`, 14 tags, each cut at 90% right on the bench (`docs/tagger.md`).
-  - [ ] Part B, mockup: Search gets a "Categories" row (3 tiles like Library's Places row, See all), tags match while typing, a category opens a photo grid. Drawn 2026-10-26 (`docs/design.html`: Search, Search typing, Categories, Category); waits for the user's look.
-  - [ ] Part C, code.
+  - [x] Part B, mockup (2026-10-26): Search gets a "Categories" row (3 tiles like Library's Places row, See all), tags match while typing, a category opens a photo grid (`docs/design.html`: Search, Search typing, Categories, Category).
+  - [x] Part C, code (2026-10-26): `Categories.kt` scores the photo vectors when a screen opens, nothing stored; typed hits in Search, Categories page, Category page (the Place page). Test phone: ~100 ms, no cache.
+  - [x] Part D (2026-10-27): the Categories row is on Library under Places, not in Search; Library's Albums show one row.
 - [ ] Save the labels so the user can browse Selfies, Group photos, Screenshots.
 
 ## Phase 4: gallery basics (paused, basics done)

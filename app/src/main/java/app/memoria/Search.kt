@@ -58,12 +58,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /** Recent searches save the name, so a rename forgets them. */
-enum class HitKind { person, place, album, year, month, videos, favorites }
+enum class HitKind { person, place, album, category, year, month, videos, favorites }
 
-/** Something Search opens: a person, place, album, year or month, or a type chip. [key] says which one. */
-class Hit(val kind: HitKind, val key: String, val name: String, val note: String = "", val face: FaceVec? = null, val cover: Tile? = null)
+/** Something Search opens: a person, place, album, category, year or month, or a type chip. [key] says which one. [words]: a category's other names. */
+class Hit(val kind: HitKind, val key: String, val name: String, val note: String = "", val face: FaceVec? = null, val cover: Tile? = null, val words: List<String> = emptyList())
 
-/** Named people for the row, everything typing can find (people, places, albums, years and months, in that order), the type chips. */
+/** Named people for the row, everything typing can find (people, places, albums, categories, years and months, in that order), the type chips. */
 class SearchData(val people: List<Person>, val hits: List<Hit>, val types: List<Hit>)
 
 /** Where [query] starts a word of [name], case ignored ("d" finds Downloads, not Andy), or -1. */
@@ -73,7 +73,16 @@ fun wordStart(query: String, name: String): Int {
     return name.indices.firstOrNull { i -> (i == 0 || !name[i - 1].isLetterOrDigit()) && name.regionMatches(i, q, 0, q.length, ignoreCase = true) } ?: -1
 }
 
-private fun count(n: Int, word: String) = "$n $word${if (n == 1) "" else "s"}"
+/** Where the typed text is in [hit]'s name (-1: not there) and the note to show, or null. A category also matches its words from 2 letters; the word then shows before the count. */
+fun match(query: String, hit: Hit): Pair<Int, String>? {
+    val at = wordStart(query, hit.name)
+    if (at >= 0) return at to hit.note
+    if (query.trim().length < 2) return null
+    val word = hit.words.firstOrNull { wordStart(query, it) >= 0 } ?: return null
+    return -1 to "$word · ${hit.note}"
+}
+
+fun count(n: Int, word: String) = "$n $word${if (n == 1) "" else "s"}"
 
 @Composable
 fun SearchScreen(onBack: () -> Unit, onOpen: (Hit) -> Unit, onSeeAllPeople: () -> Unit) {
@@ -93,6 +102,8 @@ fun SearchScreen(onBack: () -> Unit, onOpen: (Hit) -> Unit, onSeeAllPeople: () -
                 .sortedByDescending { it.photos }
             val albums = albums(context)
             val all = albums.flatMap { it.tiles }
+            // categories only as typed hits: their row is on Library
+            val categories = loadCategories(context, all)
             // same month names and keys as the Photos tab headers, so a month opens the tab right there
             val zone = ZoneId.systemDefault()
             val monthName = DateTimeFormatter.ofPattern("LLLL yyyy")
@@ -107,6 +118,7 @@ fun SearchScreen(onBack: () -> Unit, onOpen: (Hit) -> Unit, onSeeAllPeople: () -
                 hits = people.map { Hit(HitKind.person, "${it.id}", it.name!!, count(it.photos, "photo"), face = it.cover) } +
                     places(dao.placed(), all).map { Hit(HitKind.place, "${it.id}", it.name, count(it.tiles.size, "photo"), cover = it.tiles.firstOrNull()) } +
                     albums.map { Hit(HitKind.album, "${it.id}", it.name, count(it.tiles.size, "item"), cover = it.tiles.firstOrNull()) } +
+                    categories.map { Hit(HitKind.category, it.id, it.name, count(it.tiles.size, "photo"), cover = it.cover, words = it.words) } +
                     dates,
                 types = listOfNotNull(
                     Hit(HitKind.videos, "videos", "Videos"),
@@ -182,11 +194,11 @@ fun SearchContent(
         val q = query.trim()
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
             if (q.isNotEmpty()) {
-                val found = data.hits.mapNotNull { h -> wordStart(q, h.name).takeIf { it >= 0 }?.let { h to it } }
+                val found = data.hits.mapNotNull { h -> match(q, h)?.let { h to it } }
                 if (found.isEmpty()) item {
                     Text("Nothing for \"$q\"", Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                items(found, key = { (h, _) -> "${h.kind} ${h.key}" }) { (h, at) -> HitRow(h, at, q.length) { onOpen(h) } }
+                items(found, key = { (h, _) -> "${h.kind} ${h.key}" }) { (h, m) -> HitRow(h, m.first, q.length, m.second) { onOpen(h) } }
                 return@LazyColumn
             }
             if (data.people.isNotEmpty()) {
@@ -218,9 +230,9 @@ fun SearchContent(
     }
 }
 
-/** One hit: a round face for a person, a square cover for a place or album, a square calendar for a date; the typed letters in the accent. */
+/** One hit: a round face for a person, a square cover for a place, album or category, a square calendar for a date; the typed letters in the accent. */
 @Composable
-private fun HitRow(hit: Hit, at: Int, length: Int, onClick: () -> Unit) {
+private fun HitRow(hit: Hit, at: Int, length: Int, note: String, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().clickable(onClick = onClick).heightIn(min = 52.dp).padding(horizontal = 16.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -234,9 +246,9 @@ private fun HitRow(hit: Hit, at: Int, length: Int, onClick: () -> Unit) {
             }
         }
         Text(
-            buildAnnotatedString { append(hit.name); addStyle(SpanStyle(MaterialTheme.colorScheme.primary), at, at + length) },
+            buildAnnotatedString { append(hit.name); if (at >= 0) addStyle(SpanStyle(MaterialTheme.colorScheme.primary), at, at + length) },
             Modifier.weight(1f).padding(start = 16.dp), fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis,
         )
-        Text(hit.note, Modifier.padding(start = 12.dp), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(note, Modifier.padding(start = 12.dp), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

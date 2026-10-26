@@ -254,6 +254,8 @@ fun App(dir: File, openSettings: Int = 0, atUpdates: Boolean = false) {
                                 onOpenAlbum = { push(Screen.Album(it)) },
                                 onOpenPlaces = { push(Screen.Places) },
                                 onOpenPlace = { push(Screen.Place(it)) },
+                                onOpenCategories = { push(Screen.Categories) },
+                                onOpenCategory = { push(Screen.Category(it)) },
                                 onOpenFavorites = { push(Screen.Favorites) },
                                 onOpenVideos = { push(Screen.Videos) },
                                 onOpenTrash = { push(Screen.Trash) },
@@ -330,6 +332,8 @@ fun App(dir: File, openSettings: Int = 0, atUpdates: Boolean = false) {
                             is Screen.Album -> AlbumScreen(s.id, onBack = back, onOpen = open)
                             Screen.Places -> PlacesScreen(onBack = back, onOpenPlace = { push(Screen.Place(it)) })
                             is Screen.Place -> PlaceScreen(s.id, onBack = back, onOpen = open)
+                            Screen.Categories -> CategoriesScreen(onBack = back, onOpenCategory = { push(Screen.Category(it)) })
+                            is Screen.Category -> CategoryScreen(s.id, onBack = back, onOpen = open)
                             Screen.Videos -> VideosScreen(onBack = back, onOpen = open)
                             Screen.Search -> SearchScreen(
                                 onBack = back,
@@ -338,6 +342,7 @@ fun App(dir: File, openSettings: Int = 0, atUpdates: Boolean = false) {
                                         HitKind.person -> push(Screen.People(h.key.toLong(), direct = true))
                                         HitKind.place -> push(Screen.Place(h.key.toInt()))
                                         HitKind.album -> push(Screen.Album(h.key.toLong()))
+                                        HitKind.category -> push(Screen.Category(h.key))
                                         HitKind.videos -> push(Screen.Videos)
                                         HitKind.favorites -> push(Screen.Favorites)
                                         HitKind.year, HitKind.month -> { // the Photos tab, scrolled to that month's header
@@ -389,6 +394,8 @@ sealed interface Screen : Serializable {
     data class Album(val id: Long) : Screen
     data object Places : Screen
     data class Place(val id: Int) : Screen
+    data object Categories : Screen
+    data class Category(val id: String) : Screen
     data object Videos : Screen
     data object Search : Screen
     data object Trash : Screen

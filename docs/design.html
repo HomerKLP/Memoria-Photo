@@ -431,7 +431,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 <header class="top">
   <h1>Memoria Photo</h1>
   <p class="lede">Light theme, Honey palette. Photos and faces are placeholders, names and places are made up.</p>
-  <nav class="toc"><a href="#page-photos">Photos</a><a href="#page-search">Search</a><a href="#page-viewer">Viewer</a><a href="#page-library">Library</a><a href="#favorites">Favorites</a><a href="#page-albums">Albums</a><a href="#page-places">Places</a><a href="#page-people">People</a><a href="#page-settings">Settings</a><a href="#devtools">Dev tools</a><a href="#parts">Shared parts</a><a href="#app-icon">App icon</a></nav>
+  <nav class="toc"><a href="#page-photos">Photos</a><a href="#page-search">Search</a><a href="#page-viewer">Viewer</a><a href="#page-library">Library</a><a href="#favorites">Favorites</a><a href="#page-albums">Albums</a><a href="#page-places">Places</a><a href="#page-categories">Categories</a><a href="#page-people">People</a><a href="#page-settings">Settings</a><a href="#devtools">Dev tools</a><a href="#parts">Shared parts</a><a href="#app-icon">App icon</a></nav>
 </header>
 
 <main>
@@ -529,8 +529,6 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <div class="scroll">
           <div class="head"><h3>People</h3></div>
           <div class="row" id="search-people"></div>
-          <div class="head"><h3>Categories</h3><a href="#">See all<svg class="i"><use href="#i-chevron"/></svg></a></div>
-          <div class="places" id="search-categories"></div>
           <div class="head"><h3>Types</h3></div>
           <div class="chips">
             <button class="chip"><svg class="i"><use href="#i-video"/></svg>Videos</button>
@@ -542,7 +540,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Search: opens from the Photos search icon and the Library search bar, keyboard down. A screen, not a third tab. Named people, categories, types, recent searches; each opens a screen, and back returns here. Categories: the three with the most photos, like the Places row on Library; See all opens all of them. A category is a photo tag (pets, documents, food…); its cover is the photo the tagger is surest of. Categories with no photos are left out; with none (models not downloaded, or no photo tagged yet) the heading and the row are gone. Like People, it shows its last data at once. Screenshots opens the phone's Screenshots album; no such album, no chip. Recent keeps what you opened; × removes one, Clear all. Nothing recent: no Recent heading</figcaption>
+      <figcaption>Search: opens from the Photos search icon and the Library search bar, keyboard down. A screen, not a third tab. Named people, types, recent searches; each opens a screen, and back returns here. Categories are in Library; here they only come up while typing. Like People, it shows its last data at once. Screenshots opens the phone's Screenshots album; no such album, no chip. Recent keeps what you opened; × removes one, Clear all. Nothing recent: no Recent heading</figcaption>
     </figure>
     <figure id="search-typing">
       <div class="phone">
@@ -556,32 +554,6 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <div class="gesture"><div class="handle"></div></div>
       </div>
       <figcaption>Search, typing: hits change with each letter and match word starts (d finds Downloads, not Andy). People, places, albums, categories, months and years, in that order. A category matches its name, and from two letters its words too ("do" finds Pets by "dog": the word shows before the count). A hit opens its screen: Person, Album, Place, Category, or the Photos tab scrolled to that month. Places show up once place names exist. No hits: one muted line, Nothing for "xyz". Later: two people at once and free text ("beach") get a results grid</figcaption>
-    </figure>
-    <figure id="categories-all">
-      <div class="phone">
-        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
-        <div class="subbar">
-          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
-          <div class="title"><b>Categories</b><span>12 categories</span></div>
-        </div>
-        <div class="scroll">
-          <div class="places all" id="category-grid"></div>
-        </div>
-        <div class="gesture"><div class="handle"></div></div>
-      </div>
-      <figcaption>Categories: opens from See all in Search. Like Places: one tile per category, most photos first, the ones with no photos left out. Tap a tile for the Category</figcaption>
-    </figure>
-    <figure id="category">
-      <div class="phone">
-        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
-        <div class="subbar">
-          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
-          <div class="title"><b>Pets</b><span>412 photos</span></div>
-        </div>
-        <div class="scroll vids" id="category-photos"></div>
-        <div class="gesture"><div class="handle"></div></div>
-      </div>
-      <figcaption>Category: opens from a category tile or a typed hit. Every photo with that tag, newest first, by month; the month stays pinned. Tap opens the viewer, long press selects, like Place (no Move). Photos only: videos are not tagged yet. A photo has a tag when the tagger's score passes that tag's cutoff, set so about 9 in 10 are right</figcaption>
     </figure>
   </div>
 </section>
@@ -697,6 +669,9 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="head"><h3>Places</h3><a href="#">See all<svg class="i"><use href="#i-chevron"/></svg></a></div>
           <div class="places" id="places"></div>
   
+          <div class="head"><h3>Categories</h3><a href="#">See all<svg class="i"><use href="#i-chevron"/></svg></a></div>
+          <div class="places" id="library-categories"></div>
+  
           <div class="shortcuts">
             <div class="shortcut"><svg class="i"><use href="#i-heart"/></svg><div><b>Favorites</b><span>38</span></div></div>
             <div class="shortcut"><svg class="i"><use href="#i-video"/></svg><div><b>Videos</b><span>211</span></div></div>
@@ -712,7 +687,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="handle"></div>
         </div>
       </div>
-      <figcaption>Library while indexing: no people yet, so the row's one muted item (see Empty) reads "Finding faces…" instead of "No people yet". Progress and Pause are in Settings, Face search. People and the Help recognize card appear only once a run has finished.</figcaption>
+      <figcaption>Library while indexing: no people yet, so the row's one muted item (see Empty) reads "Finding faces…" instead of "No people yet". Progress and Pause are in Settings, Face search. People and the Help recognize card appear only once a run has finished. Albums, Places and Categories are one row of 3 each, the biggest first; See all opens the whole page. While loading, or with none yet, grey tiles hold the row's space, so nothing below moves.</figcaption>
     </figure>
     <figure>
       <div class="phone has-slider">
@@ -1011,6 +986,35 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <div class="gesture"><div class="handle"></div></div>
       </div>
       <figcaption>Places, empty: the index has read every photo and none has a location. The Library row shows one muted tile at a cover's size instead (see Empty), so Shortcuts below never move. While locations are still being read, three grey tiles hold the row, never this</figcaption>
+    </figure>
+  </div>
+  <h3 id="page-categories">Categories</h3>
+  <div class="phones">
+    <figure id="categories-all">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="title"><b>Categories</b><span>12 categories</span></div>
+        </div>
+        <div class="scroll">
+          <div class="places all" id="category-grid"></div>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Categories: opens from See all on Library's Categories row. Like Places: one tile per category, most photos first, the ones with no photos left out. A category is a photo tag (pets, documents, food…); its cover is the photo the tagger is surest of. Tap a tile for the Category</figcaption>
+    </figure>
+    <figure id="category">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="title"><b>Pets</b><span>412 photos</span></div>
+        </div>
+        <div class="scroll vids" id="category-photos"></div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Category: opens from a category tile or a typed hit. Every photo with that tag, newest first, by month; the month stays pinned. Tap opens the viewer, long press selects, like Place (no Move). Photos only: videos are not tagged yet. A photo has a tag when the tagger's score passes that tag's cutoff, set so about 9 in 10 are right</figcaption>
     </figure>
   </div>
 </section>
@@ -1781,7 +1785,7 @@ fill("videos", [["October 2026", 5], ["September 2026", 7], ["August 2026", 6]]
   + keepSeed(() => [["July 2026", 6]]
   .map(([m, n]) => `<section class="month-sec"><h3 class="month">${m}</h3><div class="grid big">${tiles(n, [...Array(n).keys()], [1])}</div></section>`).join("")));
 fill("albums", [["Camera", "1,412"], ["Screenshots", "214"], ["Telegram", "96"], ["WhatsApp Images", "58"], ["Downloads", "33"], ["Instagram", "21"]]
-  .map(([n, c]) => cover(n, c)).join(""));
+  .map(([n, c]) => cover(n, c)).slice(0, 3).join("")); // all 6 drawn, so the photos further down keep their colors
 fill("places", [["Riverton", "642"], ["Northport", "118"], ["Harborview", "87"]].map(([n, c]) => cover(n, c)).join(""));
 
 fill("viewer-people", [[0, "Me"], [2, "Dana"], [4, null]]
@@ -1910,7 +1914,7 @@ fill("person-scrolled-list", document.querySelector("#person .scroll").innerHTML
 // Categories and Category: filled last so the photos above keep their colors.
 const categories = [["Pets", "412"], ["Food", "174"], ["Selfies", "96"], ["Group photos", "71"], ["Documents", "58"], ["Night", "44"],
   ["Sunsets", "41"], ["Memes", "33"], ["Beach", "27"], ["Snow", "19"], ["Flowers", "12"], ["Cars", "6"]];
-fill("search-categories", categories.slice(0, 3).map(([n, c]) => cover(n, c)).join(""));
+fill("library-categories", categories.slice(0, 3).map(([n, c]) => cover(n, c)).join(""));
 fill("category-grid", categories.map(([n, c]) => cover(n, c)).join(""));
 document.getElementById("hit-category").style.background = photo();
 fill("category-photos", [["October 2026", 6], ["September 2026", 4], ["July 2026", 7]]

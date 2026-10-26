@@ -209,6 +209,7 @@ private fun fakeLibrary(people: List<Person>? = null, unsure: List<FaceVec>? = n
     videos = 211,
     trash = 7,
     places = fakePlaces,
+    categories = fakeCategories,
 )
 
 private val fakePlaces = listOf("Riverton" to 642, "Northport" to 118, "Harborview" to 87, "Eastfield" to 64, "Lakemoor" to 52).mapIndexed { i, (n, c) ->
@@ -697,11 +698,18 @@ fun PhotosSelect() = MemoriaTheme {
     Surface { PhotosContent(items, selection = selection, pickedSize = 18_400_000) }
 }
 
+private val fakeCategories = listOf("Pets" to 412, "Food" to 174, "Selfies" to 96, "Group photos" to 71, "Documents" to 58, "Night" to 44, "Sunsets" to 41).mapIndexed { i, (n, c) ->
+    val tiles = List(c) { Tile(5000L + i * 1000 + it, android.net.Uri.parse("content://media/external/images/media/$it"), 0L, null) }
+    Category(n.lowercase(), n, if (n == "Pets") listOf("cat", "dog") else emptyList(), tiles.first(), tiles)
+}
+
 private val fakeSearch = SearchData(
     people = listOf(fakePerson(1, "Dana"), fakePerson(2, "Arman"), fakePerson(3, "Bota"), fakePerson(4, "Mei")),
     hits = listOf(
         Hit(HitKind.person, "1", "Dana", "230 photos", face = fakeFace(100, 0.9f)),
         Hit(HitKind.album, "5", "Downloads", "33 items", cover = fakeAlbum(5, "Downloads", 1).tiles.first()),
+        Hit(HitKind.category, "pets", "Pets", "412 photos", cover = fakeCategories[0].cover, words = fakeCategories[0].words),
+        Hit(HitKind.category, "documents", "Documents", "58 photos", cover = fakeCategories[4].cover),
         Hit(HitKind.year, "m2025-12", "2025", "412 items"),
         Hit(HitKind.month, "m2025-12", "December 2025", "48 items"),
         Hit(HitKind.album, "6", "Camera", "1,204 items", cover = fakeAlbum(6, "Camera", 1).tiles.first()),
@@ -713,13 +721,30 @@ private val fakeSearch = SearchData(
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 760)
 @Composable
-fun SearchStart() = MemoriaTheme { Surface { SearchContent(fakeSearch, "", recent = listOf(fakeSearch.hits[0], fakeSearch.hits[3], fakeSearch.hits[4])) } }
+fun SearchStart() = MemoriaTheme { Surface { SearchContent(fakeSearch, "", recent = listOf(fakeSearch.hits[0], fakeSearch.hits[5], fakeSearch.hits[6])) } }
 
 /** Search, typing (mockup): word-start hits, the typed letter in the accent. */
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 760)
 @Composable
 fun SearchTyping() = MemoriaTheme { Surface { SearchContent(fakeSearch, "d") } }
+
+/** Search, typing two letters: a category found by one of its words shows that word before the count. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 400)
+@Composable
+fun SearchWordHit() = MemoriaTheme { Surface { SearchContent(fakeSearch, "do") } }
+
+/** Categories (mockup). Pairs with categories_loadingToLoaded_titleStaysPut. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 760)
+@Composable
+fun CategoriesGrid() = MemoriaTheme { Surface { CategoriesContent(fakeCategories) } }
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 760)
+@Composable
+fun CategoriesLoading() = MemoriaTheme { Surface { CategoriesContent(null) } }
 
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 400)

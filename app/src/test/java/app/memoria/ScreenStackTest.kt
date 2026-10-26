@@ -16,7 +16,7 @@ class ScreenStackTest {
         val stack = listOf(
             Screen.Settings(atUpdates = true), Screen.Licenses, Screen.Skip, Screen.Dev, Screen.Hidden(3), Screen.People(5, direct = true), Screen.Recognize(5),
             Screen.Favorites, Screen.Albums(naming = "Trip"), Screen.NewAlbum("Trip"), Screen.Album(7), Screen.Places, Screen.Place(9),
-            Screen.Videos, Screen.Search, Screen.Trash,
+            Screen.Categories, Screen.Category("pet"), Screen.Videos, Screen.Search, Screen.Trash,
         )
         val bytes = ByteArrayOutputStream().also { ObjectOutputStream(it).use { o -> o.writeObject(ArrayList(stack)) } }.toByteArray()
         assertEquals(stack, ObjectInputStream(ByteArrayInputStream(bytes)).readObject())

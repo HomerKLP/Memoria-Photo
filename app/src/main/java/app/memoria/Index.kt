@@ -160,6 +160,8 @@ interface IndexDao {
     @Query("UPDATE photo SET lat = :lat, lon = :lon, townId = :townId, town = :town WHERE id = :id")
     suspend fun setPlace(id: Long, lat: Double?, lon: Double?, townId: Int, town: String?)
     @Query("SELECT photoId FROM photo_vector WHERE model = :model") suspend fun taggedIds(model: Int): List<Long>
+    /** Vectors for categories; an empty one is a photo that couldn't be read. */
+    @Query("SELECT * FROM photo_vector WHERE model = :model AND length(vector) > 0") suspend fun vectors(model: Int): List<PhotoVectorRow>
     /** Photos with every index step done: the face pass, and a vector from tagger [model] while [tagger] is on the phone. */
     @Query("SELECT COUNT(*) FROM photo WHERE NOT :tagger OR id IN (SELECT photoId FROM photo_vector WHERE model = :model)")
     fun doneCount(tagger: Boolean, model: Int): Flow<Int>

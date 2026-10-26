@@ -137,6 +137,15 @@ class DaoTest {
         assertEquals(setOf(1L, 3L), dao.placed().map { it.id }.toSet())
     }
 
+    @Test fun vectors_onlyThisModel_noEmpty() = runBlocking {
+        dao.insertVector(PhotoVectorRow(1, 1, floatArrayOf(0.6f, 0.8f)))
+        dao.insertVector(PhotoVectorRow(2, 1, FloatArray(0))) // couldn't be read
+        dao.insertVector(PhotoVectorRow(3, 2, floatArrayOf(1f, 0f))) // another model
+        val rows = dao.vectors(1)
+        assertEquals(listOf(1L), rows.map { it.photoId })
+        assertEquals(listOf(0.6f, 0.8f), rows.single().vector.toList())
+    }
+
     @Test fun answer_sameFaceAndPersonReplaced_dropYesKeepsNo() = runBlocking {
         dao.answer(AnswerRow(faceId = 5, personFace = 1, yes = false))
         dao.answer(AnswerRow(faceId = 5, personFace = 1, yes = true))

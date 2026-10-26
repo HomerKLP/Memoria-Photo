@@ -649,6 +649,27 @@ class BehaviorTest {
         assertEquals("5", opened?.key)
     }
 
+    // categories are on Library: Search shows them only as typed hits
+    @Test fun search_categoryWordHit_opensTheCategory() {
+        val data = SearchData(emptyList(), listOf(Hit(HitKind.category, "pet", "Pets", "2 photos", cover = tile(8), words = listOf("dog"))), emptyList())
+        var text by mutableStateOf("")
+        var opened: Hit? = null
+        rule.setContent { MemoriaTheme { Surface { SearchContent(data, text, onQuery = { text = it }, onOpen = { opened = it }) } } }
+
+        rule.onNodeWithText("Pets").assertDoesNotExist()
+        rule.onNodeWithTag("searchField").performTextInput("do")
+        rule.onNodeWithText("dog · 2 photos").assertIsDisplayed()
+        rule.onNodeWithText("Pets").performClick()
+        assertEquals("pet", opened?.key)
+    }
+
+    @Test fun categories_tapOpensTheCategory() {
+        var opened: String? = null
+        rule.setContent { MemoriaTheme { Surface { CategoriesContent(listOf(Category("pet", "Pets", emptyList(), tile(1), listOf(tile(1)))), onOpenCategory = { opened = it }) } } }
+        rule.onNodeWithText("Pets").performClick()
+        assertEquals("pet", opened)
+    }
+
     @Test fun search_opensWithTheFieldFocused() {
         rule.setContent { MemoriaTheme { Surface { SearchContent(search, "") } } }
         rule.onNodeWithTag("searchField").assertIsFocused()
@@ -972,7 +993,7 @@ class BehaviorTest {
     }
 
     // --- Library -------------------------------------------------------------------------------
-    // 3 people: PeopleRow then adds no "See all" tile, so the three section heads are the only ones.
+    // 3 people: PeopleRow then adds no "See all" tile, so the four section heads are the only ones.
 
     private val library = LibraryData(
         faces = (1L..3L).map { person(it, "Person $it") },
@@ -980,6 +1001,7 @@ class BehaviorTest {
         albums = listOf(Album(1, "Camera", (1L..6L).map { tile(it) })),
         favorites = 4, videos = 2, trash = 3,
         places = listOf(Place(1, "Riverton", (1L..3L).map { tile(it) })),
+        categories = listOf(Category("pet", "Pets", emptyList(), tile(1), (1L..2L).map { tile(it) })),
     )
 
     @Test fun library_searchAndSettings_fire() {
@@ -1001,19 +1023,22 @@ class BehaviorTest {
         var people = false
         var albums = false
         var places = false
+        var categories = false
         rule.setContent {
             MemoriaTheme { Surface {
-                LibraryContent(library, onOpenPeople = { people = true }, onOpenAlbums = { albums = true }, onOpenPlaces = { places = true })
+                LibraryContent(library, onOpenPeople = { people = true }, onOpenAlbums = { albums = true }, onOpenPlaces = { places = true }, onOpenCategories = { categories = true })
             } }
         }
 
-        // three "See all" heads, top to bottom: People, Albums, Places
+        // four "See all" heads, top to bottom: People, Albums, Places, Categories
         rule.onAllNodesWithText("See all")[0].performClick()
         assertTrue(people)
         rule.onAllNodesWithText("See all")[1].performScrollTo().performClick()
         assertTrue(albums)
         rule.onAllNodesWithText("See all")[2].performScrollTo().performClick()
         assertTrue(places)
+        rule.onAllNodesWithText("See all")[3].performScrollTo().performClick()
+        assertTrue(categories)
     }
 
     @Test fun library_personTile_opensThePerson() {
@@ -1051,6 +1076,14 @@ class BehaviorTest {
 
         rule.onNodeWithText("Riverton").performScrollTo().performClick()
         assertEquals(1, opened)
+    }
+
+    @Test fun library_categoryCover_opensTheCategory() {
+        var opened: String? = null
+        rule.setContent { MemoriaTheme { Surface { LibraryContent(library, onOpenCategory = { opened = it }) } } }
+
+        rule.onNodeWithText("Pets").performScrollTo().performClick()
+        assertEquals("pet", opened)
     }
 
     @Test fun library_reviewCard_fires() {

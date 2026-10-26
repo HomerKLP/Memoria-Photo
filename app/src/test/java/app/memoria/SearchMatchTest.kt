@@ -3,7 +3,7 @@ package app.memoria
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/** Search hits match the start of a word, any case. */
+/** Search hits match the start of a word, any case; a category's words from 2 letters. */
 class SearchMatchTest {
 
     @Test fun matchesTheStartOfAWord() {
@@ -16,5 +16,14 @@ class SearchMatchTest {
         assertEquals(4, wordStart("chat", "Tg: chats"))
         assertEquals(-1, wordStart("danas", "Dana"))
         assertEquals(-1, wordStart("", "Dana"))
+    }
+
+    @Test fun aCategoryMatchesItsWordsFromTwoLetters() {
+        val pets = Hit(HitKind.category, "pet", "Pets", "412 photos", words = listOf("cat", "dog"))
+        assertEquals(0 to "412 photos", match("p", pets))
+        assertEquals(null, match("d", pets))
+        assertEquals(null, match(" d ", pets))
+        assertEquals(-1 to "dog · 412 photos", match("do", pets))
+        assertEquals(null, match("dot", pets))
     }
 }

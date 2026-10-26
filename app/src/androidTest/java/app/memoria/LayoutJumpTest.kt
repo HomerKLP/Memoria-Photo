@@ -73,6 +73,7 @@ class LayoutJumpTest {
         named: Boolean = true,
         people: List<Person>? = null,
         places: List<Place> = emptyList(),
+        categories: List<Category> = emptyList(),
         unsure: List<FaceVec> = listOf(face(101, 0.3f), face(102, 0.3f)),
     ): LibraryData {
         val faces = (1L..4L).map { i ->
@@ -87,6 +88,7 @@ class LayoutJumpTest {
             videos = 211,
             trash = 7,
             places = places,
+            categories = categories,
         )
     }
 
@@ -234,6 +236,16 @@ class LayoutJumpTest {
         // one town: the row keeps its height with fewer than 3 tiles
         val before = rule.onNodeWithText("Favorites").top()
         rule.runOnIdle { data = library(places = listOf(Place(1, "Riverton", listOf(tile(1))))) }
+        assertSame("Favorites", before, rule.onNodeWithText("Favorites").top())
+    }
+
+    @Test fun library_categoriesArriving_shortcutsStayPut() {
+        var data by mutableStateOf(library())
+        rule.setContent { MemoriaTheme { Surface { LibraryContent(data) } } }
+
+        // one category: the row keeps its height with fewer than 3 tiles
+        val before = rule.onNodeWithText("Favorites").top()
+        rule.runOnIdle { data = library(categories = listOf(Category("pet", "Pets", emptyList(), tile(1), listOf(tile(1))))) }
         assertSame("Favorites", before, rule.onNodeWithText("Favorites").top())
     }
 
@@ -716,6 +728,16 @@ class LayoutJumpTest {
         val headerBefore = rule.onNodeWithText("On this device").top()
         rule.runOnIdle { albums = listOf(album(1, "Camera", 5), album(2, "Screenshots", 3)) }
         assertSame("On this device", headerBefore, rule.onNodeWithText("On this device").top())
+    }
+
+    /** Categories: the cover grid loads after the bar; the title must not move. */
+    @Test fun categories_loadingToLoaded_titleStaysPut() {
+        var categories by mutableStateOf<List<Category>?>(null)
+        rule.setContent { MemoriaTheme { Surface { CategoriesContent(categories) } } }
+
+        val titleBefore = rule.onNodeWithText("Categories").top()
+        rule.runOnIdle { categories = listOf(Category("pet", "Pets", emptyList(), tile(1), albumTiles(1, 5)), Category("food", "Food", emptyList(), tile(2), albumTiles(2, 3))) }
+        assertSame("title", titleBefore, rule.onNodeWithText("Categories").top())
     }
 
     /** Albums: alone in the grid while loading, the New album tile would slide from the first slot to the last. */

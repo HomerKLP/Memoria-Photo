@@ -9,6 +9,7 @@ import androidx.activity.ComponentActivity
 import androidx.compose.material3.Surface
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -19,6 +20,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.File
@@ -77,6 +79,7 @@ class NavigationTest {
             dao.deletePerson(personId)
             dao.deleteFaces(listOf(photoId))
             dao.deletePhotos(listOf(photoId))
+            dao.deleteVectors(listOf(photo))
         }
     }
 
@@ -145,6 +148,42 @@ class NavigationTest {
         rule.onNodeWithContentDescription("Settings").assertDoesNotExist()
         back()
         assertOnLibrary()
+    }
+
+    // the MediaStore photo gets the Pets tag's own vector, so it scores 1 and Pets is there
+    private fun tagAsPet() = runBlocking { dao.insertVector(PhotoVectorRow(photo, Tagger.VERSION, Tag.load(context).first { it.id == "pet" }.vector)) }
+
+    @Test fun category_fromLibrary_backGoesUpOneScreenAtATime() {
+        tagAsPet()
+        start()
+        openLibrary()
+        waitFor("Categories")
+        seeAll("Categories")
+        // other photos on the emulator may put Pets further down the grid
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("categor", substring = true).fetchSemanticsNodes().isNotEmpty() } // "N categories": loaded
+        rule.onNodeWithTag("categoriesGrid").performScrollToNode(hasText("Pets"))
+        rule.onNodeWithText("Pets").performClick()
+        rule.onNodeWithTag("placeGrid").assertIsDisplayed()
+        back()
+        rule.onNodeWithTag("placeGrid").assertDoesNotExist()
+        rule.onNodeWithText("Categories").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Settings").assertDoesNotExist()
+        back()
+        assertOnLibrary()
+    }
+
+    @Test fun search_categoryWordHit_backReturnsToSearchWithTheText() {
+        tagAsPet()
+        start()
+        rule.onNodeWithContentDescription("Search").performClick()
+        rule.onNode(hasSetTextAction()).performTextInput("do")
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("dog · ", substring = true).fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithText("Pets").performClick()
+        rule.onNodeWithTag("placeGrid").assertIsDisplayed()
+        back()
+        rule.onNodeWithText("do").assertIsDisplayed()
+        back()
+        assertOnPhotos()
     }
 
     @Test fun person_fromLibrary_backReturnsToLibrary() {
