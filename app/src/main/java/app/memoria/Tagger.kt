@@ -7,12 +7,15 @@ import com.google.ai.edge.litert.Accelerator
 import java.io.File
 import kotlin.math.sqrt
 
+/** <app files>/models/tagger.tflite: the index tags photos only while it is there. */
+fun taggerFile(context: Context) = File(File(context.getExternalFilesDir(null), "models"), "tagger.tflite")
+
 /** SigLIP2 B/16 vision side (`docs/tagger.md`): a photo -> its normalized 768 vector, for tags and search. Reads <app files>/models/tagger.tflite. */
 class Tagger(
     context: Context,
     accelerators: List<Accelerator> = if (Build.HARDWARE == "ranchu") listOf(Accelerator.CPU) else listOf(Accelerator.NPU, Accelerator.GPU, Accelerator.CPU),
 ) : AutoCloseable {
-    private val net = Net(liteEnv(context), File(File(context.getExternalFilesDir(null), "models"), "tagger.tflite"), accelerators)
+    private val net = Net(liteEnv(context), taggerFile(context), accelerators)
 
     /** The whole photo squashed to 224x224, RGB, -1..1. Halved first, so a big photo is averaged, not sampled (the bench resizes bicubic with antialias). */
     fun input(image: Bitmap): FloatArray {
@@ -36,4 +39,9 @@ class Tagger(
     }
 
     override fun close() = net.close()
+
+    companion object {
+        /** Saved with each vector. Bump it with a new model file, and the next run tags every photo again. */
+        const val VERSION = 1
+    }
 }

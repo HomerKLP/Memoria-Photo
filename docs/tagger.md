@@ -78,6 +78,38 @@ SigLIP2 B/16, for Russian free-text search later. Its text side is 282 M params 
 - Against the bench (20 photos it has): 0.957-0.989. That gap is the resize (halving with bilinear vs the bench's bicubic); the Mac gives the same with the app's steps.
 - The NPU cache is per model name and rebuilds when the file changes (the fixed file rebuilt in 6 s).
 
+## Resize (2026-10-26)
+`siglip2_b16_app` in `tags.py` runs the .tflite on the app's input, copied step by step:
+- The indexer's `loadPhoto(source, 640)`, as ImageDecoder does it: libjpeg scales by 1/2, 1/4 or 1/8, Skia keeps every k-th pixel (its sample size), then bilinear to 640. WebP scales itself.
+- `Tagger.input`: halve while a side is 448+, then bilinear to 224, 8 bits after each step.
+
+The copy matches the phone: at the Dev tools 4096 decode, 20 photos, Mac vs phone NPU min 0.9967, GPU and CPU 0.9975. The 640 decode is checked under Index.
+
+| input | P@20 / R-precision, English | Russian |
+|---|---|---|
+| bicubic from a 1024 decode (`siglip2_b16_fp16`) | 0.90 / 0.70 | 0.65 / 0.51 |
+| the app: 640 decode, halving, bilinear (`siglip2_b16_app`) | 0.90 / 0.70 | 0.63 / 0.50 |
+| 640 decode, then bicubic (`siglip2_b16_app_bicubic`) | 0.90 / 0.69 | 0.63 / 0.50 |
+
+- The tags hold. Per tag, P@20 moves by up to 0.10 either way (car 0.95 -> 0.85, selfie 0.85 -> 0.90), which is 1-2 photos.
+- The vectors do move: similarity to the bicubic ones median 0.986, min 0.84, 76 photos under 0.95.
+- In the 640 decode, ~2400 of the 3441 photos keep every 3rd, 5th or 7th pixel instead of averaging. The tags don't suffer.
+- So `Tagger.kt` keeps halving + bilinear; bicubic would buy nothing.
+- 37 new top hits labeled for this. Other models' scores moved by up to 0.03 with the new labels.
+
+## Index (2026-10-26)
+`IndexWorker` saves one vector per photo in its own table, `photo_vector` (DB 12): `photoId`, `model` (`Tagger.VERSION`), `vector` (768 floats, 3 KB). Faces and people are not touched.
+- New photos: the tagger reads the face pass's 640 decode. Skipped photos (screenshots, GIFs, tiny) get one 640 decode. Photos indexed before the tagger get one each, after the new ones.
+- Only while `models/tagger.tflite` is there; without it, or if it won't load, a run does faces only. Photos with no vector count as changed, so the old ones get tagged on the next app open.
+- An unreadable photo gets an empty vector and isn't tried again. A Rescan keeps the vectors.
+- During a tag-only run the notification says "Tagging photos n / m". The Settings row shows the run with all photos done; a real row needs the mockup first.
+
+Test phone, debug app, 4383 photos indexed before the tagger: 240 s (55 ms per photo: decode, resize, NPU, save), tagger on the NPU, app at 540-610 MB PSS, no failures.
+
+Emulator, 180 new photos (faces and tagger together, CPU): 235 s, every photo got a vector, the 3 skipped photos (screenshot, GIF) too and they stay `skip`. Against the Mac copy (91 photos): median 0.9988, min 0.979.
+
+Against the Mac (`tags.py phone <memoria.db>` vs `siglip2_b16_app`, 3277 photos found by name): median 0.997, 385 under 0.99, 5 under 0.95 (one at 0.71). Almost all of the 385 take one decode path, libjpeg 1/2 then every 3rd pixel (12 MP camera photos), and have the same file size as the Mac's copy. So the phone's 1/2 JPEG decode differs a little from Pillow's; other guesses (other pixel offsets, averaging, 1/4, full decode) matched worse. The tags don't care: scored with the phone's own vectors on the 3256 photos the bench has, P@20 / R-precision 0.89 / 0.71, as the Mac copy (0.89 / 0.71) and bicubic (0.89 / 0.70).
+
 ## Open
-- Rescore all 3441 photos with the app's resize from the indexer's 640 decode; if tags drop, resize closer to bicubic.
+- A `tagger.tflite` that won't load makes every app open start a run that tags nothing. Step 5's hash check should keep a bad file off the phone.
 - Videos: same model on a few frames, not benched.

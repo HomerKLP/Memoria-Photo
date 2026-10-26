@@ -23,7 +23,7 @@ uv run bench/tags.py label SHEET ANSWER [SHEET ANSWER ...]
     sample sheet: "1:pet,food 4:selfie" (tiles not named have no tag); tag sheet: "3 5 9" (tiles that have it), "-" for none
 uv run bench/tags.py score     -> P@20 and R-precision per tag and model, testdata/out/tags.html
 uv run bench/tags.py onnx      -> the picked model's vision side to ~/.uniface/models/siglip2_b16.onnx, for bench/tflite.py
-uv run bench/tags.py phone testdata/out/tags_npu.json   -> the app's vectors (Dev tools run) against the bench's, by file name
+uv run bench/tags.py phone testdata/out/tags_npu.json   -> the app's vectors (Dev tools run, or the DB from make pull-db) against the bench's, by file name
 """
 
 import argparse
@@ -32,6 +32,7 @@ import html
 import json
 import os
 import random
+import sqlite3
 import time
 from contextlib import ExitStack
 from pathlib import Path
@@ -58,6 +59,8 @@ MODELS = {  # name: (open_clip model, weights)
     'pe_core_s16': ('PE-Core-S-16-384', 'meta'),
     'mobileclip2_s2': ('MobileCLIP2-S2', 'dfndr2b'),  # research-only weights: a yardstick, can't ship
     'siglip2_b16_fp16': ('ViT-B-16-SigLIP2', 'webli'),  # the app's .tflite from bench/tflite.py; open_clip only for the text side
+    'siglip2_b16_app': ('ViT-B-16-SigLIP2', 'webli'),  # the .tflite on the app's input: the indexer's 640 decode, then Tagger.input
+    'siglip2_b16_app_bicubic': ('ViT-B-16-SigLIP2', 'webli'),  # the .tflite on the same 640 decode, then bicubic to 224
 }
 # tag: (English prompts, Russian prompt). The comment is the labeling rule, so hand labels stay consistent.
 TAGS = {
@@ -95,18 +98,93 @@ def load(path, side=1024):
     return img
 
 
+def bilinear(a, hw):
+    """Android's filtered bitmap scaling: bilinear at pixel centers, no antialias, back to 8 bits."""
+    if a.shape[:2] == tuple(hw):
+        return a
+    t = torch.from_numpy(np.array(a)).permute(2, 0, 1)[None].float()
+    t = torch.nn.functional.interpolate(t, size=tuple(hw), mode='bilinear', align_corners=False, antialias=False)
+    return t[0].permute(1, 2, 0).round().clamp(0, 255).byte().numpy()
+
+
+def sampled(size, k, jpeg):
+    """Skia's decode at sample size k: libjpeg scales by 1/8, 1/4 or 1/2 itself, then every k-th pixel is kept.
+    -> (libjpeg's scale, size after it, k left, final size)."""
+    n = next((n for n in (8, 4, 2) if jpeg and k > 1 and k % n == 0), 1)
+    pre = [-(-d // n) for d in size]
+    k //= n
+    return n, pre, k, tuple(d // k if k <= d else 1 for d in pre)
+
+
+def sample_size(size, want, jpeg):
+    """Skia's SkAndroidCodec::computeSampleSize, which ImageDecoder.setTargetSize runs."""
+    dims = lambda k: sampled(size, k, jpeg)[3]
+    over = lambda a: a[0] > want[0] and a[1] > want[1]
+    under = lambda a: a[0] < want[0] or a[1] < want[1]
+    k = min(size[0] // want[0], size[1] // want[1])
+    if dims(k) == want:
+        return k
+    if k == 1 or dims(k) == tuple(size):
+        return 1
+    if over(dims(k)):
+        while dims(k + 1) != dims(k) and over(dims(k + 1)):
+            k += 1
+        return k + 1 if dims(k + 1) == want else k
+    if under(dims(k)):
+        while k > 2:
+            if not under(dims(k - 1)):
+                return k - 1
+            k -= 1
+        return 1
+    return k
+
+
+TURN = {2: Image.Transpose.FLIP_LEFT_RIGHT, 3: Image.Transpose.ROTATE_180, 4: Image.Transpose.FLIP_TOP_BOTTOM,
+        5: Image.Transpose.TRANSPOSE, 6: Image.Transpose.ROTATE_270, 7: Image.Transpose.TRANSVERSE, 8: Image.Transpose.ROTATE_90}
+
+
+def decode(path, side):
+    """The app's loadPhoto(source, side): ImageDecoder's sampled decode, bilinear to the target size, then the EXIF turn."""
+    img = Image.open(path)
+    turn = TURN.get(img.getexif().get(0x0112))
+    s = np.float32(side) / max(img.size)
+    if s < 1 and img.format == 'WEBP':  # libwebp scales to any size itself, averaging
+        img = img.convert('RGB').resize(tuple(int(np.float32(d) * s) for d in img.size), Image.Resampling.BOX)
+    elif s < 1:
+        size, jpeg = img.size, img.format in ('JPEG', 'MPO')
+        want = tuple(int(np.float32(d) * s) for d in size)
+        n, pre, k, got = sampled(size, sample_size(size, want, jpeg), jpeg)
+        img.draft('RGB', (size[0] // n, size[1] // n))
+        a = np.asarray(img.convert('RGB'))
+        assert a.shape[1::-1] == tuple(pre), (path, a.shape, pre)
+        img = Image.fromarray(bilinear(a[k // 2::k, k // 2::k][:got[1], :got[0]], want[::-1]))
+    img = img.convert('RGB')
+    return img.transpose(turn) if turn else img
+
+
+def app_input(img):
+    """Tagger.input: halve while a side is 448+, bilinear to 224x224, -1..1."""
+    a = np.asarray(img)
+    while a.shape[0] >= 448 or a.shape[1] >= 448:
+        h, w = a.shape[:2]
+        a = bilinear(a, (h // 2 if h >= 448 else h, w // 2 if w >= 448 else w))
+    return torch.from_numpy(bilinear(a, (224, 224))).permute(2, 0, 1).float() / 127.5 - 1
+
+
 def model(name):
     m, _, pre = open_clip.create_model_and_transforms(*MODELS[name])
     return m.eval(), pre
 
 
 def encoder(name):
-    """(a batch of inputs -> normalized vectors, preprocess). An _fp16 model runs its .tflite on the CPU, one photo at a time."""
+    """(a batch of inputs -> normalized vectors, photo path -> input). siglip2_b16_* run the app's .tflite on the CPU, one photo at a time."""
     m, pre = model(name)
-    if not name.endswith('_fp16'):
+    prep = {'siglip2_b16_app': lambda p: app_input(decode(p, 640)),
+            'siglip2_b16_app_bicubic': lambda p: pre(decode(p, 640))}.get(name, lambda p: pre(load(p)))
+    if not name.startswith('siglip2_b16_'):
         m = m.to(DEV)
-        return lambda x: m.encode_image(x.to(DEV), normalize=True).float().cpu().numpy(), pre
-    it = Interpreter(model_path=str(ROOT / 'models' / f'{name}.tflite'), num_threads=4)
+        return lambda x: m.encode_image(x.to(DEV), normalize=True).float().cpu().numpy(), prep
+    it = Interpreter(model_path=str(ROOT / 'models/siglip2_b16_fp16.tflite'), num_threads=4)
     it.allocate_tensors()
     i, o = it.get_input_details()[0]['index'], it.get_output_details()[0]['index']
 
@@ -117,7 +195,7 @@ def encoder(name):
             it.invoke()
             out.append(it.get_tensor(o)[0])
         return np.array(out) / np.linalg.norm(out, axis=1, keepdims=True)
-    return run, pre
+    return run, prep
 
 
 def vectors(name):
@@ -134,13 +212,13 @@ def embed(photos_dir, names):
         todo = [r for r in rels if r not in done]
         if not todo:
             continue
-        enc, pre = encoder(name)
+        enc, prep = encoder(name)
         t = time.perf_counter()
         for i in tqdm(range(0, len(todo), 32), desc=name):
             batch, ok = [], []
             for r in todo[i:i + 32]:
                 try:
-                    batch.append(pre(load(photos_dir / r)))
+                    batch.append(prep(photos_dir / r))
                     ok.append(r)
                 except Exception as e:
                     tqdm.write(f'cannot read, skipped: {r} ({e})')
@@ -155,7 +233,7 @@ def info(names):
     torch.set_num_threads(4)  # like the app's CPU fallback
     rows = {}
     for name in names:
-        if name.endswith('_fp16'):
+        if name.startswith('siglip2_b16_'):
             continue
         m, pre = model(name)
         x = pre(Image.new('RGB', (1024, 768), 'gray'))[None]
@@ -216,9 +294,15 @@ def export(name):
 
 
 def phone(path):
-    """Similarity of each phone vector to the bench's PyTorch one: checks the app's resize and the phone runtime together."""
-    bench = {Path(r).name: v for r, v in vectors('siglip2_b16').items()}
-    got = json.loads(Path(path).read_text())
+    """Similarity of each phone vector to the bench's, by file name: a Dev tools JSON (4096 decode) to PyTorch,
+    or the app's DB (the indexer's 640 decode) to siglip2_b16_app."""
+    if path.endswith('.db'):
+        with sqlite3.connect(path) as db:  # Room's FloatArray: big-endian float32
+            got = {p: np.frombuffer(v, '>f4') for p, v in db.execute('SELECT p.path, v.vector FROM photo_vector v JOIN photo p ON p.id = v.photoId WHERE length(v.vector) > 0')}
+        bench = {Path(r).name: v for r, v in vectors('siglip2_b16_app').items()}
+    else:
+        got = json.loads(Path(path).read_text())
+        bench = {Path(r).name: v for r, v in vectors('siglip2_b16').items()}
     sims = np.array([np.dot(v, bench[Path(r).name]) for r, v in got.items() if Path(r).name in bench])
     print(f'{len(sims)} of {len(got)} photos found in the bench; similarity min {sims.min():.4f} median {np.median(sims):.4f}, under 0.99: {(sims < 0.99).sum()}')
 
