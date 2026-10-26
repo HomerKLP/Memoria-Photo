@@ -6,7 +6,7 @@ Hardest part first, UI last. Phases are the order of work; Later and Ideas at th
 
 **Index upgrades:** a new index step (search labels, OCR, video towns) fills in only what an existing index is missing, like `recutThumbs` does for face pictures. Never re-index from scratch, so names, merges, hidden people, covers and answers stay.
 
-**Next step:** `README.md` (Phase 8), then Phase 3. v0.1.0 is out (2026-10-23). Phase 2 is done. Phase 6 (design and UI polish) is paused and its UX pass list stays open.
+**Next step:** `README.md` (Phase 8), then Phase 3. v0.2.0 is out (2026-10-24). Phase 2 is done. Phase 6 (design and UI polish) is paused and its UX pass list stays open.
 ## Phase 1: face pipeline quality (done)
 Pick the best models on real photos before writing app code. Details: `docs/face-pipeline.md`.
 - [x] Python bench: `bench/bench.py` (detect, group).
@@ -75,8 +75,18 @@ Current again since 2026-10-20. Phase 6 is paused.
 ## Phase 3: photo type filter
 Goal: keep screenshots, memes and documents out of face search.
 - [x] Metadata filter (screenshots, messengers, no camera EXIF): done in Phase 2. Only camera faces start a person; messenger faces can join one.
-- [ ] Classifier for selfie, group, meme, screenshot, document. Main gain is clean people (no celebrity faces from memes), not speed.
-- [ ] Save the labels so the user can browse Selfies, Group photos, Screenshots.
+- [ ] Classifier for selfie, group, meme, screenshot, document. Main gain is clean people (no celebrity faces from memes), not speed. A general CLIP-style tagger instead (also Phase 10 labels and search): 4 models benched 2026-10-25 (`bench/tags.py`, `docs/tagger.md`), SigLIP2 B/16 picked 2026-10-26.
+- [x] Tagger step 1, `.tflite` (2026-10-26): `bench/tags.py onnx`, then `bench/tflite.py --models siglip2_b16`, 175 MB fp16, same tags as PyTorch on all 3441 photos. The export rewrites parts of the model, same math, so the fp16 cast covers it, the NPU's fp16 does not overflow, and the GPU takes it.
+- [x] Tagger step 2, phone (2026-10-26): NPU 12 ms per photo, GPU 18 ms, CPU 286 ms, +335 MB during a run. `Tagger.kt`; Dev tools runs it when `models/tagger.tflite` is pushed.
+- [x] Tagger step 3, resize (2026-10-26): with the app's 640 decode and halving + bilinear, all 3441 photos score the same as bicubic (0.90 / 0.70). `Tagger.kt` stays as it is.
+- [x] Tagger step 4, index (2026-10-26): one vector per photo in `photo_vector` (DB 12, new table only, with the model version). New photos use the face pass's 640 decode; skipped and older photos get one 640 decode. Test phone: 4383 photos in 240 s on the NPU, tags from the phone's vectors score as on the Mac.
+- [x] Tagger step 5, download (2026-10-26): `tagger.tflite` alone in the `models-v2` pre-release (face models stay in `models-v1`), pinned hash in `Models.kt`. The Settings row is now "Models", 344 MB; phones with the face models download only the tagger, by itself on Wi-Fi.
+- [x] Tagger step 6, tags (2026-10-26): the tag vectors ship as a small file; where tags show in the app goes into the mockup first.
+  - [x] Part A, the file (2026-10-26): `tags.py export` -> `assets/tags.json`, 14 tags, each cut at 90% right on the bench (`docs/tagger.md`).
+  - [x] Part B, mockup (2026-10-26): Search gets a "Categories" row (3 tiles like Library's Places row, See all), tags match while typing, a category opens a photo grid (`docs/design.html`: Search, Search typing, Categories, Category).
+  - [x] Part C, code (2026-10-26): `Categories.kt` scores the photo vectors when a screen opens, nothing stored; typed hits in Search, Categories page, Category page (the Place page). Test phone: ~100 ms, no cache.
+  - [x] Part D (2026-10-27): the Categories row is on Library under Places, not in Search; Library's Albums show one row.
+- [x] Save the labels so the user can browse Selfies, Group photos, Screenshots (2026-10-27): Selfies and Group photos are categories, Screenshots is the album chip in Search.
 
 ## Phase 4: gallery basics (paused, basics done)
 - [x] Honey theme (`Theme.kt`, Bricolage Grotesque font in the APK) and two bottom tabs. Test screen moved to Library > Dev tools.
@@ -148,6 +158,7 @@ Goal: motion that feels finished, like a mature gallery app, before the first AP
 - [x] Lists: photos and people that leave (delete, move, merge, hide) animate out instead of vanishing. Done 2026-10-21 for every photo grid, the Albums and Places lists and the Library people row: a leaving item fades out, the rest slide. No fade-in for photos (first loads show at once, as for thumbnails). The People grid done 2026-10-22: one grid instead of hand-built rows, so cards slide between rows. Checked on the phone (hide).
 - [x] Indexing: people that a regroup adds (Library row, People grid) animate in instead of popping up. Library row done 2026-10-21 (fades in after its first load), the People grid 2026-10-22.
 - [x] Index progress moves to Settings (2026-10-21, replaces animating the Library bar): a "Face search" row in Settings > Finding faces, under Face models (count, time left, bar, Pause / Resume; "Done" with no run). Library and People lose the bar, so a short run no longer pushes Albums down; while a run goes, the Library People row's empty line says "Finding faces…". The notification tap opens Settings. Mockup done 2026-10-21 (Settings, "Face search, no run going", Library, People). Built 2026-10-22 (`FaceSearchRow`, `Settings.kt`); previews and unit tests green; the layout and behavior tests are written but not run yet (device tests on hold).
+- [ ] Mature photo open (no step-by-step crop reveal) and a parallax push for Albums and Places. Bug and ideas in `bugs.md` ("Opening a photo: the grow animation sometimes skips or breaks").
 - [ ] Rules: the no-layout-jump rule still holds; short motions; follow Android's "Remove animations" setting; check on a release build that nothing stutters.
 
 ## Phase 8: release
@@ -165,8 +176,8 @@ Items marked **Important** must be done before the first public release.
 - [x] No photo paths in release logs. Done 2026-10-22: the index error log names the MediaStore id, not the path (`Index.kt`); it was the only log with a path. Exception messages are not ours; photos open by content URI, so they show ids too.
 - [x] **Important:** going public. Public since 2026-10-23, as is, old commits and PRs included (the user's call). The tree has no phone model, names or photo names left. Then the `models-v1` release and the download (Phase 2).
 - [x] **Important:** GPL-3.0 with closed Qualcomm libs. Done 2026-10-23: the GPLv3 section 7 permission is in `THIRD_PARTY.md` (and the README draft), so `LICENSE` stays the plain GPL text GitHub detects. Qualcomm's AI Stack License lets us ship the libs inside our app, not on their own. Its notice file is in `licenses/qnn-NOTICE.txt`, since the APK drops it.
-- [ ] GitHub releases: tag each build, attach the signed APK, keep a changelog. First one: v0.1.0 (2026-10-23), `memoria-0.1.0.apk` from `make apk` on `master` `9d27925`, short notes on the release page, no changelog file yet.
-- [ ] OTA updates from GitHub release APKs: the app notices a newer release, downloads the APK, and installs it through Android's own installer (PackageInstaller, `REQUEST_INSTALL_PACKAGES`). Needs its own screen (mockup first) and an INTERNET permission scoped to the update check (see Open questions).
+- [ ] GitHub releases: tag each build, attach the signed APK, keep a changelog. First one: v0.1.0 (2026-10-23), `memoria-0.1.0.apk` from `make apk` on `master` `9d27925`, short notes on the release page, no changelog file yet. v0.2.0 (2026-10-24), `memoria-0.2.0.apk` (versionCode 2) on `master` `c0d9183`.
+- [ ] OTA updates from GitHub release APKs: the app notices a newer release, downloads the APK, and installs it through Android's own installer (PackageInstaller, `REQUEST_INSTALL_PACKAGES`). Built 2026-10-25 (`Updates.kt`, Settings > About, release builds only), checked on the emulator up to Android's installer. Left: a real in-place update on the phone, from the first release that has it to the next one.
 
 ## Phase 9: tests (regression)
 - [x] Unit tests (`app/src/test/`, `./gradlew :app:testDebugUnitTest`): pure logic. `fallbackDate`, `groupFaces` (6-photo gate, quality cut, camera-only, small faces), `etaMillis` / `formatEta`, `zoneLabel`, `monthAt` / `trackY`, NN-chain grouping = the old closest-pair-first loop. 23 tests. First win: `DetailsZoneTest` caught the "GMT-" bug (now fixed).
@@ -178,8 +189,9 @@ Items marked **Important** must be done before the first public release.
 - [ ] Keep phone checks for the rest: stutter, blurry viewer, NPU, foreground worker. Tests can't cover these.
 
 ## Phase 10: smart search (later)
-- [ ] AI labels on every photo (document, ID card, receipt, meme, food, pet...): type "documents" or "id", see all of them. Builds on the Phase 3 classifier.
-- [ ] Free text search ("beach at sunset") with an on-device CLIP-style model.
+- [x] AI labels on every photo (document, ID card, receipt, meme, food, pet...): type "documents" or "id", see all of them. Done as categories (2026-10-27, Phase 3 tagger step 6). Builds on the Phase 3 classifier.
+- [ ] Free text search ("beach at sunset") with an on-device CLIP-style model (SigLIP2's text side; English and Russian).
+- [ ] Optional: OCR, so search finds the text inside documents, receipts and screenshots. Runs only on photos the tagger marks as one; an open model, no ML Kit.
 
 ## Phase 11: performance (feels slow; measure first)
 Today perf is found only after someone feels it (`bugs.md` holds the numbers). No repeatable measurement, no gate. Goal: a number per screen, then fix the load costs, then keep them from coming back.
@@ -228,5 +240,4 @@ Today perf is found only after someone feels it (`bugs.md` holds the numbers). N
 
 ## Open questions
 - Spots inside places: what to call them, where offline names come from (GeoNames lakes, parks, peaks; OpenStreetMap; or the user names a cluster of photos), and which town a spot outside town limits joins. Bench (`bench/places.py`): the nearest town of 1000+ is right; the nearest town of 15000+ sends resort and lake towns 13–22 km away.
-- OTA updates: check the GitHub releases API for a newer tag, download the APK, install it through Android's own installer. Needs `REQUEST_INSTALL_PACKAGES` and the release page URL / repo. Decide the check (on open, daily, or manual).
 - Districts of very big cities: GeoNames lists some as their own towns (district seats), so a few photos get a district tile instead of the city's. Maybe a big city takes every place within a radius that grows with its population.

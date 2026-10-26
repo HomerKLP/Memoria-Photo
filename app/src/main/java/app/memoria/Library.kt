@@ -69,6 +69,7 @@ data class LibraryData(
     val videos: Int,
     val trash: Int,
     val places: List<Place> = emptyList(), // towns, most photos first
+    val categories: List<Category> = emptyList(), // tags, most photos first
 )
 
 /** The same data with one person's cover changed, for updating a cached list in place (see [updateCached]). */
@@ -85,6 +86,8 @@ fun LibraryScreen(
     onOpenAlbum: (Long) -> Unit,
     onOpenPlaces: () -> Unit,
     onOpenPlace: (Int) -> Unit,
+    onOpenCategories: () -> Unit,
+    onOpenCategory: (String) -> Unit,
     onOpenFavorites: () -> Unit,
     onOpenVideos: () -> Unit,
     onOpenTrash: () -> Unit,
@@ -117,6 +120,7 @@ fun LibraryScreen(
                 videos = all.count { it.duration != null },
                 trash = runCatching { trash(context).size }.getOrDefault(0),
                 places = places(dao.placed(), all),
+                categories = loadCategories(context, all),
             )
         }
     }
@@ -130,6 +134,8 @@ fun LibraryScreen(
         onOpenAlbum = onOpenAlbum,
         onOpenPlaces = onOpenPlaces,
         onOpenPlace = onOpenPlace,
+        onOpenCategories = onOpenCategories,
+        onOpenCategory = onOpenCategory,
         onOpenFavorites = onOpenFavorites,
         onOpenVideos = onOpenVideos,
         onOpenTrash = onOpenTrash,
@@ -138,7 +144,7 @@ fun LibraryScreen(
     )
 }
 
-/** Library tab: people, review, albums, places, shortcuts. Layout per docs/design.html; the index run shows in Settings. */
+/** Library tab: people, review, albums, places, categories, shortcuts. Layout per docs/design.html; the index run shows in Settings. */
 @Composable
 fun LibraryContent(
     data: LibraryData?,
@@ -150,6 +156,8 @@ fun LibraryContent(
     onOpenAlbum: (Long) -> Unit = {},
     onOpenPlaces: () -> Unit = {},
     onOpenPlace: (Int) -> Unit = {},
+    onOpenCategories: () -> Unit = {},
+    onOpenCategory: (String) -> Unit = {},
     onOpenFavorites: () -> Unit = {},
     onOpenVideos: () -> Unit = {},
     onOpenTrash: () -> Unit = {},
@@ -172,6 +180,8 @@ fun LibraryContent(
         AlbumRows(data?.albums, onOpenAlbum)
         SectionHead("Places", "See all", onOpenPlaces)
         PlaceRow(data?.places, onOpenPlace)
+        SectionHead("Categories", "See all", onOpenCategories)
+        CategoryRow(data?.categories, onOpenCategory)
 
         Shortcuts(onOpenFavorites, onOpenVideos, onOpenTrash, data?.favorites ?: 0, data?.videos ?: 0, data?.trash ?: 0)
     }
@@ -312,10 +322,10 @@ fun ReviewCard(unsure: List<FaceVec>, onReview: () -> Unit, title: String = "Hel
     }
 }
 
-/** Up to 6 album covers in two rows. null = still loading: grey covers hold the space. */
+/** Up to 3 album covers in one row. null = still loading: grey covers hold the space. */
 @Composable
 fun AlbumRows(albums: List<Album>?, onOpen: (Long) -> Unit) {
-    val shown: List<Album?> = albums?.take(6) ?: List(6) { null }
+    val shown: List<Album?> = albums?.take(3) ?: List(3) { null }
     Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         shown.chunked(3).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -164,7 +164,7 @@ fun PlaceContent(place: Place?, onBack: () -> Unit = {}, onOpen: (List<Tile>, Ti
             if (p != null && sel.size < p.tiles.size) TextButton({ pick.set(p.tiles.map { it.id }.toSet()) }) { Text("Select all") }
         }
         // " " while loading: an empty title may measure to nothing and the grid would jump
-        else TopBar(p?.name?.ifEmpty { " " } ?: " ", p?.let { "${it.tiles.size} photos" }, onBack = onBack)
+        else TopBar(p?.name?.ifEmpty { " " } ?: " ", p?.let { count(it.tiles.size, "photo") }, onBack = onBack)
         val grid = rememberLazyGridState()
         val allTiles = p?.tiles.orEmpty()
         FollowViewer(grid, allTiles)

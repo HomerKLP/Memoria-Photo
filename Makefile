@@ -27,7 +27,7 @@ help:
 	@echo "make screenshots refresh screenshot baselines (no device)"
 	@echo "make shot-check  validate screenshots against the baselines (no device)"
 	@echo "make emulator    boot $(AVD) and set $(DENSITY) density (360 dp wide)"
-	@echo "make layout      LayoutJumpTest on a headless emulator (boots it if needed, closes it after)"
+	@echo "make layout      every androidTest on a headless emulator (boots it if needed, closes it after); some: make layout T='BehaviorTest#search_|DaoTest'"
 	@echo "make behavior    BehaviorTest on the same emulator (boots it if needed, closes it after)"
 	@echo "make perf        cold start + janky frames per screen on the phone's release build (make release first; keeps the data)"
 	@echo "make check       unit + shot-check, no device (the quick gate)"
@@ -82,6 +82,7 @@ emulator:
 # Boots a headless emulator if none is up and closes it again at the end, even on failure or Ctrl-C.
 # The close waits until it is gone, or a run right after sees it still up and waits for it forever.
 # UI_FILTER narrows the run to one class; `make behavior` sets it (target-specific, inherited here).
+# T is a regex on "Class#method"; a comma list in `class` runs only its first item.
 layout:
 	@if ! $(ADB) -s $(SERIAL) get-state >/dev/null 2>&1; then \
 		trap '$(ADB) -s $(SERIAL) emu kill >/dev/null 2>&1; while $(ADB) -s $(SERIAL) get-state >/dev/null 2>&1; do sleep 1; done' EXIT; \
@@ -91,7 +92,7 @@ layout:
 	$(ADB) -s $(SERIAL) wait-for-device; \
 	until [ "$$($(ADB) -s $(SERIAL) shell getprop sys.boot_completed | tr -d '\r')" = "1" ]; do sleep 2; done; \
 	$(ADB) -s $(SERIAL) shell wm density $(DENSITY); \
-	ANDROID_SERIAL=$(SERIAL) ./gradlew :app:connectedDebugAndroidTest $(UI_FILTER)
+	ANDROID_SERIAL=$(SERIAL) ./gradlew :app:connectedDebugAndroidTest $(UI_FILTER) $(if $(T),'-Pandroid.testInstrumentationRunnerArguments.tests_regex=.*($(T)).*')
 
 # Just BehaviorTest, on the same emulator as `make layout`. `make layout` runs both.
 behavior: UI_FILTER = -Pandroid.testInstrumentationRunnerArguments.class=app.memoria.BehaviorTest

@@ -119,10 +119,12 @@ private fun indexBusy(context: Context): Boolean = runCatching {
         .any { it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.BLOCKED }
 }.getOrDefault(true)
 
-/** Photos the index has not seen yet, indexed photos deleted from the phone (a run forgets them), and photos with no GPS read yet. */
+/** Photos the index has not seen yet, indexed photos deleted from the phone (a run forgets them), photos with no GPS read yet, and, while the tagger is here, photos with no vector. */
 private suspend fun changedPhotos(context: Context): Int {
     val dao = Db.get(context).index()
     val indexed = dao.photoIds().toHashSet()
     val phone = libraryPhotos(context).map { it.id }.toHashSet()
-    return phone.count { it !in indexed } + indexed.count { it !in phone } + dao.unplaced().size
+    val tagged = if (taggerFile(context).exists()) dao.taggedIds(Tagger.VERSION).toHashSet() else null
+    return phone.count { it !in indexed } + indexed.count { it !in phone } + dao.unplaced().size +
+        (tagged?.let { t -> indexed.count { it in phone && it !in t } } ?: 0)
 }

@@ -73,6 +73,7 @@ class LayoutJumpTest {
         named: Boolean = true,
         people: List<Person>? = null,
         places: List<Place> = emptyList(),
+        categories: List<Category> = emptyList(),
         unsure: List<FaceVec> = listOf(face(101, 0.3f), face(102, 0.3f)),
     ): LibraryData {
         val faces = (1L..4L).map { i ->
@@ -87,6 +88,7 @@ class LayoutJumpTest {
             videos = 211,
             trash = 7,
             places = places,
+            categories = categories,
         )
     }
 
@@ -103,7 +105,7 @@ class LayoutJumpTest {
         assertSame("Albums header", before, rule.onNodeWithText("Albums").top())
     }
 
-    /** Face search row (mockup Settings): running, paused, waiting and done keep the row and the rows below in place. */
+    /** Scan row (mockup Settings): running, paused, waiting and done keep the row and the rows below in place. */
     @Test fun settings_faceSearchStates_rowsStayPut() {
         var state by mutableStateOf("running")
         rule.setContent {
@@ -115,13 +117,13 @@ class LayoutJumpTest {
             } }
         }
 
-        val searchBefore = rule.onNodeWithText("Face search").top()
+        val searchBefore = rule.onNodeWithText("Scan").top()
         val chargingBefore = rule.onNodeWithText("Only while charging").top()
         val barBefore = rule.onNodeWithTag("indexBar").width()
         val actionBefore = rule.onNodeWithTag("indexAction").width()
         for (s in listOf("paused", "waiting", "done")) {
             rule.runOnIdle { state = s }
-            assertSame("Face search ($s)", searchBefore, rule.onNodeWithText("Face search").top())
+            assertSame("Scan ($s)", searchBefore, rule.onNodeWithText("Scan").top())
             assertSame("Only while charging ($s)", chargingBefore, rule.onNodeWithText("Only while charging").top())
             if (s != "done") {
                 assertSame("progress bar ($s)", barBefore, rule.onNodeWithTag("indexBar").width())
@@ -142,26 +144,49 @@ class LayoutJumpTest {
         assertSame("Export face data", exportBefore, rule.onNodeWithText("Export face data").top())
     }
 
-    /** Face models row (mockup "Face models"): every state keeps the row, its button width, its bar and the rows below in place. */
+    /** Models row (mockup "Models"): every state keeps the row, its button width, its bar and the rows below in place. */
     @Test fun settings_modelsStates_rowsStayPut() {
         var status by mutableStateOf(Models.Status.Missing)
         rule.setContent {
             MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", models = status, modelsDone = 77_594_624) } }
         }
 
-        val modelsBefore = rule.onNodeWithText("Face models").top()
-        val searchBefore = rule.onNodeWithText("Face search").top()
+        val modelsBefore = rule.onNodeWithText("Models").top()
+        val searchBefore = rule.onNodeWithText("Scan").top()
         val exportBefore = rule.onNodeWithText("Export face data").top()
         val actionBefore = rule.onNodeWithTag("modelsAction").width()
         rule.runOnIdle { status = Models.Status.Downloading }
         val barBefore = rule.onNodeWithTag("modelsBar").width()
         for (s in listOf(Models.Status.Stopped, Models.Status.Ready, Models.Status.Missing)) {
             rule.runOnIdle { status = s }
-            assertSame("Face models ($s)", modelsBefore, rule.onNodeWithText("Face models").top())
-            assertSame("Face search ($s)", searchBefore, rule.onNodeWithText("Face search").top())
+            assertSame("Models ($s)", modelsBefore, rule.onNodeWithText("Models").top())
+            assertSame("Scan ($s)", searchBefore, rule.onNodeWithText("Scan").top())
             assertSame("Export face data ($s)", exportBefore, rule.onNodeWithText("Export face data").top())
             if (s != Models.Status.Ready) assertSame("Download/Cancel/Retry ($s)", actionBefore, rule.onNodeWithTag("modelsAction").width())
             if (s == Models.Status.Stopped) assertSame("progress bar ($s)", barBefore, rule.onNodeWithTag("modelsBar").width())
+        }
+    }
+
+    /** Updates row (mockup "Updates"): every state keeps the row, its button width and the switch below in place. */
+    @Test fun settings_updateStates_rowsStayPut() {
+        var status by mutableStateOf(Updates.Status.UpToDate)
+        rule.setContent {
+            MemoriaTheme { Surface {
+                SettingsContent(
+                    charging = false, allowed = false, hidden = 2, version = "0.2.0",
+                    update = Updates.State(status, "0.3.0", 102_760_448, 42_991_616, System.currentTimeMillis()),
+                )
+            } }
+        }
+
+        val updatesBefore = rule.onNodeWithText("Updates").top()
+        val switchBefore = rule.onNodeWithText("Check for updates").top()
+        val actionBefore = rule.onNodeWithTag("updateAction").width()
+        for (s in Updates.Status.entries) {
+            rule.runOnIdle { status = s }
+            assertSame("Updates ($s)", updatesBefore, rule.onNodeWithText("Updates").top())
+            assertSame("Check for updates ($s)", switchBefore, rule.onNodeWithText("Check for updates").top())
+            assertSame("Check/Update/Cancel/Retry/Install ($s)", actionBefore, rule.onNodeWithTag("updateAction").width())
         }
     }
 
@@ -211,6 +236,16 @@ class LayoutJumpTest {
         // one town: the row keeps its height with fewer than 3 tiles
         val before = rule.onNodeWithText("Favorites").top()
         rule.runOnIdle { data = library(places = listOf(Place(1, "Riverton", listOf(tile(1))))) }
+        assertSame("Favorites", before, rule.onNodeWithText("Favorites").top())
+    }
+
+    @Test fun library_categoriesArriving_shortcutsStayPut() {
+        var data by mutableStateOf(library())
+        rule.setContent { MemoriaTheme { Surface { LibraryContent(data) } } }
+
+        // one category: the row keeps its height with fewer than 3 tiles
+        val before = rule.onNodeWithText("Favorites").top()
+        rule.runOnIdle { data = library(categories = listOf(Category("pet", "Pets", emptyList(), tile(1), listOf(tile(1))))) }
         assertSame("Favorites", before, rule.onNodeWithText("Favorites").top())
     }
 
@@ -693,6 +728,16 @@ class LayoutJumpTest {
         val headerBefore = rule.onNodeWithText("On this device").top()
         rule.runOnIdle { albums = listOf(album(1, "Camera", 5), album(2, "Screenshots", 3)) }
         assertSame("On this device", headerBefore, rule.onNodeWithText("On this device").top())
+    }
+
+    /** Categories: the cover grid loads after the bar; the title must not move. */
+    @Test fun categories_loadingToLoaded_titleStaysPut() {
+        var categories by mutableStateOf<List<Category>?>(null)
+        rule.setContent { MemoriaTheme { Surface { CategoriesContent(categories) } } }
+
+        val titleBefore = rule.onNodeWithText("Categories").top()
+        rule.runOnIdle { categories = listOf(Category("pet", "Pets", emptyList(), tile(1), albumTiles(1, 5)), Category("food", "Food", emptyList(), tile(2), albumTiles(2, 3))) }
+        assertSame("title", titleBefore, rule.onNodeWithText("Categories").top())
     }
 
     /** Albums: alone in the grid while loading, the New album tile would slide from the first slot to the last. */

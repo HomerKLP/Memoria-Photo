@@ -649,6 +649,27 @@ class BehaviorTest {
         assertEquals("5", opened?.key)
     }
 
+    // categories are on Library: Search shows them only as typed hits
+    @Test fun search_categoryWordHit_opensTheCategory() {
+        val data = SearchData(emptyList(), listOf(Hit(HitKind.category, "pet", "Pets", "2 photos", cover = tile(8), words = listOf("dog"))), emptyList())
+        var text by mutableStateOf("")
+        var opened: Hit? = null
+        rule.setContent { MemoriaTheme { Surface { SearchContent(data, text, onQuery = { text = it }, onOpen = { opened = it }) } } }
+
+        rule.onNodeWithText("Pets").assertDoesNotExist()
+        rule.onNodeWithTag("searchField").performTextInput("do")
+        rule.onNodeWithText("dog · 2 photos").assertIsDisplayed()
+        rule.onNodeWithText("Pets").performClick()
+        assertEquals("pet", opened?.key)
+    }
+
+    @Test fun categories_tapOpensTheCategory() {
+        var opened: String? = null
+        rule.setContent { MemoriaTheme { Surface { CategoriesContent(listOf(Category("pet", "Pets", emptyList(), tile(1), listOf(tile(1)))), onOpenCategory = { opened = it }) } } }
+        rule.onNodeWithText("Pets").performClick()
+        assertEquals("pet", opened)
+    }
+
     @Test fun search_opensWithTheFieldFocused() {
         rule.setContent { MemoriaTheme { Surface { SearchContent(search, "") } } }
         rule.onNodeWithTag("searchField").assertIsFocused()
@@ -972,7 +993,7 @@ class BehaviorTest {
     }
 
     // --- Library -------------------------------------------------------------------------------
-    // 3 people: PeopleRow then adds no "See all" tile, so the three section heads are the only ones.
+    // 3 people: PeopleRow then adds no "See all" tile, so the four section heads are the only ones.
 
     private val library = LibraryData(
         faces = (1L..3L).map { person(it, "Person $it") },
@@ -980,6 +1001,7 @@ class BehaviorTest {
         albums = listOf(Album(1, "Camera", (1L..6L).map { tile(it) })),
         favorites = 4, videos = 2, trash = 3,
         places = listOf(Place(1, "Riverton", (1L..3L).map { tile(it) })),
+        categories = listOf(Category("pet", "Pets", emptyList(), tile(1), (1L..2L).map { tile(it) })),
     )
 
     @Test fun library_searchAndSettings_fire() {
@@ -1001,19 +1023,22 @@ class BehaviorTest {
         var people = false
         var albums = false
         var places = false
+        var categories = false
         rule.setContent {
             MemoriaTheme { Surface {
-                LibraryContent(library, onOpenPeople = { people = true }, onOpenAlbums = { albums = true }, onOpenPlaces = { places = true })
+                LibraryContent(library, onOpenPeople = { people = true }, onOpenAlbums = { albums = true }, onOpenPlaces = { places = true }, onOpenCategories = { categories = true })
             } }
         }
 
-        // three "See all" heads, top to bottom: People, Albums, Places
+        // four "See all" heads, top to bottom: People, Albums, Places, Categories
         rule.onAllNodesWithText("See all")[0].performClick()
         assertTrue(people)
         rule.onAllNodesWithText("See all")[1].performScrollTo().performClick()
         assertTrue(albums)
         rule.onAllNodesWithText("See all")[2].performScrollTo().performClick()
         assertTrue(places)
+        rule.onAllNodesWithText("See all")[3].performScrollTo().performClick()
+        assertTrue(categories)
     }
 
     @Test fun library_personTile_opensThePerson() {
@@ -1051,6 +1076,14 @@ class BehaviorTest {
 
         rule.onNodeWithText("Riverton").performScrollTo().performClick()
         assertEquals(1, opened)
+    }
+
+    @Test fun library_categoryCover_opensTheCategory() {
+        var opened: String? = null
+        rule.setContent { MemoriaTheme { Surface { LibraryContent(library, onOpenCategory = { opened = it }) } } }
+
+        rule.onNodeWithText("Pets").performScrollTo().performClick()
+        assertEquals("pet", opened)
     }
 
     @Test fun library_reviewCard_fires() {
@@ -1093,7 +1126,18 @@ class BehaviorTest {
             MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", models = Models.Status.Missing, onDownload = { download = true }) } }
         }
 
-        rule.onNodeWithText("Not downloaded · 169 MB").assertIsDisplayed()
+        rule.onNodeWithText("Not downloaded · 344 MB").assertIsDisplayed()
+        rule.onNodeWithText("Download").performClick()
+        assertTrue(download)
+    }
+
+    @Test fun settings_newModelMissing_countsTheFilesHere() {
+        var download = false
+        rule.setContent {
+            MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", models = Models.Status.Missing, modelsDone = 176_748_304, onDownload = { download = true }) } }
+        }
+
+        rule.onNodeWithText("Not downloaded · 169 of 344 MB").assertIsDisplayed()
         rule.onNodeWithText("Download").performClick()
         assertTrue(download)
     }
@@ -1106,7 +1150,7 @@ class BehaviorTest {
             } }
         }
 
-        rule.onNodeWithText("Downloading · 74 of 169 MB").assertIsDisplayed()
+        rule.onNodeWithText("Downloading · 74 of 344 MB").assertIsDisplayed()
         rule.onNodeWithText("Cancel").performClick()
         assertTrue(cancel)
     }
@@ -1119,7 +1163,7 @@ class BehaviorTest {
             } }
         }
 
-        rule.onNodeWithText("Stopped · 74 of 169 MB").assertIsDisplayed()
+        rule.onNodeWithText("Stopped · 74 of 344 MB").assertIsDisplayed()
         rule.onNodeWithText("Retry").performClick()
         assertTrue(download)
     }
@@ -1127,7 +1171,7 @@ class BehaviorTest {
     @Test fun settings_modelsReady_hasNoDownloadButton() {
         rule.setContent { MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", models = Models.Status.Ready) } } }
 
-        rule.onNodeWithText("Ready · 169 MB").assertIsDisplayed()
+        rule.onNodeWithText("Ready · 344 MB").assertIsDisplayed()
         rule.onNodeWithText("Download").assertDoesNotExist()
     }
 
@@ -1144,6 +1188,119 @@ class BehaviorTest {
 
         rule.onNodeWithText("Memoria Photo 0.1").performScrollTo().performClick()
         assertTrue(licenses)
+    }
+
+    @Test fun settings_updateUpToDate_checkFires_rowDoesNotOpenPage() {
+        var check = false
+        var page = false
+        rule.setContent {
+            MemoriaTheme { Surface {
+                SettingsContent(
+                    charging = false, allowed = false, hidden = 2, version = "0.2.0",
+                    update = Updates.State(Updates.Status.UpToDate, checkedAt = System.currentTimeMillis()), onCheck = { check = true }, onReleasePage = { page = true },
+                )
+            } }
+        }
+
+        rule.onNodeWithText("Up to date · checked today").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("Updates").performClick()
+        assertFalse(page)
+        rule.onNodeWithText("Check").performClick()
+        assertTrue(check)
+    }
+
+    @Test fun settings_updateChecking_checkIsOff() {
+        rule.setContent {
+            MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.2.0", update = Updates.State(Updates.Status.Checking)) } }
+        }
+
+        rule.onNodeWithText("Checking…").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("Check").assertIsNotEnabled()
+    }
+
+    @Test fun settings_updateNew_updateFires_rowOpensPage() {
+        var update = false
+        var page = false
+        rule.setContent {
+            MemoriaTheme { Surface {
+                SettingsContent(
+                    charging = false, allowed = false, hidden = 2, version = "0.2.0",
+                    update = Updates.State(Updates.Status.New, "0.3.0", 102_760_448), onUpdate = { update = true }, onReleasePage = { page = true },
+                )
+            } }
+        }
+
+        rule.onNodeWithText("0.3.0 · 98 MB · What's new").performScrollTo().performClick()
+        assertTrue(page)
+        rule.onNodeWithText("Update").performClick()
+        assertTrue(update)
+    }
+
+    @Test fun settings_updateDownloading_cancelFires() {
+        var cancel = false
+        rule.setContent {
+            MemoriaTheme { Surface {
+                SettingsContent(
+                    charging = false, allowed = false, hidden = 2, version = "0.2.0",
+                    update = Updates.State(Updates.Status.Downloading, "0.3.0", 102_760_448, 42_991_616), onCancelUpdate = { cancel = true },
+                )
+            } }
+        }
+
+        rule.onNodeWithText("Downloading · 41 of 98 MB").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("Cancel").performClick()
+        assertTrue(cancel)
+    }
+
+    @Test fun settings_updateStopped_retryDownloads() {
+        var update = false
+        rule.setContent {
+            MemoriaTheme { Surface {
+                SettingsContent(
+                    charging = false, allowed = false, hidden = 2, version = "0.2.0",
+                    update = Updates.State(Updates.Status.Stopped, "0.3.0", 102_760_448), onUpdate = { update = true },
+                )
+            } }
+        }
+
+        rule.onNodeWithText("Stopped · 98 MB").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("Retry").performClick()
+        assertTrue(update)
+    }
+
+    @Test fun settings_updateReady_installFires() {
+        var install = false
+        rule.setContent {
+            MemoriaTheme { Surface {
+                SettingsContent(
+                    charging = false, allowed = false, hidden = 2, version = "0.2.0",
+                    update = Updates.State(Updates.Status.Ready, "0.3.0", 102_760_448, 102_760_448), onInstall = { install = true },
+                )
+            } }
+        }
+
+        rule.onNodeWithText("0.3.0 downloaded · What's new").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("Install").performClick()
+        assertTrue(install)
+    }
+
+    @Test fun settings_updateSwitch_turnsOff() {
+        var auto: Boolean? = null
+        rule.setContent {
+            MemoriaTheme { Surface {
+                SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.2.0", update = Updates.State(Updates.Status.UpToDate), onAutoUpdate = { auto = it })
+            } }
+        }
+
+        rule.onNodeWithText("Check for updates").performScrollTo().performClick()
+        assertEquals(false, auto)
+    }
+
+    @Test fun settings_withoutUpdate_hasNoUpdateRows() {
+        rule.setContent { MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.2.0") } } }
+
+        rule.onNodeWithText("Updates").assertDoesNotExist()
+        rule.onNodeWithText("Check for updates").assertDoesNotExist()
     }
 
     @Test fun licenses_onlyTheFullTextsRowFires() {

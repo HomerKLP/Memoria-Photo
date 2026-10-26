@@ -37,6 +37,7 @@ class MigrationTest {
             assertTrue(dao.answers().single().yes)
             assertEquals(12L, dao.merges().single().face)
             assertEquals(listOf(1L), dao.unplaced()) // v9: GPS not read yet, the next run does it
+            assertEquals(emptyList<Long>(), dao.taggedIds(Tagger.VERSION)) // v12: no vectors yet, the next run tags every photo
         }
         db.close()
     }

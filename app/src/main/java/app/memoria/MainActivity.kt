@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.net.ConnectivityManager
@@ -89,8 +90,9 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 class MainActivity : ComponentActivity() {
-    // bumped by a tap on the index notification, so App opens Settings
+    // bumped by a tap on the index or update notification, so App opens Settings; the update one scrolls to Updates
     private var openSettings by mutableIntStateOf(0)
+    private var atUpdates by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // Light app: dark bar icons even when the phone is in dark mode
@@ -98,26 +100,29 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge(bars, bars)
         super.onCreate(savedInstanceState)
         // not on a restore: the same intent comes back, and Settings would open again
-        if (savedInstanceState == null && intent.getBooleanExtra("openSettings", false)) openSettings++
+        if (savedInstanceState == null && intent.getBooleanExtra("openSettings", false)) { atUpdates = intent.getBooleanExtra("atUpdates", false); openSettings++ }
         val dir = File(getExternalFilesDir(null), "test").apply { mkdirs() }
-        // the face models come by themselves on Wi-Fi; on mobile data, or after Cancel, the user taps Download or Retry
+        // the models come by themselves on Wi-Fi; on mobile data, or after Cancel, the user taps Download or Retry
         lifecycleScope.launch(Dispatchers.IO) {
             val wifi = getSystemService(ConnectivityManager::class.java)?.isActiveNetworkMetered == false
             if (wifi && Models.status(this@MainActivity).first == Models.Status.Missing) Models.download(this@MainActivity, wifiOnly = true)
+            Updates.tidy(this@MainActivity)
         }
-        setContent { MemoriaTheme { Surface { App(dir, openSettings) } } }
+        val debug = (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+        if (!debug && Updates.auto(this)) Updates.schedule(this)
+        setContent { MemoriaTheme { Surface { App(dir, openSettings, atUpdates) } } }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        if (intent.getBooleanExtra("openSettings", false)) openSettings++
+        if (intent.getBooleanExtra("openSettings", false)) { atUpdates = intent.getBooleanExtra("atUpdates", false); openSettings++ }
     }
 }
 
 /** Two tabs, Photos and Library. The test screen opens from Library. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun App(dir: File, openSettings: Int = 0) {
+fun App(dir: File, openSettings: Int = 0, atUpdates: Boolean = false) {
     var tab by rememberSaveable { mutableStateOf("photos") } // the tab under the opened screens
     // the screens opened over the tab, oldest first; Back closes the last one
     var stack by rememberSaveable { mutableStateOf(emptyList<Screen>()) }
@@ -144,13 +149,13 @@ fun App(dir: File, openSettings: Int = 0) {
     val scope = rememberCoroutineScope()
     var photosScrollTop by remember { mutableIntStateOf(0) } // bumped by a tab tap; the Photos tab reacts by scrolling to the top
     var viewing by rememberSaveable { mutableStateOf<Long?>(null) }
-    // the index notification: Settings over Library, whatever was open
+    // the index or update notification: Settings over Library, whatever was open
     LaunchedEffect(openSettings) {
         if (openSettings == 0) return@LaunchedEffect
         viewing = null
         repeat(stack.size) { back() }
         tab = "library"
-        push(Screen.Settings)
+        push(Screen.Settings(atUpdates))
     }
     // Photos tab select mode (mockup "Photos, selecting"): the picked tiles, shared so the bottom bar swaps
     val selection = remember { PhotoSelection() }
@@ -249,11 +254,13 @@ fun App(dir: File, openSettings: Int = 0) {
                                 onOpenAlbum = { push(Screen.Album(it)) },
                                 onOpenPlaces = { push(Screen.Places) },
                                 onOpenPlace = { push(Screen.Place(it)) },
+                                onOpenCategories = { push(Screen.Categories) },
+                                onOpenCategory = { push(Screen.Category(it)) },
                                 onOpenFavorites = { push(Screen.Favorites) },
                                 onOpenVideos = { push(Screen.Videos) },
                                 onOpenTrash = { push(Screen.Trash) },
                                 onHelpRecognize = { push(Screen.Recognize()) },
-                                onOpenSettings = { push(Screen.Settings) },
+                                onOpenSettings = { push(Screen.Settings()) },
                                 reload = returns,
                             )
                         }
@@ -282,9 +289,9 @@ fun App(dir: File, openSettings: Int = 0) {
                     tabs.SaveableStateProvider(screenKey(target.index, target.value)) {
                         when (val s = target.value) {
                             Screen.Dev -> TestScreen(dir, back)
-                            Screen.Settings -> SettingsScreen(
+                            is Screen.Settings -> SettingsScreen(
                                 onBack = back, onHidden = { push(Screen.Hidden()) }, onSkip = { push(Screen.Skip) }, onLicenses = { push(Screen.Licenses) },
-                                onDev = { push(Screen.Dev) },
+                                onDev = { push(Screen.Dev) }, atUpdates = s.atUpdates,
                             )
                             Screen.Skip -> SkipScreen(onBack = back)
                             Screen.Licenses -> LicensesScreen(onBack = back)
@@ -325,6 +332,8 @@ fun App(dir: File, openSettings: Int = 0) {
                             is Screen.Album -> AlbumScreen(s.id, onBack = back, onOpen = open)
                             Screen.Places -> PlacesScreen(onBack = back, onOpenPlace = { push(Screen.Place(it)) })
                             is Screen.Place -> PlaceScreen(s.id, onBack = back, onOpen = open)
+                            Screen.Categories -> CategoriesScreen(onBack = back, onOpenCategory = { push(Screen.Category(it)) })
+                            is Screen.Category -> CategoryScreen(s.id, onBack = back, onOpen = open)
                             Screen.Videos -> VideosScreen(onBack = back, onOpen = open)
                             Screen.Search -> SearchScreen(
                                 onBack = back,
@@ -333,6 +342,7 @@ fun App(dir: File, openSettings: Int = 0) {
                                         HitKind.person -> push(Screen.People(h.key.toLong(), direct = true))
                                         HitKind.place -> push(Screen.Place(h.key.toInt()))
                                         HitKind.album -> push(Screen.Album(h.key.toLong()))
+                                        HitKind.category -> push(Screen.Category(h.key))
                                         HitKind.videos -> push(Screen.Videos)
                                         HitKind.favorites -> push(Screen.Favorites)
                                         HitKind.year, HitKind.month -> { // the Photos tab, scrolled to that month's header
@@ -367,7 +377,7 @@ private var viewTiles by mutableStateOf<List<Tile>>(emptyList())
 
 /** A screen opened over the tabs, with what it shows. Serializable, so the stack survives the app being restarted. */
 sealed interface Screen : Serializable {
-    data object Settings : Screen
+    data class Settings(val atUpdates: Boolean = false) : Screen
     data object Licenses : Screen
     data object Skip : Screen
     data object Dev : Screen
@@ -384,6 +394,8 @@ sealed interface Screen : Serializable {
     data class Album(val id: Long) : Screen
     data object Places : Screen
     data class Place(val id: Int) : Screen
+    data object Categories : Screen
+    data class Category(val id: String) : Screen
     data object Videos : Screen
     data object Search : Screen
     data object Trash : Screen
@@ -410,7 +422,7 @@ fun Shortcut(icon: Int, name: String, info: String, modifier: Modifier, onClick:
     }
 }
 
-/** Runs models from <app files>/models on photos in <app files>/test, writes results_cpu/gpu/npu.json. */
+/** Runs models from <app files>/models on photos in <app files>/test, writes results_cpu/gpu/npu.json, and tags_*.json when tagger.tflite is there. */
 @Composable
 fun TestScreen(dir: File, onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
@@ -457,15 +469,25 @@ fun runTest(context: Context, dir: File, on: Accelerator, log: (String) -> Unit,
     val ms = { (System.nanoTime() - t) / 1_000_000.0 }
     val pipeline = if (on == Accelerator.NPU) FacePipeline(context) else FacePipeline(context, listOf(on))
     log("$mode: models loaded in %.0f ms".format(ms()))
+    t = System.nanoTime()
+    val tagger = if (!File(File(context.getExternalFilesDir(null), "models"), "tagger.tflite").exists()) null
+        else if (on == Accelerator.NPU) Tagger(context) else Tagger(context, listOf(on))
+    if (tagger != null) log("$mode: tagger loaded in %.0f ms".format(ms()))
     val photos = dir.walk().filter { it.isFile && it.extension.lowercase() in setOf("jpg", "jpeg", "png", "webp") }.sorted().toList()
     val results = JSONObject()
     var decode = 0.0; var detect = 0.0; var embed = 0.0; var faces = 0; var most = -1
-    pipeline.use {
+    val tags = JSONObject()
+    var resize = 0.0; var tag = 0.0
+    tagger.use { pipeline.use {
         for ((i, file) in photos.withIndex()) {
             t = System.nanoTime(); val image = loadPhoto(ImageDecoder.createSource(file)); decode += ms()
             t = System.nanoTime(); val found = pipeline.detect(image); detect += ms()
             t = System.nanoTime(); found.forEach { pipeline.embed(image, it) }; embed += ms()
             faces += found.size
+            if (tagger != null) {
+                t = System.nanoTime(); val input = tagger.input(image); resize += ms()
+                t = System.nanoTime(); tags.put(file.relativeTo(dir).path, JSONArray(tagger.vector(input).toList())); tag += ms()
+            }
             results.put(file.relativeTo(dir).path, JSONArray(found.map { f ->
                 JSONObject().put("box", JSONArray(f.box.toList())).put("score", f.score.toDouble())
                     .put("lm", JSONArray(f.landmarks.toList())).put("vec", JSONArray(f.vector!!.toList())).put("q", f.quality!!.toDouble())
@@ -478,8 +500,12 @@ fun runTest(context: Context, dir: File, on: Accelerator, log: (String) -> Unit,
             }
             if (i % 20 == 19) log("${i + 1}/${photos.size}")
         }
-    }
+    } }
     File(dir.parentFile, "results_$mode.json").writeText(results.toString())
     val n = photos.size.coerceAtLeast(1)
     log("$mode: ${photos.size} photos, $faces faces. Per photo: decode %.0f ms, detect %.0f ms. Per face: embed %.0f ms".format(decode / n, detect / n, embed / faces.coerceAtLeast(1)))
+    if (tagger != null) {
+        File(dir.parentFile, "tags_$mode.json").writeText(tags.toString())
+        log("$mode tagger: per photo resize %.0f ms, model %.0f ms".format(resize / n, tag / n))
+    }
 }

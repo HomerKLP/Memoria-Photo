@@ -88,6 +88,10 @@ class AnswerRow(val faceId: Long, val personFace: Long, val yes: Boolean)
 @Entity(tableName = "merged", primaryKeys = ["face", "personFace"])
 class MergeRow(val face: Long, val personFace: Long)
 
+/** The tagger's vector for a photo (`docs/tagger.md`), empty when the photo can't be read. [model] is [Tagger.VERSION]. */
+@Entity(tableName = "photo_vector")
+class PhotoVectorRow(@PrimaryKey val photoId: Long, val model: Int, val vector: FloatArray)
+
 class Converters {
     @TypeConverter fun toBytes(v: FloatArray): ByteArray = ByteBuffer.allocate(v.size * 4).apply { asFloatBuffer().put(v) }.array()
     @TypeConverter fun toFloats(b: ByteArray): FloatArray = FloatArray(b.size / 4).also { ByteBuffer.wrap(b).asFloatBuffer().get(it) }
@@ -155,9 +159,17 @@ interface IndexDao {
     @Query("SELECT * FROM photo WHERE townId > 0") suspend fun placed(): List<PhotoRow>
     @Query("UPDATE photo SET lat = :lat, lon = :lon, townId = :townId, town = :town WHERE id = :id")
     suspend fun setPlace(id: Long, lat: Double?, lon: Double?, townId: Int, town: String?)
+    @Query("SELECT photoId FROM photo_vector WHERE model = :model") suspend fun taggedIds(model: Int): List<Long>
+    /** Vectors for categories; an empty one is a photo that couldn't be read. */
+    @Query("SELECT * FROM photo_vector WHERE model = :model AND length(vector) > 0") suspend fun vectors(model: Int): List<PhotoVectorRow>
+    /** Photos with every index step done: the face pass, and a vector from tagger [model] while [tagger] is on the phone. */
+    @Query("SELECT COUNT(*) FROM photo WHERE NOT :tagger OR id IN (SELECT photoId FROM photo_vector WHERE model = :model)")
+    fun doneCount(tagger: Boolean, model: Int): Flow<Int>
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertVector(row: PhotoVectorRow)
+    @Query("DELETE FROM photo_vector WHERE photoId IN (:ids)") suspend fun deleteVectors(ids: List<Long>)
 }
 
-@Database(entities = [PhotoRow::class, FaceRow::class, PersonRow::class, AnswerRow::class, MergeRow::class], version = 11)
+@Database(entities = [PhotoRow::class, FaceRow::class, PersonRow::class, AnswerRow::class, MergeRow::class, PhotoVectorRow::class], version = 12)
 @TypeConverters(Converters::class)
 abstract class Db : RoomDatabase() {
     abstract fun index(): IndexDao
@@ -199,7 +211,12 @@ abstract class Db : RoomDatabase() {
         private val MIGRATION_10_11 = object : Migration(10, 11) {
             override fun migrate(db: SupportSQLiteDatabase) = db.execSQL("ALTER TABLE person ADD COLUMN pos INTEGER")
         }
-        internal val MIGRATIONS = arrayOf(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
+        /** v12: the tagger's photo vectors, in a table of their own; the next run tags every photo. */
+        private val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) =
+                db.execSQL("CREATE TABLE IF NOT EXISTS `photo_vector` (`photoId` INTEGER NOT NULL, `model` INTEGER NOT NULL, `vector` BLOB NOT NULL, PRIMARY KEY(`photoId`))")
+        }
+        internal val MIGRATIONS = arrayOf(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
         private var db: Db? = null
         @Synchronized fun get(context: Context) =
             db ?: // a missing migration crashes instead of wiping names; MigrationTest checks each bump
@@ -352,17 +369,20 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         val all = if (testOnly) testPhotos(applicationContext) else libraryPhotos(applicationContext)
         val total = all.size
         val done = dao.photoIds().toHashSet()
-        // photos deleted from the phone: forget them and their faces, so counts and people match the phone
-        if (!testOnly) (done - all.map { it.id }.toSet()).chunked(500).forEach { dao.deleteFaces(it); dao.deletePhotos(it) }
+        val tagged = dao.taggedIds(Tagger.VERSION).toHashSet()
+        // photos deleted from the phone: forget them, their faces and vectors, so counts and people match the phone
+        if (!testOnly) (done + tagged - all.map { it.id }.toSet()).chunked(500).forEach { dao.deleteFaces(it); dao.deletePhotos(it); dao.deleteVectors(it) }
         recutThumbs()
         if (isStopped) return Result.success()
         val todo = all.filter { it.id !in done }
-        if (todo.isEmpty()) {
+        // photos indexed before the tagger, or by an older one
+        val untagged = if (taggerFile(applicationContext).exists()) all.filter { it.id in done && it.id !in tagged } else emptyList()
+        if (todo.isEmpty() && untagged.isEmpty()) {
             IndexProgress.finish(applicationContext)
             placePhotos()
             return savePeople() // nothing new, but the grouping code may have changed
         }
-        val base = total - todo.size // photos already in the DB, so the bar starts there
+        val base = total - todo.size - untagged.size // photos with every step done, so the bar starts there
         IndexProgress.start(applicationContext, total, base)
         // Foreground, or the system stops the job midway. Not allowed when started from the background (rerun after a stop), then it runs as a plain job.
         val notifications = applicationContext.getSystemService(NotificationManager::class.java)
@@ -376,19 +396,38 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         }
         val start = System.nanoTime()
         var count = 0
+        var tagCount = 0
         var nextSave = start + 30_000_000_000L
+        // no tagger file, or it won't load: faces only
+        val tagger = if (!taggerFile(applicationContext).exists()) null else try {
+            Tagger(applicationContext)
+        } catch (e: Exception) {
+            Log.w("Memoria", "tagger not loaded", e)
+            null
+        }
         try {
             FacePipeline(applicationContext).use { pipeline ->
                 Log.i("Memoria", "models loaded in ${(System.nanoTime() - start) / 1_000_000} ms")
                 for (photo in todo) {
                     if (isStopped) break
                     val uri = ContentUris.withAppendedId(Media.EXTERNAL_CONTENT_URI, photo.id)
+                    val tag = tagger?.takeIf { photo.id !in tagged } // a Rescan keeps the vectors
+                    var vector: FloatArray? = null
                     val (kind, faces) = try {
                         val kind = kindOf(applicationContext, photo, uri)
-                        kind to if (kind == PhotoKind.skip) emptyList() else {
-                            // Detect on a small decode, full decode only for photos with faces (~half)
+                        kind to if (kind == PhotoKind.skip) {
+                            if (tag != null) vector = tagAlone(tag, photo.id)
+                            emptyList()
+                        } else {
+                            // Detect on a small decode, full decode only for photos with faces (~half). The tagger reads the same small decode.
                             val source = ImageDecoder.createSource(applicationContext.contentResolver, uri)
                             val small = loadPhoto(source, 640)
+                            if (tag != null) vector = try {
+                                tag.vector(tag.input(small))
+                            } catch (e: Exception) {
+                                Log.w("Memoria", "tag ${photo.id}", e)
+                                FloatArray(0)
+                            }
                             val found = pipeline.detect(small)
                             if (found.isEmpty()) found else {
                                 val image = loadPhoto(source)
@@ -403,11 +442,13 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                         }
                     } catch (e: Exception) {
                         Log.w("Memoria", "index ${photo.id}", e)
+                        if (tag != null && vector == null) vector = FloatArray(0) // unreadable: not tried again
                         PhotoKind.error to emptyList()
                     }
                     dao.insert(PhotoRow(photo.id, photo.path, kind), faces.map {
                         FaceRow(photoId = photo.id, box = it.box, score = it.score, landmarks = it.landmarks, vector = it.vector!!, quality = it.quality!!, thumb = it.thumb!!)
                     })
+                    vector?.let { dao.insertVector(PhotoVectorRow(photo.id, Tagger.VERSION, it)); tagCount++ }
                     count++
                     if (foreground && count % 10 == 0) notifications.notify(1, notice(base + count, total))
                     // people show up while indexing; saves stay 10x their own time apart, so they never take more than ~10% of the run
@@ -419,16 +460,31 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                     }
                 }
             }
+            if (tagger != null) for ((i, photo) in untagged.withIndex()) {
+                if (isStopped) break
+                if (foreground && i % 10 == 0) notifications.notify(1, notice(base + count + i, total, "Tagging photos"))
+                dao.insertVector(PhotoVectorRow(photo.id, Tagger.VERSION, tagAlone(tagger, photo.id)))
+                tagCount++
+            }
         } finally {
+            tagger?.close()
             IndexProgress.finish(applicationContext)
             val stop = if (isStopped) ", stopped, reason $stopReason" else ""
-            Log.i("Memoria", "indexed $count photos in %.0f s$stop".format((System.nanoTime() - start) / 1e9))
+            Log.i("Memoria", "indexed $count photos, tagged $tagCount in %.0f s$stop".format((System.nanoTime() - start) / 1e9))
         }
         if (!isStopped) placePhotos()
         return if (isStopped) Result.success() else savePeople()
     }
 
     private val towns by lazy { Towns.load(applicationContext) }
+
+    /** A 640 decode for the tagger alone. An unreadable photo gets an empty vector, so it isn't tried again. */
+    private fun tagAlone(tagger: Tagger, id: Long): FloatArray = try {
+        tagger.vector(tagger.input(loadPhoto(ImageDecoder.createSource(applicationContext.contentResolver, ContentUris.withAppendedId(Media.EXTERNAL_CONTENT_URI, id)), 640)))
+    } catch (e: Exception) {
+        Log.w("Memoria", "tag $id", e)
+        FloatArray(0)
+    }
 
     /** Cuts the face pictures saved at the old 160 px cap again, once per install. Resumes by photo id after a stop. */
     private suspend fun recutThumbs() {
@@ -502,12 +558,12 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         return Result.success()
     }
 
-    private fun notice(done: Int, total: Int): Notification {
+    private fun notice(done: Int, total: Int, title: String = "Finding faces"): Notification {
         val base = IndexProgress.base(applicationContext)
         val eta = etaMillis(IndexProgress.startedAt(applicationContext), (done - base).coerceAtLeast(0), total - base)
         return Notification.Builder(applicationContext, "index")
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("Finding faces")
+            .setContentTitle(title)
             .setContentText(if (eta != null) "$done / $total photos · ${formatEta(eta)}" else "$done / $total photos")
             .setProgress(total, done, false)
             .setOngoing(true)

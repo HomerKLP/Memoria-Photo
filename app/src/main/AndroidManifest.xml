@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
-    <!-- Only for the one-time face models download, photos never leave the phone; network state: it starts by itself on Wi-Fi only -->
+    <!-- Only for the one-time face models download and the update check, photos never leave the phone; network state: the models start by themselves on Wi-Fi only -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
@@ -12,6 +12,8 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Settings > Background work: Android's own "allow" dialog, the OEM background manager freezes the index without it -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Settings > Updates: hands the downloaded APK to Android's installer -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <application
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
@@ -31,6 +33,14 @@
         </activity>
         <!-- trace a release build from the shell (perfetto); debug is already profileable -->
         <profileable android:shell="true" tools:targetApi="q" />
+        <!-- the downloaded update APK, read by Android's installer -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.updates"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/updates" />
+        </provider>
         <!-- IndexWorker runs here when foreground -->
         <service
             android:name="androidx.work.impl.foreground.SystemForegroundService"

@@ -278,11 +278,12 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .switch::after { content: ""; position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; border-radius: 50%; background: #fff; }
 .switch.off { background: var(--surface); box-shadow: inset 0 0 0 2px var(--muted); }
 .switch.off::after { top: 8px; right: auto; left: 8px; width: 16px; height: 16px; background: var(--muted); }
-/* Face models and Face search rows: as tall as the other rows. The bar sits on the bottom edge and the button keeps its width in every state, so nothing moves */
-.set.models, .set.run { position: relative; }
-.set.models .track, .set.run .track { position: absolute; left: 56px; right: 120px; bottom: 4px; }
-.set.models .track.off, .set.run .track.off { visibility: hidden; }
-.set.models .pill-btn, .set.run .pill-btn { flex: none; width: 88px; padding: 0; }
+/* Models, Scan and Updates rows: as tall as the other rows. The bar sits on the bottom edge and the button keeps its width in every state, so nothing moves */
+.set.models, .set.run, .set.update { position: relative; }
+.set.models .track, .set.run .track, .set.update .track { position: absolute; left: 56px; right: 120px; bottom: 4px; }
+.set.models .track.off, .set.run .track.off, .set.update .track.off { visibility: hidden; }
+.set.models .pill-btn, .set.run .pill-btn, .set.update .pill-btn { flex: none; width: 88px; padding: 0; }
+.set div > span em { color: var(--accent); font-style: normal; font-weight: 500; }
 /* one line: a second line mid-run would push the rows below down */
 .set.run span { font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
@@ -430,7 +431,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 <header class="top">
   <h1>Memoria Photo</h1>
   <p class="lede">Light theme, Honey palette. Photos and faces are placeholders, names and places are made up.</p>
-  <nav class="toc"><a href="#page-photos">Photos</a><a href="#page-search">Search</a><a href="#page-viewer">Viewer</a><a href="#page-library">Library</a><a href="#favorites">Favorites</a><a href="#page-albums">Albums</a><a href="#page-places">Places</a><a href="#page-people">People</a><a href="#page-settings">Settings</a><a href="#devtools">Dev tools</a><a href="#parts">Shared parts</a><a href="#app-icon">App icon</a></nav>
+  <nav class="toc"><a href="#page-photos">Photos</a><a href="#page-search">Search</a><a href="#page-viewer">Viewer</a><a href="#page-library">Library</a><a href="#favorites">Favorites</a><a href="#page-albums">Albums</a><a href="#page-places">Places</a><a href="#page-categories">Categories</a><a href="#page-people">People</a><a href="#page-settings">Settings</a><a href="#devtools">Dev tools</a><a href="#parts">Shared parts</a><a href="#app-icon">App icon</a></nav>
 </header>
 
 <main>
@@ -539,7 +540,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Search: opens from the Photos search icon and the Library search bar, keyboard down. A screen, not a third tab. Named people, types, recent searches; each opens a screen we already have, and back returns here. Screenshots opens the phone's Screenshots album; no such album, no chip. Recent keeps what you opened; × removes one, Clear all. Nothing recent: no Recent heading</figcaption>
+      <figcaption>Search: opens from the Photos search icon and the Library search bar, keyboard down. A screen, not a third tab. Named people, types, recent searches; each opens a screen, and back returns here. Categories are in Library; here they only come up while typing. Like People, it shows its last data at once. Screenshots opens the phone's Screenshots album; no such album, no chip. Recent keeps what you opened; × removes one, Clear all. Nothing recent: no Recent heading</figcaption>
     </figure>
     <figure id="search-typing">
       <div class="phone">
@@ -552,7 +553,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <div class="kbd"></div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Search, typing: hits change with each letter and match word starts (d finds Downloads, not Andy). People, places, albums, months and years, in that order. A hit opens its screen: Person, Album, Place, or the Photos tab scrolled to that month. Places show up once place names exist. No hits: one muted line, Nothing for "xyz". Later: two people at once and free text ("beach") get a results grid</figcaption>
+      <figcaption>Search, typing: hits change with each letter and match word starts (d finds Downloads, not Andy). People, places, albums, categories, months and years, in that order. A category matches its name, and from two letters its words too ("do" finds Pets by "dog": the word shows before the count). A hit opens its screen: Person, Album, Place, Category, or the Photos tab scrolled to that month. Places show up once place names exist. No hits: one muted line, Nothing for "xyz". Later: two people at once and free text ("beach") get a results grid</figcaption>
     </figure>
   </div>
 </section>
@@ -668,6 +669,9 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="head"><h3>Places</h3><a href="#">See all<svg class="i"><use href="#i-chevron"/></svg></a></div>
           <div class="places" id="places"></div>
   
+          <div class="head"><h3>Categories</h3><a href="#">See all<svg class="i"><use href="#i-chevron"/></svg></a></div>
+          <div class="places" id="library-categories"></div>
+  
           <div class="shortcuts">
             <div class="shortcut"><svg class="i"><use href="#i-heart"/></svg><div><b>Favorites</b><span>38</span></div></div>
             <div class="shortcut"><svg class="i"><use href="#i-video"/></svg><div><b>Videos</b><span>211</span></div></div>
@@ -683,7 +687,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="handle"></div>
         </div>
       </div>
-      <figcaption>Library while indexing: no people yet, so the row's one muted item (see Empty) reads "Finding faces…" instead of "No people yet". Progress and Pause are in Settings, Face search. People and the Help recognize card appear only once a run has finished.</figcaption>
+      <figcaption>Library while indexing: no people yet, so the row's one muted item (see Empty) reads "Finding faces…" instead of "No people yet". Progress and Pause are in Settings, Scan. People and the Help recognize card appear only once a run has finished. Albums, Places and Categories are one row of 3 each, the biggest first; See all opens the whole page. While loading, or with none yet, grey tiles hold the row's space, so nothing below moves.</figcaption>
     </figure>
     <figure>
       <div class="phone has-slider">
@@ -984,6 +988,35 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
       <figcaption>Places, empty: the index has read every photo and none has a location. The Library row shows one muted tile at a cover's size instead (see Empty), so Shortcuts below never move. While locations are still being read, three grey tiles hold the row, never this</figcaption>
     </figure>
   </div>
+  <h3 id="page-categories">Categories</h3>
+  <div class="phones">
+    <figure id="categories-all">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="title"><b>Categories</b><span>12 categories</span></div>
+        </div>
+        <div class="scroll">
+          <div class="places all" id="category-grid"></div>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Categories: opens from See all on Library's Categories row. Like Places: one tile per category, most photos first, the ones with no photos left out. A category is a photo tag (pets, documents, food…); its cover is the photo the tagger is surest of. Tap a tile for the Category</figcaption>
+    </figure>
+    <figure id="category">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="title"><b>Pets</b><span>412 photos</span></div>
+        </div>
+        <div class="scroll vids" id="category-photos"></div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Category: opens from a category tile or a typed hit. Every photo with that tag, newest first, by month; the month stays pinned. Tap opens the viewer, long press selects, like Place (no Move). Photos only: videos are not tagged yet. A photo has a tag when the tagger's score passes that tag's cutoff, set so about 9 in 10 are right</figcaption>
+    </figure>
+  </div>
 </section>
 <section class="group" id="page-people">
   <h2>People</h2>
@@ -1032,7 +1065,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>People, moving a person: long press a named person to lift them (a bit bigger, with a shadow) and drag; the others slide to make room, and the order is saved on drop. It stays across face search runs. Named people only. Someone named later goes after them, by photo count</figcaption>
+      <figcaption>People, moving a person: long press a named person to lift them (a bit bigger, with a shadow) and drag; the others slide to make room, and the order is saved on drop. It stays across scans. Named people only. Someone named later goes after them, by photo count</figcaption>
     </figure>
     <figure id="person">
       <div class="phone">
@@ -1247,11 +1280,11 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="title"><b>Settings</b></div>
         </div>
         <div class="scroll">
-          <div class="head"><h3>Finding faces</h3></div>
-          <div class="set models"><svg class="i"><use href="#i-check"/></svg><div><b>Face models</b><span>Ready · 169 MB</span><div class="track off"><div></div></div></div></div>
-          <div class="set run"><svg class="i"><use href="#i-search"/></svg><div><b>Face search</b><span>412 of 1,706 · 3m left</span><div class="track"><div></div></div></div><button class="pill-btn">Pause</button></div>
-          <div class="set"><svg class="i"><use href="#i-bolt"/></svg><div><b>Only while charging</b><span>Pause face search on battery</span></div><span class="switch off" role="switch" aria-checked="false"></span></div>
-          <div class="set"><svg class="i"><use href="#i-battery"/></svg><div><b>Background work</b><span>Not allowed. The phone may stop face search</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
+          <div class="head"><h3>Photo scan</h3></div>
+          <div class="set models"><svg class="i"><use href="#i-check"/></svg><div><b>Models</b><span>Ready · 344 MB</span><div class="track off"><div></div></div></div></div>
+          <div class="set run"><svg class="i"><use href="#i-search"/></svg><div><b>Scan</b><span>412 of 1,706 · 3m left</span><div class="track"><div></div></div></div><button class="pill-btn">Pause</button></div>
+          <div class="set"><svg class="i"><use href="#i-bolt"/></svg><div><b>Only while charging</b><span>Pause the scan on battery</span></div><span class="switch off" role="switch" aria-checked="false"></span></div>
+          <div class="set"><svg class="i"><use href="#i-battery"/></svg><div><b>Background work</b><span>Not allowed. The phone may stop the scan</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
           <div class="set"><svg class="i"><use href="#i-folder"/></svg><div><b>Folders to skip</b><span>None, all photos are searched</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
           <div class="set"><svg class="i"><use href="#i-refresh"/></svg><div><b>Find faces again</b><span>Deletes faces and names, scans all photos again</span></div></div>
           <div class="head"><h3>People</h3></div>
@@ -1260,29 +1293,43 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="set"><svg class="i"><use href="#i-download"/></svg><div><b>Export face data</b><span>Save to a file</span></div></div>
           <div class="set"><svg class="i"><use href="#i-upload"/></svg><div><b>Import face data</b><span>From an export file</span></div></div>
           <div class="head"><h3>About</h3></div>
-          <div class="set"><svg class="i"><use href="#i-info"/></svg><div><b>Memoria Photo 0.1</b><span>Open source, GPL-3.0 · Licenses</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
+          <div class="set"><svg class="i"><use href="#i-info"/></svg><div><b>Memoria Photo 0.2.0</b><span>Open source, GPL-3.0 · Licenses</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
+          <div class="set update"><svg class="i"><use href="#i-check"/></svg><div><b>Updates</b><span>Up to date · checked today</span><div class="track off"><div></div></div></div><button class="pill-btn">Check</button></div>
+          <div class="set"><svg class="i"><use href="#i-history"/></svg><div><b>Check for updates</b><span>Once a day, notifies you of a new version</span></div><span class="switch" role="switch" aria-checked="true"></span></div>
           <div class="head"><h3>Developer</h3><span class="hint">Debug builds only</span></div>
           <div class="set"><svg class="i"><use href="#i-settings"/></svg><div><b>Dev tools</b><span>Test the models, index the test folder</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Settings: opens from the gear on Library, and from a tap on the face search notification. Face models (shown ready, see the next three), then Face search: the only place that shows a run, with photos done, time left and Pause. Paused, it reads "Paused · 412 of 1,706" with Resume; with "Only while charging" on battery, "Waiting for charger" and keeps Pause. One line, cut with … if long. Then face search options, hidden people, face data backup, about. The Developer section is last and only in debug builds; a release build has no such section</figcaption>
+      <figcaption>Settings: opens from the gear on Library, and from a tap on the scan notification. Models (the face models and the photo tagger; shown ready, see the next three), then Scan: the only place that shows a run, with photos done, time left and Pause. A photo is done once every step is: its faces, and its tag vector when the tagger is on the phone; a new tagger fills the bar again from the start. Paused, it reads "Paused · 412 of 1,706" with Resume; with "Only while charging" on battery, "Waiting for charger" and keeps Pause. One line, cut with … if long. Then scan options, hidden people, face data backup, about: the version row opens Licenses, then Updates (see the update states below) and the daily check switch, both in release builds only. The Developer section is last and only in debug builds; a release build has no such section</figcaption>
     </figure>
     <figure id="search-done">
       <div class="phone" id="search-done-phone"></div>
-      <figcaption>Face search, no run going: "Done" and the photo count. The bar and the button go, the row keeps its height, so nothing moves. A run for new photos fills it again</figcaption>
+      <figcaption>Scan, no run going: "Done" and the photo count. The bar and the button go, the row keeps its height, so nothing moves. A run for new photos fills it again</figcaption>
     </figure>
     <figure id="models-missing">
       <div class="phone" id="models-missing-phone"></div>
-      <figcaption>Face models, not downloaded: the first row of Finding faces. The app starts the download by itself on open, Wi-Fi only, so this shows on mobile data, where the tap is the OK (the size is in the row). If Wi-Fi drops midway, the download waits for it. Until they are here, face search does not start. The row is as tall as every other Settings row, and the button keeps its width in every state. The bar sits on the row's bottom edge (hidden here), so nothing moves</figcaption>
+      <figcaption>Models, not downloaded: the first row of Photo scan. The app starts the download by itself on open, Wi-Fi only, so this shows on mobile data, where the tap is the OK (the size is in the row). When an app update brings a new model, the files already here count: "Not downloaded · 169 of 344 MB", and only the new one downloads. If Wi-Fi drops midway, the download waits for it. Until they are here, the scan does not start. The row is as tall as every other Settings row, and the button keeps its width in every state. The bar sits on the row's bottom edge (hidden here), so nothing moves</figcaption>
     </figure>
     <figure id="models-downloading">
       <div class="phone" id="models-downloading-phone"></div>
-      <figcaption>Face models, downloading: MB so far, the bar fills, Cancel stops it, and after Cancel only Retry starts it again. The files are checked when done, then the row turns to Ready and face search starts by itself. The app may be closed meanwhile, the download goes on</figcaption>
+      <figcaption>Models, downloading: MB so far, the bar fills, Cancel stops it, and after Cancel only Retry starts it again. The files are checked when done, then the row turns to Ready and the scan starts by itself. The app may be closed meanwhile, the download goes on</figcaption>
     </figure>
     <figure id="models-stopped">
       <div class="phone" id="models-stopped-phone"></div>
-      <figcaption>Face models, stopped: the server failed or a file was damaged (no connection only pauses the download). The bar shows the files already here, Retry downloads the rest. The same row after Cancel</figcaption>
+      <figcaption>Models, stopped: the server failed or a file was damaged (no connection only pauses the download). The bar shows the files already here, Retry downloads the rest. The same row after Cancel</figcaption>
+    </figure>
+    <figure id="update-new">
+      <div class="phone" id="update-new-phone"></div>
+      <figcaption>Updates, new version: found by the daily check or by Check (then "Checking…", button greyed; on failure "Couldn't check"; before the first check "Not checked yet"). The size is in the row, Update downloads on any network. While a new version is known, a tap on the row opens its GitHub release page. With the switch off, the app checks only on Check</figcaption>
+    </figure>
+    <figure id="update-downloading">
+      <div class="phone" id="update-downloading-phone"></div>
+      <figcaption>Updates, downloading: like Models. The bar fills, Cancel goes back to Update. If the download fails it reads "Stopped · 98 MB" with Retry, which starts over. The download goes on with the app closed</figcaption>
+    </figure>
+    <figure id="update-ready">
+      <div class="phone" id="update-ready-phone"></div>
+      <figcaption>Updates, downloaded: Install opens Android's installer. The first time, Android asks to allow installs from Memoria. Android checks the APK has the same signing key, then updates in place and keeps all data. Backing out of the installer leaves this row</figcaption>
     </figure>
     <figure id="rescan">
       <div class="phone modal" id="rescan-phone">
@@ -1358,21 +1405,22 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="set"><div><b>Bricolage Grotesque</b><span>Titles and headings · SIL OFL 1.1</span></div></div>
           <div class="set"><div><b>Roboto</b><span>All other text · SIL OFL 1.1</span></div></div>
           <div class="head"><h3>Libraries</h3></div>
-          <div class="set"><div><b>LiteRT</b><span>Runs the face models · Apache 2.0</span></div></div>
+          <div class="set"><div><b>LiteRT</b><span>Runs the models · Apache 2.0</span></div></div>
           <div class="set"><div><b>Qualcomm QNN libraries</b><span>Runs the models on the NPU · Qualcomm's own license</span></div></div>
           <div class="set"><div><b>AndroidX, Compose, Material</b><span>App code and UI · Apache 2.0</span></div></div>
           <div class="set"><div><b>Kotlin</b><span>Language and runtime · Apache 2.0</span></div></div>
           <div class="set"><div><b>Reorderable</b><span>Drag to reorder people · Apache 2.0</span></div></div>
-          <div class="head"><h3>Face models</h3></div>
+          <div class="head"><h3>Models</h3></div>
           <div class="set"><div><b>YOLOv5m-face</b><span>Finds faces · GPL-3.0</span></div></div>
           <div class="set"><div><b>AdaFace IR101</b><span>Face vector · MIT</span></div></div>
           <div class="set"><div><b>eDifFIQA-T</b><span>Face quality · MIT</span></div></div>
+          <div class="set"><div><b>SigLIP 2 B/16</b><span>Photo tags · Apache 2.0</span></div></div>
           <div class="head"><h3>More</h3></div>
           <div class="set"><div><b>Full license texts</b><span>Opens THIRD_PARTY.md on GitHub</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Licenses: opens from the About row in Settings. One row per thing Memoria uses, grouped App, Data, Fonts, Libraries, Face models: name, what it is for, license. The rows are plain text, they open nothing; the GeoNames row carries the CC BY change notice. The last row opens THIRD_PARTY.md on GitHub in the browser (the full texts live there, so the app stays offline). Every row is the same height, the sub line is one line. The list is the same as <code>THIRD_PARTY.md</code></figcaption>
+      <figcaption>Licenses: opens from the About row in Settings. One row per thing Memoria uses, grouped App, Data, Fonts, Libraries, Models: name, what it is for, license. The rows are plain text, they open nothing; the GeoNames row carries the CC BY change notice. The last row opens THIRD_PARTY.md on GitHub in the browser (the full texts live there, so the app stays offline). Every row is the same height, the sub line is one line. The list is the same as <code>THIRD_PARTY.md</code></figcaption>
     </figure>
     <figure id="devtools">
       <div class="phone">
@@ -1613,7 +1661,7 @@ Photos: …/files/test</div>
 
   <article class="part">
     <h3>Notification icon</h3>
-    <p>The small icon in the status bar and on the face search notification. Android draws it in one color, so it is the Lake art alone, filling 20 of 24 dp. Our own, since phone makers restyle Android's built-in icons.</p>
+    <p>The small icon in the status bar and on the scan and update notifications. Android draws it in one color, so it is the Lake art alone, filling 20 of 24 dp. Our own, since phone makers restyle Android's built-in icons.</p>
     <div class="ni">
       <div class="ni-row">
         <span class="ni-big"><svg><use href="#notif-lake"/></svg></span>
@@ -1625,7 +1673,14 @@ Photos: …/files/test</div>
           <span>412 / 1706 photos · 3m left</span>
           <div class="bar"></div>
         </div>
+        <div class="notif">
+          <div class="nhead"><i><svg><use href="#notif-lake"/></svg></i>Memoria · now</div>
+          <b>New Memoria version is out</b>
+          <span>0.3.0 · Tap to update</span>
+        </div>
       </div>
+      <p>Scan notification: "Finding faces" while new photos get their faces, "Tagging photos" while older photos only get their tag vector. Same count as Settings, Scan.</p>
+      <p>Update notification: from the daily check, once per version, in its own "Updates" channel so it can be muted alone. A tap opens Settings at Updates. Swiping it away is fine: the row still shows the new version.</p>
     </div>
   </article>
 </section>
@@ -1730,7 +1785,7 @@ fill("videos", [["October 2026", 5], ["September 2026", 7], ["August 2026", 6]]
   + keepSeed(() => [["July 2026", 6]]
   .map(([m, n]) => `<section class="month-sec"><h3 class="month">${m}</h3><div class="grid big">${tiles(n, [...Array(n).keys()], [1])}</div></section>`).join("")));
 fill("albums", [["Camera", "1,412"], ["Screenshots", "214"], ["Telegram", "96"], ["WhatsApp Images", "58"], ["Downloads", "33"], ["Instagram", "21"]]
-  .map(([n, c]) => cover(n, c)).join(""));
+  .map(([n, c]) => cover(n, c)).slice(0, 3).join("")); // all 6 drawn, so the photos further down keep their colors
 fill("places", [["Riverton", "642"], ["Northport", "118"], ["Harborview", "87"]].map(([n, c]) => cover(n, c)).join(""));
 
 fill("viewer-people", [[0, "Me"], [2, "Dana"], [4, null]]
@@ -1754,7 +1809,7 @@ fill("search-people", order.filter(i => people[i]).map(i => `<div class="person"
 fill("search-recent", ["Dana", "August 2026", "Camera"]
   .map(t => `<div class="pick"><svg class="i"><use href="#i-history"/></svg><b>${t}</b><button class="icon-btn" aria-label="Remove"><svg class="i"><use href="#i-close"/></svg></button></div>`).join(""));
 const square = icon => `<span class="round square"><svg class="i"><use href="#i-${icon}"/></svg></span>`;
-fill("search-hits", [[face(2, 40), "Dana", "230 photos"], ['<span class="thumb" data-shot></span>', "Downloads", "33 items"], [square("calendar"), "December 2025", "48 items"]]
+fill("search-hits", [[face(2, 40), "Dana", "230 photos"], ['<span class="thumb" data-shot></span>', "Downloads", "33 items"], ['<span class="thumb" id="hit-category"></span>', "Documents", "58 photos"], [square("calendar"), "December 2025", "48 items"]]
   .map(([lead, t, c]) => `<div class="pick">${lead}<b><mark>${t[0]}</mark>${t.slice(1)}</b><span>${c}</span></div>`).join(""));
 document.querySelectorAll(".kbd").forEach(k => k.innerHTML = [10, 9, 7].map(n => `<div>${"<i></i>".repeat(n)}</div>`).join("") + '<div><i></i><i></i><i class="wide"></i><i></i><i></i></div>');
 fill("cover-face", face(2, 48));
@@ -1765,20 +1820,32 @@ document.querySelectorAll("[data-shot]").forEach(el => el.style.background = sho
 document.querySelectorAll("[data-photo]").forEach(el => el.style.background = photo());
 document.getElementById("dim").style.background = `linear-gradient(rgba(0,0,0,.55), rgba(0,0,0,.55)), ${shot}`;
 document.getElementById("move-dim").style.background = document.getElementById("dim").style.background;
-// Settings with the Face models row in each state: the same screen, only that row changes.
+// Settings with the Models row in each state: the same screen, only that row changes.
 const modelRows = {
-  "models-missing": ["download", "Not downloaded · 169 MB", "off", 0, "Download"],
-  "models-downloading": ["download", "Downloading · 74 of 169 MB", "", 44, "Cancel"],
-  "models-stopped": ["download", "Stopped · 74 of 169 MB", "", 44, "Retry"],
+  "models-missing": ["download", "Not downloaded · 344 MB", "off", 0, "Download"],
+  "models-downloading": ["download", "Downloading · 151 of 344 MB", "", 44, "Cancel"],
+  "models-stopped": ["download", "Stopped · 151 of 344 MB", "", 44, "Retry"],
 };
 for (const [id, [icon, sub, off, pct, btn]] of Object.entries(modelRows)) {
   const phone = document.getElementById(id + "-phone");
   phone.prepend(...[...document.querySelector("#settings .phone").children].map(n => n.cloneNode(true)));
-  phone.querySelector(".set.models").innerHTML = `<svg class="i"><use href="#i-${icon}"/></svg><div><b>Face models</b><span>${sub}</span><div class="track ${off}"><div style="width:${pct}%"></div></div></div><button class="pill-btn">${btn}</button>`;
+  phone.querySelector(".set.models").innerHTML = `<svg class="i"><use href="#i-${icon}"/></svg><div><b>Models</b><span>${sub}</span><div class="track ${off}"><div style="width:${pct}%"></div></div></div><button class="pill-btn">${btn}</button>`;
+}
+// Settings with the Updates row in each state, scrolled down to About.
+const updateRows = {
+  "update-new": ["download", "0.3.0 · 98 MB · <em>What's new</em>", "off", 0, "Update"],
+  "update-downloading": ["download", "Downloading · 41 of 98 MB", "", 42, "Cancel"],
+  "update-ready": ["download", "0.3.0 downloaded · <em>What's new</em>", "off", 0, "Install"],
+};
+for (const [id, [icon, sub, off, pct, btn]] of Object.entries(updateRows)) {
+  const phone = document.getElementById(id + "-phone");
+  phone.prepend(...[...document.querySelector("#settings .phone").children].map(n => n.cloneNode(true)));
+  phone.querySelector(".set.update").innerHTML = `<svg class="i"><use href="#i-${icon}"/></svg><div><b>Updates</b><span>${sub}</span><div class="track ${off}"><div style="width:${pct}%"></div></div></div><button class="pill-btn">${btn}</button>`;
+  phone.querySelector(".scroll").scrollTop = 9999;
 }
 const searchDone = document.getElementById("search-done-phone");
 searchDone.prepend(...[...document.querySelector("#settings .phone").children].map(n => n.cloneNode(true)));
-searchDone.querySelector(".set.run").innerHTML = `<svg class="i"><use href="#i-check"/></svg><div><b>Face search</b><span>Done · 1,706 photos</span><div class="track off"><div></div></div></div>`;
+searchDone.querySelector(".set.run").innerHTML = `<svg class="i"><use href="#i-check"/></svg><div><b>Scan</b><span>Done · 1,706 photos</span><div class="track off"><div></div></div></div>`;
 const rescan = document.getElementById("rescan-phone");
 rescan.prepend(...[...document.querySelector("#settings .phone").children].map(n => n.cloneNode(true)));
 document.getElementById("person-more-phone").prepend(...[...document.querySelector("#person .phone").children].map(n => n.cloneNode(true)));
@@ -1844,6 +1911,14 @@ document.querySelector("#person-picked #person-photos").innerHTML = pickMonths([
 // Album, Person, Videos and Favorites, scrolled: the second month is pinned and the slider has faded in, like the Photos tab.
 fill("person-scrolled-avatar", face(2, 40));
 fill("person-scrolled-list", document.querySelector("#person .scroll").innerHTML);
+// Categories and Category: filled last so the photos above keep their colors.
+const categories = [["Pets", "412"], ["Food", "174"], ["Selfies", "96"], ["Group photos", "71"], ["Documents", "58"], ["Night", "44"],
+  ["Sunsets", "41"], ["Memes", "33"], ["Beach", "27"], ["Snow", "19"], ["Flowers", "12"], ["Cars", "6"]];
+fill("library-categories", categories.slice(0, 3).map(([n, c]) => cover(n, c)).join(""));
+fill("category-grid", categories.map(([n, c]) => cover(n, c)).join(""));
+document.getElementById("hit-category").style.background = photo();
+fill("category-photos", [["October 2026", 6], ["September 2026", 4], ["July 2026", 7]]
+  .map(([m, n]) => `<section class="month-sec"><h3 class="month">${m}</h3><div class="grid big">${tiles(n, [], [1])}</div></section>`).join(""));
 for (const id of ["album-photos", "person-scrolled-list", "videos", "favorites-grid"]) {
   const list = document.getElementById(id), secs = list.querySelectorAll(".month-sec");
   list.scrollTop = secs[1].offsetTop - list.offsetTop + 120; // one tile row gone: the next row starts right under the pinned month

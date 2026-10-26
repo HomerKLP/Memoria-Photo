@@ -17,6 +17,7 @@
 """Make the fp16 .tflite files the app runs with LiteRT, and check them against the fp32 ONNX files.
 
 uv run bench/tflite.py   (own env: onnx2tf pins tool versions the bench can't share; run bench.py once first, it downloads the models)
+The tagger's ONNX comes from `uv run bench/tags.py onnx`.
 """
 
 import argparse
@@ -38,7 +39,7 @@ from onnxruntime.tools.onnx_model_utils import fix_output_shapes, make_input_sha
 
 ROOT = Path(__file__).resolve().parent.parent
 SRC = Path.home() / '.uniface/models'
-MODELS = {'yolov5m': 640, 'adaface_ir_101': 112, 'ediffiqa_t': 112}
+MODELS = {'yolov5m': 640, 'adaface_ir_101': 112, 'ediffiqa_t': 112, 'siglip2_b16': 224}
 
 
 def convert(name, size, work):
@@ -124,6 +125,12 @@ def letterbox(path):
     return (out.transpose(2, 0, 1)[None] / 255).astype(np.float32)
 
 
+def squash(path):
+    """224x224 RGB in -1..1, like the tagger's open_clip preprocess (which resizes bicubic): the same input to both runtimes."""
+    im = cv2.resize(cv2.imread(str(path))[:, :, ::-1], (224, 224), interpolation=cv2.INTER_AREA)
+    return (im.transpose(2, 0, 1)[None] / 127.5 - 1).astype(np.float32)
+
+
 def face(rgb, bgr):
     """AdaFace wants BGR, EDifFIQA RGB, both (v - 127.5) / 127.5."""
     return ((rgb[:, :, ::-1] if bgr else rgb).transpose(2, 0, 1)[None].astype(np.float32) - 127.5) / 127.5
@@ -133,12 +140,22 @@ if __name__ == '__main__':
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--photos', type=Path, default=ROOT / 'testdata/takeout')
     ap.add_argument('--n', type=int, default=40, help='photos to check on')
+    ap.add_argument('--models', nargs='+', default=list(MODELS), choices=list(MODELS), help='the face checks need all three face models')
     args = ap.parse_args()
     with tempfile.TemporaryDirectory() as work:
-        out = {name: convert(name, size, Path(work)) for name, size in MODELS.items()}
+        out = {name: convert(name, MODELS[name], Path(work)) for name in args.models}
 
     random.seed(1)
     photos = random.sample(sorted(args.photos.rglob('*.jpg')), args.n)
+    if 'siglip2_b16' in out:
+        tag, tag_lite = fp32('siglip2_b16'), tflite(out['siglip2_b16'])
+        sims = []
+        for p in photos:
+            a, b = tag(squash(p))[0], tag_lite(squash(p))[0][0]
+            sims.append(a @ b / np.linalg.norm(a) / np.linalg.norm(b))
+        print(f'siglip2 fp16: {len(sims)} photos, similarity to fp32 min {min(sims):.5f} median {np.median(sims):.5f}')
+    if 'yolov5m' not in out:
+        raise SystemExit
     det, det_lite = fp32('yolov5m'), tflite(out['yolov5m'])
     rows = rows_lite = 0
     shift = 0.0
