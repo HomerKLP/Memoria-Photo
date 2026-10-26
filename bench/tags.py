@@ -24,6 +24,7 @@ uv run bench/tags.py label SHEET ANSWER [SHEET ANSWER ...]
 uv run bench/tags.py score     -> P@20 and R-precision per tag and model, testdata/out/tags.html
 uv run bench/tags.py onnx      -> the picked model's vision side to ~/.uniface/models/siglip2_b16.onnx, for bench/tflite.py
 uv run bench/tags.py phone testdata/out/tags_npu.json   -> the app's vectors (Dev tools run, or the DB from make pull-db) against the bench's, by file name
+uv run bench/tags.py export    -> app/src/main/assets/tags.json: the shipped tags, their vectors and cutoffs (label with sheets --models siglip2_b16_app --depth 0 first)
 """
 
 import argparse
@@ -307,6 +308,52 @@ def phone(path):
     print(f'{len(sims)} of {len(got)} photos found in the bench; similarity min {sims.min():.4f} median {np.median(sims):.4f}, under 0.99: {(sims < 0.99).sum()}')
 
 
+SHIP = {  # tag: (its name in the app, words that find it while typing, besides the name)
+    'pet': ('Pets', ['cat', 'dog', 'kitten', 'puppy']),
+    'document': ('Documents', ['paper', 'passport', 'id', 'form', 'letter', 'ticket']),
+    'meme': ('Memes', ['funny', 'joke']),
+    'selfie': ('Selfies', []),
+    'group': ('Group photos', ['friends', 'people']),
+    'food': ('Food', ['meal', 'dish', 'dinner', 'lunch', 'breakfast']),
+    'beach': ('Beach', ['sea', 'shore', 'sand', 'lake']),
+    'mountains': ('Mountains', ['hills']),
+    'snow': ('Snow', ['winter']),
+    'sunset': ('Sunsets', ['sunrise']),
+    'night': ('Night', ['dark', 'lights']),
+    'car': ('Cars', ['auto']),
+    'gym': ('Gym', ['workout', 'fitness', 'sport']),
+    'flowers': ('Flowers', ['bouquet', 'roses']),
+}
+
+
+def export(target):
+    """tags.json for the app: each shipped tag's vector, words and cutoff, the lowest score where the app's vectors
+    still put `target` right photos above it on the labels (unlabeled photos count as wrong)."""
+    labels = read_labels()
+    v = vectors('siglip2_b16_app')
+    rels = sorted(v)
+    vecs = tag_vectors('siglip2_b16_app', 'en')
+    scores = np.stack([v[r] for r in rels]) @ vecs.T
+    out = []
+    print(f'{"tag":10}{"shows":>6}{"right":>6}{"known":>6}{"found":>6}  labeled to  last 16 labeled')
+    for k, tag in enumerate(TAGS):
+        if tag not in SHIP:
+            continue
+        order = np.argsort(-scores[:, k])
+        t = [truth(labels, tag, rels[i]) for i in order]
+        right = np.cumsum([x is True for x in t])
+        cut = max(i for i in range(len(t)) if right[i] >= target * (i + 1)) + 1
+        depth = next(i for i, x in enumerate(t) if x is None)  # labeled without a gap down to here
+        tail = [x for x in t[:cut + 40] if x is not None][-16:]  # labeled photos just past the cut: mostly wrong = the cut is safe
+        known = sum(1 for r in rels if truth(labels, tag, r))
+        print(f'{tag:10}{cut:6}{right[cut - 1]:6}{known:6}{right[cut - 1] / known:6.0%}  {depth:10}  {sum(tail)}/{len(tail)} right')
+        out.append({'id': tag, 'name': SHIP[tag][0], 'words': SHIP[tag][1], 'cutoff': round(float(scores[order[cut], k] + scores[order[cut - 1], k]) / 2, 5),
+                    'vector': [round(float(x), 6) for x in vecs[k]]})
+    dst = ROOT / 'app/src/main/assets/tags.json'
+    dst.write_text(json.dumps({'model': 1, 'tags': out}))  # model: Tagger.VERSION these cutoffs were set for
+    print(f'{dst}: {dst.stat().st_size >> 10} KB')
+
+
 def tag_vectors(name, lang):
     """One vector per tag: the mean of its prompts. Cached by prompt text, so edited prompts are encoded again."""
     path = OUT / f'text_{name}.json'
@@ -374,19 +421,20 @@ def sheet(photos_dir, name, rels, tile=280, cols=4):
     img.save(OUT / 'sheets' / f'{name}.jpg', quality=85)
 
 
-def sheets(photos_dir, sample_n, depth_en, depth_ru):
+def sheets(photos_dir, sample_n, depth_en, depth_ru, names):
     labels = read_labels()
     todo = {}
     sample = [r for r in random.Random(1).sample(photos(photos_dir), sample_n) if r not in labels['sample']]
     for k in range(0, len(sample), 16):
         todo[f'sample_{k // 16:02}'] = {'rels': sample[k:k + 16]}
     if not sample:  # top hits only once the sample is labeled, so a sampled photo is never asked twice
-        rels = common(MODELS)
-        ranks = {(n, lang): rankings(n, lang, rels) for n in MODELS for lang in ('en', 'ru')}
+        rels = common(names)
+        ranks = {(n, lang): rankings(n, lang, rels) for n in names for lang in ('en', 'ru')}
         for tag in TAGS:
+            known = sum(1 for r in rels if truth(labels, tag, r))
             hits = []
-            for (n, lang), r in ranks.items():
-                hits += [rels[i] for i in r[tag][:depth_en if lang == 'en' else depth_ru]]
+            for (n, lang), r in ranks.items():  # --depth 0: 30 past the known right photos, where export's cutoff lies
+                hits += [rels[i] for i in r[tag][:(depth_en or known + 30) if lang == 'en' else depth_ru]]
             hits = [h for h in dict.fromkeys(hits) if truth(labels, tag, h) is None]
             for k in range(0, len(hits), 16):
                 todo[f'{tag}_{k // 16:02}'] = {'tag': tag, 'rels': hits[k:k + 16]}
@@ -462,24 +510,27 @@ def score(photos_dir, depth):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('cmd', choices=['embed', 'info', 'sheets', 'label', 'score', 'onnx', 'phone'])
+    ap.add_argument('cmd', choices=['embed', 'info', 'sheets', 'label', 'score', 'onnx', 'phone', 'export'])
     ap.add_argument('args', nargs='*', help='label: SHEET ANSWER pairs; phone: the JSON')
     ap.add_argument('--photos', type=Path, default=ROOT / 'testdata/takeout')
     ap.add_argument('--models', nargs='+', default=list(MODELS), choices=list(MODELS))
     ap.add_argument('--sample', type=int, default=320, help='random photos labeled for every tag')
     ap.add_argument('--depth', type=int, default=20, help='top hits per model and tag that get labeled and scored')
     ap.add_argument('--depth-ru', type=int, default=10)
+    ap.add_argument('--target', type=float, default=0.9, help='export: share of right photos a tag shows')
     a = ap.parse_args()
     if a.cmd == 'embed':
         embed(a.photos, a.models)
     elif a.cmd == 'info':
         info(a.models)
     elif a.cmd == 'sheets':
-        sheets(a.photos, a.sample, a.depth, a.depth_ru)
+        sheets(a.photos, a.sample, a.depth, a.depth_ru, a.models)
     elif a.cmd == 'label':
         label(a.args)
     elif a.cmd == 'onnx':
         export('siglip2_b16')
+    elif a.cmd == 'export':
+        export(a.target)
     elif a.cmd == 'phone':
         phone(a.args[0])
     else:

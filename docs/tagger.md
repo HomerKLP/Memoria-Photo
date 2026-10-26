@@ -116,6 +116,30 @@ Against the Mac (`tags.py phone <memoria.db>` vs `siglip2_b16_app`, 3277 photos 
 - Face search never waits for the tagger (`modelsReady` checks the face files only).
 - Emulator, face models already there: the tagger came in ~15 s, passed the hash, and the run started with it on.
 
+## Tags file (2026-10-26)
+`uv run bench/tags.py export` writes `app/src/main/assets/tags.json` (110 KB, `model` = `Tagger.VERSION` 1): 14 tags, each with its app name, typing words, its vector (the mean of its English prompts) and a cutoff on the cosine score. The cutoff is the lowest score where the app's vectors (`siglip2_b16_app`) still put 90% right photos above it. Unlabeled photos count as wrong, so it errs on the safe side. For it, 3 rounds of `sheets --models siglip2_b16_app --depth 0` labeled ~660 more photos, down to 30 past each tag's known right ones.
+
+| tag | shows (of 3441) | right | found, of the known right |
+|---|---|---|---|
+| Pets | 177 | 160 | 94% |
+| Documents | 111 | 100 | 85% |
+| Memes | 100 | 90 | 76% |
+| Selfies | 184 | 166 | 85% |
+| Group photos | 104 | 94 | 97% |
+| Food | 82 | 74 | 86% |
+| Beach | 34 | 31 | 97% |
+| Mountains | 16 | 15 | 41% |
+| Snow | 36 | 33 | 57% |
+| Sunsets | 41 | 37 | 84% |
+| Night | 92 | 83 | 75% |
+| Cars | 16 | 15 | 38% |
+| Gym | 24 | 22 | 96% |
+| Flowers | 30 | 27 | 84% |
+
+- Weak: mountains and cars, 16 photos each at 90% right, about 40% of the ones there. At 80% right they would show 32 and 27; snow 55 instead of 36.
+- Pets, selfies and groups stop where the labels end, so they could show a few more.
+- Left out: screenshot (Search's Screenshots chip opens the album), receipt (5 photos), child (~60% right).
+
 ## Open
 - A `tagger.tflite` that won't load makes every app open start a run that tags nothing. The hash check keeps a bad download off the phone; an `adb push` is not checked.
 - Videos: same model on a few frames, not benched.
