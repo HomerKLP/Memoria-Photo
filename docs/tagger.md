@@ -102,7 +102,7 @@ The copy matches the phone: at the Dev tools 4096 decode, 20 photos, Mac vs phon
 - New photos: the tagger reads the face pass's 640 decode. Skipped photos (screenshots, GIFs, tiny) get one 640 decode. Photos indexed before the tagger get one each, after the new ones.
 - Only while `models/tagger.tflite` is there; without it, or if it won't load, a run does faces only. Photos with no vector count as changed, so the old ones get tagged on the next app open.
 - An unreadable photo gets an empty vector and isn't tried again. A Rescan keeps the vectors.
-- During a tag-only run the notification says "Tagging photos n / m". The Settings row shows the run with all photos done; a real row needs the mockup first.
+- Settings, Face search counts a photo as done once it has its faces and, while the tagger is on, its vector. So a tag pass fills the bar again from the start; its notification says "Tagging photos".
 
 Test phone, debug app, 4383 photos indexed before the tagger: 240 s (55 ms per photo: decode, resize, NPU, save), tagger on the NPU, app at 540-610 MB PSS, no failures.
 

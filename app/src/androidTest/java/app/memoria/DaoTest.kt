@@ -80,6 +80,16 @@ class DaoTest {
         assertEquals(listOf(2L), dao.taggedIds(1))
     }
 
+    @Test fun doneCount_needsThisModelsVector_onlyWhileTaggerIsOn() = runBlocking {
+        dao.insert(PhotoRow(1, "DCIM/Camera/a.jpg", PhotoKind.camera), emptyList())
+        dao.insert(PhotoRow(2, "DCIM/Camera/b.jpg", PhotoKind.camera), emptyList())
+        dao.insert(PhotoRow(3, "Download/c.jpg", PhotoKind.other), emptyList())
+        dao.insertVector(PhotoVectorRow(1, 1, FloatArray(768)))
+        dao.insertVector(PhotoVectorRow(2, 0, FloatArray(768)))
+        assertEquals(1, dao.doneCount(tagger = true, model = 1).first())
+        assertEquals(3, dao.doneCount(tagger = false, model = 1).first())
+    }
+
     @Test fun kinds_countsPhotosPerKind() = runBlocking {
         dao.insert(PhotoRow(1, "DCIM/Camera/a.jpg", PhotoKind.camera), emptyList())
         dao.insert(PhotoRow(2, "DCIM/Camera/b.jpg", PhotoKind.camera), emptyList())

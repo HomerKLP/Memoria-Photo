@@ -79,7 +79,7 @@ fun SettingsScreen(onBack: () -> Unit, onHidden: () -> Unit, onSkip: () -> Unit,
     val hidden by cachedProduceState("settings", reload) { withContext(Dispatchers.IO) { dao.people().count { it.hidden } } }
     val work by remember { WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow("index") }.collectAsState(emptyList())
     val running = work.any { it.state == WorkInfo.State.RUNNING }
-    val indexed by remember { dao.kinds() }.collectAsState(emptyMap())
+    val indexed by remember { dao.doneCount(taggerFile(context).exists(), Tagger.VERSION) }.collectAsState(0)
     val total by cachedProduceState("photoCount") { withContext(Dispatchers.IO) { libraryPhotoCount(context) } }
     var charging by remember { mutableStateOf(IndexProgress.chargingOnly(context)) }
     val power = remember { context.getSystemService(PowerManager::class.java) }
@@ -116,7 +116,7 @@ fun SettingsScreen(onBack: () -> Unit, onHidden: () -> Unit, onSkip: () -> Unit,
         indexing = running,
         waiting = !running && work.any { it.state == WorkInfo.State.ENQUEUED } && waitsForCharger(context),
         paused = !running && IndexProgress.paused(context),
-        indexed = indexed.values.sum(),
+        indexed = indexed,
         total = total ?: 0,
         startedAt = IndexProgress.startedAt(context),
         base = IndexProgress.base(context),

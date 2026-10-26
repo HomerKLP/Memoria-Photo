@@ -1269,7 +1269,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Settings: opens from the gear on Library, and from a tap on the face search notification. Face models (shown ready, see the next three), then Face search: the only place that shows a run, with photos done, time left and Pause. Paused, it reads "Paused · 412 of 1,706" with Resume; with "Only while charging" on battery, "Waiting for charger" and keeps Pause. One line, cut with … if long. Then face search options, hidden people, face data backup, about: the version row opens Licenses, then Updates (see the update states below) and the daily check switch, both in release builds only. The Developer section is last and only in debug builds; a release build has no such section</figcaption>
+      <figcaption>Settings: opens from the gear on Library, and from a tap on the face search notification. Face models (shown ready, see the next three), then Face search: the only place that shows a run, with photos done, time left and Pause. A photo is done once every step is: its faces, and its tag vector when the tagger is on the phone; a new tagger fills the bar again from the start. Paused, it reads "Paused · 412 of 1,706" with Resume; with "Only while charging" on battery, "Waiting for charger" and keeps Pause. One line, cut with … if long. Then face search options, hidden people, face data backup, about: the version row opens Licenses, then Updates (see the update states below) and the daily check switch, both in release builds only. The Developer section is last and only in debug builds; a release build has no such section</figcaption>
     </figure>
     <figure id="search-done">
       <div class="phone" id="search-done-phone"></div>
@@ -1646,6 +1646,7 @@ Photos: …/files/test</div>
           <span>0.3.0 · Tap to update</span>
         </div>
       </div>
+      <p>Face search notification: "Finding faces" while new photos get their faces, "Tagging photos" while older photos only get their tag vector. Same count as Settings, Face search.</p>
       <p>Update notification: from the daily check, once per version, in its own "Updates" channel so it can be muted alone. A tap opens Settings at Updates. Swiping it away is fine: the row still shows the new version.</p>
     </div>
   </article>

@@ -160,6 +160,9 @@ interface IndexDao {
     @Query("UPDATE photo SET lat = :lat, lon = :lon, townId = :townId, town = :town WHERE id = :id")
     suspend fun setPlace(id: Long, lat: Double?, lon: Double?, townId: Int, town: String?)
     @Query("SELECT photoId FROM photo_vector WHERE model = :model") suspend fun taggedIds(model: Int): List<Long>
+    /** Photos with every index step done: the face pass, and a vector from tagger [model] while [tagger] is on the phone. */
+    @Query("SELECT COUNT(*) FROM photo WHERE NOT :tagger OR id IN (SELECT photoId FROM photo_vector WHERE model = :model)")
+    fun doneCount(tagger: Boolean, model: Int): Flow<Int>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertVector(row: PhotoVectorRow)
     @Query("DELETE FROM photo_vector WHERE photoId IN (:ids)") suspend fun deleteVectors(ids: List<Long>)
 }
@@ -377,7 +380,7 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
             placePhotos()
             return savePeople() // nothing new, but the grouping code may have changed
         }
-        val base = total - todo.size // photos already in the DB, so the bar starts there
+        val base = total - todo.size - untagged.size // photos with every step done, so the bar starts there
         IndexProgress.start(applicationContext, total, base)
         // Foreground, or the system stops the job midway. Not allowed when started from the background (rerun after a stop), then it runs as a plain job.
         val notifications = applicationContext.getSystemService(NotificationManager::class.java)
@@ -455,10 +458,9 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                     }
                 }
             }
-            val tagStart = System.currentTimeMillis()
             if (tagger != null) for ((i, photo) in untagged.withIndex()) {
                 if (isStopped) break
-                if (foreground && i % 10 == 0) notifications.notify(1, notice(i, untagged.size, "Tagging photos", tagStart, 0))
+                if (foreground && i % 10 == 0) notifications.notify(1, notice(base + count + i, total, "Tagging photos"))
                 dao.insertVector(PhotoVectorRow(photo.id, Tagger.VERSION, tagAlone(tagger, photo.id)))
                 tagCount++
             }
@@ -554,11 +556,9 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         return Result.success()
     }
 
-    private fun notice(
-        done: Int, total: Int, title: String = "Finding faces",
-        started: Long = IndexProgress.startedAt(applicationContext), base: Int = IndexProgress.base(applicationContext),
-    ): Notification {
-        val eta = etaMillis(started, (done - base).coerceAtLeast(0), total - base)
+    private fun notice(done: Int, total: Int, title: String = "Finding faces"): Notification {
+        val base = IndexProgress.base(applicationContext)
+        val eta = etaMillis(IndexProgress.startedAt(applicationContext), (done - base).coerceAtLeast(0), total - base)
         return Notification.Builder(applicationContext, "index")
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
