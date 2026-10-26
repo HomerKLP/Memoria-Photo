@@ -105,7 +105,7 @@ class LayoutJumpTest {
         assertSame("Albums header", before, rule.onNodeWithText("Albums").top())
     }
 
-    /** Face search row (mockup Settings): running, paused, waiting and done keep the row and the rows below in place. */
+    /** Scan row (mockup Settings): running, paused, waiting and done keep the row and the rows below in place. */
     @Test fun settings_faceSearchStates_rowsStayPut() {
         var state by mutableStateOf("running")
         rule.setContent {
@@ -117,13 +117,13 @@ class LayoutJumpTest {
             } }
         }
 
-        val searchBefore = rule.onNodeWithText("Face search").top()
+        val searchBefore = rule.onNodeWithText("Scan").top()
         val chargingBefore = rule.onNodeWithText("Only while charging").top()
         val barBefore = rule.onNodeWithTag("indexBar").width()
         val actionBefore = rule.onNodeWithTag("indexAction").width()
         for (s in listOf("paused", "waiting", "done")) {
             rule.runOnIdle { state = s }
-            assertSame("Face search ($s)", searchBefore, rule.onNodeWithText("Face search").top())
+            assertSame("Scan ($s)", searchBefore, rule.onNodeWithText("Scan").top())
             assertSame("Only while charging ($s)", chargingBefore, rule.onNodeWithText("Only while charging").top())
             if (s != "done") {
                 assertSame("progress bar ($s)", barBefore, rule.onNodeWithTag("indexBar").width())
@@ -152,7 +152,7 @@ class LayoutJumpTest {
         }
 
         val modelsBefore = rule.onNodeWithText("Models").top()
-        val searchBefore = rule.onNodeWithText("Face search").top()
+        val searchBefore = rule.onNodeWithText("Scan").top()
         val exportBefore = rule.onNodeWithText("Export face data").top()
         val actionBefore = rule.onNodeWithTag("modelsAction").width()
         rule.runOnIdle { status = Models.Status.Downloading }
@@ -160,7 +160,7 @@ class LayoutJumpTest {
         for (s in listOf(Models.Status.Stopped, Models.Status.Ready, Models.Status.Missing)) {
             rule.runOnIdle { status = s }
             assertSame("Models ($s)", modelsBefore, rule.onNodeWithText("Models").top())
-            assertSame("Face search ($s)", searchBefore, rule.onNodeWithText("Face search").top())
+            assertSame("Scan ($s)", searchBefore, rule.onNodeWithText("Scan").top())
             assertSame("Export face data ($s)", exportBefore, rule.onNodeWithText("Export face data").top())
             if (s != Models.Status.Ready) assertSame("Download/Cancel/Retry ($s)", actionBefore, rule.onNodeWithTag("modelsAction").width())
             if (s == Models.Status.Stopped) assertSame("progress bar ($s)", barBefore, rule.onNodeWithTag("modelsBar").width())

@@ -248,10 +248,10 @@ fun SettingsContent(
 ) {
     Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(scroll).padding(bottom = 16.dp)) {
         TopBar("Settings", null, onBack = onBack)
-        SectionHead("Finding faces")
+        SectionHead("Photo scan")
         FaceModelsRow(models, modelsDone, onDownload, onCancelDownload)
         FaceSearchRow(indexing, waiting, paused, indexed, total, startedAt, base, onPauseIndex, onResumeIndex)
-        SettingRow(R.drawable.ic_bolt, "Only while charging", "Pause face search on battery", { onCharging(!charging) }) {
+        SettingRow(R.drawable.ic_bolt, "Only while charging", "Pause the scan on battery", { onCharging(!charging) }) {
             Switch(
                 charging, onCharging,
                 colors = SwitchDefaults.colors(
@@ -263,7 +263,7 @@ fun SettingsContent(
         }
         SettingRow(
             R.drawable.ic_battery, "Background work",
-            if (allowed) "Allowed. Face search goes on with the screen off" else "Not allowed. The phone may stop face search",
+            if (allowed) "Allowed. Runs with the screen off" else "Not allowed. The phone may stop the scan", // one line each, so rows below stay put
             onBackgroundWork,
         ) { Chevron() }
         SettingRow(
@@ -410,7 +410,7 @@ fun UpdatesRow(
 }
 
 /**
- * Mockup "Face search": the index run, the only place it shows. The same height in every state: the bar
+ * Mockup "Scan": the index run, the only place it shows. The same height in every state: the bar
  * sits on the bottom edge and the button keeps its width, so the rows below never move.
  */
 @Composable
@@ -436,7 +436,7 @@ fun FaceSearchRow(
         ) {
             Icon(painterResource(if (run) R.drawable.ic_search else R.drawable.ic_check), null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
             Column(Modifier.weight(1f)) {
-                Text("Face search", fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium)
+                Text("Scan", fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium)
                 // one line: a second line mid-run would push the rows below down
                 Text(info, fontSize = 13.sp, lineHeight = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }

@@ -136,7 +136,7 @@ Against the Mac (`tags.py phone <memoria.db>` vs `siglip2_b16_app`, 3277 photos 
 | Gym | 24 | 22 | 96% |
 | Flowers | 30 | 27 | 84% |
 
-- Weak: mountains and cars, 16 photos each at 90% right, about 40% of the ones there. At 80% right they would show 32 and 27; snow 55 instead of 36.
+- Weak: mountains and cars, 16 photos each at 90% right, about 40% of the ones there. The user checked both on the test phone (2026-10-27): no wrong photos, kept as they are. At 80% right they would show 32 and 27; snow 55 instead of 36.
 - Pets, selfies and groups stop where the labels end, so they could show a few more.
 - Left out: screenshot (Search's Screenshots chip opens the album), receipt (5 photos), child (~60% right).
 
@@ -144,6 +144,12 @@ Against the Mac (`tags.py phone <memoria.db>` vs `siglip2_b16_app`, 3277 photos 
 `Categories.kt` scores the tags when Library, Search, Categories or a Category opens: every vector of `Tagger.VERSION` in `photo_vector` (empty ones skipped) against each tag, kept above its cutoff. Nothing is stored, so a new `tags.json` shows on the next open; a `tags.json` made for another model shows no categories.
 - Test phone, debug build, 4383 photos: read ~50 ms, score ~55 ms; the first open after an install 100 + 177 ms. Later opens show the last data at once, so no cache.
 - Library has the Categories row (under Places, See all opens Categories); Search shows categories only as typed hits.
+
+## People check (2026-10-27)
+Do memes and documents leak faces into People? Test phone's debug DB, 1819 faces in people:
+- On Memes photos: 0. The metadata filter already keeps them out (only camera faces start a person; memes come from messengers and Downloads).
+- On Documents photos: 17, 15 of them in named people. A face on an ID is still that person, so dropping them would lose right faces.
+- So tags would add nothing to People today.
 
 ## Open
 - A `tagger.tflite` that won't load makes every app open start a run that tags nothing. The hash check keeps a bad download off the phone; an `adb push` is not checked.

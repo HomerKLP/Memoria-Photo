@@ -278,7 +278,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .switch::after { content: ""; position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; border-radius: 50%; background: #fff; }
 .switch.off { background: var(--surface); box-shadow: inset 0 0 0 2px var(--muted); }
 .switch.off::after { top: 8px; right: auto; left: 8px; width: 16px; height: 16px; background: var(--muted); }
-/* Models, Face search and Updates rows: as tall as the other rows. The bar sits on the bottom edge and the button keeps its width in every state, so nothing moves */
+/* Models, Scan and Updates rows: as tall as the other rows. The bar sits on the bottom edge and the button keeps its width in every state, so nothing moves */
 .set.models, .set.run, .set.update { position: relative; }
 .set.models .track, .set.run .track, .set.update .track { position: absolute; left: 56px; right: 120px; bottom: 4px; }
 .set.models .track.off, .set.run .track.off, .set.update .track.off { visibility: hidden; }
@@ -687,7 +687,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="handle"></div>
         </div>
       </div>
-      <figcaption>Library while indexing: no people yet, so the row's one muted item (see Empty) reads "Finding faces…" instead of "No people yet". Progress and Pause are in Settings, Face search. People and the Help recognize card appear only once a run has finished. Albums, Places and Categories are one row of 3 each, the biggest first; See all opens the whole page. While loading, or with none yet, grey tiles hold the row's space, so nothing below moves.</figcaption>
+      <figcaption>Library while indexing: no people yet, so the row's one muted item (see Empty) reads "Finding faces…" instead of "No people yet". Progress and Pause are in Settings, Scan. People and the Help recognize card appear only once a run has finished. Albums, Places and Categories are one row of 3 each, the biggest first; See all opens the whole page. While loading, or with none yet, grey tiles hold the row's space, so nothing below moves.</figcaption>
     </figure>
     <figure>
       <div class="phone has-slider">
@@ -1065,7 +1065,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>People, moving a person: long press a named person to lift them (a bit bigger, with a shadow) and drag; the others slide to make room, and the order is saved on drop. It stays across face search runs. Named people only. Someone named later goes after them, by photo count</figcaption>
+      <figcaption>People, moving a person: long press a named person to lift them (a bit bigger, with a shadow) and drag; the others slide to make room, and the order is saved on drop. It stays across scans. Named people only. Someone named later goes after them, by photo count</figcaption>
     </figure>
     <figure id="person">
       <div class="phone">
@@ -1280,11 +1280,11 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="title"><b>Settings</b></div>
         </div>
         <div class="scroll">
-          <div class="head"><h3>Finding faces</h3></div>
+          <div class="head"><h3>Photo scan</h3></div>
           <div class="set models"><svg class="i"><use href="#i-check"/></svg><div><b>Models</b><span>Ready · 344 MB</span><div class="track off"><div></div></div></div></div>
-          <div class="set run"><svg class="i"><use href="#i-search"/></svg><div><b>Face search</b><span>412 of 1,706 · 3m left</span><div class="track"><div></div></div></div><button class="pill-btn">Pause</button></div>
-          <div class="set"><svg class="i"><use href="#i-bolt"/></svg><div><b>Only while charging</b><span>Pause face search on battery</span></div><span class="switch off" role="switch" aria-checked="false"></span></div>
-          <div class="set"><svg class="i"><use href="#i-battery"/></svg><div><b>Background work</b><span>Not allowed. The phone may stop face search</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
+          <div class="set run"><svg class="i"><use href="#i-search"/></svg><div><b>Scan</b><span>412 of 1,706 · 3m left</span><div class="track"><div></div></div></div><button class="pill-btn">Pause</button></div>
+          <div class="set"><svg class="i"><use href="#i-bolt"/></svg><div><b>Only while charging</b><span>Pause the scan on battery</span></div><span class="switch off" role="switch" aria-checked="false"></span></div>
+          <div class="set"><svg class="i"><use href="#i-battery"/></svg><div><b>Background work</b><span>Not allowed. The phone may stop the scan</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
           <div class="set"><svg class="i"><use href="#i-folder"/></svg><div><b>Folders to skip</b><span>None, all photos are searched</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
           <div class="set"><svg class="i"><use href="#i-refresh"/></svg><div><b>Find faces again</b><span>Deletes faces and names, scans all photos again</span></div></div>
           <div class="head"><h3>People</h3></div>
@@ -1301,19 +1301,19 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Settings: opens from the gear on Library, and from a tap on the face search notification. Models (the face models and the photo tagger; shown ready, see the next three), then Face search: the only place that shows a run, with photos done, time left and Pause. A photo is done once every step is: its faces, and its tag vector when the tagger is on the phone; a new tagger fills the bar again from the start. Paused, it reads "Paused · 412 of 1,706" with Resume; with "Only while charging" on battery, "Waiting for charger" and keeps Pause. One line, cut with … if long. Then face search options, hidden people, face data backup, about: the version row opens Licenses, then Updates (see the update states below) and the daily check switch, both in release builds only. The Developer section is last and only in debug builds; a release build has no such section</figcaption>
+      <figcaption>Settings: opens from the gear on Library, and from a tap on the scan notification. Models (the face models and the photo tagger; shown ready, see the next three), then Scan: the only place that shows a run, with photos done, time left and Pause. A photo is done once every step is: its faces, and its tag vector when the tagger is on the phone; a new tagger fills the bar again from the start. Paused, it reads "Paused · 412 of 1,706" with Resume; with "Only while charging" on battery, "Waiting for charger" and keeps Pause. One line, cut with … if long. Then scan options, hidden people, face data backup, about: the version row opens Licenses, then Updates (see the update states below) and the daily check switch, both in release builds only. The Developer section is last and only in debug builds; a release build has no such section</figcaption>
     </figure>
     <figure id="search-done">
       <div class="phone" id="search-done-phone"></div>
-      <figcaption>Face search, no run going: "Done" and the photo count. The bar and the button go, the row keeps its height, so nothing moves. A run for new photos fills it again</figcaption>
+      <figcaption>Scan, no run going: "Done" and the photo count. The bar and the button go, the row keeps its height, so nothing moves. A run for new photos fills it again</figcaption>
     </figure>
     <figure id="models-missing">
       <div class="phone" id="models-missing-phone"></div>
-      <figcaption>Models, not downloaded: the first row of Finding faces. The app starts the download by itself on open, Wi-Fi only, so this shows on mobile data, where the tap is the OK (the size is in the row). When an app update brings a new model, the files already here count: "Not downloaded · 169 of 344 MB", and only the new one downloads. If Wi-Fi drops midway, the download waits for it. Until they are here, face search does not start. The row is as tall as every other Settings row, and the button keeps its width in every state. The bar sits on the row's bottom edge (hidden here), so nothing moves</figcaption>
+      <figcaption>Models, not downloaded: the first row of Photo scan. The app starts the download by itself on open, Wi-Fi only, so this shows on mobile data, where the tap is the OK (the size is in the row). When an app update brings a new model, the files already here count: "Not downloaded · 169 of 344 MB", and only the new one downloads. If Wi-Fi drops midway, the download waits for it. Until they are here, the scan does not start. The row is as tall as every other Settings row, and the button keeps its width in every state. The bar sits on the row's bottom edge (hidden here), so nothing moves</figcaption>
     </figure>
     <figure id="models-downloading">
       <div class="phone" id="models-downloading-phone"></div>
-      <figcaption>Models, downloading: MB so far, the bar fills, Cancel stops it, and after Cancel only Retry starts it again. The files are checked when done, then the row turns to Ready and face search starts by itself. The app may be closed meanwhile, the download goes on</figcaption>
+      <figcaption>Models, downloading: MB so far, the bar fills, Cancel stops it, and after Cancel only Retry starts it again. The files are checked when done, then the row turns to Ready and the scan starts by itself. The app may be closed meanwhile, the download goes on</figcaption>
     </figure>
     <figure id="models-stopped">
       <div class="phone" id="models-stopped-phone"></div>
@@ -1661,7 +1661,7 @@ Photos: …/files/test</div>
 
   <article class="part">
     <h3>Notification icon</h3>
-    <p>The small icon in the status bar and on the face search and update notifications. Android draws it in one color, so it is the Lake art alone, filling 20 of 24 dp. Our own, since phone makers restyle Android's built-in icons.</p>
+    <p>The small icon in the status bar and on the scan and update notifications. Android draws it in one color, so it is the Lake art alone, filling 20 of 24 dp. Our own, since phone makers restyle Android's built-in icons.</p>
     <div class="ni">
       <div class="ni-row">
         <span class="ni-big"><svg><use href="#notif-lake"/></svg></span>
@@ -1679,7 +1679,7 @@ Photos: …/files/test</div>
           <span>0.3.0 · Tap to update</span>
         </div>
       </div>
-      <p>Face search notification: "Finding faces" while new photos get their faces, "Tagging photos" while older photos only get their tag vector. Same count as Settings, Face search.</p>
+      <p>Scan notification: "Finding faces" while new photos get their faces, "Tagging photos" while older photos only get their tag vector. Same count as Settings, Scan.</p>
       <p>Update notification: from the daily check, once per version, in its own "Updates" channel so it can be muted alone. A tap opens Settings at Updates. Swiping it away is fine: the row still shows the new version.</p>
     </div>
   </article>
@@ -1845,7 +1845,7 @@ for (const [id, [icon, sub, off, pct, btn]] of Object.entries(updateRows)) {
 }
 const searchDone = document.getElementById("search-done-phone");
 searchDone.prepend(...[...document.querySelector("#settings .phone").children].map(n => n.cloneNode(true)));
-searchDone.querySelector(".set.run").innerHTML = `<svg class="i"><use href="#i-check"/></svg><div><b>Face search</b><span>Done · 1,706 photos</span><div class="track off"><div></div></div></div>`;
+searchDone.querySelector(".set.run").innerHTML = `<svg class="i"><use href="#i-check"/></svg><div><b>Scan</b><span>Done · 1,706 photos</span><div class="track off"><div></div></div></div>`;
 const rescan = document.getElementById("rescan-phone");
 rescan.prepend(...[...document.querySelector("#settings .phone").children].map(n => n.cloneNode(true)));
 document.getElementById("person-more-phone").prepend(...[...document.querySelector("#person .phone").children].map(n => n.cloneNode(true)));

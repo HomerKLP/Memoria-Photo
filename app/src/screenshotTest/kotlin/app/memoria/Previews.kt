@@ -373,7 +373,7 @@ fun SkipFolders() = MemoriaTheme {
     }
 }
 
-/** Settings with a run going (mockup "Settings"); the Face search states pair with settings_faceSearchStates_rowsStayPut. */
+/** Settings with a run going (mockup "Settings"); the Scan states pair with settings_faceSearchStates_rowsStayPut. */
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 900)
 @Composable
@@ -418,7 +418,8 @@ fun SettingsModelsStopped() = MemoriaTheme {
 @Preview(widthDp = 360, heightDp = 1100)
 @Composable
 fun SettingsUpdateUpToDate() = MemoriaTheme {
-    Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.2.0", update = Updates.State(Updates.Status.UpToDate, checkedAt = System.currentTimeMillis())) }
+    // a fixed day: the renderer prints the date, so now() changed the image daily
+    Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.2.0", update = Updates.State(Updates.Status.UpToDate, checkedAt = 1_792_497_600_000L)) }
 }
 
 @PreviewTest

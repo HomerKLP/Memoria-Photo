@@ -86,7 +86,7 @@ Goal: keep screenshots, memes and documents out of face search.
   - [x] Part B, mockup (2026-10-26): Search gets a "Categories" row (3 tiles like Library's Places row, See all), tags match while typing, a category opens a photo grid (`docs/design.html`: Search, Search typing, Categories, Category).
   - [x] Part C, code (2026-10-26): `Categories.kt` scores the photo vectors when a screen opens, nothing stored; typed hits in Search, Categories page, Category page (the Place page). Test phone: ~100 ms, no cache.
   - [x] Part D (2026-10-27): the Categories row is on Library under Places, not in Search; Library's Albums show one row.
-- [ ] Save the labels so the user can browse Selfies, Group photos, Screenshots.
+- [x] Save the labels so the user can browse Selfies, Group photos, Screenshots (2026-10-27): Selfies and Group photos are categories, Screenshots is the album chip in Search.
 
 ## Phase 4: gallery basics (paused, basics done)
 - [x] Honey theme (`Theme.kt`, Bricolage Grotesque font in the APK) and two bottom tabs. Test screen moved to Library > Dev tools.
@@ -189,7 +189,7 @@ Items marked **Important** must be done before the first public release.
 - [ ] Keep phone checks for the rest: stutter, blurry viewer, NPU, foreground worker. Tests can't cover these.
 
 ## Phase 10: smart search (later)
-- [ ] AI labels on every photo (document, ID card, receipt, meme, food, pet...): type "documents" or "id", see all of them. Builds on the Phase 3 classifier.
+- [x] AI labels on every photo (document, ID card, receipt, meme, food, pet...): type "documents" or "id", see all of them. Done as categories (2026-10-27, Phase 3 tagger step 6). Builds on the Phase 3 classifier.
 - [ ] Free text search ("beach at sunset") with an on-device CLIP-style model (SigLIP2's text side; English and Russian).
 - [ ] Optional: OCR, so search finds the text inside documents, receipts and screenshots. Runs only on photos the tagger marks as one; an open model, no ML Kit.
 
