@@ -83,7 +83,7 @@ Goal: keep screenshots, memes and documents out of face search.
 - [x] Tagger step 5, download (2026-10-26): `tagger.tflite` alone in the `models-v2` pre-release (face models stay in `models-v1`), pinned hash in `Models.kt`. The Settings row is now "Models", 344 MB; phones with the face models download only the tagger, by itself on Wi-Fi.
 - [ ] Tagger step 6, tags: the tag vectors ship as a small file; where tags show in the app goes into the mockup first.
   - [x] Part A, the file (2026-10-26): `tags.py export` -> `assets/tags.json`, 14 tags, each cut at 90% right on the bench (`docs/tagger.md`).
-  - [ ] Part B, mockup: Search gets a "Things" row of photo tiles, tags match while typing, a tag opens a photo grid.
+  - [ ] Part B, mockup: Search gets a "Categories" row (3 tiles like Library's Places row, See all), tags match while typing, a category opens a photo grid. Drawn 2026-10-26 (`docs/design.html`: Search, Search typing, Categories, Category); waits for the user's look.
   - [ ] Part C, code.
 - [ ] Save the labels so the user can browse Selfies, Group photos, Screenshots.
 
