@@ -698,3 +698,9 @@ Checked 2026-10-27 on v0.3.0 (release, compiled), frame by frame (`gfxinfo frame
 - Videos (user, 2026-10-27: "opens without animation"): with animations ×10 slower, a portrait video once came in at near full size, half see-through, like a missing thumbnail (nothing to grow, then the video frame fades in mostly open). Five more tries (Photos grid, Library > Videos, back to Photos after Videos) all grew from the tile; a log showed the grow path and a cached thumbnail each time. Not reproduced.
 
 Fixed 2026-10-27 (debug build, not yet measured on release): the open is a spring from rest (damping 1, stiffness 500, ~340 ms); `FollowViewer` reveals only after a swipe, so the grid stays put on open (checked on the phone: the bottom-edge open left every tile in place); `ViewerChrome` keeps the bars composed and only places them while showing (no spike at the end of the open; `viewer_hiddenBars_letTapsThrough` checks a hidden bar takes no tap). The app asks for 120 Hz (`preferredDisplayModeId`, above). Left: the crop-reveal rework (Phase 7) and `make perf` on a release build.
+
+## Grid tiles pixelated on some photos
+
+Seen 2026-10-27 on two DSLR photos in a person's grid. MediaStore gives back their 160x112 EXIF preview, so `Thumb` decodes the photo itself, but at an exact 480 px: Skia scales by 1/2 in libjpeg, then keeps every 5th pixel with no averaging, which looks jagged. Fixed: halving only (`viewerSample`, short side at least a third of the screen), so libjpeg does the averaging; a 4928x3264 photo now decodes at 616x408. Checked on the phone (debug).
+
+Still open: most camera photos come back as their 240x320 EXIF preview (logged on the test phone), stretched 1.5x into a ~360 px tile, so the whole grid is a little soft. Fix idea: decode ourselves when the short side is under the tile size. It costs a decode per tile while scrolling, so check `make perf` before and after.

@@ -878,7 +878,11 @@ fun Thumb(tile: Tile, modifier: Modifier) {
             val thumb = runCatching { context.contentResolver.loadThumbnail(tile.uri, Size(300, 300), signal) }.getOrNull()
             // old camera photos: MediaStore hands back the 160 px EXIF preview, blurry in a tile, so decode the photo itself
             val small = thumb != null && tile.duration == null && min(thumb.width, thumb.height) < 200
-            value = (if (small) runCatching { loadPhoto(ImageDecoder.createSource(context.contentResolver, tile.uri), 480) }.getOrNull() ?: thumb else thumb)
+            // halving only, to about a third of the screen: an exact size makes Skia keep every n-th pixel, which looks pixelated
+            fun decode() = ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, tile.uri)) { decoder, info, _ ->
+                decoder.setTargetSampleSize(viewerSample(info.size.width, info.size.height, context.resources.displayMetrics.widthPixels / 3))
+            }
+            value = (if (small) runCatching { decode() }.getOrNull() ?: thumb else thumb)
                 ?.also { thumbs.put(tile.id, it) }
         }
         // The tile left the screen: stop its load
