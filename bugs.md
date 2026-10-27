@@ -98,6 +98,8 @@ Fix ideas:
 
 2026-10-18: fixed. Library and People read `taggedFaces()` (`LightFace`, no 512-float vector) and map with `toVec()`; the vector was never read on screen. Merge with is the only consumer (it ranks by the mean face), so `MergeSheet` loads `faceVecs()` once when its sheet opens and passes the means to `MergeContent` (empty in tests/previews, so they keep the old path). The People summary count now comes from a new `IndexDao.faceTotal()` (the old `faces.size` was the whole `faceVecs()` list). Emulator, debug, ~1.8k faces: People load ~100 -> ~50 ms and the ~3.6 MB of vectors per open are gone; Library's own number barely moved because albums/places dominate it. `Search.kt` still loads `faceVecs()` for its named-people list (same fix, not done). `make check`, `make layout` green.
 
+2026-10-27, first Library tap after a cold start (the user saw a wait on debug). Screencaps every ~150 ms on the phone, time from the tab bar changing until no grey placeholder is left, 3 runs: release v0.3.0 (compiled) 130-300 ms, debug 470-770 ms. Mostly the debug build; release still shows the grey row for one frame on some runs, since the first load has no cache and reads people, albums, trash, places and every photo vector at once.
+
 ## Viewer opens blurry, then sharpens
 
 Mostly fixed 2026-10-20 (see "Grid and viewer feel slow"): the viewer decodes at about screen size, tap to sharp ~330 -> ~175 ms. A short blur is still there.
