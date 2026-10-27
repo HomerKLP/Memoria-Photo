@@ -1,6 +1,7 @@
 package app.memoria
 
 import android.net.Uri
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -338,6 +339,27 @@ class BehaviorTest {
         rule.onNodeWithContentDescription("More").performClick()
         rule.onNodeWithText("Edit in…").performClick()
         assertEquals("edit", fired)
+    }
+
+    /** Hidden bars stay composed (no dropped frame when they show), so a tap where Back was must reach the photo. */
+    @Test fun viewer_hiddenBars_letTapsThrough() {
+        var visible by mutableStateOf(true)
+        var backs = 0
+        var photoTaps = 0
+        rule.setContent {
+            MemoriaTheme { Surface { Box(Modifier.fillMaxSize()) {
+                Box(Modifier.fillMaxSize().testTag("photo").clickable { photoTaps++ })
+                ViewerChrome(visible, "Sat, 11 Oct", "14:32", false, { backs++ }, {}, {}, {}, {})
+            } } }
+        }
+
+        val back = rule.onNodeWithContentDescription("Back").getUnclippedBoundsInRoot()
+        rule.runOnIdle { visible = false }
+        rule.onNodeWithTag("photo").performTouchInput {
+            click(Offset(((back.left + back.right) / 2).toPx(), ((back.top + back.bottom) / 2).toPx()))
+        }
+        assertEquals(0, backs)
+        assertEquals(1, photoTaps)
     }
 
     // --- Album ---------------------------------------------------------------------------------

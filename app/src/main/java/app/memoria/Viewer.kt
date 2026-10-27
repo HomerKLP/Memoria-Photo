@@ -14,17 +14,14 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.rememberSplineBasedDecay
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.Orientation
@@ -88,6 +85,7 @@ import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
@@ -136,7 +134,8 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
     val barIcons = APPEARANCE_LIGHT_STATUS_BARS or APPEARANCE_LIGHT_NAVIGATION_BARS
     // 0: the photo sits in its grid tile, 1: full screen. It grows on open and shrinks back on close.
     val shown = remember { Animatable(0f) }
-    LaunchedEffect(Unit) { shown.animateTo(1f, tween(300, easing = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f))) }
+    // A spring from rest: the old front-loaded 300 ms curve did half the motion in one frame, so it looked skipped
+    LaunchedEffect(Unit) { shown.animateTo(1f, spring(dampingRatio = 1f, stiffness = 500f, visibilityThreshold = 0.004f)) }
     // false: no tile on screen to grow from or land in (or the photo is zoomed), so the photo fades instead
     var fly by remember { mutableStateOf(onScreen(start)) }
     var closing by remember { mutableStateOf(false) }
@@ -381,43 +380,49 @@ fun ViewerChrome(
     bottom: Boolean = true, // false: the details panel is up and covers the bottom bar
 ) {
     var menu by remember { mutableStateOf(false) }
+    // The bars stay composed and are only placed while showing: composing them when the opened photo
+    // settled cost a dropped frame, and unplaced bars take no taps meant for the photo.
+    val top = animateFloatAsState(if (visible) 1f else 0f, tween(barsFadeMillis), label = "topBar")
+    val low = animateFloatAsState(if (visible && bottom) 1f else 0f, tween(barsFadeMillis), label = "bottomBar")
     Box(Modifier.fillMaxSize()) {
-        AnimatedVisibility(visible, Modifier.align(Alignment.TopCenter), enter = fadeIn(tween(barsFadeMillis)), exit = fadeOut(tween(barsFadeMillis))) {
-            Row(
-                Modifier.fillMaxWidth()
-                    .background(Brush.verticalGradient(listOf(viewerBg.copy(alpha = 0.62f), Color.Transparent)))
-                    .statusBarsPadding().padding(bottom = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(onBack) { Icon(painterResource(R.drawable.ic_back), "Back", tint = onViewer) }
-                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(title, color = onViewer, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                    Text(subtitle, color = onViewer.copy(alpha = 0.7f), fontSize = 12.sp)
-                }
-                // More (three dots): the same width as Back, so the date stays centered. Opens the Menu part.
-                IconButton({ if (menuItems.isNotEmpty()) menu = true }) {
-                    Icon(painterResource(R.drawable.ic_more), "More", tint = onViewer)
-                }
+        Row(
+            Modifier.align(Alignment.TopCenter)
+                .layout { m, c -> val p = m.measure(c); layout(p.width, p.height) { if (top.value > 0f) p.place(0, 0) } }
+                .graphicsLayer { alpha = top.value }
+                .fillMaxWidth()
+                .background(Brush.verticalGradient(listOf(viewerBg.copy(alpha = 0.62f), Color.Transparent)))
+                .statusBarsPadding().padding(bottom = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onBack) { Icon(painterResource(R.drawable.ic_back), "Back", tint = onViewer) }
+            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(title, color = onViewer, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                Text(subtitle, color = onViewer.copy(alpha = 0.7f), fontSize = 12.sp)
+            }
+            // More (three dots): the same width as Back, so the date stays centered. Opens the Menu part.
+            IconButton({ if (menuItems.isNotEmpty()) menu = true }) {
+                Icon(painterResource(R.drawable.ic_more), "More", tint = onViewer)
             }
         }
-        AnimatedVisibility(visible && bottom, Modifier.align(Alignment.BottomCenter), enter = fadeIn(tween(barsFadeMillis)), exit = fadeOut(tween(barsFadeMillis))) {
-            Row(
-                Modifier.fillMaxWidth()
-                    .background(Brush.verticalGradient(listOf(Color.Transparent, viewerBg.copy(alpha = 0.62f))))
-                    .navigationBarsPadding().padding(top = 16.dp, bottom = 6.dp),
-                horizontalArrangement = Arrangement.SpaceAround,
-            ) {
-                IconButton(onShare) { Icon(painterResource(R.drawable.ic_share), "Share", tint = onViewer) }
-                IconButton(onFavorite) {
-                    Icon(
-                        painterResource(if (favorite) R.drawable.ic_favorite else R.drawable.ic_favorite_border),
-                        if (favorite) "Remove from favorites" else "Add to favorites",
-                        tint = if (favorite) Color(0xFFE9A23B) else onViewer,
-                    )
-                }
-                IconButton(onInfo) { Icon(painterResource(R.drawable.ic_info), "Details", tint = onViewer) }
-                IconButton(onDelete) { Icon(painterResource(R.drawable.ic_trash_line), "Delete", tint = onViewer) }
+        Row(
+            Modifier.align(Alignment.BottomCenter)
+                .layout { m, c -> val p = m.measure(c); layout(p.width, p.height) { if (low.value > 0f) p.place(0, 0) } }
+                .graphicsLayer { alpha = low.value }
+                .fillMaxWidth()
+                .background(Brush.verticalGradient(listOf(Color.Transparent, viewerBg.copy(alpha = 0.62f))))
+                .navigationBarsPadding().padding(top = 16.dp, bottom = 6.dp),
+            horizontalArrangement = Arrangement.SpaceAround,
+        ) {
+            IconButton(onShare) { Icon(painterResource(R.drawable.ic_share), "Share", tint = onViewer) }
+            IconButton(onFavorite) {
+                Icon(
+                    painterResource(if (favorite) R.drawable.ic_favorite else R.drawable.ic_favorite_border),
+                    if (favorite) "Remove from favorites" else "Add to favorites",
+                    tint = if (favorite) Color(0xFFE9A23B) else onViewer,
+                )
             }
+            IconButton(onInfo) { Icon(painterResource(R.drawable.ic_info), "Details", tint = onViewer) }
+            IconButton(onDelete) { Icon(painterResource(R.drawable.ic_trash_line), "Delete", tint = onViewer) }
         }
         Menu(menu, onDismiss = { menu = false }, items = menuItems)
     }

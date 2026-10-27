@@ -90,11 +90,11 @@ def blank_grid(caps=16):
 
 
 def open_viewer():
-    """Tap the second tile under the first day header; True once the viewer's Details button shows."""
+    """Tap the first tile under the first day header (a day can have one photo); True once the viewer's Details button shows."""
     m = re.search(r'text="\w{3}, \d+ \w{3}[^"]*"[^>]*?bounds="\[\d+,\d+\]\[\d+,(\d+)\]"', screen())
     if not m:
         return False
-    sh(f"input tap {W * 3 // 8} {int(m[1]) + W // 8}")
+    sh(f"input tap {W // 6} {int(m[1]) + W // 8}")
     time.sleep(1.5)
     return 'content-desc="Details"' in screen()
 

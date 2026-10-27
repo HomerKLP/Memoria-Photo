@@ -109,7 +109,6 @@ import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -256,11 +255,21 @@ var viewerTile by mutableStateOf<Long?>(null)
  */
 var fastScrolling by mutableStateOf(false)
 
-/** Keeps the viewer's photo in view in [grid], whose tiles come in [order], so closing the viewer lands in its tile. */
+/**
+ * Keeps the viewer's photo in view in [grid], whose tiles come in [order], so closing the viewer lands in its tile.
+ * Only after a swipe: on open the grid stays put, since the photo is growing out of its tile.
+ */
 @Composable
 fun FollowViewer(grid: LazyGridState, order: List<Tile>) {
     val tiles by rememberUpdatedState(order)
-    LaunchedEffect(grid) { snapshotFlow { viewerTile }.filterNotNull().collectLatest { grid.reveal(it, tiles) } }
+    LaunchedEffect(grid) {
+        var last: Long? = null
+        snapshotFlow { viewerTile }.collectLatest { id ->
+            val swiped = last != null
+            last = id
+            if (swiped && id != null) grid.reveal(id, tiles)
+        }
+    }
 }
 
 /** Scrolls until tile [id] is fully in view and not under a pinned month header. */
