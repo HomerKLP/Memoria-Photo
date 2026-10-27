@@ -98,6 +98,8 @@ Fix ideas:
 
 2026-10-18: fixed. Library and People read `taggedFaces()` (`LightFace`, no 512-float vector) and map with `toVec()`; the vector was never read on screen. Merge with is the only consumer (it ranks by the mean face), so `MergeSheet` loads `faceVecs()` once when its sheet opens and passes the means to `MergeContent` (empty in tests/previews, so they keep the old path). The People summary count now comes from a new `IndexDao.faceTotal()` (the old `faces.size` was the whole `faceVecs()` list). Emulator, debug, ~1.8k faces: People load ~100 -> ~50 ms and the ~3.6 MB of vectors per open are gone; Library's own number barely moved because albums/places dominate it. `Search.kt` still loads `faceVecs()` for its named-people list (same fix, not done). `make check`, `make layout` green.
 
+2026-10-27, first Library tap after a cold start (the user saw a wait on debug). Screencaps every ~150 ms on the phone, time from the tab bar changing until no grey placeholder is left, 3 runs: release v0.3.0 (compiled) 130-300 ms, debug 470-770 ms. Mostly the debug build; release still shows the grey row for one frame on some runs, since the first load has no cache and reads people, albums, trash, places and every photo vector at once.
+
 ## Viewer opens blurry, then sharpens
 
 Mostly fixed 2026-10-20 (see "Grid and viewer feel slow"): the viewer decodes at about screen size, tap to sharp ~330 -> ~175 ms. A short blur is still there.
@@ -481,6 +483,18 @@ Correction 2026-10-20: the tables above never had the baseline profile. `perf.py
 
 Cold start is 14-25 ms slower than with the profile the app recorded during an hour of use, so the shipped baseline profile may be out of date (regenerate on the emulator, `:app:generateReleaseBaselineProfile`). The phone was hot after an hour of tests, so read small gaps as noise.
 
+| 2026-10-27, v0.3.0 (viewer: median of 2 runs) | frames | janky % | p90 ms | p99 ms |
+|---|---|---|---|---|
+| Cold start: first frame 116 ms, timeline 163 ms | | | | |
+| Photos, first scroll | 340 | 0.3 | 5 | 8 |
+| Photos, scroll | 315 | 0 | 6 | 8 |
+| Library, open + scroll | 148 | 0.7 | 7 | 19 |
+| People, open + scroll | 140 | 0.7 | 7 | 12 |
+| Viewer, open + 3 swipes | 216 | 1.6 | 6 | 14.5 |
+| Details, open | 82 | 1.2 | 5.5 | 13.5 |
+
+Native heap after 8 flings 141 MB, no blank tiles on a cold fling. The viewer is a bit worse than on 2026-10-20, see "Opening a photo" below. The display is not at 120 Hz in the app: it idles at 60 Hz and renders at 90 Hz while things move, even under a finger. The phone caps it per app: with Memoria (release or debug) in front, `dumpsys display` shows `PRIORITY_APP_REQUEST_RENDER_FRAME_RATE_RANGE` max 90; with the phone's Settings app it is 120, and Settings scrolls at 120. Our window asks for no rate, so the phone fills that vote in itself. Tried 2026-10-27 on debug: `MainActivity` sets `preferredDisplayModeId` to the fastest mode at the current resolution (mode 4, 120 Hz). The vote goes to 120, a drag runs at 120 Hz (94 of 107 frames) and the photo open too (~50 of 56); idle still drops to 60 Hz, so no battery cost at rest. `perf.py` now taps the first tile under the first day header: the newest day had one photo, so the old second-tile tap hit empty space. Run 1 still missed the viewer once.
+
 ## Grid and viewer feel slow, though frame times are fine
 
 Frame times are clean (table above), so the slowness is loading, not jank. Measured 2026-10-20 on the release build with perfetto and screencaps.
@@ -675,3 +689,12 @@ Fix ideas:
 - The 300 ms tween starts in `LaunchedEffect(Unit)` with the viewer's first composition; if that frame is slow, most of the motion is gone before it shows. Start it after the first frame, or drive it from frame time.
 - Rework: the whole photo scales from the tile to full screen (a spring, no step-by-step crop reveal), the grid behind dims. Check on a release build.
 - Parallax when opening an album or a place: the page under it slides out slower than the new page comes in. Same "mature" goal.
+
+Checked 2026-10-27 on v0.3.0 (release, compiled), frame by frame (`gfxinfo framestats`); the phone blocks `screenrecord`. No frame of ours is slow, the causes are:
+- **The curve.** `CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)` over 300 ms: on the measured frame times the photo is at 0%, then 51% on the next frame, then creeps through the last 30% for ~250 ms. Half the motion is one jump, so it looks skipped. Worse at the start: the display idles at 60 Hz, so the first two frames are 17-19 ms apart, then 11 ms (90 Hz).
+- **The grid scrolls under the opening photo.** `FollowViewer` reveals the tapped tile at once: a tile cut by the bottom edge moved the grid up 121 px during the open, and `motion()` follows the moving tile.
+- **The bars drop a frame at the end.** When the open ends (~323 ms), `ViewerChrome` composes for the first time: an 11-15 ms frame (compose 5-7 ms, draw 3-4 ms).
+- Not seen, from the code only: a tile whose thumbnail is not cached yet opens with a fade, and the sharp photo pops in mid-motion.
+- Videos (user, 2026-10-27: "opens without animation"): with animations ×10 slower, a portrait video once came in at near full size, half see-through, like a missing thumbnail (nothing to grow, then the video frame fades in mostly open). Five more tries (Photos grid, Library > Videos, back to Photos after Videos) all grew from the tile; a log showed the grow path and a cached thumbnail each time. Not reproduced.
+
+Fixed 2026-10-27 (debug build, not yet measured on release): the open is a spring from rest (damping 1, stiffness 500, ~340 ms); `FollowViewer` reveals only after a swipe, so the grid stays put on open (checked on the phone: the bottom-edge open left every tile in place); `ViewerChrome` keeps the bars composed and only places them while showing (no spike at the end of the open; `viewer_hiddenBars_letTapsThrough` checks a hidden bar takes no tap). The app asks for 120 Hz (`preferredDisplayModeId`, above). Left: the crop-reveal rework (Phase 7) and `make perf` on a release build.

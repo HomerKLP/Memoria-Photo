@@ -99,6 +99,13 @@ class MainActivity : ComponentActivity() {
         val bars = SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
         enableEdgeToEdge(bars, bars)
         super.onCreate(savedInstanceState)
+        // The phone caps apps it does not know at 90 Hz; ask for its fastest mode at the same resolution
+        window.attributes = window.attributes.apply {
+            val now = display.mode
+            preferredDisplayModeId = display.supportedModes
+                .filter { it.physicalWidth == now.physicalWidth && it.physicalHeight == now.physicalHeight }
+                .maxBy { it.refreshRate }.modeId
+        }
         // not on a restore: the same intent comes back, and Settings would open again
         if (savedInstanceState == null && intent.getBooleanExtra("openSettings", false)) { atUpdates = intent.getBooleanExtra("atUpdates", false); openSettings++ }
         val dir = File(getExternalFilesDir(null), "test").apply { mkdirs() }
