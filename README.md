@@ -60,7 +60,8 @@ The models were picked on real family photos, not only on paper: 3 face finders 
 - **Albums:** phone folders, new albums, move photos.
 - **Places:** photos by town, names found offline.
 - **Favorites, Videos, Trash:** use the phone's own favorites and trash.
-- **Search:** people, places, months.
+- **Categories:** pets, documents, food, sunsets and 10 more, sorted on the phone.
+- **Search:** people, places, months, categories.
 - **Folders to skip:** keep some folders out of face search.
 
 ## Privacy
@@ -69,7 +70,7 @@ The models were picked on real family photos, not only on paper: 3 face finders 
 - No account, no ads, no analytics, no trackers.
 - Faces and names stay in a local database. Android's cloud backup is off, so it never reaches your Google account.
 - The app never copies your library. It works on the phone's own photos.
-- The internet is used once: to download the face models from this repo's releases.
+- The internet is used only to download the models once and to check this repo's releases for app updates (daily, can be turned off).
 
 ## Speed
 
@@ -100,8 +101,7 @@ bc1c500550d9e3bd73e27f44132877189329f88875ace0bd6049a828e792b240
 
 ## Roadmap
 
-- **Smart search:** type "documents", "receipts" or "beach at sunset".
-- **Photo types:** browse selfies, group photos and screenshots.
+- **Smart search:** type any words, like "the blue bike" or "cake with candles".
 - **Pets:** your cats and dogs, found and grouped like people.
 - **Video compression** with no visible loss.
 - **Google Takeout import:** bring your old Google Photos home.
@@ -122,7 +122,7 @@ make install                   # macOS: build, install over USB, open the app
 
 The debug build installs as "Memoria Debug", next to the release app. `make` alone lists every command.
 
-The face models are made from the original ONNX files by [`bench/tflite.py`](bench/tflite.py) (needs [uv](https://docs.astral.sh/uv/)).
+The models are made from the original ONNX files by [`bench/tflite.py`](bench/tflite.py) (needs [uv](https://docs.astral.sh/uv/)). The tagger's ONNX file comes from `bench/tags.py onnx` first.
 
 ## Tech
 
@@ -135,6 +135,7 @@ Memoria stands on great open work:
 - [YOLOv5-face](https://github.com/deepcam-cn/yolov5-face) finds faces (GPL-3.0).
 - [AdaFace](https://github.com/mk-minchul/AdaFace) tells people apart (MIT).
 - [eDifFIQA](https://github.com/LSIbabnikz/DifFIQA) scores face quality (MIT).
+- [SigLIP 2](https://github.com/google-research/big_vision) sorts photos into categories (Apache 2.0).
 - [GeoNames](https://www.geonames.org) gives offline town names (CC BY 4.0).
 - [Bricolage Grotesque](https://github.com/ateliertriay/bricolage) and [Roboto](https://github.com/googlefonts/roboto-classic) fonts (SIL OFL 1.1).
 
