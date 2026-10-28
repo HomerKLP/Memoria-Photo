@@ -699,8 +699,49 @@ Checked 2026-10-27 on v0.3.0 (release, compiled), frame by frame (`gfxinfo frame
 
 Fixed 2026-10-27 (debug build, not yet measured on release): the open is a spring from rest (damping 1, stiffness 500, ~340 ms); `FollowViewer` reveals only after a swipe, so the grid stays put on open (checked on the phone: the bottom-edge open left every tile in place); `ViewerChrome` keeps the bars composed and only places them while showing (no spike at the end of the open; `viewer_hiddenBars_letTapsThrough` checks a hidden bar takes no tap). The app asks for 120 Hz (`preferredDisplayModeId`, above). Left: the crop-reveal rework (Phase 7) and `make perf` on a release build.
 
+## Play Protect warns on install
+
+Seen 2026-10-27 on the first in-app update (0.3.0 to 0.3.1, test phone). The update went through and kept the data, but on the way: the updater opened the APK with an "Open with" chooser (`ResolverActivity`), then the phone maker's installer, then Google's developer verifier ran (`com.google.android.verifier`) and Play Protect showed a warning that the app may be harmful. The user went on and it installed.
+
+Cause, most likely: the app is not registered with Google's developer verification (sideloaded apps must come from a registered developer; enforced in four countries since 2026-09-30, worldwide planned for 2027). Not a finding in our code.
+
+Fix ideas:
+- Register the developer and `app.memoria` with the release key in Google's console before the worldwide start. The user's call: it ties the app to a verified identity at Google.
+- Say in the release notes and README that Play Protect may warn, and how to check the APK (signing certificate SHA-256).
+- Install with a `PackageInstaller` session instead of an `ACTION_VIEW` intent, so no "Open with" chooser shows.
+
 ## Grid tiles pixelated on some photos
 
 Seen 2026-10-27 on two DSLR photos in a person's grid. MediaStore gives back their 160x112 EXIF preview, so `Thumb` decodes the photo itself, but at an exact 480 px: Skia scales by 1/2 in libjpeg, then keeps every 5th pixel with no averaging, which looks jagged. Fixed: halving only (`viewerSample`, short side at least a third of the screen), so libjpeg does the averaging; a 4928x3264 photo now decodes at 616x408. Checked on the phone (debug).
 
 Still open: most camera photos come back as their 240x320 EXIF preview (logged on the test phone), stretched 1.5x into a ~360 px tile, so the whole grid is a little soft. Fix idea: decode ourselves when the short side is under the tile size. It costs a decode per tile while scrolling, so check `make perf` before and after.
+
+## Album named with only spaces shows as "(invalid)"
+
+Seen 2026-10-28: a new album named with 5 spaces was made, and its Library tile reads "(invalid)".
+
+Steps:
+1. Library > Albums > New album (or Move to album > New album in the viewer).
+2. Type 5 spaces as the name, pick a photo, move it.
+3. Library's Albums row shows "(invalid)" with 1 photo.
+
+Odd, since Next and Move should stay off for a blank name (`isBlank` in `NewAlbum.kt` and `Move.kt`). Android names a folder "(invalid)" when nothing is left of its name after it removes characters a file name can't have.
+
+Fix ideas:
+- Find what got past `isBlank` (keyboard space character, or a name with only dots and spaces).
+- Turn Next / Move off when the name is empty after Android's file name cleanup, not only after `trim()`.
+
+## Library cover rows show another row item's photo while indexing
+
+Seen 2026-10-28 during a scan: the Categories row showed Pets on a meme, Memes on a document, Documents on a cat. Once the scan ends, a fresh open is right.
+
+Steps:
+1. Start a scan with many new photos, open Library.
+2. As counts grow, the categories change places in the row (most photos first).
+3. The names move, the photos stay in their old slots.
+
+Cause: `Thumb` (`Photos.kt`) keeps its picture when its `tile` changes. `produceState` creates the state once; the `tile.id` key only restarts the loader, which sees the old picture in `value` and stops. The Library rows (`CategoryRow`, `PlaceRow`, the Albums row) draw their tiles by position with no key, so a slot that gets a new item keeps the old photo. Lazy grids with item keys are fine.
+
+Fix ideas:
+- In `Thumb`, `key(tile.id) { produceState(...) }`, so a new tile gets a new state. One line, fixes every caller.
+- Test: put two bitmaps in `thumbs`, show a `CoverTile` with the first tile, switch to the second, check the pixels.
