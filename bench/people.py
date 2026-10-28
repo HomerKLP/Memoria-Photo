@@ -73,7 +73,7 @@ same = sum(s in by_phone.values() for s in mine.values())
 print(f'{len(faces)} faces 40px+, {len(mine)} people ({same} same as the phone, phone has {len(by_phone)})')
 
 # Google tags: a person's name is the top tag of its photos. A face is right or wrong only in a photo with one tag and one face.
-tags = google_people(ROOT / 'testdata/photos')
+tags = google_people(ROOT / 'testdata/takeout')
 per_photo = Counter(f['rel'] for f in faces)
 names = {}
 for k in mine:

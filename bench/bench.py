@@ -244,7 +244,7 @@ if __name__ == '__main__':
     root = Path(__file__).resolve().parent.parent
     ap = argparse.ArgumentParser()
     ap.add_argument('cmd', choices=['detect', 'group', 'eval'])
-    ap.add_argument('--photos', type=Path, default=root / 'testdata/photos')
+    ap.add_argument('--photos', type=Path, default=root / 'testdata/takeout')
     ap.add_argument('--out', type=Path, default=root / 'testdata/out')
     ap.add_argument('--det', default='yolov5m_640', choices=list(DETECTORS))
     ap.add_argument('--threshold', type=float, default=0.65, help='max cosine distance inside a group')
