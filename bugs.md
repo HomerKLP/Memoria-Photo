@@ -115,6 +115,24 @@ Fix ideas:
 - Find what got past `isBlank` (keyboard space character, or a name with only dots and spaces).
 - Turn Next / Move off when the name is empty after Android's file name cleanup, not only after `trim()`.
 
+## Library opens slowly
+
+Reported 2026-10-29 by the user: the Library tab feels slow to show. Not measured yet. Find the cause before adding a preload.
+
+Steps:
+1. Start the app, tap Library. Compare the first open after launch with a later one.
+
+Suspects (from the code, `LibraryScreen` in `Library.kt`):
+- The cache lives in memory only, so the first open after launch shows grey tiles until the whole load ends.
+- One load for everything, step by step: people and albums wait for categories, which reads every photo vector (~13 MB, 100-280 ms on debug).
+- Every open scans all of MediaStore (`albums`) and runs a second query for trash, even with cached data on screen.
+- ~21 covers (12 faces, 9 tiles) start loading only after the data arrives.
+- During a scan, each people save reloads the whole tab.
+
+Fix ideas:
+- First, log each step's time and when the covers are drawn, on the first open and a later one; release numbers after `make release`.
+- Then: show people and albums before categories, start the load at app start (preload), or keep the cache on disk.
+
 ## Library cover rows show another row item's photo while indexing
 
 Seen 2026-10-28 during a scan: the Categories row showed Pets on a meme, Memes on a document, Documents on a cat. Once the scan ends, a fresh open is right.
