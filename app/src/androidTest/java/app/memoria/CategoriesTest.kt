@@ -51,4 +51,14 @@ class CategoriesTest {
         assertTrue(tags.isNotEmpty())
         assertTrue(tags.all { it.vector.size == 768 })
     }
+
+    @Test fun petTag_fromBoxesWhenThereAreAny_coverIsTheSurestBox() {
+        val pet = Tag("pet", "Pets", emptyList(), 0.5f, floatArrayOf(1f, 0f))
+        val vectors = listOf(PhotoVectorRow(1, 1, floatArrayOf(0.9f, 0f)), PhotoVectorRow(2, 1, floatArrayOf(0f, 0f)))
+        val tiles = listOf(tile(1, 100), tile(2, 200), tile(3, 300))
+        assertEquals(listOf(1L), categories(listOf(pet), vectors, tiles).single().tiles.map { it.id }) // no boxes: the tagger
+        val boxed = categories(listOf(pet), vectors, tiles, mapOf(2L to 0.9f, 3L to 0.6f, 9L to 0.7f)).single() // 9 is gone from the phone
+        assertEquals(listOf(3L, 2L), boxed.tiles.map { it.id })
+        assertEquals(2L, boxed.cover.id)
+    }
 }

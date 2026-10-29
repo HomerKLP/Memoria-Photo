@@ -3,6 +3,7 @@ package app.memoria
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.LruCache
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Spring
@@ -106,11 +107,11 @@ import kotlin.math.sqrt
 
 /**
  * A saved face with the kind of its photo. [yes]: the user said it is its person. [rejected]: the user said no to some person.
- * [nearSure]: its person's sharp or Yes faces vouch for it (set by [groupFaces], saved at regroup).
+ * [nearSure]: its person's sharp or Yes faces vouch for it (set by [groupFaces], saved at regroup). [pet]: a cat or dog picture, see [groupPets].
  */
 class FaceVec(
     val id: Long, val photoId: Long, val box: FloatArray, val vector: FloatArray, val quality: Float, val kind: PhotoKind, val personId: Long?,
-    val yes: Boolean = false, val rejected: Boolean = false, val nearSure: Boolean = false,
+    val yes: Boolean = false, val rejected: Boolean = false, val nearSure: Boolean = false, val pet: Boolean = false,
 ) {
     /** Unsure faces wait in Help recognize. A face moved off a person by a no landed by distance, so it is asked again. */
     val sure get() = yes || (!rejected && (nearSure || quality >= 0.4f))
@@ -118,7 +119,7 @@ class FaceVec(
     /** Cosine distance: 0 is the same face. */
     fun distanceTo(o: FaceVec) = 1 - dot(vector, o.vector)
 
-    fun withNearSure(v: Boolean) = FaceVec(id, photoId, box, vector, quality, kind, personId, yes, rejected, v)
+    fun withNearSure(v: Boolean) = FaceVec(id, photoId, box, vector, quality, kind, personId, yes, rejected, v, pet)
 }
 
 /**
@@ -127,9 +128,9 @@ class FaceVec(
  */
 class LightFace(
     val id: Long, val photoId: Long, val box: FloatArray, val quality: Float, val kind: PhotoKind, val personId: Long,
-    val yes: Boolean = false, val rejected: Boolean = false, val nearSure: Boolean = false,
+    val yes: Boolean = false, val rejected: Boolean = false, val nearSure: Boolean = false, val pet: Boolean = false,
 ) {
-    fun toVec() = FaceVec(id, photoId, box, FloatArray(0), quality, kind, personId, yes, rejected, nearSure)
+    fun toVec() = FaceVec(id, photoId, box, FloatArray(0), quality, kind, personId, yes, rejected, nearSure, pet)
 }
 
 class Person(val faces: List<FaceVec>, val main: FaceVec, val id: Long = 0, val name: String? = null, val hidden: Boolean = false, val coverFaceId: Long? = null, val pos: Int? = null) {
@@ -141,10 +142,20 @@ class Person(val faces: List<FaceVec>, val main: FaceVec, val id: Long = 0, val 
 
     /** The face shown for this person (People, Library, the top bar, the sheets): the user's pick, or the main face. */
     val cover get() = faces.firstOrNull { it.id == coverFaceId } ?: main
+
+    /** A cat or dog: its faces are pet pictures (docs/objects.md). */
+    val pet get() = main.pet
 }
 
 /** The same person with a new cover, for updating a cached list in place (see [updateCached]). */
 fun Person.withCover(cover: Long?) = Person(faces, main, id, name, hidden, cover, pos)
+
+/** "18 people · 3 pets", no pets part without pets (docs/design.html, People & pets). */
+fun peopleAndPets(all: List<Person>): String {
+    val pets = all.count { it.pet }
+    val people = all.size - pets
+    return "$people ${if (people == 1) "person" else "people"}" + if (pets == 0) "" else " · $pets pet${if (pets == 1) "" else "s"}"
+}
 
 /** Everything the People screen shows, loaded in one pass. */
 data class PeopleData(val summary: String, val people: List<Person>, val unsure: List<FaceVec>)
@@ -277,6 +288,25 @@ fun groupFaces(all: List<FaceVec>, answers: List<AnswerRow> = emptyList(), merge
     }.sortedByDescending { it.faces.size }
 }
 
+/**
+ * Pets like people (`docs/objects.md`): average linkage on the DINOv2 vectors, cut 0.6, and a pet needs pictures from 6+ photos.
+ * [merges] join two pets as for people. No answers: pets have no Help recognize.
+ */
+fun groupPets(pets: List<FaceVec>, merges: List<MergeRow> = emptyList()): List<Person> {
+    val groups = averageLinkage(pets.map { it.vector }, 0.6f).map { g -> g.map { pets[it] } }.toMutableList()
+    for (m in merges) {
+        val a = groups.indexOfFirst { g -> g.any { it.id == m.personFace } }
+        val b = groups.indexOfFirst { g -> g.any { it.id == m.face } }
+        if (a < 0 || b < 0 || a == b) continue
+        groups[a] = groups[a] + groups[b]
+        groups.removeAt(b)
+    }
+    return groups.filter { g -> g.distinctBy { it.photoId }.size > 5 }.map { Person(it, it.maxBy { f -> f.quality }) }.sortedByDescending { it.faces.size }
+}
+
+/** A person and a pet never merge (docs/design.html, Merge with). */
+fun canMerge(a: Person, b: Person) = a.pet == b.pet
+
 /** Face plus 30% margin as a small WebP, longest side up to 288 px (the 96 dp People face at 3x). Saved while indexing, so the People screen never decodes photos. */
 fun faceThumb(image: Bitmap, box: FloatArray): ByteArray {
     val m = max(box[2] - box[0], box[3] - box[1]) * 0.3f
@@ -337,7 +367,7 @@ fun PeopleScreen(
             // hidden people stay in the list, so one opened from Hidden people still shows
             val shown = people.filter { !it.hidden }
             val unsure = shown.flatMap { p -> p.faces.filter { !it.sure } }.sortedBy { it.quality }
-            PeopleData("${shown.size} people · ${dao.faceTotal()} faces", people, unsure)
+            PeopleData(peopleAndPets(shown), people, unsure)
         }
     }
     BackHandler { if (naming != null) naming = null else if (openId != null) onPersonBack() else onBack() }
@@ -381,10 +411,11 @@ fun PeopleScreen(
         },
     )
     merging?.let { p ->
-        MergeSheet(p, r?.people.orEmpty().filter { it.id != p.id && !it.hidden }, onDismiss = { merging = null }) { other ->
+        MergeSheet(p, r?.people.orEmpty().filter { it.id != p.id && !it.hidden && canMerge(it, p) }, onDismiss = { merging = null }) { other ->
             merging = null
             scope.launch {
-                withContext(Dispatchers.IO + NonCancellable) { mergePeople(db, p, other) }
+                val merged = withContext(Dispatchers.IO + NonCancellable) { runCatching { mergePeople(db, p, other) } }
+                merged.exceptionOrNull()?.let { Toast.makeText(context, it.message, Toast.LENGTH_LONG).show() }
                 reload++
             }
         }
@@ -407,9 +438,12 @@ fun PeopleScreen(
         AlertDialog(
             onDismissRequest = { hiding = null },
             icon = { Icon(painterResource(R.drawable.ic_block), null) },
-            title = { Text("Hide ${name ?: "this person"}?") },
+            title = { Text("Hide ${name ?: if (p.pet) "this pet" else "this person"}?") },
             text = {
-                Text("${name ?: "This person"} leaves People, Library and search. Their faces stay with them, so they never join someone else. Show them again from Settings, Hidden people.")
+                Text(
+                    if (p.pet) "${name ?: "This pet"} leaves People & pets, Library and search. Its pictures stay with it, so they never join another pet. Show it again from Settings, Hidden people & pets."
+                    else "${name ?: "This person"} leaves People, Library and search. Their faces stay with them, so they never join someone else. Show them again from Settings, Hidden people & pets.",
+                )
             },
             confirmButton = {
                 TextButton({
@@ -485,10 +519,10 @@ fun PeopleContent(
         else Column(Modifier.fillMaxSize().safeDrawingPadding()) {
             if (hiddenOnly) {
                 val hidden = data?.people.orEmpty().filter { it.hidden }
-                TopBar("Hidden people", data?.let { if (hidden.isEmpty()) "No people" else "${hidden.size} ${if (hidden.size == 1) "person" else "people"}" }, onBack = onBack)
+                TopBar("Hidden people & pets", data?.let { if (hidden.isEmpty()) "None" else "${hidden.size} hidden" }, onBack = onBack)
                 LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 24.dp)) {
                     if (hidden.isNotEmpty()) item {
-                        Note(R.drawable.ic_info, "Not in People, Library or search. Tap one, then Show person", Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp))
+                        Note(R.drawable.ic_info, "Not in People & pets, Library or search. Tap one, then Show person or Show pet", Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp))
                     }
                     items(hidden.chunked(4), key = { it.first().id }) { row ->
                         Row(Modifier.padding(horizontal = 16.dp, vertical = 7.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -497,11 +531,11 @@ fun PeopleContent(
                         }
                     }
                     if (data != null && hidden.isEmpty()) item {
-                        EmptyState(R.drawable.ic_eye, "No hidden people", "Hide a person from their screen, they show up here")
+                        EmptyState(R.drawable.ic_eye, "Nothing hidden", "Hide a person or a pet from their screen, they show up here")
                     }
                 }
             } else {
-                TopBar("People", data?.summary, onBack = onBack)
+                TopBar("People & pets", data?.summary, onBack = onBack)
                 val shown = data?.people.orEmpty().filter { !it.hidden }
                 // the mockup splits them: named 96 dp 3 a row (name and count), unnamed 56 dp 5 a row (faces only)
                 val (named, unnamed) = shown.partition { !it.name.isNullOrBlank() }
@@ -526,7 +560,7 @@ fun PeopleContent(
                         }
                         if (named.isNotEmpty()) {
                             item("namedHead", { GridItemSpan(maxLineSpan) }) {
-                                Box(Modifier.animateItem(fadeInSpec = fadeIn).overSides()) { SectionHead("Named", hint = "${named.size} ${if (named.size == 1) "person" else "people"}") }
+                                Box(Modifier.animateItem(fadeInSpec = fadeIn).overSides()) { SectionHead("Named", hint = peopleAndPets(named)) }
                             }
                             items(order, key = { "n${it.id}" }, span = { GridItemSpan(5) }) {
                                 ReorderableItem(reorder, "n${it.id}", animateItemModifier = Modifier.animateItem(fadeInSpec = fadeIn)) { lifted ->
@@ -646,7 +680,7 @@ fun PersonDetail(
     val (sure, unsure) = p.faces.partition { it.sure }
     val name = p.name ?: "No name"
     // an unnamed person reads badly in a sentence ("11 may be No name"), so use "this person" there
-    val who = p.name ?: "this person"
+    val who = p.name ?: if (p.pet) "this pet" else "this person"
     val shownPhotos = photos.orEmpty()
     val month = DateTimeFormatter.ofPattern("LLLL yyyy")
     val zone = ZoneId.systemDefault()
@@ -672,7 +706,8 @@ fun PersonDetail(
             }
             else TopBar(
                 title = if (p.name.isNullOrBlank()) "Add name" else name,
-                subtitle = "${p.photos} photo${if (p.photos == 1) "" else "s"} · ${p.faces.size} face${if (p.faces.size == 1) "" else "s"}",
+                // a pet's pictures are its photos' boxes, so photos only
+                subtitle = "${p.photos} photo${if (p.photos == 1) "" else "s"}" + if (p.pet) "" else " · ${p.faces.size} face${if (p.faces.size == 1) "" else "s"}",
                 onBack = onBack,
                 leading = { FaceImage(p.cover, Modifier.padding(end = 12.dp).size(40.dp).clip(CircleShape)) },
                 onTitle = onName,
@@ -687,7 +722,7 @@ fun PersonDetail(
                     contentPadding = PaddingValues(bottom = 24.dp),
                     horizontalArrangement = Arrangement.spacedBy(1.dp), verticalArrangement = Arrangement.spacedBy(1.dp),
                 ) {
-                    item(span = { GridItemSpan(maxLineSpan) }) { SectionHead("Faces", hint = "These faces match $who") }
+                    item(span = { GridItemSpan(maxLineSpan) }) { SectionHead(if (p.pet) "Pictures" else "Faces", hint = if (p.pet) "These match $who" else "These faces match $who") }
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         Row(
                             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 2.dp),
@@ -731,11 +766,11 @@ fun PersonDetail(
         Menu(
             more, onDismiss = { more = false },
             items = listOf(
-                MenuItem(R.drawable.ic_person, if (p.name.isNullOrBlank()) "Add name" else "Rename") { more = false; onName() },
+                MenuItem(if (p.pet) R.drawable.ic_paw else R.drawable.ic_person, if (p.name.isNullOrBlank()) "Add name" else "Rename") { more = false; onName() },
                 MenuItem(R.drawable.ic_person_add, "Merge with") { more = false; onMerge() },
                 MenuItem(R.drawable.ic_photo, "Change cover") { more = false; onCover() },
-                if (p.hidden) MenuItem(R.drawable.ic_eye, "Show person", dividerBefore = true) { more = false; onHide() }
-                else MenuItem(R.drawable.ic_block, "Hide person", dividerBefore = true) { more = false; onHide() },
+                if (p.hidden) MenuItem(R.drawable.ic_eye, if (p.pet) "Show pet" else "Show person", dividerBefore = true) { more = false; onHide() }
+                else MenuItem(R.drawable.ic_block, if (p.pet) "Hide pet" else "Hide person", dividerBefore = true) { more = false; onHide() },
             ),
         )
     }
@@ -758,6 +793,7 @@ fun Chip(label: String, icon: Int, onClick: () -> Unit) {
 
 /** Merge with: [other]'s faces join [into]. [into] keeps its name, or takes [other]'s if it has none. */
 suspend fun mergePeople(db: Db, into: Person, other: Person) = db.withTransaction {
+    require(canMerge(into, other)) { "A person and a pet can't be merged" }
     val dao = db.index()
     dao.merge(MergeRow(other.main.id, into.main.id))
     dao.movePerson(other.id, into.id)
@@ -816,8 +852,8 @@ fun MergeContent(
         Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             FaceImage(person.cover, Modifier.size(48.dp).clip(CircleShape))
             Column(Modifier.padding(start = 16.dp)) {
-                Text("Merge with ${person.name?.takeIf { it.isNotBlank() } ?: "this person"}", style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("Pick the same person, most alike first", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Merge with ${person.name?.takeIf { it.isNotBlank() } ?: if (person.pet) "this pet" else "this person"}", style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("Pick the same ${if (person.pet) "pet" else "person"}, most alike first", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         Spacer(Modifier.height(14.dp))
@@ -828,7 +864,7 @@ fun MergeContent(
         ) {
             Icon(painterResource(R.drawable.ic_search), null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
             Box(Modifier.padding(start = 12.dp).weight(1f)) {
-                if (text.isEmpty()) Text("Search people", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (text.isEmpty()) Text(if (person.pet) "Search pets" else "Search people", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 BasicTextField(
                     text, onText, singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -896,7 +932,7 @@ fun ChangeCoverContent(person: Person, picked: Long?, onPick: (Long) -> Unit, on
             FaceImage(cover, Modifier.size(48.dp).clip(CircleShape))
             Column(Modifier.padding(start = 16.dp)) {
                 Text("Change cover", style = MaterialTheme.typography.titleLarge)
-                Text("${faces.size} face${if (faces.size == 1) "" else "s"}, clearest first", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("${faces.size} ${if (person.pet) "picture" else "face"}${if (faces.size == 1) "" else "s"}, clearest first", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         Spacer(Modifier.height(14.dp))
@@ -954,8 +990,8 @@ fun NamePersonContent(person: Person, text: String, onText: (String) -> Unit, on
         Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             FaceImage(person.cover, Modifier.size(48.dp).clip(CircleShape))
             Column(Modifier.padding(start = 16.dp)) {
-                Text("Name this person", style = MaterialTheme.typography.titleLarge)
-                Text("${person.photos} photo${if (person.photos == 1) "" else "s"} · ${person.faces.size} face${if (person.faces.size == 1) "" else "s"}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(if (person.pet) "Name this pet" else "Name this person", style = MaterialTheme.typography.titleLarge)
+                Text("${person.photos} photo${if (person.photos == 1) "" else "s"}" + if (person.pet) "" else " · ${person.faces.size} face${if (person.faces.size == 1) "" else "s"}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         Spacer(Modifier.height(14.dp))

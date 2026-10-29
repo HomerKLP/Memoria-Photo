@@ -91,8 +91,9 @@ fun HelpRecognizeScreen(personId: Long?, onBack: () -> Unit) {
     val people by produceState<List<Person>?>(null) {
         value = withContext(Dispatchers.IO) {
             val byPerson = dao.faceVecs().filter { it.personId != null }.groupBy { it.personId!! }
+            // no pets: they have no unsure faces, and a face never goes to a pet
             dao.people().mapNotNull { p -> byPerson[p.id]?.let { fs -> Person(fs, fs.firstOrNull { it.id == p.mainFaceId } ?: fs.first(), p.id, p.name, p.hidden) } }
-                .sortedWith(compareBy({ it.name.isNullOrBlank() }, { -it.photos })) // People screen order
+                .filter { !it.pet }.sortedWith(compareBy({ it.name.isNullOrBlank() }, { -it.photos })) // People screen order
         }
     }
     val queue = remember(people) {

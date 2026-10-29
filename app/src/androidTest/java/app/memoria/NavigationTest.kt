@@ -128,9 +128,9 @@ class NavigationTest {
         rule.onNodeWithText("Licenses").assertIsDisplayed()
         back()
         rule.onNodeWithText("Licenses").assertDoesNotExist()
-        rule.onNodeWithText("Hidden people").performScrollTo().performClick()
+        rule.onNodeWithText("Hidden people & pets").performScrollTo().performClick()
         rule.onNodeWithText("Settings").assertDoesNotExist()
-        rule.onNodeWithText("Hidden people").assertIsDisplayed()
+        rule.onNodeWithText("Hidden people & pets").assertIsDisplayed()
         back()
         rule.onNodeWithText("Settings").assertExists() // the title scrolled up with the page, so not on screen
         back()
@@ -199,13 +199,13 @@ class NavigationTest {
     @Test fun person_fromPeople_backReturnsToTheList() {
         start()
         openLibrary()
-        seeAll("People")
+        seeAll("People & pets")
         waitFor("Navtest")
         rule.onAllNodesWithText("Navtest").onFirst().performClick()
         rule.onNodeWithText("1 photo · 1 face").assertIsDisplayed()
         back()
         rule.onNodeWithText("1 photo · 1 face").assertDoesNotExist()
-        rule.onNodeWithText("People").assertIsDisplayed()
+        rule.onNodeWithText("People & pets").assertIsDisplayed()
         back()
         assertOnLibrary()
     }

@@ -149,6 +149,28 @@ class PeopleLogicTest {
         }
         return (0 until n).filter { alive[it] && members[it].size > 5 }.map { members[it].toSet() }.toSet()
     }
+
+    private fun pet(id: Long, photoId: Long, x: Float, y: Float) =
+        FaceVec(id, photoId, floatArrayOf(0f, 0f, 50f, 50f), floatArrayOf(x, y), 0.8f, PhotoKind.camera, null, pet = true)
+
+    @Test fun petsGroupFromSixPhotos_andMergesJoinThem() {
+        val cat = (1L..6L).map { pet(it, it, 1f, 0f) }
+        val dog = (11L..16L).map { pet(it, it, 0f, 1f) }
+        val seenOnce = (21L..25L).map { pet(it, it, -1f, 0f) } // 5 photos: no pet yet
+        val pets = groupPets(cat + dog + seenOnce)
+        assertEquals(listOf((1L..6L).toSet(), (11L..16L).toSet()), pets.map { p -> p.faces.map { it.id }.toSet() }.sortedBy { it.min() })
+        assertTrue(pets.all { it.pet })
+        assertEquals(12, groupPets(cat + dog, listOf(MergeRow(face = 11, personFace = 1))).single().faces.size)
+    }
+
+    @Test fun aPersonAndAPetNeverMerge() {
+        val person = face(1, 1).let { Person(listOf(it), it) }
+        val cat = pet(2, 2, 1f, 0f).let { Person(listOf(it), it) }
+        assertFalse(canMerge(person, cat))
+        assertTrue(canMerge(cat, cat))
+        assertEquals("1 person · 1 pet", peopleAndPets(listOf(person, cat)))
+        assertEquals("2 people", peopleAndPets(listOf(person, person)))
+    }
 }
 
 // Small copies of a face with one flag flipped, so the tests read simply.

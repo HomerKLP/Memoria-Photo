@@ -73,6 +73,8 @@ class FaceRow(
     val personId: Long? = null,
     val notFace: Boolean = false, // the user said "Not a face": left out of everything
     val nearSure: Boolean = false, // set at regroup: the person's sharp or Yes faces vouch for this face (see groupFaces)
+    // a cat or dog box (`docs/objects.md`): DINOv2 vector, quality = box score, no landmarks; grouped by groupPets, never by groupFaces
+    val pet: Boolean = false,
 )
 
 /**
@@ -94,19 +96,9 @@ class AnswerRow(val faceId: Long, val personFace: Long, val yes: Boolean)
 @Entity(tableName = "merged", primaryKeys = ["face", "personFace"])
 class MergeRow(val face: Long, val personFace: Long)
 
-/**
- * A YOLO26 person, cat or dog box (`docs/objects.md`), x1, y1, x2, y2 as fractions of the photo.
- * Cat and dog boxes with score 0.5+ have the DINOv2 [vector]; [petId] is their group from the last regroup (the group's smallest box id).
- */
+/** A YOLO26 person, cat or dog box (`docs/objects.md`), x1, y1, x2, y2 as fractions of the photo. Pets themselves are [FaceRow]s with pet set. */
 @Entity(tableName = "object_box", indices = [Index("photoId")])
-class ObjectBoxRow(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val photoId: Long, val cls: Int, val score: Float, val box: FloatArray,
-    val vector: FloatArray? = null, val petId: Long? = null,
-)
-
-/** A pet box's id and vector, for grouping. */
-class PetVec(val id: Long, val vector: FloatArray)
+class ObjectBoxRow(@PrimaryKey(autoGenerate = true) val id: Long = 0, val photoId: Long, val cls: Int, val score: Float, val box: FloatArray)
 
 /** The tagger's vector for a photo (`docs/tagger.md`), empty when the photo can't be read. [model] is [Tagger.VERSION]. */
 @Entity(tableName = "photo_vector")
@@ -132,21 +124,21 @@ interface IndexDao {
     /** Faces the user did not mark "Not a face", for the People summary; the display reads no vectors. */
     @Query("SELECT COUNT(*) FROM face WHERE NOT notFace") suspend fun faceTotal(): Int
     @Query(
-        "SELECT f.id, f.photoId, f.box, f.vector, f.quality, p.kind, f.personId, f.nearSure, " +
+        "SELECT f.id, f.photoId, f.box, f.vector, f.quality, p.kind, f.personId, f.nearSure, f.pet, " +
             "EXISTS(SELECT 1 FROM answer a WHERE a.faceId = f.id AND a.yes) AS yes, " +
             "EXISTS(SELECT 1 FROM answer a WHERE a.faceId = f.id AND NOT a.yes) AS rejected FROM face f JOIN photo p ON p.id = f.photoId WHERE NOT f.notFace",
     )
     suspend fun faceVecs(): List<FaceVec>
-    /** The faces of one photo, with vectors: a handful of rows instead of the whole [faceVecs]. */
+    /** The faces of one photo, with vectors: a handful of rows instead of the whole [faceVecs]. No pets: the viewer and the person-box rule are about faces. */
     @Query(
-        "SELECT f.id, f.photoId, f.box, f.vector, f.quality, p.kind, f.personId, f.nearSure, " +
+        "SELECT f.id, f.photoId, f.box, f.vector, f.quality, p.kind, f.personId, f.nearSure, f.pet, " +
             "EXISTS(SELECT 1 FROM answer a WHERE a.faceId = f.id AND a.yes) AS yes, " +
-            "EXISTS(SELECT 1 FROM answer a WHERE a.faceId = f.id AND NOT a.yes) AS rejected FROM face f JOIN photo p ON p.id = f.photoId WHERE NOT f.notFace AND f.photoId = :photoId",
+            "EXISTS(SELECT 1 FROM answer a WHERE a.faceId = f.id AND NOT a.yes) AS rejected FROM face f JOIN photo p ON p.id = f.photoId WHERE NOT f.notFace AND NOT f.pet AND f.photoId = :photoId",
     )
     suspend fun photoFaces(photoId: Long): List<FaceVec>
     /** The faces that belong to a saved person, without vectors: the viewer details panel never matches by distance. */
     @Query(
-        "SELECT f.id, f.photoId, f.box, f.quality, p.kind, f.personId, f.nearSure, " +
+        "SELECT f.id, f.photoId, f.box, f.quality, p.kind, f.personId, f.nearSure, f.pet, " +
             "EXISTS(SELECT 1 FROM answer a WHERE a.faceId = f.id AND a.yes) AS yes, " +
             "EXISTS(SELECT 1 FROM answer a WHERE a.faceId = f.id AND NOT a.yes) AS rejected FROM face f JOIN photo p ON p.id = f.photoId WHERE NOT f.notFace AND f.personId IS NOT NULL",
     )
@@ -196,12 +188,14 @@ interface IndexDao {
     @Query("DELETE FROM object_box WHERE photoId IN (:ids)") suspend fun deleteBoxes(ids: List<Long>)
     @Query("DELETE FROM object_box") suspend fun clearBoxes()
     @Query("DELETE FROM face WHERE id IN (:ids)") suspend fun deleteFaceIds(ids: List<Long>)
-    @Query("SELECT id, vector FROM object_box WHERE vector IS NOT NULL") suspend fun petVecs(): List<PetVec>
-    @Query("UPDATE object_box SET petId = NULL") suspend fun clearPetIds()
-    @Query("UPDATE object_box SET petId = :pet WHERE id IN (:boxes)") suspend fun setPet(boxes: List<Long>, pet: Long)
+    @Insert suspend fun insertFaces(faces: List<FaceRow>)
+    @Query("DELETE FROM face WHERE photoId = :photoId AND pet") suspend fun deletePets(photoId: Long)
+    /** Photos with a cat or dog box 0.5+ and their surest box: the Pets category. */
+    @Query("SELECT photoId, MAX(score) AS score FROM object_box WHERE cls IN (15, 16) AND score >= 0.5 GROUP BY photoId")
+    suspend fun petPhotos(): Map<@MapColumn("photoId") Long, @MapColumn("score") Float>
 }
 
-@Database(entities = [PhotoRow::class, FaceRow::class, PersonRow::class, AnswerRow::class, MergeRow::class, PhotoVectorRow::class, ObjectBoxRow::class], version = 13)
+@Database(entities = [PhotoRow::class, FaceRow::class, PersonRow::class, AnswerRow::class, MergeRow::class, PhotoVectorRow::class, ObjectBoxRow::class], version = 14)
 @TypeConverters(Converters::class)
 abstract class Db : RoomDatabase() {
     abstract fun index(): IndexDao
@@ -256,7 +250,17 @@ abstract class Db : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_object_box_photoId` ON `object_box` (`photoId`)")
             }
         }
-        internal val MIGRATIONS = arrayOf(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+        /** v14: pets are faces (face.pet), so they get names, covers and merges like people; the boxes go and the next run makes them again. */
+        private val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE face ADD COLUMN pet INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("DROP TABLE object_box")
+                db.execSQL("CREATE TABLE IF NOT EXISTS `object_box` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `photoId` INTEGER NOT NULL, `cls` INTEGER NOT NULL, `score` REAL NOT NULL, `box` BLOB NOT NULL)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_object_box_photoId` ON `object_box` (`photoId`)")
+                db.execSQL("UPDATE photo SET objects = NULL")
+            }
+        }
+        internal val MIGRATIONS = arrayOf(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
         private var db: Db? = null
         @Synchronized fun get(context: Context) =
             db ?: // a missing migration crashes instead of wiping names; MigrationTest checks each bump
@@ -423,7 +427,6 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         if (todo.isEmpty() && catchUp.isEmpty()) {
             IndexProgress.finish(applicationContext)
             placePhotos()
-            savePets()
             return savePeople() // nothing new, but the grouping code may have changed
         }
         val base = total - todo.size - catchUp.size // photos with every step done, so the bar starts there
@@ -471,6 +474,7 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                     val tag = tagger?.takeIf { photo.id !in tagged } // a Rescan keeps the vectors
                     var vector: FloatArray? = null
                     var boxes: List<ObjectBoxRow>? = null // null: not boxed, the object models are not here
+                    var pets = emptyList<FaceRow>()
                     val (kind, faces) = try {
                         val kind = kindOf(applicationContext, photo, uri)
                         kind to if (kind == PhotoKind.skip) {
@@ -480,7 +484,9 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                         } else {
                             // Detect on a small decode, full decode only for photos with faces (~half). The tagger reads the same small decode.
                             val source = ImageDecoder.createSource(applicationContext.contentResolver, uri)
-                            val small = loadPhoto(source, 640)
+                            var w = 0
+                            var h = 0
+                            val small = loadPhoto(source, 640) { pw, ph -> w = pw; h = ph }
                             if (tag != null) vector = try {
                                 tag.vector(tag.input(small))
                             } catch (e: Exception) {
@@ -490,7 +496,8 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                             val lb = Letterbox(small)
                             val found = if (objects == null) pipeline.detect(lb) else {
                                 val all = objects.first.detect(lb)
-                                boxes = all.map { boxRow(photo.id, it, small, objects.second) }
+                                boxes = all.map { boxRow(photo.id, it, small) }
+                                pets = all.filter { it.cls != PERSON && it.score >= 0.5f }.map { petFace(photo.id, it, small, objects.second, w, h) }
                                 // no person box, no face detection; then a face counts only inside a person box (docs/objects.md)
                                 val people = all.filter { it.cls == PERSON }.map { it.box }
                                 if (people.isEmpty()) emptyList() else pipeline.detect(lb).filter { inPerson(it.box, people) }
@@ -515,7 +522,7 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                     Db.get(applicationContext).withTransaction {
                         dao.insert(PhotoRow(photo.id, photo.path, kind, objects = boxes?.let { ObjectDetector.VERSION }), faces.map {
                             FaceRow(photoId = photo.id, box = it.box, score = it.score, landmarks = it.landmarks, vector = it.vector!!, quality = it.quality!!, thumb = it.thumb!!)
-                        })
+                        } + pets)
                         boxes?.let { dao.insertBoxes(it) }
                     }
                     vector?.let { dao.insertVector(PhotoVectorRow(photo.id, Tagger.VERSION, it)); tagCount++ }
@@ -525,7 +532,6 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                     if (System.nanoTime() > nextSave) {
                         val t = System.nanoTime()
                         placePhotos()
-                        savePets()
                         savePeople()
                         nextSave = System.nanoTime() + maxOf(30_000_000_000L, 10 * (System.nanoTime() - t))
                     }
@@ -554,13 +560,12 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         }
         if (isStopped) return Result.success()
         placePhotos()
-        savePets()
         return savePeople()
     }
 
     /**
      * A photo indexed before the tagger or the object models: one 640 decode for both. Its old faces outside every person box are
-     * dropped, except [kept] ones. An unreadable photo gets an empty vector and no boxes, so it isn't tried again.
+     * dropped, except [kept] ones, and its pets are added. An unreadable photo gets an empty vector and no boxes, so it isn't tried again.
      */
     private suspend fun catchUp(id: Long, tag: Tagger?, objects: Pair<ObjectDetector, PetVectors>?, kept: Set<Long>) {
         val db = Db.get(applicationContext)
@@ -583,42 +588,41 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         } ?: FloatArray(0)))
         if (objects == null) return
         var boxes = emptyList<ObjectBoxRow>()
+        var pets = emptyList<FaceRow>()
         var drop = emptyList<Long>()
         if (small != null) try {
             val found = objects.first.detect(Letterbox(small))
-            boxes = found.map { boxRow(id, it, small, objects.second) }
-            // old faces are in the pixels of loadPhoto's 4096 decode: the person boxes go there too
-            val k = min(1f, 4096f / max(w, h))
-            val people = found.filter { it.cls == PERSON }.map { b -> FloatArray(4) { i -> b.box[i] * k * if (i % 2 == 0) w.toFloat() / small.width else h.toFloat() / small.height } }
+            boxes = found.map { boxRow(id, it, small) }
+            pets = found.filter { it.cls != PERSON && it.score >= 0.5f }.map { petFace(id, it, small, objects.second, w, h) }
+            val people = found.filter { it.cls == PERSON }.map { toFull(it.box, small, w, h) }
             drop = dao.photoFaces(id).filter { it.id !in kept && !inPerson(it.box, people) }.map { it.id }
         } catch (e: Exception) {
             Log.w("Memoria", "box $id", e)
         }
         db.withTransaction {
             if (drop.isNotEmpty()) dao.deleteFaceIds(drop)
+            // ponytail: a new model version boxes again and replaces the pets, so a pet's cover or merge on this photo is lost; keep them then
+            dao.deletePets(id)
+            dao.insertFaces(pets)
             dao.insertBoxes(boxes)
             dao.setBoxed(id, ObjectDetector.VERSION)
         }
     }
 
-    /** [b] as a DB row: the box as fractions of [small], and the DINOv2 vector for a cat or dog box with score 0.5+. */
-    private fun boxRow(photoId: Long, b: ObjectBox, small: Bitmap, pets: PetVectors) = ObjectBoxRow(
-        photoId = photoId, cls = b.cls, score = b.score, box = FloatArray(4) { i -> b.box[i] / if (i % 2 == 0) small.width else small.height },
-        vector = if (b.cls != PERSON && b.score >= 0.5f) pets.vector(small, b.box) else null,
+    /** [b] as a DB row, the box as fractions of [small]. */
+    private fun boxRow(photoId: Long, b: ObjectBox, small: Bitmap) =
+        ObjectBoxRow(photoId = photoId, cls = b.cls, score = b.score, box = FloatArray(4) { i -> b.box[i] / if (i % 2 == 0) small.width else small.height })
+
+    /** A cat or dog box with score 0.5+ as a pet face: the DINOv2 vector, a picture cut from [small], the box in face pixels. */
+    private fun petFace(photoId: Long, b: ObjectBox, small: Bitmap, pets: PetVectors, w: Int, h: Int) = FaceRow(
+        photoId = photoId, box = toFull(b.box, small, w, h), score = b.score, landmarks = FloatArray(0),
+        vector = pets.vector(small, b.box), quality = b.score, thumb = faceThumb(small, b.box), pet = true,
     )
 
-    /** Groups the pet boxes like people (`docs/objects.md`): average linkage, cut 0.6. A group's id is its smallest box id. */
-    private suspend fun savePets() {
-        val start = System.nanoTime()
-        val db = Db.get(applicationContext)
-        val dao = db.index()
-        val pets = dao.petVecs()
-        val groups = averageLinkage(pets.map { it.vector }, 0.6f)
-        db.withTransaction {
-            dao.clearPetIds()
-            for (g in groups) g.map { pets[it].id }.let { dao.setPet(it, it.min()) }
-        }
-        Log.i("Memoria", "saved ${groups.size} pets from ${pets.size} boxes in ${(System.nanoTime() - start) / 1_000_000} ms")
+    /** A box in [small]'s pixels to the pixels of loadPhoto's 4096 decode of a [w] x [h] photo, where faces are saved. */
+    private fun toFull(b: FloatArray, small: Bitmap, w: Int, h: Int): FloatArray {
+        val k = min(1f, 4096f / max(w, h))
+        return FloatArray(4) { i -> b[i] * k * if (i % 2 == 0) w.toFloat() / small.width else h.toFloat() / small.height }
     }
 
     private val towns by lazy { Towns.load(applicationContext) }
@@ -680,7 +684,8 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
             val faces = dao.faceVecs()
             val old = dao.people()
             val oldFaces = faces.filter { it.personId != null }.groupBy { it.personId!! }.mapValues { e -> e.value.map { it.id }.toSet() }
-            val people = groupFaces(faces, dao.answers(), dao.merges())
+            val merges = dao.merges()
+            val people = groupFaces(faces.filter { !it.pet }, dao.answers(), merges) + groupPets(faces.filter { it.pet }, merges)
             val taken = mutableSetOf<Long>()
             var next = (old.maxOfOrNull { it.id } ?: 0) + 1
             dao.deletePeople()

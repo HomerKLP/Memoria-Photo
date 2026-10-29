@@ -165,7 +165,7 @@ fun DetailsPanel(tile: Tile, modifier: Modifier = Modifier) {
                     val main = fs.firstOrNull { it.id == p.mainFaceId } ?: fs.first()
                     Person(fs.map { it.toVec() }, main.toVec(), p.id, p.name, p.hidden, p.coverFaceId)
                 }
-            }.sortedWith(compareBy({ it.name.isNullOrBlank() }, { -it.photos }))
+            }.filter { !it.pet }.sortedWith(compareBy({ it.name.isNullOrBlank() }, { -it.photos }))
             Triple(info, photoFaces, people)
         }.let { (i, f, p) -> info = i; faces = f; people = p }
     }

@@ -10,6 +10,7 @@ import android.graphics.ImageDecoder
 import android.net.ConnectivityManager
 import android.os.Bundle
 import android.provider.MediaStore
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
@@ -450,7 +451,7 @@ fun TestScreen(dir: File, onBack: () -> Unit) {
         busy = true
         scope.launch(Dispatchers.Default) {
             try {
-                runTest(context, dir, on, { log += "\n$it" }) { preview = it }
+                runTest(context, dir, on, { Log.i("Memoria", "dev: $it"); log += "\n$it" }) { preview = it } // logcat too: the screen's log sits below the preview
             } catch (e: Exception) {
                 log += "\nError: $e"
             }

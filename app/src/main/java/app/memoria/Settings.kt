@@ -272,10 +272,10 @@ fun SettingsContent(
             onSkip,
         ) { Chevron() }
         SettingRow(R.drawable.ic_refresh, "Find faces again", "Deletes faces and names, scans all photos again", onRescan)
-        SectionHead("People")
+        SectionHead("People & pets")
         SettingRow(
-            R.drawable.ic_block, "Hidden people",
-            hidden?.let { if (it == 0) "No people" else "$it ${if (it == 1) "person" else "people"}" } ?: "\u00A0",
+            R.drawable.ic_block, "Hidden people & pets",
+            hidden?.let { if (it == 0) "None" else "$it hidden" } ?: "\u00A0",
             onHidden,
         ) { Chevron() }
         SectionHead("Backup", hint = "Names and faces, not photos")
