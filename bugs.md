@@ -155,7 +155,7 @@ Seen 2026-10-28 on another phone's release build: a "No name" person with 16 pho
 Cause: a person starts from 6+ camera photos with face quality 0.4+, and EDifFIQA-T rates sharp, front-facing cat faces as good faces (it rates how clear a face is, not whether it is human). Then every other face joins the closest person under the cut, and AdaFace puts non-human faces near each other, so the fish joined the cat.
 
 Fix ideas (`docs/objects.md`):
-- Drop a face that is not inside any person box of the object detector (YOLO26, planned for pets too). On the bench this drops every cat and loses about 0.5% of good real faces, mostly partly hidden second people.
+- Drop a face that is not inside any person box of the object detector (YOLO26, planned for pets too). With YOLO26-M at person score 0.05 it drops 32 faces of quality 0.4+, only 1 of them a real face; the rest are a painting, statues, cartoons, a cat.
 - Softer: such a face can't start a person but can still join one, like quality under 0.4.
 
 ## Memoria Debug never auto-indexed new photos

@@ -86,8 +86,8 @@ class DaoTest {
         dao.insert(PhotoRow(3, "Download/c.jpg", PhotoKind.other), emptyList())
         dao.insertVector(PhotoVectorRow(1, 1, FloatArray(768)))
         dao.insertVector(PhotoVectorRow(2, 0, FloatArray(768)))
-        assertEquals(1, dao.doneCount(tagger = true, model = 1).first())
-        assertEquals(3, dao.doneCount(tagger = false, model = 1).first())
+        assertEquals(1, dao.doneCount(tagger = true, model = 1, objects = false, objectsModel = 1).first())
+        assertEquals(3, dao.doneCount(tagger = false, model = 1, objects = false, objectsModel = 1).first())
     }
 
     @Test fun kinds_countsPhotosPerKind() = runBlocking {
@@ -156,5 +156,23 @@ class DaoTest {
         val left = dao.answers().single()
         assertEquals(6L, left.faceId)
         assertFalse(left.yes)
+    }
+
+    @Test fun boxes_boxedByModel_petVecsOnlyWithVector() = runBlocking {
+        dao.insert(PhotoRow(1, "DCIM/Camera/a.jpg", PhotoKind.camera, objects = 1), emptyList())
+        dao.insert(PhotoRow(2, "DCIM/Camera/b.jpg", PhotoKind.camera), emptyList())
+        dao.insertBoxes(listOf(
+            ObjectBoxRow(id = 1, photoId = 1, cls = PERSON, score = 0.9f, box = FloatArray(4)),
+            ObjectBoxRow(id = 2, photoId = 1, cls = CAT, score = 0.8f, box = FloatArray(4), vector = FloatArray(384)),
+            ObjectBoxRow(id = 3, photoId = 2, cls = DOG, score = 0.7f, box = FloatArray(4), vector = FloatArray(384)),
+        ))
+        assertEquals(listOf(1L), dao.boxedIds(1))
+        assertEquals(1, dao.doneCount(tagger = false, model = 1, objects = true, objectsModel = 1).first())
+        assertEquals(2, dao.doneCount(tagger = false, model = 1, objects = false, objectsModel = 1).first())
+        dao.setBoxed(2, 1)
+        assertEquals(listOf(1L, 2L), dao.boxedIds(1).sorted())
+        assertEquals(listOf(2L, 3L), dao.petVecs().map { it.id }.sorted())
+        dao.deleteBoxes(listOf(1))
+        assertEquals(listOf(3L), dao.petVecs().map { it.id })
     }
 }

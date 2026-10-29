@@ -88,7 +88,7 @@ The NPU is used on Snapdragon 8 Gen 1 to 8 Elite Gen 5. Other phones use the GPU
 ## Install
 
 1. Download `memoria-<version>.apk` from [Releases](https://github.com/HomerKLP/Memoria-Photo/releases) and open it on your phone.
-2. Open the app on Wi-Fi. It downloads the models by itself (about 345 MB, once). On mobile data, tap **Download** in **Settings › Photo scan › Models**.
+2. Open the app on Wi-Fi. It downloads the models by itself (about 425 MB, once). On mobile data, tap **Download** in **Settings › Photo scan › Models**.
 3. Done. The photo scan starts on its own when the models are ready.
 
 To check the APK is ours, its signing certificate SHA-256 must be:

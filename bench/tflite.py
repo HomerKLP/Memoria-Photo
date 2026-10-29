@@ -67,6 +67,18 @@ def convert(name, size, work):
         for n in g.node:
             n.input[:] = ['input' if i == 'images' else i for i in n.input]
         g.input[0].name = 'input'
+        # Split -> a Slice per part: onnx2tf makes Split a SLICE of unknown size, and the GPU takes only fixed sizes
+        consts = {i.name: onnx.numpy_helper.to_array(i) for i in g.initializer}
+        for split in [n for n in g.node if n.op_type == 'Split']:
+            at = list(g.node).index(split)
+            axis = next(a.i for a in split.attribute if a.name == 'axis')
+            g.node.remove(split)
+            start = 0
+            for k, (out, part) in enumerate(zip(split.output, consts[split.input[1]])):
+                ends = [onnx.numpy_helper.from_array(np.array([v], np.int64), f'{out}_{w}') for w, v in (('start', start), ('end', start + part), ('axis', axis))]
+                g.initializer.extend(ends)
+                g.node.insert(at + k, helper.make_node('Slice', [split.input[0], *(e.name for e in ends)], [out]))
+                start += part
     # Fixed shapes, then onnxsim: without them YOLOv5m fails to convert and AdaFace keeps shape ops that break on the NPU
     make_input_shape_fixed(g, 'input', [1, 3, size, size])
     fix_output_shapes(model)

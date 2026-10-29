@@ -2,10 +2,32 @@
 
 A COCO object detector boxes cats, dogs and people. Two uses: pets (find each cat or dog, then group them like people) and People (a face outside every person box is often not human).
 
-## Plan (2026-10-28)
-- Every photo, as now: YOLOv5m-face, AdaFace, EDifFIQA-T for people; SigLIP2 for tags.
-- Every photo, new: the detector, then a DINOv2-S vector per cat or dog crop, then groups with names. Its person boxes keep non-human faces out of People. (First plan: only photos with the Pets tag; the bench below found more pets without it.)
-- The tagger can't say which box is which: one vector per photo, no person tag.
+## Pipeline (decided and built 2026-10-29)
+Per new photo in `IndexWorker`. New parts in brackets. Without `objects.tflite` and `pets.tflite` the index runs as before (no gate, no rule, no boxes).
+
+```
+Photo kind (EXIF) ── skip ─► SigLIP2 only
+   │ camera / other
+Small decode 640 px → one 640 letterbox (gray 114, RGB 0-1: YOLOv5m-face and YOLO26 take the same input)
+   ├─► SigLIP2 ─────────────► photo vector (13 categories, search)
+   └─► [YOLO26-M] ─► person boxes (score 0.05+)? ── none ─► no face detection
+           │                               └─ yes ─► YOLOv5m-face
+           │                                           ├─ face less than half inside every person box → dropped
+           │                                           └─ else → full decode → AdaFace, EDifFIQA-T, thumb
+           └─► [cat / dog boxes, score 0.5+] ─► [crop from the 640 decode → DINOv2-S → pet vector]
+Save: photo, vector, faces, [boxes], [pet vectors]
+Every ~30 s and at the end: group people, [group pets], places. [Pets category = photos with a cat / dog box.]
+```
+
+- Models: YOLO26-M (Ultralytics, AGPL-3.0, 39 MB fp16), DINOv2-S (Meta, Apache-2.0, 41 MB fp16), on top of today's four.
+- Gate: no person box, no face detection. On the bench 33% of photos have none; only 28 of 3401 faces sit on them (3 with quality 0.4+), all dropped by the rule below anyway.
+- Strict person-box rule: drop a face less than half inside every person box, before AdaFace. Of 32 faces with quality 0.4+ it drops, 1 is real. It also keeps cat faces out, so there is no separate cat/dog rule.
+- No meme rule: the tagger marks many screenshots as memes.
+- Pets: DINOv2-S, average linkage, cut ~0.6 (bench: pair precision 0.94, recall 0.92). The Pets category comes from the boxes (~40% more pet photos than the tag); the other 13 stay with the tagger.
+- No extra decode: pets crop from the 640 decode (79% of pet boxes are 224+ px there, DINOv2's input). Region decodes for faces and pets are ROADMAP Later.
+- Existing installs: a one-time catch-up pass, merged with the tagger's untagged pass (one 640 decode for both): YOLO26-M, drop old faces less than half inside every person box, DINOv2-S on pet boxes, regroup. It never drops a face the user answered (yes or no), a merge face, a cover, or a Not-a-face mark.
+- DB (v13): `object_box` holds every person, cat and dog box (score 0.05+, x1, y1, x2, y2 as fractions of the photo); cat and dog boxes 0.5+ also hold the DINOv2 vector and `petId` (the group's smallest box id, set at each regroup). `photo.objects` is the model version that boxed the photo (`ObjectDetector.VERSION`), null = not yet.
+- Speed on the test phone's NPU: YOLO26-M 18 ms per photo, about what the face detector takes, so the gate saves more than it costs. DINOv2-S runs on the GPU (15 ms per pet), not the NPU: see "In the app".
 
 ## Candidates
 | Model | Params | fp16 `.tflite` | COCO mAP | Mac CPU | License |
@@ -36,10 +58,10 @@ Faces with quality 0.4+ on Google-tagged photos left out at 0.1 (of 1450): YOLOX
 
 - All 272 faces any model leaves out at 0.25, checked by eye: about 100 not human (cats, cartoons, memes, statues, food, rocks), about 170 human.
 - Most human ones are faces in pictures (old prints, posters, ID photos, memes) or blurry crowd faces.
-- On Google-tagged photos, YOLOX-L at 0.1 leaves out 10 of 1450 faces with quality 0.4+ (0.7%). 8 are real people. In each of these photos YOLOX boxed the main person (score ~0.93) and missed a second one: partly hidden, cut off at the photo's edge, or small in the back.
-- YOLOX-S at 0.1 leaves out 14 of the same 1450: 10 real people (6 from one burst), 4 junk (statue, painting, cartoon, carpet). Close to L at a sixth of the size.
+- On Google-tagged photos, YOLOX-L at 0.1 leaves out 10 of 1450 faces with quality 0.4+ (0.7%). 3 are real people (cut off at the photo's edge, small in the back), 5 are frames of one painting, 2 are junk. (First counted as 8 real: the painting was taken for a partly hidden person.)
+- YOLOX-S at 0.1 leaves out 14 of the same 1450: 4 real people, 6 frames of that painting, 4 junk (statue, painting, cartoon, carpet). Close to L at a sixth of the size.
 - Only 16-22 of the left-out faces sit inside an animal box (the cats).
-- RF-DETR-S at 0.1, checked by eye. The 77 it leaves out: about 42 junk (17 cats, rocks, statues, food), about 30 faces in pictures (one picture repeated across many photos gives 23), about 5 real people (2 frames of one partly hidden person, 2 blurry). The 77 it keeps and YOLOX-S left out: about 45 real people, but also about 25 cartoons, drawings and statues: RF-DETR boxes a drawn person as a person.
+- RF-DETR-S at 0.1, checked by eye. The 77 it leaves out: about 42 junk (17 cats, rocks, statues, food), about 30 faces in pictures (one picture repeated across many photos gives 23), about 3 real people (2 blurry), 2 frames of that painting. The 77 it keeps and YOLOX-S left out: about 45 real people, but also about 25 cartoons, drawings and statues: RF-DETR boxes a drawn person as a person.
 - So RF-DETR keeps far more real faces and still drops every cat. Cartoon faces get through; they are mostly memes, which the Phase 3 meme tag is meant to keep out.
 
 ## Pets
@@ -106,4 +128,49 @@ RF-DETR-N is out: its last step can't run on a phone GPU. YOLO26 (Ultralytics, A
 | YOLO26-M | 20.4 M | 53.1 | 39 MB | 164 ms |
 
 - `uv run bench/tflite.py --models yolo26_s yolo26_m`: rows with a score 0.5+ match ONNX (714/715 for S, 848/847 for M), scores within 0.03, boxes within 3.5 px (S) and 0.3 px (M) of 640.
-- Bench and phone GPU: running.
+
+Faces inside a person box (of 3072), and faces with quality 0.4+ lost on Google-tagged photos (of 1450):
+
+| Detector | Person score 0.05 | 0.1 | 0.25 |
+|---|---|---|---|
+| YOLOX-S | | 95.1%, 14 lost | 92.9%, 24 |
+| YOLOX-L | | 96.0%, 10 | 94.1%, 22 |
+| RF-DETR-N | | 98.0%, 3 | 94.1%, 11 |
+| YOLO26-S | 96.3%, 11 | 95.2%, 16 | 92.5%, 30 |
+| YOLO26-M | 97.3%, 7 | 96.4%, 11 | 93.8%, 29 |
+
+Pets (`objects.py pets`, box score 0.3 / 0.5): YOLO26-S 159 / 151 of 168 found, boxes on 4 / 4 of 328 not-pet photos; YOLO26-M 163 / 159, 7 / 5. RF-DETR-N 163 / 156, 6 / 6.
+
+- On the face check YOLO26-S is YOLOX-S again and YOLO26-M is YOLOX-L; RF-DETR stays best. A lower person score (0.05) brings M to 97.3%.
+- The 11 good faces M loses at 0.1: 6 frames of the painting, 2 real faces, 3 junk (a statue, a cartoon, a carpet).
+- At 0.05 M drops 32 faces with quality 0.4+ (the ones that can start a person): 1 real face. The rest: the painting (9 frames), an old print (4), statues (4), cartoons, drawings and memoji (7), a cat and a cat ear, a carpet, food, 2 photos of people inside memes or stickers.
+- So the strict rule (drop a face outside every person box) fits, at person score 0.05. It also covers cats: a cat face has no person box. A separate cat/dog rule is not needed, and it could drop the face of someone holding a cat.
+- On pets M matches RF-DETR-N; S misses a few more but has the fewest wrong boxes.
+
+On the test phone (`benchmark_model`, removed after):
+
+| Model | GPU | CPU, 4 threads (warm-up runs) |
+|---|---|---|
+| YOLO26-S | 49 ms per photo | ~62 ms |
+| YOLO26-M | 79 ms per photo | ~246 ms |
+
+- First try: the GPU refused both. onnx2tf turns each ONNX `Split` (11 of them, all with fixed sizes) into a `SLICE` of unknown size, and 377 tensors after it lost their sizes. `bench/tflite.py` now swaps each `Split` for plain `Slice` nodes before converting: no unknown sizes left, same output.
+- On the GPU now: 387 of 493 ops (S). Left on the CPU: the fp16 `DEQUANTIZE` ops and the last box decode (`MUL` with broadcasting, `[1,4,8400] x [1,8400]`). Cutting the decode out of the model, as for YOLOv5m-face, would leave it all on the GPU.
+- The tool's CPU run stops after warm-up ("Benchmarking failed"); the Mac runs the same file fine, so the CPU numbers are from the warm-up runs. Check again in the app.
+- For comparison, RF-DETR-N: 170 ms GPU, 220 ms CPU. 20k photos on the GPU: ~16 min more indexing with S, ~26 min with M. The NPU should be faster still (AI Hub: YOLO models in single-digit ms).
+
+## In the app (2026-10-29)
+`ObjectDetector` and `PetVectors` (`Objects.kt`), run by Dev tools' Run on CPU / GPU / NPU when `models/objects.tflite` (YOLO26-M) and `models/pets.tflite` (DINOv2-S) are there. Input as planned: the 640 decode, the face detector's letterbox (`Letterbox`), pets cut from the 640 decode. The run writes `objects_<mode>.json`; `uv run bench/objects.py phone testdata/out/objects_<mode>.json` runs the same models on the Mac on the same 640 px photo. 132 test photos (39 found in the bench), 20 pet boxes.
+
+| | YOLO26-M per photo | DINOv2-S per pet | Boxes 0.25+ vs Mac | Pet vectors vs Mac (median / min) |
+|---|---|---|---|---|
+| NPU | 18 ms | 10 ms | 58 same, 0 lost, 1 new | 0.92 / 0.74 |
+| GPU | 40 ms | 15 ms | 57 same, 0 lost, 1 new | 0.98 / 0.91 |
+| CPU, 4 threads | 488 ms | 99 ms | 57 same, 0 lost, 1 new | 0.98 / 0.91 |
+
+- Times include the letterbox and the box decode in Kotlin; the 640 decode adds 25-30 ms per photo (the tagger already reads it).
+- The gate (a person box 0.05+) gives the Mac's answer on every photo, on all three.
+- DINOv2-S runs on the app's LiteRT GPU; the class-token fix for the old GPU delegate is not needed.
+- On the NPU its vectors are off: NPU vs CPU on the same crop, median 0.935, min 0.80; GPU vs CPU median 0.996, min 0.988. Not an overflow (the largest value in the model is 349 on the Mac), so fp16 math on the NPU. `PetVectors` skips the NPU.
+- Phone vs Mac 0.98 is the input, not the model: the 640 decode and the crop resize differ (Android's decoder and bilinear vs OpenCV). The bench's pet groups came from 4096-decode crops; whether 640-decode crops group as well is not checked.
+

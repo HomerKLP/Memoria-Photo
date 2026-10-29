@@ -3,7 +3,9 @@
 uv run bench/objects.py run     -> the app's faces (YOLOv5m-face + quality) and each detector's boxes per photo, cached in testdata/out/objects.json
 uv run bench/objects.py score   -> per detector: faces outside every person box, numbered sheets in testdata/out/objects/,
                                    photos where --det leaves a face out in testdata/out/objects.html
-uv run bench/objects.py pets    -> per detector: cat or dog boxes on photos the tagger bench labeled pet / not pet
+uv run bench/objects.py pets    -> per detector: cat or dog boxes on photos the tagger bench labeled pet / not pet,
+                                   labeled pet photos --det misses in testdata/out/pets.html
+uv run bench/objects.py phone testdata/out/objects_npu.json -> the app's Dev tools boxes and pet vectors against YOLO26-M and DINOv2-S here
 
 YOLOX downloads itself. RF-DETR needs an ONNX export once: uv run bench/pets.py onnx rfdetr_s (n, m alike).
 YOLO26 too, without its end-to-end step (TopK, which phone GPUs lack), then a copy to ~/.uniface/models/yolo26_s.onnx (m alike):
@@ -180,7 +182,7 @@ def score(photos_dir, out, det, cut, min_size):
     print('detector  person score  faces outside every person box (of them inside an animal box)')
     lost = {}
     for d in DETECTORS:
-        for t in (0.1, 0.25, 0.5):
+        for t in sorted({0.1, 0.25, 0.5, cut}):
             out_faces = []
             for rel, i, f in faces:
                 boxes = [b for b in db[rel]['det'][d] if b[1] >= t]
@@ -239,7 +241,7 @@ def score(photos_dir, out, det, cut, min_size):
     print(f'open {out / "objects.html"}')
 
 
-def pets(out):
+def pets(photos_dir, out, det, cut):
     db = {rel: e for rel, e in json.loads((out / 'objects.json').read_text()).items() if 'size' in e}
     labels = json.loads((out / 'tags/labels.json').read_text())  # from bench/tags.py label
     truth = {rel: labels['pool']['pet'][rel] if rel in labels['pool'].get('pet', {}) else
@@ -254,20 +256,85 @@ def pets(out):
                 return any(b[0] in (CAT, DOG) and b[1] >= t for b in db[r]['det'][d])
             print(f'{d:8}  {t:5}  {sum(map(boxed, yes)):4} / {len(yes)}  {sum(map(boxed, no)):11} / {len(no)}  {sum(map(boxed, db)):10}')
 
+    missed = [r for r in yes if not any(b[0] in (CAT, DOG) and b[1] >= cut for b in db[r]['det'][det])]
+    parts = [f'<h1>{det}, pet score {cut}: {len(missed)} of {len(yes)} labeled pet photos with no cat or dog box</h1>'
+             '<p>Orange: cat or dog boxes under the score. Blue: other animals (0.3+). Hover a box for its score.</p><div class=row>']
+    for rel in missed:
+        e = db[rel]
+        w, h = e['size']
+        marks = ''.join(f'<i title="{"cat" if b[0] == CAT else "dog" if b[0] == DOG else "animal"} {b[1]}" style="border-color:{"orange" if b[0] in (CAT, DOG) else "blue"};'
+                        f'left:{b[2] / w:.2%};top:{b[3] / h:.2%};width:{(b[4] - b[2]) / w:.2%};height:{(b[5] - b[3]) / h:.2%}"></i>'
+                        for b in e['det'][det] if b[0] in (CAT, DOG) or (b[0] in ANIMALS and b[1] >= 0.3))
+        link = quote(os.path.relpath(photos_dir / rel, out))
+        parts.append(f'<figure><div class=ph><a href="{link}"><img loading=lazy src="{link}"></a>{marks}</div>'
+                     f'<figcaption>{html.escape(rel)}</figcaption></figure>')
+    (out / 'pets.html').write_text(CSS + ''.join(parts) + '</div>')
+    print(f'open {out / "pets.html"}')
+
+
+def phone(photos_dir, path):
+    """Same input as the app: the photo at 640 px, YOLO26-M boxes, cat and dog boxes 0.5+ cut from it for DINOv2-S (dinov2_s.onnx, see bench/pets.py)."""
+    det = Yolo26('yolo26_m')
+    dino = ort.InferenceSession(str(Path.home() / '.uniface/models/dinov2_s.onnx'), providers=CPU)
+    same = lost = new = gate = 0
+    score_diff, box_diff, sims = [], [], []
+    data = json.loads(path.read_text())
+    by_name = {p.name: p for p in photos_dir.rglob('*')}  # older test photos sit on the phone without their folder
+    data = {rel: e for rel, e in data.items() if (photos_dir / rel).exists() or Path(rel).name in by_name}
+    for rel, e in tqdm(data.items()):
+        img = load(photos_dir / rel if (photos_dir / rel).exists() else by_name[Path(rel).name])
+        small = cv2.resize(img, tuple(e['size']), interpolation=cv2.INTER_AREA)
+        mac, app = [b for b in det.detect(small) if b[0] in (PERSON, CAT, DOG)], [[b['c'], b['s'], *b['box']] for b in e['boxes']]
+        gate += any(b[0] == PERSON for b in mac) != any(b[0] == PERSON for b in app)
+        for a in app:
+            m = [b for b in mac if b[0] == a[0] and iou(a[2:], b[2:]) > 0.7]
+            if m:
+                score_diff.append(abs(a[1] - m[0][1]))
+                box_diff.append(max(abs(u - v) for u, v in zip(a[2:], m[0][2:])))
+            if a[1] >= 0.25:
+                same, new = same + bool(m), new + (not m)
+        lost += sum(b[1] >= 0.25 and not any(a[0] == b[0] and iou(a[2:], b[2:]) > 0.7 for a in app) for b in mac)
+        for b in e['boxes']:
+            if 'vec' not in b:
+                continue
+            x1, y1, x2, y2 = (int(v) for v in b['box'])
+            c = small[max(y1, 0):y2, max(x1, 0):x2, ::-1]
+            k = 224 / min(c.shape[:2])
+            c = cv2.resize(c, (max(224, round(c.shape[1] * k)), max(224, round(c.shape[0] * k))), interpolation=cv2.INTER_AREA if k < 1 else cv2.INTER_LINEAR)  # AREA enlarges like nearest
+            top, left = (c.shape[0] - 224) // 2, (c.shape[1] - 224) // 2
+            x = ((c[top:top + 224, left:left + 224] / 255 - [0.485, 0.456, 0.406]) / [0.229, 0.224, 0.225]).transpose(2, 0, 1)[None]
+            v = dino.run(None, {'input': x.astype(np.float32)})[0][0]
+            sims.append(float(v @ b['vec'] / np.linalg.norm(v)))
+    print(f'{len(data)} photos, boxes 0.25+: {same} same, {lost} lost, {new} new; the gate (a person 0.05+) differs on {gate} photos')
+    print(f'matched boxes: score diff median {np.median(score_diff):.4f} max {max(score_diff):.4f}, box diff median {np.median(box_diff):.2f} max {max(box_diff):.2f} px of 640')
+    if sims:
+        print(f'pet vectors ({len(sims)}): similarity to Mac min {min(sims):.4f} median {np.median(sims):.4f}')
+
+
+def iou(a, b):
+    w = min(a[2], b[2]) - max(a[0], b[0])
+    h = min(a[3], b[3]) - max(a[1], b[1])
+    inter = max(w, 0) * max(h, 0)
+    return inter / ((a[2] - a[0]) * (a[3] - a[1]) + (b[2] - b[0]) * (b[3] - b[1]) - inter)
+
 
 if __name__ == '__main__':
     root = Path(__file__).resolve().parent.parent
     ap = argparse.ArgumentParser()
-    ap.add_argument('cmd', choices=['run', 'score', 'pets'])
+    ap.add_argument('cmd', choices=['run', 'score', 'pets', 'phone'])
+    ap.add_argument('json', nargs='?', type=Path, help='phone: the objects_<mode>.json pulled from the phone')
     ap.add_argument('--photos', type=Path, default=root / 'testdata/takeout')
     ap.add_argument('--out', type=Path, default=root / 'testdata/out')
     ap.add_argument('--det', default='yolox_s', choices=DETECTORS, help='score: detector for the page')
     ap.add_argument('--cut', type=float, default=0.1, help='score: person score for the sheets and the page')
+    ap.add_argument('--pet-cut', type=float, default=0.5, help='pets: cat or dog score for the page')
     ap.add_argument('--min-size', type=int, default=40, help='score: skip faces smaller than this many px, as the app')
     a = ap.parse_args()
     if a.cmd == 'run':
         run(a.photos.resolve(), a.out.resolve())
     elif a.cmd == 'score':
         score(a.photos.resolve(), a.out.resolve(), a.det, a.cut, a.min_size)
+    elif a.cmd == 'pets':
+        pets(a.photos.resolve(), a.out.resolve(), a.det, a.pet_cut)
     else:
-        pets(a.out.resolve())
+        phone(a.photos.resolve(), a.json)

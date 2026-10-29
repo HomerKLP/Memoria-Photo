@@ -1148,7 +1148,7 @@ class BehaviorTest {
             MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", models = Models.Status.Missing, onDownload = { download = true }) } }
         }
 
-        rule.onNodeWithText("Not downloaded · 344 MB").assertIsDisplayed()
+        rule.onNodeWithText("Not downloaded · 425 MB").assertIsDisplayed()
         rule.onNodeWithText("Download").performClick()
         assertTrue(download)
     }
@@ -1159,7 +1159,7 @@ class BehaviorTest {
             MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", models = Models.Status.Missing, modelsDone = 176_748_304, onDownload = { download = true }) } }
         }
 
-        rule.onNodeWithText("Not downloaded · 169 of 344 MB").assertIsDisplayed()
+        rule.onNodeWithText("Not downloaded · 169 of 425 MB").assertIsDisplayed()
         rule.onNodeWithText("Download").performClick()
         assertTrue(download)
     }
@@ -1172,7 +1172,7 @@ class BehaviorTest {
             } }
         }
 
-        rule.onNodeWithText("Downloading · 74 of 344 MB").assertIsDisplayed()
+        rule.onNodeWithText("Downloading · 74 of 425 MB").assertIsDisplayed()
         rule.onNodeWithText("Cancel").performClick()
         assertTrue(cancel)
     }
@@ -1185,7 +1185,7 @@ class BehaviorTest {
             } }
         }
 
-        rule.onNodeWithText("Stopped · 74 of 344 MB").assertIsDisplayed()
+        rule.onNodeWithText("Stopped · 74 of 425 MB").assertIsDisplayed()
         rule.onNodeWithText("Retry").performClick()
         assertTrue(download)
     }
@@ -1193,7 +1193,7 @@ class BehaviorTest {
     @Test fun settings_modelsReady_hasNoDownloadButton() {
         rule.setContent { MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", models = Models.Status.Ready) } } }
 
-        rule.onNodeWithText("Ready · 344 MB").assertIsDisplayed()
+        rule.onNodeWithText("Ready · 425 MB").assertIsDisplayed()
         rule.onNodeWithText("Download").assertDoesNotExist()
     }
 

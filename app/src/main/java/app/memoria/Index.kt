@@ -8,6 +8,7 @@ import android.content.ContentUris
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.media.ExifInterface
 import android.net.Uri
@@ -42,16 +43,21 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.io.File
 import java.nio.ByteBuffer
+import kotlin.math.max
 import kotlin.math.min
 
 /** camera can start a person, other (downloads, messengers) only joins people. Room saves the name, so the names are the DB values. */
 enum class PhotoKind { camera, other, skip, error }
 
-/** townId: GeoNames id of the nearest town (see [Towns]), 0 = no GPS, null = GPS not read yet. */
+/**
+ * townId: GeoNames id of the nearest town (see [Towns]), 0 = no GPS, null = GPS not read yet.
+ * objects: the [ObjectDetector.VERSION] that boxed the photo (none needed for skip and error), null = not boxed yet.
+ */
 @Entity(tableName = "photo")
 class PhotoRow(
     @PrimaryKey val id: Long, val path: String, val kind: PhotoKind,
     val lat: Double? = null, val lon: Double? = null, val townId: Int? = null, val town: String? = null,
+    val objects: Int? = null,
 )
 
 @Entity(tableName = "face", indices = [Index("photoId")])
@@ -87,6 +93,20 @@ class AnswerRow(val faceId: Long, val personFace: Long, val yes: Boolean)
 /** Merge with: the person whose main face is [face] is the same as the one whose main face is [personFace]. Main faces, like [AnswerRow]. */
 @Entity(tableName = "merged", primaryKeys = ["face", "personFace"])
 class MergeRow(val face: Long, val personFace: Long)
+
+/**
+ * A YOLO26 person, cat or dog box (`docs/objects.md`), x1, y1, x2, y2 as fractions of the photo.
+ * Cat and dog boxes with score 0.5+ have the DINOv2 [vector]; [petId] is their group from the last regroup (the group's smallest box id).
+ */
+@Entity(tableName = "object_box", indices = [Index("photoId")])
+class ObjectBoxRow(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val photoId: Long, val cls: Int, val score: Float, val box: FloatArray,
+    val vector: FloatArray? = null, val petId: Long? = null,
+)
+
+/** A pet box's id and vector, for grouping. */
+class PetVec(val id: Long, val vector: FloatArray)
 
 /** The tagger's vector for a photo (`docs/tagger.md`), empty when the photo can't be read. [model] is [Tagger.VERSION]. */
 @Entity(tableName = "photo_vector")
@@ -162,14 +182,26 @@ interface IndexDao {
     @Query("SELECT photoId FROM photo_vector WHERE model = :model") suspend fun taggedIds(model: Int): List<Long>
     /** Vectors for categories; an empty one is a photo that couldn't be read. */
     @Query("SELECT * FROM photo_vector WHERE model = :model AND length(vector) > 0") suspend fun vectors(model: Int): List<PhotoVectorRow>
-    /** Photos with every index step done: the face pass, and a vector from tagger [model] while [tagger] is on the phone. */
-    @Query("SELECT COUNT(*) FROM photo WHERE NOT :tagger OR id IN (SELECT photoId FROM photo_vector WHERE model = :model)")
-    fun doneCount(tagger: Boolean, model: Int): Flow<Int>
+    /** Photos with every index step done: the face pass, a vector from tagger [model] while [tagger] is on the phone, boxes from [objectsModel] while [objects] is. */
+    @Query(
+        "SELECT COUNT(*) FROM photo WHERE (NOT :tagger OR id IN (SELECT photoId FROM photo_vector WHERE model = :model)) " +
+            "AND (NOT :objects OR objects = :objectsModel)",
+    )
+    fun doneCount(tagger: Boolean, model: Int, objects: Boolean, objectsModel: Int): Flow<Int>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertVector(row: PhotoVectorRow)
     @Query("DELETE FROM photo_vector WHERE photoId IN (:ids)") suspend fun deleteVectors(ids: List<Long>)
+    @Query("SELECT id FROM photo WHERE objects = :model") suspend fun boxedIds(model: Int): List<Long>
+    @Query("UPDATE photo SET objects = :model WHERE id = :id") suspend fun setBoxed(id: Long, model: Int)
+    @Insert suspend fun insertBoxes(boxes: List<ObjectBoxRow>)
+    @Query("DELETE FROM object_box WHERE photoId IN (:ids)") suspend fun deleteBoxes(ids: List<Long>)
+    @Query("DELETE FROM object_box") suspend fun clearBoxes()
+    @Query("DELETE FROM face WHERE id IN (:ids)") suspend fun deleteFaceIds(ids: List<Long>)
+    @Query("SELECT id, vector FROM object_box WHERE vector IS NOT NULL") suspend fun petVecs(): List<PetVec>
+    @Query("UPDATE object_box SET petId = NULL") suspend fun clearPetIds()
+    @Query("UPDATE object_box SET petId = :pet WHERE id IN (:boxes)") suspend fun setPet(boxes: List<Long>, pet: Long)
 }
 
-@Database(entities = [PhotoRow::class, FaceRow::class, PersonRow::class, AnswerRow::class, MergeRow::class, PhotoVectorRow::class], version = 12)
+@Database(entities = [PhotoRow::class, FaceRow::class, PersonRow::class, AnswerRow::class, MergeRow::class, PhotoVectorRow::class, ObjectBoxRow::class], version = 13)
 @TypeConverters(Converters::class)
 abstract class Db : RoomDatabase() {
     abstract fun index(): IndexDao
@@ -216,7 +248,15 @@ abstract class Db : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) =
                 db.execSQL("CREATE TABLE IF NOT EXISTS `photo_vector` (`photoId` INTEGER NOT NULL, `model` INTEGER NOT NULL, `vector` BLOB NOT NULL, PRIMARY KEY(`photoId`))")
         }
-        internal val MIGRATIONS = arrayOf(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
+        /** v13: YOLO26 boxes and pet vectors; the next run boxes every photo. */
+        private val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE photo ADD COLUMN objects INTEGER")
+                db.execSQL("CREATE TABLE IF NOT EXISTS `object_box` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `photoId` INTEGER NOT NULL, `cls` INTEGER NOT NULL, `score` REAL NOT NULL, `box` BLOB NOT NULL, `vector` BLOB, `petId` INTEGER)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_object_box_photoId` ON `object_box` (`photoId`)")
+            }
+        }
+        internal val MIGRATIONS = arrayOf(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
         private var db: Db? = null
         @Synchronized fun get(context: Context) =
             db ?: // a missing migration crashes instead of wiping names; MigrationTest checks each bump
@@ -370,19 +410,23 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         val total = all.size
         val done = dao.photoIds().toHashSet()
         val tagged = dao.taggedIds(Tagger.VERSION).toHashSet()
-        // photos deleted from the phone: forget them, their faces and vectors, so counts and people match the phone
-        if (!testOnly) (done + tagged - all.map { it.id }.toSet()).chunked(500).forEach { dao.deleteFaces(it); dao.deletePhotos(it); dao.deleteVectors(it) }
+        val boxed = dao.boxedIds(ObjectDetector.VERSION).toHashSet()
+        // photos deleted from the phone: forget them, their faces, vectors and boxes, so counts and people match the phone
+        if (!testOnly) (done + tagged - all.map { it.id }.toSet()).chunked(500).forEach { dao.deleteFaces(it); dao.deletePhotos(it); dao.deleteVectors(it); dao.deleteBoxes(it) }
         recutThumbs()
         if (isStopped) return Result.success()
         val todo = all.filter { it.id !in done }
-        // photos indexed before the tagger, or by an older one
-        val untagged = if (taggerFile(applicationContext).exists()) all.filter { it.id in done && it.id !in tagged } else emptyList()
-        if (todo.isEmpty() && untagged.isEmpty()) {
+        val tagging = taggerFile(applicationContext).exists()
+        val boxing = objectsFiles(applicationContext).all { it.exists() }
+        // photos indexed before the tagger or the object models, or by older ones
+        val catchUp = all.filter { it.id in done && ((tagging && it.id !in tagged) || (boxing && it.id !in boxed)) }
+        if (todo.isEmpty() && catchUp.isEmpty()) {
             IndexProgress.finish(applicationContext)
             placePhotos()
+            savePets()
             return savePeople() // nothing new, but the grouping code may have changed
         }
-        val base = total - todo.size - untagged.size // photos with every step done, so the bar starts there
+        val base = total - todo.size - catchUp.size // photos with every step done, so the bar starts there
         IndexProgress.start(applicationContext, total, base)
         // Foreground, or the system stops the job midway. Not allowed when started from the background (rerun after a stop), then it runs as a plain job.
         val notifications = applicationContext.getSystemService(NotificationManager::class.java)
@@ -397,6 +441,7 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         val start = System.nanoTime()
         var count = 0
         var tagCount = 0
+        var catchUpCount = 0
         var nextSave = start + 30_000_000_000L
         // no tagger file, or it won't load: faces only
         val tagger = if (!taggerFile(applicationContext).exists()) null else try {
@@ -404,6 +449,18 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         } catch (e: Exception) {
             Log.w("Memoria", "tagger not loaded", e)
             null
+        }
+        // no object models, or they won't load: no gate and no pets, and the photos stay unboxed for a later run
+        val objects = if (!boxing) null else {
+            var detector: ObjectDetector? = null
+            try {
+                detector = ObjectDetector(applicationContext)
+                detector to PetVectors(applicationContext)
+            } catch (e: Exception) {
+                Log.w("Memoria", "object models not loaded", e)
+                detector?.close()
+                null
+            }
         }
         try {
             FacePipeline(applicationContext).use { pipeline ->
@@ -413,10 +470,12 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                     val uri = ContentUris.withAppendedId(Media.EXTERNAL_CONTENT_URI, photo.id)
                     val tag = tagger?.takeIf { photo.id !in tagged } // a Rescan keeps the vectors
                     var vector: FloatArray? = null
+                    var boxes: List<ObjectBoxRow>? = null // null: not boxed, the object models are not here
                     val (kind, faces) = try {
                         val kind = kindOf(applicationContext, photo, uri)
                         kind to if (kind == PhotoKind.skip) {
                             if (tag != null) vector = tagAlone(tag, photo.id)
+                            if (objects != null) boxes = emptyList()
                             emptyList()
                         } else {
                             // Detect on a small decode, full decode only for photos with faces (~half). The tagger reads the same small decode.
@@ -428,7 +487,14 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                                 Log.w("Memoria", "tag ${photo.id}", e)
                                 FloatArray(0)
                             }
-                            val found = pipeline.detect(small)
+                            val lb = Letterbox(small)
+                            val found = if (objects == null) pipeline.detect(lb) else {
+                                val all = objects.first.detect(lb)
+                                boxes = all.map { boxRow(photo.id, it, small, objects.second) }
+                                // no person box, no face detection; then a face counts only inside a person box (docs/objects.md)
+                                val people = all.filter { it.cls == PERSON }.map { it.box }
+                                if (people.isEmpty()) emptyList() else pipeline.detect(lb).filter { inPerson(it.box, people) }
+                            }
                             if (found.isEmpty()) found else {
                                 val image = loadPhoto(source)
                                 val kx = image.width.toFloat() / small.width
@@ -443,11 +509,15 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                     } catch (e: Exception) {
                         Log.w("Memoria", "index ${photo.id}", e)
                         if (tag != null && vector == null) vector = FloatArray(0) // unreadable: not tried again
+                        if (objects != null) boxes = emptyList()
                         PhotoKind.error to emptyList()
                     }
-                    dao.insert(PhotoRow(photo.id, photo.path, kind), faces.map {
-                        FaceRow(photoId = photo.id, box = it.box, score = it.score, landmarks = it.landmarks, vector = it.vector!!, quality = it.quality!!, thumb = it.thumb!!)
-                    })
+                    Db.get(applicationContext).withTransaction {
+                        dao.insert(PhotoRow(photo.id, photo.path, kind, objects = boxes?.let { ObjectDetector.VERSION }), faces.map {
+                            FaceRow(photoId = photo.id, box = it.box, score = it.score, landmarks = it.landmarks, vector = it.vector!!, quality = it.quality!!, thumb = it.thumb!!)
+                        })
+                        boxes?.let { dao.insertBoxes(it) }
+                    }
                     vector?.let { dao.insertVector(PhotoVectorRow(photo.id, Tagger.VERSION, it)); tagCount++ }
                     count++
                     if (foreground && count % 10 == 0) notifications.notify(1, notice(base + count, total))
@@ -455,25 +525,100 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                     if (System.nanoTime() > nextSave) {
                         val t = System.nanoTime()
                         placePhotos()
+                        savePets()
                         savePeople()
                         nextSave = System.nanoTime() + maxOf(30_000_000_000L, 10 * (System.nanoTime() - t))
                     }
                 }
             }
-            if (tagger != null) for ((i, photo) in untagged.withIndex()) {
+            // the user's faces stay whatever the boxes say: answered, merged, or a cover
+            val kept = if (objects == null) emptySet() else
+                (dao.answers().flatMap { listOf(it.faceId, it.personFace) } + dao.merges().flatMap { listOf(it.face, it.personFace) } + dao.people().mapNotNull { it.coverFaceId }).toSet()
+            for ((i, photo) in catchUp.withIndex()) {
                 if (isStopped) break
-                if (foreground && i % 10 == 0) notifications.notify(1, notice(base + count + i, total, "Tagging photos"))
-                dao.insertVector(PhotoVectorRow(photo.id, Tagger.VERSION, tagAlone(tagger, photo.id)))
-                tagCount++
+                if (foreground && i % 10 == 0) notifications.notify(1, notice(base + count + i, total, if (boxing) "Scanning photos" else "Tagging photos"))
+                val tag = tagger?.takeIf { photo.id !in tagged }
+                val box = objects?.takeIf { photo.id !in boxed }
+                if (tag == null && box == null) continue
+                catchUp(photo.id, tag, box, kept)
+                if (tag != null) tagCount++
+                catchUpCount++
             }
         } finally {
             tagger?.close()
+            objects?.first?.close()
+            objects?.second?.close()
             IndexProgress.finish(applicationContext)
             val stop = if (isStopped) ", stopped, reason $stopReason" else ""
-            Log.i("Memoria", "indexed $count photos, tagged $tagCount in %.0f s$stop".format((System.nanoTime() - start) / 1e9))
+            Log.i("Memoria", "indexed $count photos, tagged $tagCount, caught up $catchUpCount in %.0f s$stop".format((System.nanoTime() - start) / 1e9))
         }
-        if (!isStopped) placePhotos()
-        return if (isStopped) Result.success() else savePeople()
+        if (isStopped) return Result.success()
+        placePhotos()
+        savePets()
+        return savePeople()
+    }
+
+    /**
+     * A photo indexed before the tagger or the object models: one 640 decode for both. Its old faces outside every person box are
+     * dropped, except [kept] ones. An unreadable photo gets an empty vector and no boxes, so it isn't tried again.
+     */
+    private suspend fun catchUp(id: Long, tag: Tagger?, objects: Pair<ObjectDetector, PetVectors>?, kept: Set<Long>) {
+        val db = Db.get(applicationContext)
+        val dao = db.index()
+        var w = 0
+        var h = 0
+        val small = try {
+            loadPhoto(ImageDecoder.createSource(applicationContext.contentResolver, ContentUris.withAppendedId(Media.EXTERNAL_CONTENT_URI, id)), 640) { pw, ph -> w = pw; h = ph }
+        } catch (e: Exception) {
+            Log.w("Memoria", "catch up $id", e)
+            null
+        }
+        if (tag != null) dao.insertVector(PhotoVectorRow(id, Tagger.VERSION, small?.let {
+            try {
+                tag.vector(tag.input(it))
+            } catch (e: Exception) {
+                Log.w("Memoria", "tag $id", e)
+                null
+            }
+        } ?: FloatArray(0)))
+        if (objects == null) return
+        var boxes = emptyList<ObjectBoxRow>()
+        var drop = emptyList<Long>()
+        if (small != null) try {
+            val found = objects.first.detect(Letterbox(small))
+            boxes = found.map { boxRow(id, it, small, objects.second) }
+            // old faces are in the pixels of loadPhoto's 4096 decode: the person boxes go there too
+            val k = min(1f, 4096f / max(w, h))
+            val people = found.filter { it.cls == PERSON }.map { b -> FloatArray(4) { i -> b.box[i] * k * if (i % 2 == 0) w.toFloat() / small.width else h.toFloat() / small.height } }
+            drop = dao.photoFaces(id).filter { it.id !in kept && !inPerson(it.box, people) }.map { it.id }
+        } catch (e: Exception) {
+            Log.w("Memoria", "box $id", e)
+        }
+        db.withTransaction {
+            if (drop.isNotEmpty()) dao.deleteFaceIds(drop)
+            dao.insertBoxes(boxes)
+            dao.setBoxed(id, ObjectDetector.VERSION)
+        }
+    }
+
+    /** [b] as a DB row: the box as fractions of [small], and the DINOv2 vector for a cat or dog box with score 0.5+. */
+    private fun boxRow(photoId: Long, b: ObjectBox, small: Bitmap, pets: PetVectors) = ObjectBoxRow(
+        photoId = photoId, cls = b.cls, score = b.score, box = FloatArray(4) { i -> b.box[i] / if (i % 2 == 0) small.width else small.height },
+        vector = if (b.cls != PERSON && b.score >= 0.5f) pets.vector(small, b.box) else null,
+    )
+
+    /** Groups the pet boxes like people (`docs/objects.md`): average linkage, cut 0.6. A group's id is its smallest box id. */
+    private suspend fun savePets() {
+        val start = System.nanoTime()
+        val db = Db.get(applicationContext)
+        val dao = db.index()
+        val pets = dao.petVecs()
+        val groups = averageLinkage(pets.map { it.vector }, 0.6f)
+        db.withTransaction {
+            dao.clearPetIds()
+            for (g in groups) g.map { pets[it].id }.let { dao.setPet(it, it.min()) }
+        }
+        Log.i("Memoria", "saved ${groups.size} pets from ${pets.size} boxes in ${(System.nanoTime() - start) / 1_000_000} ms")
     }
 
     private val towns by lazy { Towns.load(applicationContext) }

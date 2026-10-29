@@ -38,6 +38,7 @@ class MigrationTest {
             assertEquals(12L, dao.merges().single().face)
             assertEquals(listOf(1L), dao.unplaced()) // v9: GPS not read yet, the next run does it
             assertEquals(emptyList<Long>(), dao.taggedIds(Tagger.VERSION)) // v12: no vectors yet, the next run tags every photo
+            assertEquals(emptyList<Long>(), dao.boxedIds(ObjectDetector.VERSION)) // v13: no boxes yet, the next run boxes every photo
         }
         db.close()
     }

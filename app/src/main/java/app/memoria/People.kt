@@ -166,27 +166,16 @@ private fun dot(a: FloatArray, b: FloatArray): Float {
 
 private fun mean(faces: List<FaceVec>) = FloatArray(512).also { m -> faces.forEach { f -> f.vector.forEachIndexed { k, v -> m[k] += v } } }
 
-/**
- * Like bench.py group: average linkage on cosine distance, cut at 0.68, faces from 40 px.
- * Only camera faces with quality 0.4+ start a person (lower ones were cats, masks, backs of heads),
- * other faces join the closest person under the cut. Joined faces under 0.4 are unsure: they wait for the user's yes / no.
- * [answers]: a yes keeps the face with that person and lets faces within 0.5 of it join too, a no rules that person out.
- * [merges]: the groups that hold both main faces of a Merge with become one.
- */
-// ponytail: O(n³) merge loop, fine for a few thousand faces; NN-chain for a full library
-fun groupFaces(all: List<FaceVec>, answers: List<AnswerRow> = emptyList(), merges: List<MergeRow> = emptyList(), cut: Float = 0.68f): List<Person> {
-    // a face the user fixed by hand follows the answers: it never starts a person (a moved face would go back), and small ones stay
-    val answered = answers.map { it.faceId }.toSet()
-    val (seeds, others) = all.filter { min(it.box[2] - it.box[0], it.box[3] - it.box[1]) >= 40 || it.id in answered }
-        .partition { it.kind == PhotoKind.camera && it.quality >= 0.4f && it.id !in answered }
-    val n = seeds.size
-    // ponytail: n×n floats, 17 MB at 2k seeds but 400 MB at 10k; store half of it (or float16) before libraries get that big
+/** Average linkage on cosine distance (normalized vectors), groups whose distance is at most [cut], like scipy in the bench. Indices into [vectors]. */
+// ponytail: n×n floats, 17 MB at 2k vectors but 400 MB at 10k; store half of it (or float16) before libraries get that big
+fun averageLinkage(vectors: List<FloatArray>, cut: Float): List<List<Int>> {
+    val n = vectors.size
     val d = Array(n) { FloatArray(n) }
-    for (i in 0 until n) for (j in i + 1 until n) { d[i][j] = 1 - dot(seeds[i].vector, seeds[j].vector); d[j][i] = d[i][j] }
-    val members = Array(n) { mutableListOf(seeds[it]) }
+    for (i in 0 until n) for (j in i + 1 until n) { d[i][j] = 1 - dot(vectors[i], vectors[j]); d[j][i] = d[i][j] }
+    val members = Array(n) { mutableListOf(it) }
     val alive = BooleanArray(n) { true } // not merged into another group
     val open = BooleanArray(n) { true } // may still merge
-    // Average linkage by nearest-neighbour chain: same groups as merging the closest pair each step (scipy, bench), O(n²) not O(n³)
+    // Nearest-neighbour chain: same groups as merging the closest pair each step (scipy, bench), O(n²) not O(n³)
     val chain = IntArray(n); var top = 0; var next = 0
     while (true) {
         if (top == 0) {
@@ -210,8 +199,23 @@ fun groupFaces(all: List<FaceVec>, answers: List<AnswerRow> = emptyList(), merge
             alive[b] = false; open[b] = false
         } else chain[top++] = y
     }
+    return (0 until n).filter { alive[it] }.map { members[it] }
+}
+
+/**
+ * Like bench.py group: average linkage on cosine distance, cut at 0.68, faces from 40 px.
+ * Only camera faces with quality 0.4+ start a person (lower ones were cats, masks, backs of heads),
+ * other faces join the closest person under the cut. Joined faces under 0.4 are unsure: they wait for the user's yes / no.
+ * [answers]: a yes keeps the face with that person and lets faces within 0.5 of it join too, a no rules that person out.
+ * [merges]: the groups that hold both main faces of a Merge with become one.
+ */
+fun groupFaces(all: List<FaceVec>, answers: List<AnswerRow> = emptyList(), merges: List<MergeRow> = emptyList(), cut: Float = 0.68f): List<Person> {
+    // a face the user fixed by hand follows the answers: it never starts a person (a moved face would go back), and small ones stay
+    val answered = answers.map { it.faceId }.toSet()
+    val (seeds, others) = all.filter { min(it.box[2] - it.box[0], it.box[3] - it.box[1]) >= 40 || it.id in answered }
+        .partition { it.kind == PhotoKind.camera && it.quality >= 0.4f && it.id !in answered }
     // A person needs faces from 6+ photos: fewer is often statues, posters or strangers seen once
-    val auto = (0 until n).filter { alive[it] && members[it].distinctBy { f -> f.photoId }.size > 5 }.map { members[it] }
+    val auto = averageLinkage(seeds.map { it.vector }, cut).map { g -> g.map { seeds[it] } }.filter { it.distinctBy { f -> f.photoId }.size > 5 }
     // "Who is this?" > New person: a yes to the face's own id. That person grows only by the user's yes, never by distance.
     val own = answers.filter { it.yes && it.faceId == it.personFace }.map { it.faceId }.toSet()
     // second: takes faces by distance. A New person merged into a grouped person does too.
