@@ -163,6 +163,15 @@ class PeopleLogicTest {
         assertEquals(12, groupPets(cat + dog, listOf(MergeRow(face = 11, personFace = 1))).single().faces.size)
     }
 
+    @Test fun splitPetsJoinUnder076_loosePicturesDont() {
+        val cat = (1L..6L).map { pet(it, it, 1f, 0f) }
+        val near = (11L..16L).map { pet(it, it, 0.26f, 0.966f) } // 0.74 from cat: one cat split by the 0.68 cut
+        val far = (11L..16L).map { pet(it, it, 0.22f, 0.975f) } // 0.78: another cat
+        assertEquals(12, groupPets(cat + near).single().faces.size)
+        assertEquals(2, groupPets(cat + far).size)
+        assertEquals(6, groupPets(cat + near.take(5)).single().faces.size) // 5 photos: not a pet, so it never joins
+    }
+
     @Test fun aPersonAndAPetNeverMerge() {
         val person = face(1, 1).let { Person(listOf(it), it) }
         val cat = pet(2, 2, 1f, 0f).let { Person(listOf(it), it) }

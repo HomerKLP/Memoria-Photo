@@ -22,7 +22,7 @@ object Models {
         Model("quality", "models-v1", 4_045_216, "9914a7b2054e92a6747e4c2672b1400eb8350979388a56ffee7a773d9db6cae6"),
         Model("tagger", "models-v2", 184_129_376, "bd1a62d03c718770af3c63c6d092a8d868a2710c2b32d4e8a02df50a53f4777b"),
         Model("objects", "models-v3", 41_091_088, "9e97e214f08f112c01772b7ef5816268bb00e48191e6b0f0f6945bdf0b354a48"),
-        Model("pets", "models-v3", 43_741_200, "71c4087a59c856b03f80590577cca382c7751f7ab207757e753ced84c805ea53"),
+        Model("pets", "models-v3", 44_138_000, "2311c603eee8d8a0a32db7c2a07a485531b69055b809c4e8cb76448ff7a68b33"),
     )
     val TOTAL = FILES.sumOf { it.size }
 

@@ -289,11 +289,15 @@ fun groupFaces(all: List<FaceVec>, answers: List<AnswerRow> = emptyList(), merge
 }
 
 /**
- * Pets like people (`docs/objects.md`): average linkage on the DINOv2 vectors, cut 0.6, and a pet needs pictures from 6+ photos.
+ * Pets like people (`docs/objects.md`): average linkage on the pet vectors, cut 0.68 (better left out than in another cat's group), and a pet needs pictures from 6+ photos.
+ * Then pets under 0.76 apart join, closest first: one cat's split groups. Loose pictures stay out, so they can't pull two cats together.
  * [merges] join two pets as for people. No answers: pets have no Help recognize.
  */
-fun groupPets(pets: List<FaceVec>, merges: List<MergeRow> = emptyList()): List<Person> {
-    val groups = averageLinkage(pets.map { it.vector }, 0.6f).map { g -> g.map { pets[it] } }.toMutableList()
+fun groupPets(all: List<FaceVec>, merges: List<MergeRow> = emptyList()): List<Person> {
+    // older, shorter vectors (DINOv2 alone) wait until the catch-up pass redoes their photo
+    val size = all.maxOfOrNull { it.vector.size }
+    val pets = all.filter { it.vector.size == size }
+    val groups = averageLinkage(pets.map { it.vector }, 0.68f).map { g -> g.map { pets[it] } }.toMutableList()
     for (m in merges) {
         val a = groups.indexOfFirst { g -> g.any { it.id == m.personFace } }
         val b = groups.indexOfFirst { g -> g.any { it.id == m.face } }
@@ -301,7 +305,19 @@ fun groupPets(pets: List<FaceVec>, merges: List<MergeRow> = emptyList()): List<P
         groups[a] = groups[a] + groups[b]
         groups.removeAt(b)
     }
-    return groups.filter { g -> g.distinctBy { it.photoId }.size > 5 }.map { Person(it, it.maxBy { f -> f.quality }) }.sortedByDescending { it.faces.size }
+    val shown = groups.filter { g -> g.distinctBy { it.photoId }.size > 5 }.toMutableList()
+    while (true) {
+        val sums = shown.map { mean(it) }
+        var best = 0.76f; var a = -1; var b = -1
+        for (i in shown.indices) for (j in i + 1 until shown.size) {
+            val d = 1 - dot(sums[i], sums[j]) / (shown[i].size * shown[j].size) // average distance of every pair
+            if (d < best) { best = d; a = i; b = j }
+        }
+        if (a < 0) break
+        shown[a] = shown[a] + shown[b]
+        shown.removeAt(b)
+    }
+    return shown.map { Person(it, it.maxBy { f -> f.quality }) }.sortedByDescending { it.faces.size }
 }
 
 /** A person and a pet never merge (docs/design.html, Merge with). */

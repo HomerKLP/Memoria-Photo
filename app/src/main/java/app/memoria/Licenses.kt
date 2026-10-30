@@ -62,6 +62,7 @@ fun LicensesContent(onBack: () -> Unit = {}, onFullTexts: () -> Unit = {}) {
         LicenseRow("SigLIP 2 B/16", "Photo tags · Apache 2.0")
         LicenseRow("YOLO26-M", "Person, cat and dog boxes · AGPL-3.0")
         LicenseRow("DINOv2-S", "Tells pets apart · Apache 2.0")
+        LicenseRow("Noodle pet-recognition", "Pet vector layer · Apache 2.0")
         SectionHead("More")
         LicenseRow("Full license texts", "Opens THIRD_PARTY.md on GitHub", onFullTexts) {
             Icon(painterResource(R.drawable.ic_chevron), null, tint = MaterialTheme.colorScheme.onSurfaceVariant)

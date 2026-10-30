@@ -18,7 +18,7 @@
 
 uv run bench/tflite.py   (own env: onnx2tf pins tool versions the bench can't share; run bench.py once first, it downloads the models)
 The tagger's ONNX comes from `uv run bench/tags.py onnx`. Not in the app yet (--models, see docs/objects.md):
-dinov2_s and rfdetr_n from `uv run bench/pets.py onnx dinov2_s` (and `onnx rfdetr_n`), yolo26_s / _m from bench/objects.py's docstring.
+noodle_s (the app's pets.tflite), dinov2_s and rfdetr_n from `uv run bench/pets.py onnx noodle_s` (and `onnx dinov2_s`, `onnx rfdetr_n`), yolo26_s / _m from bench/objects.py's docstring.
 """
 
 import argparse
@@ -40,7 +40,7 @@ from onnxruntime.tools.onnx_model_utils import fix_output_shapes, make_input_sha
 
 ROOT = Path(__file__).resolve().parent.parent
 SRC = Path.home() / '.uniface/models'
-MODELS = {'yolov5m': 640, 'adaface_ir_101': 112, 'ediffiqa_t': 112, 'siglip2_b16': 224, 'dinov2_s': 224, 'rfdetr_n': 384, 'yolo26_s': 640, 'yolo26_m': 640}
+MODELS = {'yolov5m': 640, 'adaface_ir_101': 112, 'ediffiqa_t': 112, 'siglip2_b16': 224, 'dinov2_s': 224, 'noodle_s': 224, 'rfdetr_n': 384, 'yolo26_s': 640, 'yolo26_m': 640}
 APP = ['yolov5m', 'adaface_ir_101', 'ediffiqa_t', 'siglip2_b16']
 
 
@@ -178,13 +178,15 @@ if __name__ == '__main__':
             a, b = tag(squash(p))[0], tag_lite(squash(p))[0][0]
             sims.append(a @ b / np.linalg.norm(a) / np.linalg.norm(b))
         print(f'siglip2 fp16: {len(sims)} photos, similarity to fp32 min {min(sims):.5f} median {np.median(sims):.5f}')
-    if 'dinov2_s' in out:
-        vec, vec_lite = fp32('dinov2_s'), tflite(out['dinov2_s'])
+    for name in ('dinov2_s', 'noodle_s'):
+        if name not in out:
+            continue
+        vec, vec_lite = fp32(name), tflite(out[name])
         sims = []
         for p in sorted((ROOT / 'testdata/out/pets/crops').glob('*.jpg'))[:args.n]:  # bench/pets.py crops
             a, b = vec(imagenet(p, 224))[0], vec_lite(imagenet(p, 224))[0][0]
             sims.append(a @ b / np.linalg.norm(a) / np.linalg.norm(b))
-        print(f'dinov2_s fp16: {len(sims)} pet crops, similarity to fp32 min {min(sims):.5f} median {np.median(sims):.5f}')
+        print(f'{name} fp16: {len(sims)} pet crops, similarity to fp32 min {min(sims):.5f} median {np.median(sims):.5f}')
     if 'rfdetr_n' in out:
         s, det_lite = ort.InferenceSession(SRC / 'rfdetr_n.onnx', providers=['CPUExecutionProvider']), tflite(out['rfdetr_n'])
         found = found_lite = 0

@@ -273,9 +273,9 @@ def pets(photos_dir, out, det, cut):
 
 
 def phone(photos_dir, path):
-    """Same input as the app: the photo at 640 px, YOLO26-M boxes, cat and dog boxes 0.5+ cut from it for DINOv2-S (dinov2_s.onnx, see bench/pets.py)."""
+    """Same input as the app: the photo at 640 px, YOLO26-M boxes, cat and dog boxes 0.5+ cut from it for the pet vectors (noodle_s.onnx, see bench/pets.py)."""
     det = Yolo26('yolo26_m')
-    dino = ort.InferenceSession(str(Path.home() / '.uniface/models/dinov2_s.onnx'), providers=CPU)
+    dino = ort.InferenceSession(str(Path.home() / '.uniface/models/noodle_s.onnx'), providers=CPU)
     same = lost = new = gate = 0
     score_diff, box_diff, sims = [], [], []
     data = json.loads(path.read_text())
@@ -299,10 +299,11 @@ def phone(photos_dir, path):
                 continue
             x1, y1, x2, y2 = (int(v) for v in b['box'])
             c = small[max(y1, 0):y2, max(x1, 0):x2, ::-1]
-            k = 224 / min(c.shape[:2])
-            c = cv2.resize(c, (max(224, round(c.shape[1] * k)), max(224, round(c.shape[0] * k))), interpolation=cv2.INTER_AREA if k < 1 else cv2.INTER_LINEAR)  # AREA enlarges like nearest
-            top, left = (c.shape[0] - 224) // 2, (c.shape[1] - 224) // 2
-            x = ((c[top:top + 224, left:left + 224] / 255 - [0.485, 0.456, 0.406]) / [0.229, 0.224, 0.225]).transpose(2, 0, 1)[None]
+            while max(c.shape[:2]) >= 448:  # like PetVectors: each side halved under 448, then squashed to 224x224
+                h, w = c.shape[:2]
+                c = cv2.resize(c, (w // 2 if w >= 448 else w, h // 2 if h >= 448 else h), interpolation=cv2.INTER_AREA)
+            c = cv2.resize(c, (224, 224), interpolation=cv2.INTER_LINEAR)
+            x = ((c / 255 - [0.485, 0.456, 0.406]) / [0.229, 0.224, 0.225]).transpose(2, 0, 1)[None]
             v = dino.run(None, {'input': x.astype(np.float32)})[0][0]
             sims.append(float(v @ b['vec'] / np.linalg.norm(v)))
     print(f'{len(data)} photos, boxes 0.25+: {same} same, {lost} lost, {new} new; the gate (a person 0.05+) differs on {gate} photos')

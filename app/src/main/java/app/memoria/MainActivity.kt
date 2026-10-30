@@ -509,7 +509,7 @@ fun runTest(context: Context, dir: File, on: Accelerator, log: (String) -> Unit,
                 t = System.nanoTime(); val found640 = objects.detect(Letterbox(image640)); detectObjects += ms()
                 boxes.put(file.relativeTo(dir).path, JSONObject().put("size", JSONArray(listOf(image640.width, image640.height))).put("boxes", JSONArray(found640.map { b ->
                     val row = JSONObject().put("c", b.cls).put("s", b.score.toDouble()).put("box", JSONArray(b.box.toList()))
-                    if (b.cls != PERSON && b.score >= 0.5f) {
+                    if (b.cls != PERSON && b.score >= 0.7f) {
                         t = System.nanoTime(); row.put("vec", JSONArray(pets.vector(image640, b.box).toList())); embedPets += ms()
                         petCount++
                     }

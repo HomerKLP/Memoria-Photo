@@ -334,3 +334,8 @@ YOLOv5m-640 finds the most faces at every size, is faster than RetinaFace, and i
 - Two GPU runs in one app process, then a CPU run. The second run: 106 faces, 106 different vectors, no repeats; the 14 old faces match the first run exactly.
 - GPU vs phone CPU, 106 faces: vectors median 0.9982, min 0.80 (one demo face, quality fine on both, next worst 0.980); quality within 0.035, median 0.002, no face crosses the 0.4 cut.
 - So the stuck results in `bugs.md` are the emulator's OpenGL GPU only. The phone's GPU (OpenCL) is fine.
+
+### 2026-10-30: full re-index with object boxes (debug build, NPU)
+- Whole library (~4.4k photos): faces, YOLO26-M boxes and pet vectors; tag vectors kept from before. 936 s, 213 ms per photo on average.
+- Median ~208 ms per photo, from 15 s windows (no per-photo log); windows ranged 125-564 ms.
+- About 2 min with no progress at ~60%: a notification tap had dropped the foreground service, so Android froze the app (`bugs.md`, index notification). Without it, ~185 ms per photo.

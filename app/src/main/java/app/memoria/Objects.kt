@@ -7,7 +7,6 @@ import com.google.ai.edge.litert.Accelerator
 import java.io.File
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 // COCO classes the app keeps
@@ -43,7 +42,7 @@ class ObjectDetector(
 
     companion object {
         /** Saved on each photo with its boxes. Bump it with a new objects or pets file, and the next run boxes every photo again. */
-        const val VERSION = 1
+        const val VERSION = 3 // 2: pet vectors from the squashed box and Noodle's layer; 3: pets from boxes 0.7+, no duplicate boxes
     }
 }
 
@@ -73,8 +72,8 @@ private fun overlap(a: FloatArray, b: FloatArray): Float {
 }
 
 /**
- * DINOv2-S (`docs/objects.md`): a cat or dog box -> its normalized 384 vector, to tell pets apart. Reads <app files>/models/pets.tflite.
- * No NPU: its vectors there are only ~0.93 like the CPU's (GPU 0.996), and pets are few.
+ * DINOv2-S plus Noodle Gallery's pet layer (`docs/objects.md`): a cat or dog box -> its normalized 512 vector, to tell pets apart.
+ * Reads <app files>/models/pets.tflite. No NPU: DINOv2's vectors there are only ~0.93 like the CPU's (GPU 0.996), and pets are few.
  */
 class PetVectors(
     context: Context,
@@ -82,16 +81,16 @@ class PetVectors(
 ) : AutoCloseable {
     private val net = Net(liteEnv(context), objectsFiles(context)[1], accelerators)
 
-    /** [box] cut from [image], shorter side to 224, the middle 224x224 (the bench's timm transform), RGB, ImageNet mean and std. */
+    /** [box] cut from [image] and squashed to 224x224 whole (a middle square loses a lying cat's head and tail), RGB, ImageNet mean and std. */
     fun vector(image: Bitmap, box: FloatArray): FloatArray {
         val x1 = box[0].toInt().coerceIn(0, image.width - 1)
         val y1 = box[1].toInt().coerceIn(0, image.height - 1)
         var b = Bitmap.createBitmap(image, x1, y1, (box[2].toInt().coerceAtMost(image.width) - x1).coerceAtLeast(1), (box[3].toInt().coerceAtMost(image.height) - y1).coerceAtLeast(1))
-        while (min(b.width, b.height) >= 448) b = Bitmap.createScaledBitmap(b, b.width / 2, b.height / 2, true) // averaged, not sampled, as in Tagger.input
-        val s = 224f / min(b.width, b.height)
-        b = Bitmap.createScaledBitmap(b, max(224, (b.width * s).roundToInt()), max(224, (b.height * s).roundToInt()), true)
+        // each side halved down to under 448 first: averaged, not sampled, as in Tagger.input
+        while (max(b.width, b.height) >= 448) b = Bitmap.createScaledBitmap(b, if (b.width >= 448) b.width / 2 else b.width, if (b.height >= 448) b.height / 2 else b.height, true)
+        b = Bitmap.createScaledBitmap(b, 224, 224, true)
         val pixels = IntArray(224 * 224)
-        b.getPixels(pixels, 0, 224, (b.width - 224) / 2, (b.height - 224) / 2, 224, 224)
+        b.getPixels(pixels, 0, 224, 0, 0, 224, 224)
         val input = FloatArray(3 * 224 * 224)
         var i = 0
         for ((c, shift) in intArrayOf(16, 8, 0).withIndex()) for (p in pixels) input[i++] = ((p shr shift and 0xFF) / 255f - MEAN[c]) / STD[c]

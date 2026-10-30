@@ -497,7 +497,7 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                             val found = if (objects == null) pipeline.detect(lb) else {
                                 val all = objects.first.detect(lb)
                                 boxes = all.map { boxRow(photo.id, it, small) }
-                                pets = all.filter { it.cls != PERSON && it.score >= 0.5f }.map { petFace(photo.id, it, small, objects.second, w, h) }
+                                pets = all.filter { it.cls != PERSON && it.score >= 0.7f }.map { petFace(photo.id, it, small, objects.second, w, h) }
                                 // no person box, no face detection; then a face counts only inside a person box (docs/objects.md)
                                 val people = all.filter { it.cls == PERSON }.map { it.box }
                                 if (people.isEmpty()) emptyList() else pipeline.detect(lb).filter { inPerson(it.box, people) }
@@ -593,7 +593,7 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         if (small != null) try {
             val found = objects.first.detect(Letterbox(small))
             boxes = found.map { boxRow(id, it, small) }
-            pets = found.filter { it.cls != PERSON && it.score >= 0.5f }.map { petFace(id, it, small, objects.second, w, h) }
+            pets = found.filter { it.cls != PERSON && it.score >= 0.7f }.map { petFace(id, it, small, objects.second, w, h) }
             val people = found.filter { it.cls == PERSON }.map { toFull(it.box, small, w, h) }
             drop = dao.photoFaces(id).filter { it.id !in kept && !inPerson(it.box, people) }.map { it.id }
         } catch (e: Exception) {
@@ -604,6 +604,7 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
             // ponytail: a new model version boxes again and replaces the pets, so a pet's cover or merge on this photo is lost; keep them then
             dao.deletePets(id)
             dao.insertFaces(pets)
+            dao.deleteBoxes(listOf(id))
             dao.insertBoxes(boxes)
             dao.setBoxed(id, ObjectDetector.VERSION)
         }
@@ -613,7 +614,7 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
     private fun boxRow(photoId: Long, b: ObjectBox, small: Bitmap) =
         ObjectBoxRow(photoId = photoId, cls = b.cls, score = b.score, box = FloatArray(4) { i -> b.box[i] / if (i % 2 == 0) small.width else small.height })
 
-    /** A cat or dog box with score 0.5+ as a pet face: the DINOv2 vector, a picture cut from [small], the box in face pixels. */
+    /** A cat or dog box with score 0.7+ (surer boxes, fewer strays among the pets) as a pet face: the DINOv2 vector, a picture cut from [small], the box in face pixels. */
     private fun petFace(photoId: Long, b: ObjectBox, small: Bitmap, pets: PetVectors, w: Int, h: Int) = FaceRow(
         photoId = photoId, box = toFull(b.box, small, w, h), score = b.score, landmarks = FloatArray(0),
         vector = pets.vector(small, b.box), quality = b.score, thumb = faceThumb(small, b.box), pet = true,

@@ -23,10 +23,10 @@ Every ~30 s and at the end: group people, [group pets], places. [Pets category =
 - Gate: no person box, no face detection. On the bench 33% of photos have none; only 28 of 3401 faces sit on them (3 with quality 0.4+), all dropped by the rule below anyway.
 - Strict person-box rule: drop a face less than half inside every person box, before AdaFace. Of 32 faces with quality 0.4+ it drops, 1 is real. It also keeps cat faces out, so there is no separate cat/dog rule.
 - No meme rule: the tagger marks many screenshots as memes.
-- Pets: DINOv2-S, average linkage, cut ~0.6 (bench: pair precision 0.94, recall 0.92). The Pets category comes from the boxes (~40% more pet photos than the tag); the other 13 stay with the tagger.
+- Pets: DINOv2-S plus Noodle Gallery's pet layer (`pets.tflite`, 512 vector) on the whole box squashed to 224x224, from cat and dog boxes 0.7+, average linkage, cut 0.68, then pets under 0.76 apart join (a cat's split groups): no crop in another cat's group, a quarter of the crops left out (the user's call: better left out than mixed; see "real labels"; cut 0.6 on the middle square mixed cats). The Pets category comes from the boxes (~40% more pet photos than the tag); the other 13 stay with the tagger.
 - No extra decode: pets crop from the 640 decode (79% of pet boxes are 224+ px there, DINOv2's input). Region decodes for faces and pets are ROADMAP Later.
-- Existing installs: a one-time catch-up pass, merged with the tagger's untagged pass (one 640 decode for both): YOLO26-M, drop old faces less than half inside every person box, DINOv2-S on pet boxes, regroup. It never drops a face the user answered (yes or no), a merge face, a cover, or a Not-a-face mark.
-- DB (v14): `object_box` holds every person, cat and dog box (score 0.05+, x1, y1, x2, y2 as fractions of the photo); the Pets category reads its cat and dog boxes 0.5+. Each cat or dog box 0.5+ is also a `face` row with `pet` set: DINOv2 vector, quality = box score, a picture cut from the 640 decode. So pets get names, covers, hiding and merges like people; `groupPets` groups them at each regroup (average linkage, cut 0.6, 6+ photos), never `groupFaces`, and they have no Help recognize. `photo.objects` is the model version that boxed the photo (`ObjectDetector.VERSION`), null = not yet. v13 kept the pet vectors in `object_box`; v14 drops them and boxes every photo again.
+- Existing installs: a one-time catch-up pass, merged with the tagger's untagged pass (one 640 decode for both): YOLO26-M, drop old faces less than half inside every person box, pet vectors on pet boxes, regroup. A new `ObjectDetector.VERSION` runs it again (2: the Noodle pet vectors; 3: pets from boxes 0.7+, and the old boxes deleted first: version 2 had doubled them); until it reaches a photo, `groupPets` skips that photo's older, shorter vectors. It never drops a face the user answered (yes or no), a merge face, a cover, or a Not-a-face mark.
+- DB (v14): `object_box` holds every person, cat and dog box (score 0.05+, x1, y1, x2, y2 as fractions of the photo); the Pets category reads its cat and dog boxes 0.5+. Each cat or dog box 0.5+ is also a `face` row with `pet` set: DINOv2 vector, quality = box score, a picture cut from the 640 decode. So pets get names, covers, hiding and merges like people; `groupPets` groups them at each regroup (average linkage, cut 0.68, 6+ photos; pet rows only from boxes 0.7+), never `groupFaces`, and they have no Help recognize. `photo.objects` is the model version that boxed the photo (`ObjectDetector.VERSION`), null = not yet. v13 kept the pet vectors in `object_box`; v14 drops them and boxes every photo again.
 - Speed on the test phone's NPU: YOLO26-M 18 ms per photo, about what the face detector takes, so the gate saves more than it costs. DINOv2-S runs on the GPU (15 ms per pet), not the NPU: see "In the app".
 
 ## Candidates
@@ -95,6 +95,53 @@ RF-DETR-S at 0.3, checked by eye:
 - DINOv2 keeps different pets apart. B at 0.6 puts 94-95% of each patterned cat in one group; a black cat splits into a few groups (80% in the biggest).
 - An easy set: one cat of each coat. Two black cats or two tabbies would be harder for any model.
 - Picked DINOv2-S (the user's call: B is not worth 4x the size for pets).
+
+## Which pet is which, real labels (2026-10-29)
+The phone's pet groups (cut 0.6) mixed cats: the two black cats in one group, a calico with a street cat. The labels above were by coat, so they never tested two cats of one coat. The user then marked all 322 app crops by the real cat: 279 kept, 4 own cats seen often (136, 66, 28, 18 crops) and ~10 seen a few times. Crops cut from the full photo by the `object_box` fractions; pair precision / recall with average linkage; groups need 6+ photos, as for people.
+
+| Model, how the box becomes a square | Closest crop is the same cat | 0.4 | 0.5 | 0.6 |
+|---|---|---|---|---|
+| DINOv2-S, middle square (the app until now) | 97.1% | 0.97 / 0.18 | 0.98 / 0.36 | 0.90 / 0.79 |
+| DINOv2-S, padded | 96.7% | 0.99 / 0.21 | 0.95 / 0.70 | 0.73 / 0.80 |
+| **DINOv2-S, squashed** | 96.3% | 0.97 / 0.20 | **0.98 / 0.66** | 0.80 / 0.85 |
+| DINOv2-S, squashed, from the 640 decode | 96.7% | 0.99 / 0.21 | 0.99 / 0.64 | 0.88 / 0.85 |
+| DINOv2-S, squashed, 336 px | 97.1% | 1.00 / 0.20 | 1.00 / 0.61 | 0.92 / 0.79 |
+| DINOv2-B, padded | 97.8% | 0.99 / 0.32 | 0.99 / 0.63 | 0.85 / 0.75 |
+| DINOv3-S / B, padded | 92.6% / 94.9% | all vectors close: precision 0.31 from cut 0.3 | | |
+| MegaDescriptor-T-224 / L-384 (CC BY-NC) | 85.3% / 89.3% | recall under 0.1 at any cut with precision 0.97+ | | |
+| MiewID-msv3 (no license stated) | 91.9% | best 0.97 / 0.26 at cut 0.67 | | |
+
+- The middle square cuts off the head and tail of a lying cat. Squashing the whole box into 224x224 keeps them and doubles recall at the same precision.
+- Squashed at cut 0.5: one group per own cat (one cat in two), 2 stray crops in all; the two black cats apart. The middle square at 0.5 splits each own cat in two; at 0.6 it mixes them.
+- 0.3 and 0.4 are too tight: each cat breaks into small groups, most under 6 photos, so they never show.
+- The animal re-ID models (trained on wildlife) and DINOv3 do worse than DINOv2 on these cats; MegaDescriptor is also non-commercial. DINOv3 with the average vector taken off first (2026-10-30) is still far worse: 0 mixed only at 3% right, 44-56% at best with ~90 mixed; the same step hurts DINOv2 and Noodle too.
+
+Pair precision hides where each crop ends up, so every crop counted: right (its cat's biggest group), split (another group of its cat), mixed (another cat's group), left out (no group, though its cat has one). DINOv2-S, squashed, 640 decode:
+
+| Setup | Right | Split | Mixed | Left out |
+|---|---|---|---|---|
+| The app until now (middle square, cut 0.6) | 85% | 5 | 19 | 19 |
+| Squashed, cut 0.3 / 0.4 / 0.5 | 22% / 35% / 70% | | | |
+| Squashed, cut 0.6 | 88% | 7 | 14 | 12 |
+| Squashed, cut 0.56, the rest join the closest group within 0.66 (like people) | 90% | 8 | 18 | 3 |
+| Squashed, cut 0.56, join within 0.2 | 87% | 7 | 6 | 23 |
+| Squashed, 3 mixed at most (cut 0.48) | 73% | 16 | 2 | 56 |
+
+Tried on top, none better: the crop and its mirror averaged (same 90%, more left out), the background cut out with YOLO26-M-seg masks (79-81%: the home around a cat helps more than it hurts), DINOv2 on the cat's face from YOLOv5m-face added to the body (a face in only 74 of 279 crops; no gain), a left-out crop joining the group of its closest grouped crop instead of the closest average (same). The other models scored this way: DINOv2-B 84%, MiewID 75%, DINOv3 59%, MegaDescriptor 61% at best. Noodle Gallery's `open-noodle/pet-recognition` (Apache-2.0, ONNX; frozen DINOv2 plus a linear projection to 512 trained on CC0 / CC BY cat and dog ID sets; the box squashed to 224, as here): small 89% at best (cut 0.78: 15 split, 9 mixed), 87% with 8 mixed at most, the same as plain DINOv2-S; base 92% at best but 19 mixed, 80% with 8 mixed at most. Its distances jump: 0.8 groups well, 1.0 joins everything. With 8 mixed at most, small leaves out fewer crops than DINOv2-S (14 vs 23) but splits more (15 vs 7); a split shows (Merge fixes it), a left-out crop never does. Noodle small is DINOv2-S's normalized class token, one linear layer 384 -> 512 and a normalize: our vectors through its layer match its output (cosine 0.997), so it costs one small layer in `pets.tflite`. Letting a small cluster (under 6 photos) join the closest big group as a whole did not help: the join that pulls in a cat's stray shots pulls in other cats too.
+- In the app (2026-10-30, the user's call): Noodle small, the box squashed, cut 0.76. `bench/pets.py onnx noodle_s` adds Noodle's layer to our DINOv2-S export (my export vs Noodle's own ONNX: cosine 0.997 median, 0.977 min: timm and Hugging Face fit the position embedding to 224 a little differently); fp16 `pets.tflite` 44.1 MB (was 43.7), fp16 vs fp32 1.0000. With that exact model the cut curve: 0.74 81% right / 6 mixed, 0.76 84% / 9, 0.78 84% / 11, 0.80 82% / 23 (two cats' groups join). 0.78 sat on that edge, so 0.76.
+- Then stricter (2026-10-30, the user's call: better a photo left out than two cats in one group). The pet model gives no trust score of its own, so the knobs are the box score floor and the cut. The app model on all 322 crops:
+
+| Box floor | Cut | Right | Split | Mixed | Left out |
+|---|---|---|---|---|---|
+| 0.5 | 0.76 | 81% | 31 | 11 | 11 |
+| 0.7 | 0.72 | 70% | 37 | 2 | 45 |
+| 0.5 | 0.68 | 68% | 29 | 1 | 58 |
+| **0.7** | **0.68** | **62%** | **33** | **0** | **72** |
+| 0.5 | 0.64 | 60% | 29 | 0 | 82 |
+
+- Not cats at all: YOLO26 boxes monkeys, goats, tigers, a cow, people's hair and feet as cat or dog, as surely as real cats (the monkeys up to 0.93), so no floor removes them; the monkeys look alike, so they form their own "pet" at every cut. Hide pet handles that group. SigLIP2 on the crop would drop them (every marked cat scores above, nearly all junk below "cat or dog minus the best other word" -0.01), but the user chose not to add it. What stays wrong: a second calico in the main calico's group, and the two black cats.
+- On the phone (2026-10-30, box 0.7+, cut 0.68, 277 pictures): 10 pets shown, none mixed, but 3 own cats split (one in 3 groups, two in 2) and one group is junk. A second step (now in the app) that joins shown groups whose average distance is under 0.76 joins 3 of the 4 splits (7 pets, 66% → 75% right, still 0 mixed); the closest two different cats (the black ones) sit at 0.78, so 0.74–0.78 is the whole safe range. Letting left-out pictures join the closest group adds 1-3 at most: they are far from every group. Merge with already lists the right cat first for all 4 splits.
+- First pick: DINOv2-S as now, the box squashed to 224x224, cut 0.56, the rest join within 0.2: fewest mixed crops for little loss. Then Noodle small won (below).
 
 ## `.tflite` (2026-10-28)
 `uv run bench/pets.py onnx dinov2_s` and `onnx rfdetr_n`, then `uv run bench/tflite.py --models dinov2_s rfdetr_n`.

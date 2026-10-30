@@ -21,7 +21,7 @@ uv run bench/pets.py embed    -> a vector per crop and model, cached in testdata
 uv run bench/pets.py sheets   -> numbered contact sheets to label, similar crops (by dinov2_s) next to each other
 uv run bench/pets.py label "1-12:a 13:b 14:-" -> which pet each tile is: any name, the same name for the same pet, - to leave out (drawing, toy, two pets in one box, unsure)
 uv run bench/pets.py score    -> per model: is the closest other crop the same pet, and grouping at a cut
-uv run bench/pets.py onnx dinov2_s  -> ~/.uniface/models/dinov2_s.onnx, for bench/tflite.py (rfdetr_n, _s, _m alike, for it and bench/objects.py)
+uv run bench/pets.py onnx noodle_s  -> ~/.uniface/models/noodle_s.onnx (the app's pets.tflite), for bench/tflite.py (dinov2_s, rfdetr_n, _s, _m alike, rfdetr for bench/objects.py too)
 """
 
 import argparse
@@ -162,8 +162,26 @@ def score():
               f'recall {(grouped & same).sum() / same.sum():.3f}')
 
 
+class Noodle(torch.nn.Module):
+    """Noodle Gallery's pet-recognition-small (Apache-2.0): DINOv2-S's class token, normalized, then their linear layer to 512 (docs/objects.md)."""
+
+    def __init__(self):
+        super().__init__()
+        import onnx
+        from huggingface_hub import hf_hub_download
+        from onnx import numpy_helper
+        g = onnx.load(hf_hub_download('open-noodle/pet-recognition-small', 'recognition/model.onnx')).graph
+        w = {i.name: torch.from_numpy(numpy_helper.to_array(i).copy()) for i in g.initializer if i.name.startswith('projection.')}
+        self.dino, self.proj = dinov2('dinov2_s'), torch.nn.Linear(384, 512)
+        self.proj.weight.data, self.proj.bias.data = w['projection.linear.weight'], w['projection.linear.bias']
+
+    def forward(self, x):
+        v = self.dino(x) / 32  # the sum of squares stays small for fp16
+        return self.proj(v / v.pow(2).sum(-1, keepdim=True).sqrt())
+
+
 def export(name):
-    """DINOv2: ImageNet-normalized RGB (1, 3, 224, 224) -> the class token, not normalized. The rewrites are bench/tags.py
+    """DINOv2: ImageNet-normalized RGB (1, 3, 224, 224) -> the class token, not normalized; noodle_s -> its 512 vector, not normalized. The rewrites are bench/tags.py
     export's, so the phone's GPU and NPU can take it. RF-DETR: Roboflow's own export, with the linear rewrite only."""
     dst = Path.home() / '.uniface/models' / f'{name}.onnx'
 
@@ -177,7 +195,7 @@ def export(name):
             shutil.copy(model.export(output_dir=work, verbose=False), dst)
         print(f'{dst}: {dst.stat().st_size >> 20} MB')
         return
-    m = dinov2(name)
+    m = Noodle() if name == 'noodle_s' else dinov2(name)
 
     def norm(self, x):  # same result on x / 32, so fp16 on the NPU can't overflow in (x - mean)^2
         return torch.nn.functional.layer_norm(x / 32, self.normalized_shape, self.weight, self.bias, self.eps / 32 ** 2)
@@ -202,7 +220,7 @@ def export(name):
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument('cmd', choices=['crops', 'embed', 'sheets', 'label', 'score', 'onnx'])
-    ap.add_argument('answer', nargs='?', help='label: "1-12:a 13:b 14:-"; onnx: dinov2_s, dinov2_b, rfdetr_n, rfdetr_s, rfdetr_m')
+    ap.add_argument('answer', nargs='?', help='label: "1-12:a 13:b 14:-"; onnx: noodle_s (the app pets), dinov2_s, dinov2_b, rfdetr_n, rfdetr_s, rfdetr_m')
     ap.add_argument('--photos', type=Path, default=ROOT / 'testdata/takeout')
     a = ap.parse_args()
     if a.cmd == 'crops':

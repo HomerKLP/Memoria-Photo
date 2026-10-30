@@ -106,7 +106,7 @@ perf:
 check: test shot-check
 
 # bench file:app name (Models.kt). adb makes them shell's, so the app reads them only as rw-rw-rw- (bugs.md, "Memoria Debug never auto-indexed").
-MODEL_NAMES := yolov5m_raw_fp16:detector_raw adaface_ir_101_fp16:recognizer ediffiqa_t_fp16:quality siglip2_b16_fp16:tagger yolo26_m_fp16:objects dinov2_s_fp16:pets
+MODEL_NAMES := yolov5m_raw_fp16:detector_raw adaface_ir_101_fp16:recognizer ediffiqa_t_fp16:quality siglip2_b16_fp16:tagger yolo26_m_fp16:objects noodle_s_fp16:pets
 push-models:
 	@for m in $(MODEL_NAMES); do \
 		$(ADB) -d push -a models/$${m%%:*}.tflite /sdcard/Android/data/app.memoria.debug/files/models/$${m##*:}.tflite || exit 1; \
