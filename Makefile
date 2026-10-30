@@ -16,13 +16,14 @@ KEY_SHA256 := bc1c500550d9e3bd73e27f44132877189329f88875ace0bd6049a828e792b240
 VERSION := $(shell sed -n 's/.*versionName = "\(.*\)"/\1/p' app/build.gradle.kts)
 APK := app/build/outputs/apk/release/memoria-$(VERSION).apk
 
-.PHONY: help install apk release pull-db test screenshots shot-check emulator layout behavior perf check
+.PHONY: help install apk release pull-db push-models test screenshots shot-check emulator layout behavior perf check
 
 help:
 	@echo "make install     build debug (app.memoria.debug, next to release), install on the phone over USB, open it (stops if the build fails)"
 	@echo "make apk         build release, sign with the release key (asks its password), check the signer; the file to publish"
 	@echo "make release     make apk, then install on the phone, compile with the profile, open (for speed checks, keeps the data)"
 	@echo "make pull-db     copy the debug app's DB (+ -wal, -shm) to testdata/out/db/; the last copy moves to db/prev-<time>/"
+	@echo "make push-models models/*.tflite to the debug app under the names it reads, rw-rw-rw-, dates kept (no download needed)"
 	@echo "make test        unit tests (pure logic, no device); one class: make test T=DetailsGpsTest"
 	@echo "make screenshots refresh screenshot baselines (no device)"
 	@echo "make shot-check  validate screenshots against the baselines (no device)"
@@ -103,3 +104,11 @@ perf:
 	uv run bench/perf.py
 
 check: test shot-check
+
+# bench file:app name (Models.kt). adb makes them shell's, so the app reads them only as rw-rw-rw- (bugs.md, "Memoria Debug never auto-indexed").
+MODEL_NAMES := yolov5m_raw_fp16:detector_raw adaface_ir_101_fp16:recognizer ediffiqa_t_fp16:quality siglip2_b16_fp16:tagger yolo26_m_fp16:objects noodle_s_fp16:pets
+push-models:
+	@for m in $(MODEL_NAMES); do \
+		$(ADB) -d push -a models/$${m%%:*}.tflite /sdcard/Android/data/app.memoria.debug/files/models/$${m##*:}.tflite || exit 1; \
+		$(ADB) -d shell chmod 666 /sdcard/Android/data/app.memoria.debug/files/models/$${m##*:}.tflite || exit 1; \
+	done

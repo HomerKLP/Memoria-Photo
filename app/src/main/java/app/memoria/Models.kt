@@ -7,8 +7,8 @@ import java.io.File
 import java.security.MessageDigest
 
 /**
- * The models, downloaded once from GitHub releases by Android's DownloadManager (`models-v1` the face models, `models-v2` the tagger), so the
- * download goes on with the app closed. A file lands as `.part` and gets its real name only once its SHA-256
+ * The models, downloaded once from GitHub releases by Android's DownloadManager (`models-v1` the face models, `models-v2` the tagger,
+ * `models-v3` the object detector and pet vectors), so the download goes on with the app closed. A file lands as `.part` and gets its real name only once its SHA-256
  * matches, so [modelsReady] never sees a half or broken file. `adb push` into the same folder still works.
  */
 object Models {
@@ -21,6 +21,8 @@ object Models {
         Model("recognizer", "models-v1", 130_504_752, "651c0272e24f5f074bf76506d7aa4f59f06aade74eb5b44024608fdf7c241c09"),
         Model("quality", "models-v1", 4_045_216, "9914a7b2054e92a6747e4c2672b1400eb8350979388a56ffee7a773d9db6cae6"),
         Model("tagger", "models-v2", 184_129_376, "bd1a62d03c718770af3c63c6d092a8d868a2710c2b32d4e8a02df50a53f4777b"),
+        Model("objects", "models-v3", 41_091_088, "9e97e214f08f112c01772b7ef5816268bb00e48191e6b0f0f6945bdf0b354a48"),
+        Model("pets", "models-v3", 44_138_000, "2311c603eee8d8a0a32db7c2a07a485531b69055b809c4e8cb76448ff7a68b33"),
     )
     val TOTAL = FILES.sumOf { it.size }
 

@@ -27,6 +27,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -71,6 +72,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.lerp
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -472,16 +474,17 @@ private fun viewerPhoto(context: Context, tile: Tile): Bitmap =
     }
 
 /**
- * Pan that keeps the double-tapped [focus] point under the finger while zooming to [target] (from the
- * centered 1x photo). Pan is measured from the centered photo (0 = centered), so a tap right of center
- * pans left to bring that side in. Clamped to the photo's pan room, so a tap near an edge is fine.
+ * Pan that keeps the [focus] point (double tap, or the pinch's finger center) in place while zooming
+ * from [from] with [pan] to [target]. Pan is measured from the centered photo (0 = centered), so a tap
+ * right of center pans left to bring that side in. Clamped to the photo's pan room, so a tap near an edge is fine.
  */
-internal fun zoomToFocusPan(fit: Size, box: Size, target: Float, focus: Offset): Offset {
+internal fun zoomToFocusPan(fit: Size, box: Size, target: Float, focus: Offset, from: Float = 1f, pan: Offset = Offset.Zero): Offset {
     if (target <= 1f) return Offset.Zero
-    val d = focus - Offset(box.width / 2f, box.height / 2f)
+    val k = target / from
+    val p = pan * k + (focus - Offset(box.width / 2f, box.height / 2f)) * (1f - k)
     val roomX = ((fit.width * target - box.width) / 2f).coerceAtLeast(0f)
     val roomY = ((fit.height * target - box.height) / 2f).coerceAtLeast(0f)
-    return Offset((d.x * (1f - target)).coerceIn(-roomX, roomX), (d.y * (1f - target)).coerceIn(-roomY, roomY))
+    return Offset(p.x.coerceIn(-roomX, roomX), p.y.coerceIn(-roomY, roomY))
 }
 
 /** True when the photo's grid tile is at least partly on screen. */
@@ -538,16 +541,14 @@ fun ViewerPage(
     LaunchedEffect(Unit) { snapshotFlow { zoom.floatValue > 1f }.distinctUntilChanged().collect(onZoomed) }
     // The details square shows the photo at 1x: opening them drops a zoom, and pinching waits until they close
     val detailsNow by rememberUpdatedState(details)
-    fun transform(zoomChange: Float, panChange: Offset) {
+    fun transform(zoomChange: Float, panChange: Offset, focus: Offset = Offset.Zero) {
         // A real pinch or pan takes over from a running double-tap zoom. A bare tap (no movement) must
         // not: its down and up both land here just to clamp the pan, and cancelling would kill the
         // zoom-out animation the same tap just started.
         if (zoomChange != 1f || panChange != Offset.Zero) zoomJob?.cancel()
         val next = if (detailsNow() > 0f) 1f else (zoom.floatValue * zoomChange).coerceIn(1f, maxZoom)
-        val roomX = ((fit.value.width * next - box.value.width) / 2f).coerceAtLeast(0f)
-        val roomY = ((fit.value.height * next - box.value.height) / 2f).coerceAtLeast(0f)
-        pan.value = if (next == 1f) Offset.Zero
-        else Offset((pan.value.x + panChange.x).coerceIn(-roomX, roomX), (pan.value.y + panChange.y).coerceIn(-roomY, roomY))
+        val boxSize = Size(box.value.width.toFloat(), box.value.height.toFloat())
+        pan.value = zoomToFocusPan(fit.value, boxSize, next, focus, zoom.floatValue, pan.value + panChange)
         zoom.floatValue = next
     }
     // Double tap eases to the target, and slides the pan to keep the tapped point under the finger.
@@ -622,7 +623,9 @@ fun ViewerPage(
                             val event = awaitPointerEvent()
                             val zoomChange = event.calculateZoom()
                             if (zoomChange != 1f || zoom.floatValue > 1f) {
-                                transform(zoomChange, event.calculatePan())
+                                // zoom around the fingers; no finger down (the last up) has no center, and no zoom then
+                                val focus = event.calculateCentroid()
+                                transform(zoomChange, event.calculatePan(), if (focus.isSpecified) focus else Offset.Zero)
                                 event.changes.forEach { if (it.positionChanged()) it.consume() }
                             }
                         } while (event.changes.any { it.pressed })

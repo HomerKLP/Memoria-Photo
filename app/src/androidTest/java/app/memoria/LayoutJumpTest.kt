@@ -876,6 +876,20 @@ class LayoutJumpTest {
         assertSame("grid top", gridTop, rule.onNodeWithTag("personPhotos").top())
     }
 
+    /** Pet More: the pet screen has no Unsure card, and its menu must not move the bar or the grid either. */
+    @Test fun petMore_opening_keepsContentPut() {
+        val pictures = (1L..6L).map { FaceVec(it, it, floatArrayOf(0f, 0f, 50f, 50f), FloatArray(384), 0.8f, PhotoKind.camera, null, pet = true) }
+        val pet = Person(pictures, pictures.first(), 1, "Murka")
+        rule.setContent { MemoriaTheme { Surface { PersonDetail(pet, onBack = {}, onName = {}, onOpen = { _, _ -> }, loadPhotos = { albumTiles(1, 6) }) } } }
+
+        val barTop = rule.onNodeWithTag("topBar").top()
+        val gridTop = rule.onNodeWithTag("personPhotos").top()
+        rule.onNodeWithContentDescription("More").performClick()
+        rule.onNodeWithText("Hide pet").assertIsDisplayed()
+        assertSame("bar top", barTop, rule.onNodeWithTag("topBar").top())
+        assertSame("grid top", gridTop, rule.onNodeWithTag("personPhotos").top())
+    }
+
     /** Details: faces, place and camera facts fill in below the date; the date header must not move. */
     @Test fun details_fillingInSections_keepsDatePut() {
         val tile = Tile(1, Uri.parse("content://media/external/images/media/1"), 1_700_000_000_000L, null)

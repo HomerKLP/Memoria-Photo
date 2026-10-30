@@ -28,6 +28,7 @@ WIDER FACE val AP, easy / medium / hard. "Hard" is mostly tiny crowd faces, whic
 | SCRFD-10G-kps | ~95.4 / 94.0 / 82.8 | ~4M params | InsightFace, non-commercial |
 | YOLOv5-face (s to x6) | ~94.3-96.7 / 92.6-95.5 / 82.8-86.6 | small to big | GPL-3.0 |
 | YOLOv8/11-face | YOLO11n: 94.2 / 92.1 / 81.0 | small | AGPL-3.0. Some versions have no landmarks. |
+| YOLO11s-pose face (zjykzj/YOLO11Face) | 95.72 / 94.19 / 85.24 | 9.7M params, 22.3 GFLOPs | Repo Apache-2.0, trained with Ultralytics (AGPL-3.0). Keypoints from RetinaFace labels. |
 | YuNet | ~88 / 87 / 75 | 75K params | MIT. Baseline only. |
 | BlazeFace | weak on small faces | tiny | Apache-2.0. Skip. |
 
@@ -52,6 +53,7 @@ IJB-C TAR at FAR=1e-4 (higher is better).
 
 ### Best on paper
 - Detectors: on faces big enough to recognize (WIDER easy/medium) all candidates are within 1-2%. Paper leaders (TinaFace, multi-scale RetinaFace) win only on tiny faces and are too heavy for a phone. Bigger YOLOv5-face (l6, x6) are a bit better than m, not in UniFace.
+- YOLO11s-pose face vs our YOLOv5m-face (95.30 / 93.76 / 85.28, 21.1M params): same AP, half the params. Compute is likely ~2x lower (Ultralytics counts YOLOv5m at 49 GFLOPs at 640; the YOLOv5-face repo's 18.1 is measured another way), not checked on the phone. Checked 2026-10-28.
 - Recognizers: LVFace ViT-L is top (IJB-C 98.06), but huge and non-commercial. AdaFace, ArcFace R100, TopoFR sit around 97.5. AdaFace is best on low-quality faces (TinyFace, IJB-S), the closest match to personal photos.
 
 ### Model updates
@@ -332,3 +334,8 @@ YOLOv5m-640 finds the most faces at every size, is faster than RetinaFace, and i
 - Two GPU runs in one app process, then a CPU run. The second run: 106 faces, 106 different vectors, no repeats; the 14 old faces match the first run exactly.
 - GPU vs phone CPU, 106 faces: vectors median 0.9982, min 0.80 (one demo face, quality fine on both, next worst 0.980); quality within 0.035, median 0.002, no face crosses the 0.4 cut.
 - So the stuck results in `bugs.md` are the emulator's OpenGL GPU only. The phone's GPU (OpenCL) is fine.
+
+### 2026-10-30: full re-index with object boxes (debug build, NPU)
+- Whole library (~4.4k photos): faces, YOLO26-M boxes and pet vectors; tag vectors kept from before. 936 s, 213 ms per photo on average.
+- Median ~208 ms per photo, from 15 s windows (no per-photo log); windows ranged 125-564 ms.
+- About 2 min with no progress at ~60%: a notification tap had dropped the foreground service, so Android froze the app (`bugs.md`, index notification). Without it, ~185 ms per photo.

@@ -81,4 +81,8 @@ class ViewerFitTest {
         assertEquals(focus.x, landed.x, 0.01f)
         assertEquals(focus.y, landed.y, 0.01f)
     }
+
+    // pinch at 2x, panned 200 left, fingers right of center, spread to 3x: the point under the fingers stays
+    @Test fun pinchKeepsThePointUnderTheFingers() =
+        assertPan(-450f, 0f, zoomToFocusPan(fit, box, 3f, androidx.compose.ui.geometry.Offset(800f, 1000f), 2f, androidx.compose.ui.geometry.Offset(-200f, 0f)))
 }

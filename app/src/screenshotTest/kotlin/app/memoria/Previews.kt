@@ -41,6 +41,10 @@ private fun fakePerson(id: Long, name: String?) =
     (1L..7L).map { fakeFace(id * 100 + it, if (it == 7L) 0.3f else 0.9f) }
         .let { Person(it, it.first(), id, name) }
 
+private fun fakePet(id: Long, name: String?) =
+    (1L..7L).map { FaceVec(id * 100 + it, it, floatArrayOf(0f, 0f, 50f, 50f), FloatArray(384), 0.8f, PhotoKind.camera, id, pet = true) }
+        .let { Person(it, it.first(), id, name) }
+
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 900)
 @Composable
@@ -48,8 +52,8 @@ fun PeopleList() = MemoriaTheme {
     Surface {
         PeopleContent(
             data = PeopleData(
-                summary = "7 people · 412 faces",
-                people = listOf(fakePerson(1, "Dana"), fakePerson(2, "Arman"), fakePerson(3, null), fakePerson(4, null), fakePerson(5, "Bota"), fakePerson(6, null), fakePerson(7, "Mei")),
+                summary = "7 people · 2 pets",
+                people = listOf(fakePerson(1, "Dana"), fakePerson(2, "Arman"), fakePerson(3, null), fakePet(8, "Murka"), fakePerson(4, null), fakePerson(5, "Bota"), fakePerson(6, null), fakePet(9, null), fakePerson(7, "Mei")),
                 unsure = listOf(fakeFace(201, 0.3f), fakeFace(202, 0.3f), fakeFace(203, 0.3f)),
             ),
         )
@@ -69,6 +73,35 @@ fun PersonScreen() = MemoriaTheme {
             ),
             openId = 1,
         )
+    }
+}
+
+/** Pet (mockup): pictures instead of faces, photos only in the title line, no Unsure card. Pairs with petMore_opening_keepsContentPut. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 900)
+@Composable
+fun PetScreen() = MemoriaTheme {
+    Surface { PeopleContent(data = PeopleData(summary = "0 people · 1 pet", people = listOf(fakePet(1, "Murka")), unsure = emptyList()), openId = 1) }
+}
+
+/** Pet, More (mockup): the person's menu with pet words. Pairs with petMore_opening_keepsContentPut. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 900)
+@Composable
+fun PetMore() = MemoriaTheme {
+    Surface {
+        Box(Modifier.fillMaxSize()) {
+            PeopleContent(data = PeopleData(summary = "0 people · 1 pet", people = listOf(fakePet(1, "Murka")), unsure = emptyList()), openId = 1)
+            Menu(
+                true, onDismiss = {},
+                items = listOf(
+                    MenuItem(R.drawable.ic_paw, "Rename") {},
+                    MenuItem(R.drawable.ic_person_add, "Merge with") {},
+                    MenuItem(R.drawable.ic_photo, "Change cover") {},
+                    MenuItem(R.drawable.ic_block, "Hide pet", dividerBefore = true) {},
+                ),
+            )
+        }
     }
 }
 

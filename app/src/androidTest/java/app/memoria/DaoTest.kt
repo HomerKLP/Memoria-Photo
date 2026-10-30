@@ -86,8 +86,8 @@ class DaoTest {
         dao.insert(PhotoRow(3, "Download/c.jpg", PhotoKind.other), emptyList())
         dao.insertVector(PhotoVectorRow(1, 1, FloatArray(768)))
         dao.insertVector(PhotoVectorRow(2, 0, FloatArray(768)))
-        assertEquals(1, dao.doneCount(tagger = true, model = 1).first())
-        assertEquals(3, dao.doneCount(tagger = false, model = 1).first())
+        assertEquals(1, dao.doneCount(tagger = true, model = 1, objects = false, objectsModel = 1).first())
+        assertEquals(3, dao.doneCount(tagger = false, model = 1, objects = false, objectsModel = 1).first())
     }
 
     @Test fun kinds_countsPhotosPerKind() = runBlocking {
@@ -156,5 +156,38 @@ class DaoTest {
         val left = dao.answers().single()
         assertEquals(6L, left.faceId)
         assertFalse(left.yes)
+    }
+
+    @Test fun boxes_boxedByModel_petPhotosFromCatAndDog05() = runBlocking {
+        dao.insert(PhotoRow(1, "DCIM/Camera/a.jpg", PhotoKind.camera, objects = 1), emptyList())
+        dao.insert(PhotoRow(2, "DCIM/Camera/b.jpg", PhotoKind.camera), emptyList())
+        dao.insertBoxes(listOf(
+            ObjectBoxRow(photoId = 1, cls = PERSON, score = 0.9f, box = FloatArray(4)),
+            ObjectBoxRow(photoId = 1, cls = CAT, score = 0.6f, box = FloatArray(4)),
+            ObjectBoxRow(photoId = 1, cls = DOG, score = 0.8f, box = FloatArray(4)),
+            ObjectBoxRow(photoId = 2, cls = CAT, score = 0.4f, box = FloatArray(4)), // under 0.5: no pet photo
+        ))
+        assertEquals(listOf(1L), dao.boxedIds(1))
+        assertEquals(1, dao.doneCount(tagger = false, model = 1, objects = true, objectsModel = 1).first())
+        assertEquals(2, dao.doneCount(tagger = false, model = 1, objects = false, objectsModel = 1).first())
+        dao.setBoxed(2, 1)
+        assertEquals(listOf(1L, 2L), dao.boxedIds(1).sorted())
+        assertEquals(mapOf(1L to 0.8f), dao.petPhotos()) // the surest box
+        dao.deleteBoxes(listOf(1))
+        assertEquals(emptyMap<Long, Float>(), dao.petPhotos())
+    }
+
+    @Test fun pets_areFacesButNotPhotoFaces() = runBlocking {
+        dao.insert(
+            PhotoRow(1, "DCIM/Camera/a.jpg", PhotoKind.camera),
+            listOf(
+                FaceRow(id = 1, photoId = 1, box = FloatArray(4), score = 0.9f, landmarks = FloatArray(0), vector = FloatArray(0), quality = 0.9f, thumb = ByteArray(0)),
+                FaceRow(id = 2, photoId = 1, box = FloatArray(4), score = 0.8f, landmarks = FloatArray(0), vector = FloatArray(0), quality = 0.8f, thumb = ByteArray(0), pet = true),
+            ),
+        )
+        assertEquals(listOf(false, true), dao.faceVecs().sortedBy { it.id }.map { it.pet })
+        assertEquals(listOf(1L), dao.photoFaces(1).map { it.id }) // the viewer and the person-box rule see faces only
+        dao.deletePets(1)
+        assertEquals(listOf(1L), dao.faceVecs().map { it.id })
     }
 }

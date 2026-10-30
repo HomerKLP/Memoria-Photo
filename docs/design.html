@@ -99,6 +99,8 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .unnamed { color: var(--muted); }
 .face { width: var(--s, 72px); height: var(--s, 72px); flex: none; border-radius: 50%; overflow: hidden; display: grid; place-items: end center; }
 .face svg.i { width: 83%; height: 83%; fill: rgba(255, 255, 255, .72); margin-bottom: -14%; }
+.face.pet { place-items: center; } /* mockup only: a pet's picture is its cat or dog box */
+.face.pet svg.i { width: 58%; height: 58%; margin-bottom: 0; }
 /* Empty, in a row: the same 72px item as a face, so the row keeps its height and nothing below moves */
 .empty-face { background: var(--surface); place-items: center; }
 .empty-face svg.i { width: 44%; height: 44%; fill: var(--muted); margin: 0; }
@@ -394,6 +396,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
   <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></symbol>
   <symbol id="i-chevron" viewBox="0 0 24 24"><path d="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></symbol>
   <symbol id="i-person" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></symbol>
+  <symbol id="i-paw" viewBox="0 0 24 24"><circle cx="4.5" cy="9.5" r="2.5"/><circle cx="9" cy="5.5" r="2.5"/><circle cx="15" cy="5.5" r="2.5"/><circle cx="19.5" cy="9.5" r="2.5"/><path d="M17.34 14.86c-.87-1.02-1.6-1.89-2.48-2.91-.46-.54-1.05-1.08-1.75-1.32-.11-.04-.22-.07-.33-.09-.25-.04-.52-.04-.78-.04s-.53 0-.79.05c-.11.02-.22.05-.33.09-.7.24-1.28.78-1.75 1.32-.87 1.02-1.6 1.89-2.48 2.91-1.31 1.31-2.92 2.76-2.62 4.79.29 1.02 1.02 2.03 2.33 2.32.73.15 3.06-.44 5.54-.44h.18c2.48 0 4.81.58 5.54.44 1.31-.29 2.04-1.31 2.33-2.32.31-2.04-1.3-3.49-2.61-4.8z"/></symbol>
   <symbol id="i-person-add" viewBox="0 0 24 24"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></symbol>
   <symbol id="i-heart" viewBox="0 0 24 24"><path d="m12 21.35-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></symbol>
   <symbol id="i-heart-line" viewBox="0 0 24 24"><path d="M16.5 3c-1.74 0-3.41.81-4.5 2.09C10.91 3.81 9.24 3 7.5 3 4.42 3 2 5.42 2 8.5c0 3.78 3.4 6.86 8.55 11.54L12 21.35l1.45-1.32C18.6 15.36 22 12.28 22 8.5 22 5.42 19.58 3 16.5 3zm-4.4 15.55-.1.1-.1-.1C7.14 14.24 4 11.39 4 8.5 4 6.5 5.5 5 7.5 5c1.54 0 3.04.99 3.57 2.36h1.87C13.46 5.99 14.96 5 16.5 5c2 0 3.5 1.5 3.5 3.5 0 2.89-3.14 5.74-7.9 10.05z"/></symbol>
@@ -655,7 +658,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <div class="scroll">
           <div class="search"><svg class="i"><use href="#i-search"/></svg>Search people, places, dates</div>
   
-          <div class="head"><h3>People</h3><a href="#">See all<svg class="i"><use href="#i-chevron"/></svg></a></div>
+          <div class="head"><h3>People &amp; pets</h3><a href="#">See all<svg class="i"><use href="#i-chevron"/></svg></a></div>
           <div class="row">
             <div class="person wide">
               <div class="face empty-face"><svg class="i"><use href="#i-person"/></svg></div>
@@ -687,7 +690,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="handle"></div>
         </div>
       </div>
-      <figcaption>Library while indexing: no people yet, so the row's one muted item (see Empty) reads "Finding faces…" instead of "No people yet". Progress and Pause are in Settings, Scan. People and the Help recognize card appear only once a run has finished. Albums, Places and Categories are one row of 3 each, the biggest first; See all opens the whole page. While loading, or with none yet, grey tiles hold the row's space, so nothing below moves.</figcaption>
+      <figcaption>Library while indexing: the first row is People &amp; pets (cats and dogs sit among the people, see People &amp; pets). No people yet, so the row's one muted item (see Empty) reads "Finding faces…" instead of "No people yet". Progress and Pause are in Settings, Scan. People and the Help recognize card appear only once a run has finished. Albums, Places and Categories are one row of 3 each, the biggest first; See all opens the whole page. While loading, or with none yet, grey tiles hold the row's space, so nothing below moves.</figcaption>
     </figure>
     <figure>
       <div class="phone has-slider">
@@ -1026,7 +1029,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
         <div class="subbar">
           <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
-          <div class="title"><b>People</b><span>18 people · 1,214 faces</span></div>
+          <div class="title"><b>People &amp; pets</b><span>18 people · 3 pets</span></div>
         </div>
         <div class="scroll">
   
@@ -1036,21 +1039,21 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
             <button class="pill-btn">Review</button>
           </div>
   
-          <div class="head"><h3>Named</h3><span class="hint">4 people</span></div>
+          <div class="head"><h3>Named</h3><span class="hint">4 people · 1 pet</span></div>
           <div class="people-grid named tight" id="people-grid"></div>
           <div class="head"><h3>No name yet</h3><span class="hint">Name them to move them up</span></div>
           <div class="people-grid nameless" id="people-nameless"></div>
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>People: opens from Library, "See all". Review card, then named people (96, 3 a row, name and count) in the user's order, then unnamed (56, 5 a row, no text) by photo count</figcaption>
+      <figcaption>People &amp; pets: opens from Library, "See all". Review card, then named people and pets (96, 3 a row, name and count) in the user's order, then unnamed ones (56, 5 a row, no text) by photo count. A pet is a cat or dog seen in 6+ photos, like a person; its picture is its cat or dog box (paw here). Pets have no Help recognize, so the card counts faces only</figcaption>
     </figure>
     <figure id="people-move">
       <div class="phone">
         <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
         <div class="subbar">
           <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
-          <div class="title"><b>People</b><span>18 people · 1,214 faces</span></div>
+          <div class="title"><b>People &amp; pets</b><span>18 people · 3 pets</span></div>
         </div>
         <div class="scroll">
           <div class="review">
@@ -1058,7 +1061,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
             <div class="review-text"><b>Help recognize</b><span>24 faces to check</span></div>
             <button class="pill-btn">Review</button>
           </div>
-          <div class="head"><h3>Named</h3><span class="hint">4 people</span></div>
+          <div class="head"><h3>Named</h3><span class="hint">4 people · 1 pet</span></div>
           <div class="people-grid named tight" id="people-move-grid"></div>
           <div class="head"><h3>No name yet</h3><span class="hint">Name them to move them up</span></div>
           <div class="people-grid nameless" id="people-move-nameless"></div>
@@ -1108,6 +1111,50 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
     <figure id="person-unnamed">
       <div class="phone" id="person-unnamed-phone"></div>
       <figcaption>Person, unnamed: the title says "Add name" in the accent color; tap it to name the person. The faces hint says "this person", the card "12 to check" (one line). Same height as a name, so nothing moves when one is added</figcaption>
+    </figure>
+    <figure id="pet">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <span id="pet-avatar"></span>
+          <div class="title"><b>Murka</b><span>84 photos</span></div>
+          <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
+        </div>
+        <div class="scroll vids">
+          <div class="head"><h3>Pictures</h3><span class="hint">These match Murka</span></div>
+          <div class="row" id="pet-pictures"></div>
+          <div class="head"><h3>Photos</h3><span class="hint">84 · by date</span></div>
+          <div id="pet-photos"></div>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Pet: opens from People &amp; pets like a person. The row shows the cat or dog pictures that match, the title line counts photos only. No Unsure faces card: pets have no Help recognize. Unnamed: "Add name", as for a person. More: Rename, Merge with, Change cover, Hide pet</figcaption>
+    </figure>
+    <figure id="pet-more">
+      <div class="phone" id="pet-more-phone">
+        <div class="menu" role="menu">
+          <button class="mi" role="menuitem"><svg class="i"><use href="#i-paw"/></svg>Rename</button>
+          <button class="mi" role="menuitem"><svg class="i"><use href="#i-person-add"/></svg>Merge with</button>
+          <button class="mi" role="menuitem"><svg class="i"><use href="#i-photo"/></svg>Change cover</button>
+          <hr>
+          <button class="mi" role="menuitem"><svg class="i"><use href="#i-block"/></svg>Hide pet</button>
+        </div>
+      </div>
+      <figcaption>Pet, More: the person's menu with pet words. Hidden pet: the last item is "Show pet" with the eye icon. Merge with lists only pets</figcaption>
+    </figure>
+    <figure id="hide-pet">
+      <div class="phone modal" id="hide-pet-phone">
+        <div class="scrim">
+          <div class="dialog" role="alertdialog" aria-labelledby="hide-pet-title">
+            <svg class="i calm"><use href="#i-block"/></svg>
+            <b id="hide-pet-title">Hide Murka?</b>
+            <p>Murka leaves People &amp; pets, Library and search. Its pictures stay with it, so they never join another pet. Show it again from Settings, Hidden people &amp; pets.</p>
+            <div class="dialog-btns"><button class="text-btn">Cancel</button><button class="text-btn">Hide</button></div>
+          </div>
+        </div>
+      </div>
+      <figcaption>Hide pet: Hide person with pet words. On Hide, back to where the pet was opened</figcaption>
     </figure>
     <figure id="person-scrolled">
       <div class="phone has-slider">
@@ -1235,7 +1282,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="gesture light"><div class="handle"></div></div>
         </div>
       </div>
-      <figcaption>Merge with: opens from More on the person screen. Every other person, most alike first, so the other halves of a split person are on top. Tap one to pick it (accent ring and check), Merge joins it into this person. One at a time: after a merge the order is worked out again, so the next part moves up. This person's name stays; if it has none, the picked one's name is used. Merge is off until something is picked. The grid scrolls, the field and buttons stay</figcaption>
+      <figcaption>Merge with: opens from More on the person or pet screen. Only the same kind: a person lists people, a pet lists pets ("Merge with Murka", "Pick the same pet"); a person and a pet never merge, and if a mix ever reaches the merge it fails with an error and nothing changes. Every other person, most alike first, so the other halves of a split person are on top. Tap one to pick it (accent ring and check), Merge joins it into this person. One at a time: after a merge the order is worked out again, so the next part moves up. This person's name stays; if it has none, the picked one's name is used. Merge is off until something is picked. The grid scrolls, the field and buttons stay</figcaption>
     </figure>
     <figure id="change-cover">
       <div class="phone dark">
@@ -1260,7 +1307,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="dialog" role="alertdialog" aria-labelledby="hide-title">
             <svg class="i calm"><use href="#i-block"/></svg>
             <b id="hide-title">Hide Dana?</b>
-            <p>Dana leaves People, Library and search. Their faces stay with them, so they never join someone else. Show them again from Settings, Hidden people.</p>
+            <p>Dana leaves People, Library and search. Their faces stay with them, so they never join someone else. Show them again from Settings, Hidden people &amp; pets.</p>
             <div class="dialog-btns"><button class="text-btn">Cancel</button><button class="text-btn">Hide</button></div>
           </div>
         </div>
@@ -1281,14 +1328,14 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         </div>
         <div class="scroll">
           <div class="head"><h3>Photo scan</h3></div>
-          <div class="set models"><svg class="i"><use href="#i-check"/></svg><div><b>Models</b><span>Ready · 344 MB</span><div class="track off"><div></div></div></div></div>
+          <div class="set models"><svg class="i"><use href="#i-check"/></svg><div><b>Models</b><span>Ready · 425 MB</span><div class="track off"><div></div></div></div></div>
           <div class="set run"><svg class="i"><use href="#i-search"/></svg><div><b>Scan</b><span>412 of 1,706 · 3m left</span><div class="track"><div></div></div></div><button class="pill-btn">Pause</button></div>
           <div class="set"><svg class="i"><use href="#i-bolt"/></svg><div><b>Only while charging</b><span>Pause the scan on battery</span></div><span class="switch off" role="switch" aria-checked="false"></span></div>
           <div class="set"><svg class="i"><use href="#i-battery"/></svg><div><b>Background work</b><span>Not allowed. The phone may stop the scan</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
           <div class="set"><svg class="i"><use href="#i-folder"/></svg><div><b>Folders to skip</b><span>None, all photos are searched</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
           <div class="set"><svg class="i"><use href="#i-refresh"/></svg><div><b>Find faces again</b><span>Deletes faces and names, scans all photos again</span></div></div>
-          <div class="head"><h3>People</h3></div>
-          <div class="set"><svg class="i"><use href="#i-block"/></svg><div><b>Hidden people</b><span>2 people</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
+          <div class="head"><h3>People &amp; pets</h3></div>
+          <div class="set"><svg class="i"><use href="#i-block"/></svg><div><b>Hidden people &amp; pets</b><span>3 hidden</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
           <div class="head"><h3>Backup</h3><span class="hint">Names and faces, not photos</span></div>
           <div class="set"><svg class="i"><use href="#i-download"/></svg><div><b>Export face data</b><span>Save to a file</span></div></div>
           <div class="set"><svg class="i"><use href="#i-upload"/></svg><div><b>Import face data</b><span>From an export file</span></div></div>
@@ -1364,29 +1411,29 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
         <div class="subbar">
           <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
-          <div class="title"><b>Hidden people</b><span>2 people</span></div>
+          <div class="title"><b>Hidden people &amp; pets</b><span>3 hidden</span></div>
         </div>
         <div class="scroll">
-          <div class="note"><svg class="i"><use href="#i-info"/></svg>Not in People, Library or search. Tap one, then Show person</div>
+          <div class="note"><svg class="i"><use href="#i-info"/></svg>Not in People &amp; pets, Library or search. Tap one, then Show person or Show pet</div>
           <div class="people-grid tight" id="hidden-grid"></div>
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Hidden people: opens from Settings. 68 faces, 4 a row, each with its count. A tap opens the person screen, where More has "Show person"</figcaption>
+      <figcaption>Hidden people &amp; pets: opens from Settings. 68 dp pictures, 4 a row, each with its count, people and pets by photo count. A tap opens the person or pet screen, where More has "Show person" or "Show pet"</figcaption>
     </figure>
     <figure id="hidden-empty">
       <div class="phone">
         <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
         <div class="subbar">
           <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
-          <div class="title"><b>Hidden people</b><span>No people</span></div>
+          <div class="title"><b>Hidden people &amp; pets</b><span>None</span></div>
         </div>
         <div class="scroll">
-          <div class="empty"><svg class="i"><use href="#i-eye"/></svg><b>No hidden people</b><p>Hide a person from their screen, they show up here</p></div>
+          <div class="empty"><svg class="i"><use href="#i-eye"/></svg><b>Nothing hidden</b><p>Hide a person or a pet from their screen, they show up here</p></div>
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Hidden people, empty: no note and no grid, just the hint</figcaption>
+      <figcaption>Hidden people &amp; pets, empty: no note and no grid, just the hint</figcaption>
     </figure>
     <figure id="licenses">
       <div class="phone">
@@ -1415,6 +1462,9 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="set"><div><b>AdaFace IR101</b><span>Face vector · MIT</span></div></div>
           <div class="set"><div><b>eDifFIQA-T</b><span>Face quality · MIT</span></div></div>
           <div class="set"><div><b>SigLIP 2 B/16</b><span>Photo tags · Apache 2.0</span></div></div>
+          <div class="set"><div><b>YOLO26-M</b><span>Person, cat and dog boxes · AGPL-3.0</span></div></div>
+          <div class="set"><div><b>DINOv2-S</b><span>Tells pets apart · Apache 2.0</span></div></div>
+          <div class="set"><div><b>Noodle pet-recognition</b><span>Pet vector layer · Apache 2.0</span></div></div>
           <div class="head"><h3>More</h3></div>
           <div class="set"><div><b>Full license texts</b><span>Opens THIRD_PARTY.md on GitHub</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
         </div>
@@ -1738,6 +1788,8 @@ if (secs[1]) timelineHidden.scrollTop = secs[1].offsetTop + 150;
 
 const faces = ["#D9A27F", "#B9876B", "#E0B48A", "#A88C7A", "#C99A86", "#BFA27E", "#D4A99A"];
 const face = (i, s = 72) => `<div class="face" style="--s:${s}px;background:linear-gradient(160deg, ${faces[i]}, ${faces[(i + 3) % faces.length]})"><svg class="i"><use href="#i-person"/></svg></div>`;
+const furs = ["#8A7F74", "#D9CBB8", "#3A3634", "#C68A4E", "#A7A29C"];
+const pet = (i, s = 72) => `<div class="face pet" style="--s:${s}px;background:linear-gradient(160deg, ${furs[i]}, ${furs[(i + 2) % furs.length]})"><svg class="i"><use href="#i-paw"/></svg></div>`;
 const people = ["Me", "Mom", "Dana", "Arman", null, "Aliya", null];
 const order = [0, 1, 2, 3, 5, 4, 6]; // named first, then unnamed
 const fill = (id, html) => document.getElementById(id).innerHTML = html;
@@ -1746,11 +1798,12 @@ const fill = (id, html) => document.getElementById(id).innerHTML = html;
 fill("people-unsure", [2, 5, 0].map(i => face(i, 36)).join(""));
 
 // People screen: 4 named, 14 unnamed, like a real library.
-fill("people-grid", [["Me", 412], ["Mom", 230], ["Dana", 96], ["Arman", 64]].map(([n, c], i) => `<div class="pcard">${face(i, 96)}<b>${n}</b><span>${c}</span></div>`).join(""));
-fill("people-nameless", Array.from({ length: 14 }, (_, i) => `<div class="pcard">${face((i + 4) % 7, 56)}</div>`).join(""));
+// People & pets: 4 named people and Murka, 14 unnamed with two pets among them, by photo count
+fill("people-grid", [["Me", 412], ["Mom", 230], ["Dana", 96], ["Murka", 84], ["Arman", 64]].map(([n, c], i) => `<div class="pcard">${n === "Murka" ? pet(0, 96) : face(i, 96)}<b>${n}</b><span>${c}</span></div>`).join(""));
+fill("people-nameless", Array.from({ length: 14 }, (_, i) => `<div class="pcard">${i === 2 ? pet(3, 56) : i === 9 ? pet(2, 56) : face((i + 4) % 7, 56)}</div>`).join(""));
 // People, moving a person: Dana lifted on her way to the second spot, Mom already slid over
 fill("people-move-unsure", document.getElementById("people-unsure").innerHTML);
-fill("people-move-grid", [["Me", 412, 0], ["Dana", 96, 2], ["Mom", 230, 1], ["Arman", 64, 3]].map(([n, c, i]) => `<div class="pcard${n === "Dana" ? " lifted" : ""}">${face(i, 96)}<b>${n}</b><span>${c}</span></div>`).join(""));
+fill("people-move-grid", [["Me", 412, 0], ["Dana", 96, 2], ["Mom", 230, 1], ["Murka", 84], ["Arman", 64, 3]].map(([n, c, i]) => `<div class="pcard${n === "Dana" ? " lifted" : ""}">${n === "Murka" ? pet(0, 96) : face(i, 96)}<b>${n}</b><span>${c}</span></div>`).join(""));
 fill("people-move-nameless", document.getElementById("people-nameless").innerHTML);
 
 const tiles = (n, vids = [], favs = []) => Array.from({ length: n }, (_, i) =>
@@ -1804,7 +1857,7 @@ fill("merge-face", face(2, 48));
 const pick = '<span class="sel"><svg class="i"><use href="#i-check"/></svg></span>';
 const pcard = ([i, n, c, on]) => `<div class="pcard${on ? " on" : ""}">${on ? pick : ""}${face(i, 68)}${n ? `<b>${n}</b>` : ""}<span>${c}</span></div>`;
 fill("merge-grid", [[4, null, "31", 1], [6, null, "12"], [5, "Aliya", "64"], [1, "Mom", "230"], [3, "Arman", "96"], [0, "Me", "412"], [4, null, "8"], [6, null, "6"]].map(pcard).join(""));
-fill("hidden-grid", [[3, "Arman", "96"], [6, null, "27"]].map(pcard).join(""));
+fill("hidden-grid", [[3, "Arman", "96"], [6, null, "27"]].map(pcard).join("") + `<div class="pcard">${pet(4, 68)}<span>9</span></div>`);
 fill("search-people", order.filter(i => people[i]).map(i => `<div class="person">${face(i, 72)}${people[i]}</div>`).join(""));
 fill("search-recent", ["Dana", "August 2026", "Camera"]
   .map(t => `<div class="pick"><svg class="i"><use href="#i-history"/></svg><b>${t}</b><button class="icon-btn" aria-label="Remove"><svg class="i"><use href="#i-close"/></svg></button></div>`).join(""));
@@ -1822,9 +1875,9 @@ document.getElementById("dim").style.background = `linear-gradient(rgba(0,0,0,.5
 document.getElementById("move-dim").style.background = document.getElementById("dim").style.background;
 // Settings with the Models row in each state: the same screen, only that row changes.
 const modelRows = {
-  "models-missing": ["download", "Not downloaded · 344 MB", "off", 0, "Download"],
-  "models-downloading": ["download", "Downloading · 151 of 344 MB", "", 44, "Cancel"],
-  "models-stopped": ["download", "Stopped · 151 of 344 MB", "", 44, "Retry"],
+  "models-missing": ["download", "Not downloaded · 425 MB", "off", 0, "Download"],
+  "models-downloading": ["download", "Downloading · 151 of 425 MB", "", 44, "Cancel"],
+  "models-stopped": ["download", "Stopped · 151 of 425 MB", "", 44, "Retry"],
 };
 for (const [id, [icon, sub, off, pct, btn]] of Object.entries(modelRows)) {
   const phone = document.getElementById(id + "-phone");
@@ -1855,6 +1908,13 @@ unnamed.querySelector(".subbar .title b").outerHTML = `<b class="add">Add name</
 unnamed.querySelector(".head .hint").textContent = "These faces match this person";
 unnamed.querySelector(".review-text span").textContent = "12 to check";
 document.getElementById("hide-phone").prepend(...[...document.querySelector("#person .phone").children].map(n => n.cloneNode(true)));
+// Pet: like a person, a row of matching pet pictures and no Unsure card. Its More and Hide sit on it.
+fill("pet-avatar", pet(0, 40));
+fill("pet-pictures", [0, 0, 0, 0, 0, 0].map(i => pet(i, 44)).join(""));
+fill("pet-photos", keepSeed(() => [["October 2026", 4, [], [0]], ["September 2026", 6, [2], []], ["July 2026", 5, [], []]]
+  .map(([m, n, v, f]) => `<section class="month-sec"><h3 class="month">${m}</h3><div class="grid big">${tiles(n, v, f)}</div></section>`).join("")));
+document.getElementById("pet-more-phone").prepend(...[...document.querySelector("#pet .phone").children].map(n => n.cloneNode(true)));
+document.getElementById("hide-pet-phone").prepend(...[...document.querySelector("#pet .phone").children].map(n => n.cloneNode(true)));
 document.getElementById("viewer-more-phone").prepend(...[...document.querySelector("#viewer .phone").children].map(n => n.cloneNode(true)));
 // The slider stays out of these two: the list is at the top, where it is hidden.
 const albumBehind = () => [...document.querySelector("#album .phone").children].filter(n => !n.classList.contains("slider")).map(n => n.cloneNode(true));

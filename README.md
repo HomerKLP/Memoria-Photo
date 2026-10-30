@@ -59,6 +59,7 @@ The models were picked on real family photos, not only on paper: 3 face finders 
 - **Viewer:** zoom, swipe, details (date, time zone, place, camera, people).
 - **Albums:** phone folders, new albums, move photos.
 - **Places:** photos by town, names found offline.
+- **Pets:** cats and dogs, found and grouped like people, with names.
 - **Favorites, Videos, Trash:** use the phone's own favorites and trash.
 - **Categories:** pets, documents, food, sunsets and 10 more, sorted on the phone.
 - **Search:** people, places, months, categories.
@@ -88,7 +89,7 @@ The NPU is used on Snapdragon 8 Gen 1 to 8 Elite Gen 5. Other phones use the GPU
 ## Install
 
 1. Download `memoria-<version>.apk` from [Releases](https://github.com/HomerKLP/Memoria-Photo/releases) and open it on your phone.
-2. Open the app on Wi-Fi. It downloads the models by itself (about 345 MB, once). On mobile data, tap **Download** in **Settings › Photo scan › Models**.
+2. Open the app on Wi-Fi. It downloads the models by itself (about 425 MB, once). On mobile data, tap **Download** in **Settings › Photo scan › Models**.
 3. Done. The photo scan starts on its own when the models are ready.
 
 To check the APK is ours, its signing certificate SHA-256 must be:
@@ -102,7 +103,6 @@ bc1c500550d9e3bd73e27f44132877189329f88875ace0bd6049a828e792b240
 ## Roadmap
 
 - **Smart search:** type any words, like "the blue bike" or "cake with candles".
-- **Pets:** your cats and dogs, found and grouped like people.
 - **Video compression** with no visible loss.
 - **Google Takeout import:** bring your old Google Photos home.
 - **Dark theme.**
@@ -136,6 +136,8 @@ Memoria stands on great open work:
 - [AdaFace](https://github.com/mk-minchul/AdaFace) tells people apart (MIT).
 - [eDifFIQA](https://github.com/LSIbabnikz/DifFIQA) scores face quality (MIT).
 - [SigLIP 2](https://github.com/google-research/big_vision) sorts photos into categories (Apache 2.0).
+- [YOLO26](https://github.com/ultralytics/ultralytics) finds people, cats and dogs (AGPL-3.0).
+- [DINOv2](https://github.com/facebookresearch/dinov2) with [Noodle's pet layer](https://huggingface.co/open-noodle/pet-recognition-small) tells pets apart (Apache 2.0).
 - [GeoNames](https://www.geonames.org) gives offline town names (CC BY 4.0).
 - [Bricolage Grotesque](https://github.com/ateliertriay/bricolage) and [Roboto](https://github.com/googlefonts/roboto-classic) fonts (SIL OFL 1.1).
 

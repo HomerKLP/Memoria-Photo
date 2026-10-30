@@ -170,7 +170,7 @@ fun LibraryContent(
             IconButton(onOpenSettings) { Icon(painterResource(R.drawable.ic_settings), "Settings") }
         }
         SearchBar(onOpenSearch)
-        SectionHead("People", "See all", onOpenPeople)
+        SectionHead("People & pets", "See all", onOpenPeople)
         PeopleRow(data?.faces, onOpenPerson, onOpenPeople, finding = indexing)
         // still loading: an invisible card holds its space, so Albums does not jump down when it arrives
         if (data == null) Box(Modifier.alpha(0f)) { ReviewCard(emptyList(), {}) }

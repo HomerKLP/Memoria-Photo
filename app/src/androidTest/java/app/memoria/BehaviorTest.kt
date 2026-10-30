@@ -30,6 +30,7 @@ import androidx.compose.ui.test.click
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -640,7 +641,7 @@ class BehaviorTest {
         assertEquals(true, charging)
         rule.onNodeWithText("Find faces again").performScrollTo().performClick()
         assertTrue(rescan)
-        rule.onNodeWithText("Hidden people").performScrollTo().performClick()
+        rule.onNodeWithText("Hidden people & pets").performScrollTo().performClick()
         assertTrue(hidden)
         rule.onNodeWithText("Folders to skip").performScrollTo().performClick()
         assertTrue(skip)
@@ -997,7 +998,7 @@ class BehaviorTest {
             } }
         }
 
-        rule.onNodeWithText("Hidden people").assertIsDisplayed()
+        rule.onNodeWithText("Hidden people & pets").assertIsDisplayed()
         rule.onNodeWithText("Sara").performClick()
         assertEquals(4L, opened)
         rule.onNodeWithContentDescription("Back").performClick()
@@ -1011,7 +1012,43 @@ class BehaviorTest {
             } }
         }
 
-        rule.onNodeWithText("No hidden people").assertIsDisplayed()
+        rule.onNodeWithText("Nothing hidden").assertIsDisplayed()
+    }
+
+    private fun pet(id: Long, name: String? = null) =
+        (1L..8L).map { i -> FaceVec(id * 100 + i, i, floatArrayOf(0f, 0f, 50f, 50f), FloatArray(384), 0.8f, PhotoKind.camera, id, pet = true) }
+            .let { Person(it, it.first(), id, name) }
+
+    @Test fun pet_menuSaysHidePet_andFires() {
+        var hide = false
+        rule.setContent {
+            MemoriaTheme { Surface { PersonDetail(pet(1, "Murka"), onBack = {}, onName = {}, onOpen = { _, _ -> }, onHide = { hide = true }, loadPhotos = { emptyList() }) } }
+        }
+
+        rule.onNodeWithText("Pictures").assertIsDisplayed()
+        rule.onNodeWithText("8 photos").assertIsDisplayed() // photos only, no faces
+        rule.onNodeWithContentDescription("More").performClick()
+        rule.onNodeWithText("Hide person").assertDoesNotExist()
+        rule.onNodeWithText("Hide pet").performClick()
+        assertTrue(hide)
+    }
+
+    @Test fun people_withPets_titleAndSummary() {
+        rule.setContent {
+            MemoriaTheme { Surface { PeopleContent(PeopleData(peopleAndPets(listOf(person(1, "Dana"), pet(2, "Murka"))), listOf(person(1, "Dana"), pet(2, "Murka")), emptyList())) } }
+        }
+
+        rule.onNodeWithText("People & pets").assertIsDisplayed()
+        rule.onAllNodesWithText("1 person · 1 pet").assertCountEquals(2) // the summary and the Named hint
+        rule.onNodeWithText("Murka").assertIsDisplayed()
+    }
+
+    @Test fun merge_aPet_asksForTheSamePet() {
+        rule.setContent { MemoriaTheme { Surface { MergeContent(pet(1, "Murka"), listOf(pet(2, "Barsik")), "", {}, null, {}, {}, {}) } } }
+
+        rule.onNodeWithText("Merge with Murka").assertIsDisplayed()
+        rule.onNodeWithText("Pick the same pet, most alike first").assertIsDisplayed()
+        rule.onNodeWithText("Search pets").assertIsDisplayed()
     }
 
     // --- Library -------------------------------------------------------------------------------
@@ -1148,7 +1185,7 @@ class BehaviorTest {
             MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", models = Models.Status.Missing, onDownload = { download = true }) } }
         }
 
-        rule.onNodeWithText("Not downloaded · 344 MB").assertIsDisplayed()
+        rule.onNodeWithText("Not downloaded · 425 MB").assertIsDisplayed()
         rule.onNodeWithText("Download").performClick()
         assertTrue(download)
     }
@@ -1159,7 +1196,7 @@ class BehaviorTest {
             MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", models = Models.Status.Missing, modelsDone = 176_748_304, onDownload = { download = true }) } }
         }
 
-        rule.onNodeWithText("Not downloaded · 169 of 344 MB").assertIsDisplayed()
+        rule.onNodeWithText("Not downloaded · 169 of 425 MB").assertIsDisplayed()
         rule.onNodeWithText("Download").performClick()
         assertTrue(download)
     }
@@ -1172,7 +1209,7 @@ class BehaviorTest {
             } }
         }
 
-        rule.onNodeWithText("Downloading · 74 of 344 MB").assertIsDisplayed()
+        rule.onNodeWithText("Downloading · 74 of 425 MB").assertIsDisplayed()
         rule.onNodeWithText("Cancel").performClick()
         assertTrue(cancel)
     }
@@ -1185,7 +1222,7 @@ class BehaviorTest {
             } }
         }
 
-        rule.onNodeWithText("Stopped · 74 of 344 MB").assertIsDisplayed()
+        rule.onNodeWithText("Stopped · 74 of 425 MB").assertIsDisplayed()
         rule.onNodeWithText("Retry").performClick()
         assertTrue(download)
     }
@@ -1193,7 +1230,7 @@ class BehaviorTest {
     @Test fun settings_modelsReady_hasNoDownloadButton() {
         rule.setContent { MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", models = Models.Status.Ready) } } }
 
-        rule.onNodeWithText("Ready · 344 MB").assertIsDisplayed()
+        rule.onNodeWithText("Ready · 425 MB").assertIsDisplayed()
         rule.onNodeWithText("Download").assertDoesNotExist()
     }
 

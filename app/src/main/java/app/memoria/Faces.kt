@@ -28,11 +28,32 @@ class Face(val box: FloatArray, val score: Float, val landmarks: FloatArray) {
     var thumb: ByteArray? = null
 }
 
-/** Decodes with EXIF rotation, longest side capped at [side] (4096 like the bench). */
-fun loadPhoto(source: ImageDecoder.Source, side: Int = 4096): Bitmap = ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+/** Decodes with EXIF rotation, longest side capped at [side] (4096 like the bench). [size] gets the photo's own width and height. */
+fun loadPhoto(source: ImageDecoder.Source, side: Int = 4096, size: (Int, Int) -> Unit = { _, _ -> }): Bitmap = ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+    size(info.size.width, info.size.height)
     val s = side.toFloat() / max(info.size.width, info.size.height)
     if (s < 1) decoder.setTargetSize((info.size.width * s).toInt(), (info.size.height * s).toInt())
     decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE // getPixels needs a CPU bitmap
+}
+
+/** [image] letterboxed to 640x640, gray 114 padding, RGB, 0..1: the input of YOLOv5m-face and YOLO26. A model's x is (x - padW) / scale in the image. */
+class Letterbox(image: Bitmap) {
+    val scale = min(640f / image.height, 640f / image.width)
+    val padW = (640 - (image.width * scale).toInt()) / 2
+    val padH = (640 - (image.height * scale).toInt()) / 2
+    val input = FloatArray(3 * 640 * 640)
+
+    init {
+        val boxed = Bitmap.createBitmap(640, 640, Bitmap.Config.ARGB_8888)
+        Canvas(boxed).apply {
+            drawColor(Color.rgb(114, 114, 114))
+            drawBitmap(Bitmap.createScaledBitmap(image, (image.width * scale).toInt(), (image.height * scale).toInt(), true), padW.toFloat(), padH.toFloat(), null)
+        }
+        val pixels = IntArray(640 * 640)
+        boxed.getPixels(pixels, 0, 640, 0, 0, 640, 640)
+        var i = 0
+        for (shift in intArrayOf(16, 8, 0)) for (p in pixels) input[i++] = (p shr shift and 0xFF) / 255f
+    }
 }
 
 private var env: Environment? = null
@@ -89,27 +110,11 @@ class FacePipeline(
     private val recognizer = Net(liteEnv(context), File(models, "recognizer.tflite"), accelerators)
     private val quality = Net(liteEnv(context), File(models, "quality.tflite"), accelerators)
 
-    fun detect(image: Bitmap): List<Face> {
-        // Letterbox to 640x640, gray 114 padding, RGB, 0..1
-        val scale = min(640f / image.height, 640f / image.width)
-        val w = (image.width * scale).toInt()
-        val h = (image.height * scale).toInt()
-        val padW = (640 - w) / 2
-        val padH = (640 - h) / 2
-        val boxed = Bitmap.createBitmap(640, 640, Bitmap.Config.ARGB_8888)
-        Canvas(boxed).apply {
-            drawColor(Color.rgb(114, 114, 114))
-            drawBitmap(Bitmap.createScaledBitmap(image, w, h, true), padW.toFloat(), padH.toFloat(), null)
-        }
-        val pixels = IntArray(640 * 640)
-        boxed.getPixels(pixels, 0, 640, 0, 0, 640, 640)
-        val input = FloatBuffer.allocate(3 * 640 * 640)
-        for (shift in intArrayOf(16, 8, 0)) for (p in pixels) input.put((p shr shift and 0xFF) / 255f)
-
+    fun detect(lb: Letterbox): List<Face> {
         // 3 head grids (80, 40, 20 cells a side), each cell 3 anchors x 16: x, y, w, h, score, 10 landmark coords, class.
         // Decoded here like bench/tflite.py decode: in the model it is 5-D, which the GPU can't run and the NPU builds in ~40 s.
         val rows = mutableListOf<FloatArray>()
-        for ((g, out) in detector.run(input.array()).sortedByDescending { it.size }.withIndex()) {
+        for ((g, out) in detector.run(lb.input).sortedByDescending { it.size }.withIndex()) {
             val side = 80 shr g
             val stride = 8 shl g
             for (a in 0 until 3) for (y in 0 until side) for (x in 0 until side) {
@@ -133,11 +138,11 @@ class FacePipeline(
             if (kept.size < 750 && kept.none { iou(it, box) > 0.5f }) kept += box + r.copyOfRange(4, 15)
         }
         return kept.map { k ->
-            val back = { v: Float, pad: Int -> (v - pad) / scale }
+            val back = { v: Float, pad: Int -> (v - pad) / lb.scale }
             Face(
-                box = floatArrayOf(back(k[0], padW), back(k[1], padH), back(k[2], padW), back(k[3], padH)),
+                box = floatArrayOf(back(k[0], lb.padW), back(k[1], lb.padH), back(k[2], lb.padW), back(k[3], lb.padH)),
                 score = k[4],
-                landmarks = FloatArray(10) { i -> back(k[5 + i], if (i % 2 == 0) padW else padH) },
+                landmarks = FloatArray(10) { i -> back(k[5 + i], if (i % 2 == 0) lb.padW else lb.padH) },
             )
         }
     }

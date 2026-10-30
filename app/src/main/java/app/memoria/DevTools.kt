@@ -36,7 +36,7 @@ class DevNumbers(
 /** Reads the counts from the DB. Faces are the ones in people: sure and unsure as the app counts them. */
 suspend fun devNumbers(dao: IndexDao): DevNumbers {
     val kinds = dao.kinds().first()
-    val faces = dao.taggedFaces().map { it.toVec().sure }
+    val faces = dao.taggedFaces().filter { !it.pet }.map { it.toVec().sure }
     val people = dao.people()
     val shown = people.filter { !it.hidden }
     val named = shown.count { !it.name.isNullOrBlank() }

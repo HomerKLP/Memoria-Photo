@@ -79,7 +79,7 @@ fun SettingsScreen(onBack: () -> Unit, onHidden: () -> Unit, onSkip: () -> Unit,
     val hidden by cachedProduceState("settings", reload) { withContext(Dispatchers.IO) { dao.people().count { it.hidden } } }
     val work by remember { WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow("index") }.collectAsState(emptyList())
     val running = work.any { it.state == WorkInfo.State.RUNNING }
-    val indexed by remember { dao.doneCount(taggerFile(context).exists(), Tagger.VERSION) }.collectAsState(0)
+    val indexed by remember { dao.doneCount(taggerFile(context).exists(), Tagger.VERSION, objectsFiles(context).all { it.exists() }, ObjectDetector.VERSION) }.collectAsState(0)
     val total by cachedProduceState("photoCount") { withContext(Dispatchers.IO) { libraryPhotoCount(context) } }
     var charging by remember { mutableStateOf(IndexProgress.chargingOnly(context)) }
     val power = remember { context.getSystemService(PowerManager::class.java) }
@@ -166,7 +166,7 @@ fun SettingsScreen(onBack: () -> Unit, onHidden: () -> Unit, onSkip: () -> Unit,
                     withContext(Dispatchers.IO + NonCancellable) {
                         IndexControl.pause(context)
                         Db.get(context).withTransaction {
-                            dao.clearFaces(); dao.clearAnswers(); dao.clearMerges(); dao.clearPhotos(); dao.deletePeople(); dao.clearPersonIds()
+                            dao.clearFaces(); dao.clearAnswers(); dao.clearMerges(); dao.clearPhotos(); dao.clearBoxes(); dao.deletePeople(); dao.clearPersonIds()
                         }
                         IndexProgress.finish(context)
                         IndexControl.start(context, testOnly = false)
@@ -272,10 +272,10 @@ fun SettingsContent(
             onSkip,
         ) { Chevron() }
         SettingRow(R.drawable.ic_refresh, "Find faces again", "Deletes faces and names, scans all photos again", onRescan)
-        SectionHead("People")
+        SectionHead("People & pets")
         SettingRow(
-            R.drawable.ic_block, "Hidden people",
-            hidden?.let { if (it == 0) "No people" else "$it ${if (it == 1) "person" else "people"}" } ?: "\u00A0",
+            R.drawable.ic_block, "Hidden people & pets",
+            hidden?.let { if (it == 0) "None" else "$it hidden" } ?: "\u00A0",
             onHidden,
         ) { Chevron() }
         SectionHead("Backup", hint = "Names and faces, not photos")

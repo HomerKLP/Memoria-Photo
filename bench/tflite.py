@@ -17,7 +17,8 @@
 """Make the fp16 .tflite files the app runs with LiteRT, and check them against the fp32 ONNX files.
 
 uv run bench/tflite.py   (own env: onnx2tf pins tool versions the bench can't share; run bench.py once first, it downloads the models)
-The tagger's ONNX comes from `uv run bench/tags.py onnx`.
+The tagger's ONNX comes from `uv run bench/tags.py onnx`. Not in the app yet (--models, see docs/objects.md):
+noodle_s (the app's pets.tflite), dinov2_s and rfdetr_n from `uv run bench/pets.py onnx noodle_s` (and `onnx dinov2_s`, `onnx rfdetr_n`), yolo26_s / _m from bench/objects.py's docstring.
 """
 
 import argparse
@@ -39,7 +40,8 @@ from onnxruntime.tools.onnx_model_utils import fix_output_shapes, make_input_sha
 
 ROOT = Path(__file__).resolve().parent.parent
 SRC = Path.home() / '.uniface/models'
-MODELS = {'yolov5m': 640, 'adaface_ir_101': 112, 'ediffiqa_t': 112, 'siglip2_b16': 224}
+MODELS = {'yolov5m': 640, 'adaface_ir_101': 112, 'ediffiqa_t': 112, 'siglip2_b16': 224, 'dinov2_s': 224, 'noodle_s': 224, 'rfdetr_n': 384, 'yolo26_s': 640, 'yolo26_m': 640}
+APP = ['yolov5m', 'adaface_ir_101', 'ediffiqa_t', 'siglip2_b16']
 
 
 def convert(name, size, work):
@@ -61,6 +63,22 @@ def convert(name, size, work):
         heads = [n.output[0] for n in g.node if n.op_type == 'Conv'][-3:]
         del g.output[:]
         g.output.extend(helper.make_tensor_value_info(h, onnx.TensorProto.FLOAT, [1, 48, side, side]) for h, side in zip(heads, (80, 40, 20)))
+    if name.startswith('yolo26'):  # Ultralytics names its input 'images'
+        for n in g.node:
+            n.input[:] = ['input' if i == 'images' else i for i in n.input]
+        g.input[0].name = 'input'
+        # Split -> a Slice per part: onnx2tf makes Split a SLICE of unknown size, and the GPU takes only fixed sizes
+        consts = {i.name: onnx.numpy_helper.to_array(i) for i in g.initializer}
+        for split in [n for n in g.node if n.op_type == 'Split']:
+            at = list(g.node).index(split)
+            axis = next(a.i for a in split.attribute if a.name == 'axis')
+            g.node.remove(split)
+            start = 0
+            for k, (out, part) in enumerate(zip(split.output, consts[split.input[1]])):
+                ends = [onnx.numpy_helper.from_array(np.array([v], np.int64), f'{out}_{w}') for w, v in (('start', start), ('end', start + part), ('axis', axis))]
+                g.initializer.extend(ends)
+                g.node.insert(at + k, helper.make_node('Slice', [split.input[0], *(e.name for e in ends)], [out]))
+                start += part
     # Fixed shapes, then onnxsim: without them YOLOv5m fails to convert and AdaFace keeps shape ops that break on the NPU
     make_input_shape_fixed(g, 'input', [1, 3, size, size])
     fix_output_shapes(model)
@@ -112,7 +130,7 @@ def decode(heads):
 
 def fp32(name):
     s = ort.InferenceSession(SRC / f'{name}.onnx', providers=['CPUExecutionProvider'])
-    return lambda x: s.run(None, {'input': x})[0]
+    return lambda x: s.run(None, {s.get_inputs()[0].name: x})[0]
 
 
 def letterbox(path):
@@ -131,6 +149,12 @@ def squash(path):
     return (im.transpose(2, 0, 1)[None] / 127.5 - 1).astype(np.float32)
 
 
+def imagenet(path, side):
+    """side x side RGB, ImageNet mean and std, like DINOv2 and RF-DETR take it."""
+    im = cv2.resize(cv2.imread(str(path))[:, :, ::-1], (side, side), interpolation=cv2.INTER_AREA) / 255
+    return ((im - [0.485, 0.456, 0.406]) / [0.229, 0.224, 0.225]).transpose(2, 0, 1)[None].astype(np.float32)
+
+
 def face(rgb, bgr):
     """AdaFace wants BGR, EDifFIQA RGB, both (v - 127.5) / 127.5."""
     return ((rgb[:, :, ::-1] if bgr else rgb).transpose(2, 0, 1)[None].astype(np.float32) - 127.5) / 127.5
@@ -140,7 +164,7 @@ if __name__ == '__main__':
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--photos', type=Path, default=ROOT / 'testdata/takeout')
     ap.add_argument('--n', type=int, default=40, help='photos to check on')
-    ap.add_argument('--models', nargs='+', default=list(MODELS), choices=list(MODELS), help='the face checks need all three face models')
+    ap.add_argument('--models', nargs='+', default=APP, choices=list(MODELS), help='the face checks need all three face models')
     args = ap.parse_args()
     with tempfile.TemporaryDirectory() as work:
         out = {name: convert(name, MODELS[name], Path(work)) for name in args.models}
@@ -154,6 +178,46 @@ if __name__ == '__main__':
             a, b = tag(squash(p))[0], tag_lite(squash(p))[0][0]
             sims.append(a @ b / np.linalg.norm(a) / np.linalg.norm(b))
         print(f'siglip2 fp16: {len(sims)} photos, similarity to fp32 min {min(sims):.5f} median {np.median(sims):.5f}')
+    for name in ('dinov2_s', 'noodle_s'):
+        if name not in out:
+            continue
+        vec, vec_lite = fp32(name), tflite(out[name])
+        sims = []
+        for p in sorted((ROOT / 'testdata/out/pets/crops').glob('*.jpg'))[:args.n]:  # bench/pets.py crops
+            a, b = vec(imagenet(p, 224))[0], vec_lite(imagenet(p, 224))[0][0]
+            sims.append(a @ b / np.linalg.norm(a) / np.linalg.norm(b))
+        print(f'{name} fp16: {len(sims)} pet crops, similarity to fp32 min {min(sims):.5f} median {np.median(sims):.5f}')
+    if 'rfdetr_n' in out:
+        s, det_lite = ort.InferenceSession(SRC / 'rfdetr_n.onnx', providers=['CPUExecutionProvider']), tflite(out['rfdetr_n'])
+        found = found_lite = 0
+        score_diff = box_diff = 0.0
+        for p in photos:
+            x = imagenet(p, 384)
+            boxes, logits = s.run(['dets', 'labels'], {'input': x})
+            boxes_lite, logits_lite = sorted(det_lite(x), key=lambda t: t.shape[-1])  # onnx2tf drops the names: (1, 300, 4), (1, 300, 91)
+            sc, sc_lite = 1 / (1 + np.exp(-logits[0])), 1 / (1 + np.exp(-logits_lite[0]))
+            keep = sc.max(1) >= 0.5
+            found, found_lite = found + keep.sum(), found_lite + (sc_lite.max(1) >= 0.5).sum()
+            if keep.any():
+                score_diff = max(score_diff, np.abs(sc[keep] - sc_lite[keep]).max())
+                box_diff = max(box_diff, np.abs(boxes[0][keep] - boxes_lite[0][keep]).max() * 384)
+        print(f'rfdetr_n fp16: boxes >= 0.5 onnx/tflite {found}/{found_lite}, max diff on them: score {score_diff:.4f}, box {box_diff:.2f} px of 384')
+    for name in ('yolo26_s', 'yolo26_m'):
+        if name in out:
+            det, det_lite = fp32(name), tflite(out[name])
+            found = found_lite = 0
+            score_diff = box_diff = 0.0
+            for p in photos:
+                x = letterbox(p)  # Ultralytics' input too
+                a = det(x)[0].T  # 8400 rows: cx, cy, w, h, 80 scores
+                b = det_lite(x)[0][0]
+                b = b.T if b.shape[0] == 84 else b
+                keep = a[:, 4:].max(1) >= 0.5
+                found, found_lite = found + keep.sum(), found_lite + (b[:, 4:].max(1) >= 0.5).sum()
+                if keep.any():
+                    score_diff = max(score_diff, np.abs(a[keep, 4:] - b[keep, 4:]).max())
+                    box_diff = max(box_diff, np.abs(a[keep, :4] - b[keep, :4]).max())
+            print(f'{name} fp16: rows >= 0.5 onnx/tflite {found}/{found_lite}, max diff on them: score {score_diff:.4f}, box {box_diff:.2f} px of 640')
     if 'yolov5m' not in out:
         raise SystemExit
     det, det_lite = fp32('yolov5m'), tflite(out['yolov5m'])

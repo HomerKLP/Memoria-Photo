@@ -10,6 +10,7 @@ import android.graphics.ImageDecoder
 import android.net.ConnectivityManager
 import android.os.Bundle
 import android.provider.MediaStore
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
@@ -429,7 +430,7 @@ fun Shortcut(icon: Int, name: String, info: String, modifier: Modifier, onClick:
     }
 }
 
-/** Runs models from <app files>/models on photos in <app files>/test, writes results_cpu/gpu/npu.json, and tags_*.json when tagger.tflite is there. */
+/** Runs models from <app files>/models on photos in <app files>/test, writes results_cpu/gpu/npu.json, tags_*.json when tagger.tflite is there, objects_*.json when objects.tflite and pets.tflite are. */
 @Composable
 fun TestScreen(dir: File, onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
@@ -450,7 +451,7 @@ fun TestScreen(dir: File, onBack: () -> Unit) {
         busy = true
         scope.launch(Dispatchers.Default) {
             try {
-                runTest(context, dir, on, { log += "\n$it" }) { preview = it }
+                runTest(context, dir, on, { Log.i("Memoria", "dev: $it"); log += "\n$it" }) { preview = it } // logcat too: the screen's log sits below the preview
             } catch (e: Exception) {
                 log += "\nError: $e"
             }
@@ -480,20 +481,40 @@ fun runTest(context: Context, dir: File, on: Accelerator, log: (String) -> Unit,
     val tagger = if (!File(File(context.getExternalFilesDir(null), "models"), "tagger.tflite").exists()) null
         else if (on == Accelerator.NPU) Tagger(context) else Tagger(context, listOf(on))
     if (tagger != null) log("$mode: tagger loaded in %.0f ms".format(ms()))
+    val models = File(context.getExternalFilesDir(null), "models")
+    t = System.nanoTime()
+    val objects = if (!File(models, "objects.tflite").exists()) null else if (on == Accelerator.NPU) ObjectDetector(context) else ObjectDetector(context, listOf(on))
+    val pets = if (objects == null || !File(models, "pets.tflite").exists()) null else if (on == Accelerator.NPU) PetVectors(context) else PetVectors(context, listOf(on))
+    if (pets != null) log("$mode: objects and pets loaded in %.0f ms".format(ms()))
     val photos = dir.walk().filter { it.isFile && it.extension.lowercase() in setOf("jpg", "jpeg", "png", "webp") }.sorted().toList()
     val results = JSONObject()
     var decode = 0.0; var detect = 0.0; var embed = 0.0; var faces = 0; var most = -1
     val tags = JSONObject()
     var resize = 0.0; var tag = 0.0
-    tagger.use { pipeline.use {
+    val boxes = JSONObject()
+    var small = 0.0; var detectObjects = 0.0; var embedPets = 0.0; var petCount = 0
+    pets.use { objects.use { tagger.use { pipeline.use {
         for ((i, file) in photos.withIndex()) {
             t = System.nanoTime(); val image = loadPhoto(ImageDecoder.createSource(file)); decode += ms()
-            t = System.nanoTime(); val found = pipeline.detect(image); detect += ms()
+            t = System.nanoTime(); val found = pipeline.detect(Letterbox(image)); detect += ms()
             t = System.nanoTime(); found.forEach { pipeline.embed(image, it) }; embed += ms()
             faces += found.size
             if (tagger != null) {
                 t = System.nanoTime(); val input = tagger.input(image); resize += ms()
                 t = System.nanoTime(); tags.put(file.relativeTo(dir).path, JSONArray(tagger.vector(input).toList())); tag += ms()
+            }
+            if (objects != null && pets != null) {
+                // the index's way: the 640 decode, one letterbox, pets cut from the same decode
+                t = System.nanoTime(); val image640 = loadPhoto(ImageDecoder.createSource(file), 640); small += ms()
+                t = System.nanoTime(); val found640 = objects.detect(Letterbox(image640)); detectObjects += ms()
+                boxes.put(file.relativeTo(dir).path, JSONObject().put("size", JSONArray(listOf(image640.width, image640.height))).put("boxes", JSONArray(found640.map { b ->
+                    val row = JSONObject().put("c", b.cls).put("s", b.score.toDouble()).put("box", JSONArray(b.box.toList()))
+                    if (b.cls != PERSON && b.score >= 0.7f) {
+                        t = System.nanoTime(); row.put("vec", JSONArray(pets.vector(image640, b.box).toList())); embedPets += ms()
+                        petCount++
+                    }
+                    row
+                })))
             }
             results.put(file.relativeTo(dir).path, JSONArray(found.map { f ->
                 JSONObject().put("box", JSONArray(f.box.toList())).put("score", f.score.toDouble())
@@ -507,12 +528,16 @@ fun runTest(context: Context, dir: File, on: Accelerator, log: (String) -> Unit,
             }
             if (i % 20 == 19) log("${i + 1}/${photos.size}")
         }
-    } }
+    } } } }
     File(dir.parentFile, "results_$mode.json").writeText(results.toString())
     val n = photos.size.coerceAtLeast(1)
     log("$mode: ${photos.size} photos, $faces faces. Per photo: decode %.0f ms, detect %.0f ms. Per face: embed %.0f ms".format(decode / n, detect / n, embed / faces.coerceAtLeast(1)))
     if (tagger != null) {
         File(dir.parentFile, "tags_$mode.json").writeText(tags.toString())
         log("$mode tagger: per photo resize %.0f ms, model %.0f ms".format(resize / n, tag / n))
+    }
+    if (pets != null) {
+        File(dir.parentFile, "objects_$mode.json").writeText(boxes.toString())
+        log("$mode objects: per photo 640 decode %.0f ms, YOLO26 %.0f ms. Per pet: DINOv2 %.0f ms ($petCount pets)".format(small / n, detectObjects / n, embedPets / petCount.coerceAtLeast(1)))
     }
 }

@@ -52,12 +52,16 @@ class Tag(val id: String, val name: String, val words: List<String>, val cutoff:
 /** A tag and its photos, newest first. [cover] is the photo the tagger is surest of. */
 class Category(val id: String, val name: String, val words: List<String>, val cover: Tile, val tiles: List<Tile>)
 
-/** Tags that have photos, most photos first. [tiles] drops photos gone from the phone. Photos only: videos have no vector. */
-fun categories(tags: List<Tag>, vectors: List<PhotoVectorRow>, tiles: List<Tile>): List<Category> {
+/**
+ * Tags that have photos, most photos first. [tiles] drops photos gone from the phone. Photos only: videos have no vector.
+ * [pets]: photos with a cat or dog box and its score, while the object models are here; then they make the pet tag (`docs/objects.md`).
+ */
+fun categories(tags: List<Tag>, vectors: List<PhotoVectorRow>, tiles: List<Tile>, pets: Map<Long, Float>? = null): List<Category> {
     val byId = tiles.associateBy { it.id }
     val shown = vectors.mapNotNull { v -> byId[v.photoId]?.let { it to v.vector } }
     return tags.mapNotNull { tag ->
-        val hits = shown.map { (t, v) -> t to dot(v, tag.vector) }.filter { it.second > tag.cutoff }
+        val hits = if (tag.id == "pet" && pets != null) pets.mapNotNull { (id, score) -> byId[id]?.let { it to score } }
+            else shown.map { (t, v) -> t to dot(v, tag.vector) }.filter { it.second > tag.cutoff }
         if (hits.isEmpty()) null
         else Category(tag.id, tag.name, tag.words, hits.maxBy { it.second }.first, hits.map { it.first }.sortedByDescending { it.date })
     }.sortedByDescending { it.tiles.size }
@@ -73,7 +77,8 @@ private fun dot(a: FloatArray, b: FloatArray): Float {
 suspend fun loadCategories(context: Context, tiles: List<Tile>): List<Category> = withContext(Dispatchers.IO) {
     val tags = Tag.load(context)
     // test phone, debug build, 4383 photos: read ~50 ms, score ~55 ms (first open ~280 ms), so no cache
-    if (tags.isEmpty()) emptyList() else categories(tags, Db.get(context).index().vectors(Tagger.VERSION), tiles)
+    val dao = Db.get(context).index()
+    if (tags.isEmpty()) emptyList() else categories(tags, dao.vectors(Tagger.VERSION), tiles, if (objectsFiles(context).all { it.exists() }) dao.petPhotos() else null)
 }
 
 private suspend fun loadCategories(context: Context) = withContext(Dispatchers.IO) { loadCategories(context, albums(context).flatMap { it.tiles }) }
