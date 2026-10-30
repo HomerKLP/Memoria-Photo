@@ -2,17 +2,6 @@
 
 Style: one-line description, steps to reproduce, fix ideas. Code paths only when they help. Open bugs in full; a fixed bug becomes one line under Fixed at the bottom (the full write-up stays in git history).
 
-## Pet groups mix different cats
-
-Found 2026-10-29 on the test phone (DB v14, 322 pet crops, 7 pet groups). The user marked every crop by the real cat (`testdata/out/pets/pet-labels.json`, local): 4 own cats and ~10 others. At cut 0.6, 3 of 6 groups mix cats: the two black cats share one group, and a calico's second group holds a street cat too.
-
-- Not the crop path or the model size: the closest crop is the same cat 97% of the time, phone vectors (640 decode) match the bench's (4096 decode), and DINOv2-B does no better on the same crops.
-- The bench missed it: its labels were by coat, one cat per coat.
-- The cut is too loose for cats. On the true labels, average linkage: cut 0.6 pair precision 0.87, recall 0.59; cut 0.5 precision 0.96, recall 0.40 (13 groups, 3 with one stray crop, but each own cat splits into 2-4 groups). Complete, weighted and Ward linkage do worse at the same precision.
-- Some boxes hold two cats, so their crop mixes both.
-
-Fix (2026-10-30, testing on the phone): Noodle's pet layer on DINOv2-S, the whole box squashed to 224x224, pets from boxes 0.7+, cut 0.68: no crop in another cat's group, 62% in their cat's main group, the rest split or left out (was 85% with 19 mixed). Monkeys still form their own pet (YOLO26 calls them cats or dogs): Hide pet. Background cut-out, mirror and face crops did not help (`docs/objects.md`, real labels).
-
 ## Emulator GPU gives every face after face 51 the same result, so people never form
 
 Found 2026-10-23 on the `Memoria_Demo` emulator (no NPU, so the models ran on LiteRT's GPU over OpenGL, a software GPU there). The first 49 faces are fine. All 43 faces after them have the exact same quality (0.396484375, just under the 0.4 start cut) and the exact same vector, so only 4 of 9 people formed. It is face 51's real result: the Mac scores that photo 0.387, and the vector best matches another photo of the same person. So both GPU models ran right once, then gave that answer for every new face. Not fp16 overflow: the quality model's largest inner value is 15.5 in fp32. Had face 51 scored over 0.4, all 43 faces would have merged into one person.
@@ -258,3 +247,4 @@ Native heap after 8 flings 141 MB, no blank tiles on a cold fling. Taken before 
 - 2026-10-22 Photos tab reloaded the timeline while the app was in the background. One reload on return.
 - 2026-10-22 Viewer: system bars stayed visible in the tapped state. Gone after a later viewer change.
 - 2026-10-27 Grid tiles pixelated on some DSLR photos. An exact 480 px decode skipped pixels; now halving only.
+- 2026-10-30 Pet groups mixed different cats. Noodle pet vectors, boxes 0.7+, cut 0.68, split pets join under 0.76: none mixed; quality is below people's, limited by the models (`docs/objects.md`).
