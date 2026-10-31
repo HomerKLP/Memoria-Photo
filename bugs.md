@@ -165,6 +165,20 @@ Fix ideas (`docs/objects.md`):
 - Drop a face that is not inside any person box of the object detector (YOLO26, planned for pets too). With YOLO26-M at person score 0.05 it drops 32 faces of quality 0.4+, only 1 of them a real face; the rest are a painting, statues, cartoons, a cat.
 - Softer: such a face can't start a person but can still join one, like quality under 0.4.
 
+## No pets on another phone (Snapdragon 8 Gen 3)
+
+Seen 2026-10-31 on another phone, release 0.4.0, fresh install, scan done: the Pets category shows the owner's cat, but People & pets has no pet. The same owner's photos (sent over a messenger) on the test phone's debug app give the owner's cat (64 photos, box scores 0.73-0.99, mean 0.91) and a stray (8 photos), so the 0.7 box cut and the 6-photo rule are not the cause. No code path differs by phone.
+
+The models are downloaded. A model falls back to the next chip only when it fails to load (`open` in `Faces.kt`); errors while it runs and wrong numbers get no fallback. Likely causes (that chip: HTP V75 NPU, Adreno 750 GPU; only the test phone's 8 Elite was checked):
+- `pets.tflite` loads but throws on each run: in the main loop the whole photo becomes an error, so it loses its pets, its boxes and its faces. Only photos whose best cat box is 0.5-0.7 (no pet run) keep boxes, which fits a Pets category with no pets. Logcat shows `index <id>` errors.
+- A model runs with no error but gives wrong numbers: YOLO26-M cat scores under 0.7 but over 0.5, or broken pet vectors that never group. Logcat shows nothing.
+
+Steps to find out (the phone in hand):
+1. USB, take a new photo of the cat so a scan runs, then `adb logcat -d -s Memoria`: "objects.tflite on NPU/GPU/CPU", "pets.tflite on ...", "object models not loaded", "box <id>" errors.
+2. If the models load: install the debug build next to the release (own data, the release app is untouched), push a few cat photos to its `test/`, Dev tools Run on NPU, GPU and CPU, compare each `objects_<mode>.json` with `uv run bench/objects.py phone`.
+
+Fix ideas: wait for the phone (the user's call, no self-check at load). If one chip is wrong, skip it for that model, as `PetVectors` skips the NPU. If the pet model throws, keep the photo's faces and boxes and skip only the pet.
+
 ## Memoria Debug never auto-indexed new photos
 
 Fixed 2026-10-22 on the phone (setup, not code), kept as a trap for pushing models by hand. After the debug/release split, the face models and the NPU builds were copied into `Android/data/app.memoria.debug/files/` with `cp` on the phone, so they belonged to `shell` and were `rw-rw----`. The app could see `models/` but not read it, so `modelsReady()` was false and the watcher never started a run.
