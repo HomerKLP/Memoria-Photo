@@ -135,8 +135,8 @@ class LightFace(
 }
 
 class Person(val faces: List<FaceVec>, val main: FaceVec, val id: Long = 0, val name: String? = null, val hidden: Boolean = false, val coverFaceId: Long? = null, val pos: Int? = null) {
-    /** The unsure faces of this person that look like [face] (0.3 or closer): one Yes on [face] settles them too. */
-    fun twinsOf(face: FaceVec) = faces.filter { !it.sure && it.id != face.id && it.distanceTo(face) <= 0.3f }
+    /** The unsure faces of this person that look like [face] (0.3 or closer): one Yes on [face] settles them too. Not under quality 0.3: the regroup doesn't trust that Yes. */
+    fun twinsOf(face: FaceVec) = if (face.quality < 0.3f) emptyList() else faces.filter { !it.sure && it.id != face.id && it.distanceTo(face) <= 0.3f }
 
     /** Distinct photos the person appears in. */
     val photos get() = faces.map { it.photoId }.distinct().size
@@ -958,7 +958,7 @@ fun MergeSheet(person: Person, people: List<Person>, onDismiss: () -> Unit, onMe
     val dao = remember { Db.get(context).index() }
     // The list's people carry no vectors (see PeopleScreen); "most alike first" needs them, so load them
     // once here when the sheet opens, not on every People open.
-    var means by remember { mutableStateOf<Map<Long, FloatArray>>(emptyMap()) }
+    var means by remember { mutableStateOf<Map<Long, FloatArray>?>(null) }
     LaunchedEffect(person.id, people) {
         val byPerson = withContext(Dispatchers.IO) { dao.faceVecs().filter { it.personId != null }.groupBy { it.personId!! } }
         means = byPerson.mapValues { mean(it.value) }
@@ -968,7 +968,8 @@ fun MergeSheet(person: Person, people: List<Person>, onDismiss: () -> Unit, onMe
     var picked by remember { mutableStateOf<Person?>(null) }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet, containerColor = MaterialTheme.colorScheme.background) {
         // body split out: a ModalBottomSheet renders blank in the screenshot tests (see NamePersonContent)
-        MergeContent(person, people, text, { text = it }, picked, { picked = it }, onDismiss, onMerge, means)
+        // no people until the vectors are here: sorted without them first, the grid re-sorted under the finger (fixed height, nothing moves)
+        MergeContent(person, if (means == null) emptyList() else people, text, { text = it }, picked, { picked = it }, onDismiss, onMerge, means.orEmpty())
     }
 }
 

@@ -108,7 +108,7 @@ fun moveTargets(context: Context, except: Long): List<MoveTarget> {
     val zone = ZoneId.systemDefault()
     val cols = arrayOf(
         FileColumns._ID, FileColumns.MEDIA_TYPE, FileColumns.DATE_TAKEN, FileColumns.DATE_ADDED, FileColumns.DURATION, FileColumns.DATE_MODIFIED,
-        FileColumns.IS_FAVORITE, FileColumns.BUCKET_ID, FileColumns.BUCKET_DISPLAY_NAME, FileColumns.RELATIVE_PATH,
+        FileColumns.IS_FAVORITE, FileColumns.BUCKET_ID, FileColumns.BUCKET_DISPLAY_NAME, FileColumns.RELATIVE_PATH, FileColumns.DISPLAY_NAME,
     )
     val where = "${FileColumns.MEDIA_TYPE} IN (${FileColumns.MEDIA_TYPE_IMAGE}, ${FileColumns.MEDIA_TYPE_VIDEO})" +
         " AND ${FileColumns.BUCKET_ID} != $except" +
@@ -119,7 +119,7 @@ fun moveTargets(context: Context, except: Long): List<MoveTarget> {
         while (c.moveToNext()) {
             val video = c.getInt(1) == FileColumns.MEDIA_TYPE_VIDEO
             val base = if (video) MediaStore.Video.Media.EXTERNAL_CONTENT_URI else MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-            val date = if (c.isNull(2)) fallbackDate(c.getString(9), c.getLong(3), c.getLong(5), zone) else c.getLong(2)
+            val date = if (c.isNull(2)) fallbackDate(c.getString(10) ?: "", c.getLong(3), c.getLong(5), zone) else c.getLong(2)
             val tile = Tile(c.getLong(0), ContentUris.withAppendedId(base, c.getLong(0)), date, if (video) c.getLong(4) else null, c.getInt(6) != 0)
             rows += Triple(c.getLong(7), (c.getString(8) ?: "Other") to (c.getString(9) ?: ""), tile)
         }

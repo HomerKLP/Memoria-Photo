@@ -76,7 +76,7 @@ Seen once, 2026-10-22, in Memoria Debug right after a `make install`: the first 
 Steps:
 1. `make install`, open a place, tap its first photo, swipe to the next two.
 
-Next time: record a Perfetto trace while it happens.
+Next time: record a Perfetto trace while it happens. A likely cause was fixed 2026-10-31: the hidden Photos grid followed the viewer of a screen opened from Search (see Fixed); check again if it shows up.
 
 ## Opening a photo: the grow animation sometimes skips or breaks
 
@@ -199,39 +199,6 @@ How other apps handle it:
 
 Done 2026-10-31: release builds also ship `assets/art-profile/baseline.prof`, AGP's profile converted to ART's format with the `profgen` inside AGP (`ArtProfileTask` in `app/build.gradle.kts`). Emulator (API 37), normal install and update over an old one: `verify` without the file, `speed-profile` with it, app starts. Check on the phone after the next OTA. Android 13-14 still wait for the idle job; a `.dm` in a session install would cover them.
 
-## Back to Photos jumps to the top
-
-Found 2026-10-31 in a code review, not checked on the phone. After one tap on the Photos tab (scroll to top), every later return from Library scrolls to the top again: `PhotosScreen` leaves composition on Library, and `LaunchedEffect(scrollToTop)` (`Photos.kt`) runs again with the old non-zero `photosScrollTop` (`MainActivity.kt`).
-
-Steps:
-1. Photos tab, scroll down, tap the Photos tab (goes to the top).
-2. Scroll down again, open Library, come back to Photos: it jumps to the top.
-
-Fix ideas:
-- Remember the last value the effect acted on and skip when it is the same.
-- Then the bar's slide (`barOffset`, `remember`) also resets on a tab switch; `rememberSaveable` keeps it.
-
-## Hidden Photos grid follows the viewer
-
-Found 2026-10-31 in a code review, not checked on the phone. The Photos tab stays composed under opened screens, and every `FollowViewer` reacts to the global `viewerTile`, so a swipe in a viewer opened from another screen also scrolls the hidden timeline (`reveal`, up to 50 screens in one go). The shared `tileSpots` map can then send the close animation to the hidden tile. May be the cause of "Viewer freezes for a moment" above, if that place was opened through Search.
-
-Steps:
-1. Photos tab > Search > a place (or person, album), open a photo, swipe a few times.
-2. Close the viewer and go back to Photos: the timeline has moved.
-
-Fix ideas:
-- Pass `stack.isEmpty()` into the tab's `PhotosContent` and skip `FollowViewer` while a screen is open.
-
-## Merge with re-sorts right after it opens
-
-Found 2026-10-31 in a code review. The sheet first sorts by the People list's faces, which have no vectors (`LightFace.toVec()`, every score NaN), then re-sorts when `dao.faceVecs()` lands (`People.kt`, Merge with). The grid jumps under the finger. `LayoutJumpTest`'s Merge with case passes no `means`, so it only covers the first order.
-
-Steps:
-1. Person > More > Merge with: watch the order change a moment after it opens.
-
-Fix ideas:
-- Pass an empty list to `MergeContent` until the vectors load; the grid is a fixed height, so nothing moves.
-
 # Known issues and bad patterns
 
 Found while reading the code, not seen on the phone yet. No steps, just the risk.
@@ -242,10 +209,7 @@ Found while reading the code, not seen on the phone yet. No steps, just the risk
 - **Global mutable state.** `lastTimeline` and `thumbs` are top-level (`Photos.kt`); the Photos tab and the viewer both depend on them silently.
 - **Bitmap churn.** `detect` makes new full-size bitmaps per photo and never recycles (`Faces.kt`). Adds to load cost and heat.
 - **`groupFaces` holds an n×n float matrix in memory** (`People.kt`). Time is O(n²) since the NN-chain (2026-10-17), but memory is 17 MB at today's 2052 starting faces and ~400 MB at 10k. Store half of it (or float16) before libraries get that big.
-- **Help recognize Yes under 0.3 quality doesn't stick for its look-alikes.** `twinsOf` (`People.kt`) settles them with no quality limit, but the regroup trusts only Yes faces of 0.3+, so they come back after the next run. Fix: the same 0.3 limit in `twinsOf`.
-- **Help recognize builds its people its own way.** `Recognize.kt` drops `coverFaceId` and ignores `pos`, so Someone else shows main faces in another order than People. Its No is two writes outside a transaction; `removeTag` does the same in one.
-- **Move to album passes the folder path as the file name.** `moveTargets` (`Albums.kt`) gives `fallbackDate` the `RELATIVE_PATH`, so a photo with no `DATE_TAKEN` can't take its date from the name, and the cover can differ from the Albums screen. Fix: add `DISPLAY_NAME` to the query.
-- **Month slider jumps to old positions after a reload.** `pointerInput(months, top)` (`Ui.kt`) keeps the first `starts`; a new or trashed photo shifts them by 1-2 items with the same month count, so a drag lands just before the month. Fix: `rememberUpdatedState(starts)`.
+- **Flaky `NavigationTest.search_categoryWordHit_backReturnsToSearchWithTheText`.** Failed once on the emulator (2026-10-31) with Compose's "Detected multithreaded access to SnapshotStateObserver", no app frames in the trace; the class passed 13/13 on a rerun. If it shows again, look for a draw started off the main thread.
 - **Dead `photo.path` column.** `PhotoRow.path` (`Index.kt`) is written on insert but no query reads it. Remove it when the schema is next touched (needs a migration).
 
 ## Perf numbers (`make perf`)
@@ -308,3 +272,10 @@ Native heap after 8 flings 141 MB, no blank tiles on a cold fling. Taken before 
 - 2026-10-30 Pet groups mixed different cats. Noodle pet vectors, boxes 0.7+, cut 0.68, split pets join under 0.76: none mixed; quality is below people's, limited by the models (`docs/objects.md`).
 - 2026-10-31 Person or Pet screen kept a face removed in the viewer (Remove tag on a one-picture New pet left "1 photo"). A fix in the viewer now bumps `peopleSaved`, so the screen reloads and closes when its last face left.
 - 2026-10-31 Index notification stayed after the run when a tap on it had dropped the foreground. The worker cancels it in `finally`.
+- 2026-10-31 Back to Photos from Library jumped to the top after any earlier tab tap: the effect replayed the old tap. Only a newer tap scrolls now, and the bar that scrolled away stays away (`rememberSaveable`).
+- 2026-10-31 The Photos grid under an opened screen followed the viewer too, walking up to 50 screens per swipe. Only the tab on top follows (`onTop`).
+- 2026-10-31 Merge with re-sorted a moment after it opened. The grid stays empty until the face vectors load.
+- 2026-10-31 Help recognize: a Yes on a face under 0.3 quality settled look-alikes only until the next regroup. `twinsOf` skips such faces, like the regroup.
+- 2026-10-31 Help recognize: Someone else showed main faces, not covers, out of People order, and a New person could take a pet's name. Its No is one transaction now (`removeTag`).
+- 2026-10-31 Move to album read the folder path as the file name for photos with no date taken. It reads `DISPLAY_NAME`.
+- 2026-10-31 Month slider landed 1-2 items early after a reload with the same month count. The drag reads the latest month starts.

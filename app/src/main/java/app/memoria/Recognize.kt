@@ -92,9 +92,9 @@ fun HelpRecognizeScreen(personId: Long?, onBack: () -> Unit) {
     val people by produceState<List<Person>?>(null) {
         value = withContext(Dispatchers.IO) {
             val byPerson = dao.faceVecs().filter { it.personId != null }.groupBy { it.personId!! }
-            // no pets: they have no unsure faces, and a face never goes to a pet
-            dao.people().mapNotNull { p -> byPerson[p.id]?.let { fs -> Person(fs, fs.firstOrNull { it.id == p.mainFaceId } ?: fs.first(), p.id, p.name, p.hidden) } }
-                .filter { !it.pet }.sortedWith(compareBy({ it.name.isNullOrBlank() }, { -it.photos })) // People screen order
+            // pets stay in: they have no unsure faces, but a New person's name must not be a pet's (Who is this? lists only the face's kind)
+            dao.people().mapNotNull { p -> byPerson[p.id]?.let { fs -> Person(fs, fs.firstOrNull { it.id == p.mainFaceId } ?: fs.first(), p.id, p.name, p.hidden, p.coverFaceId, p.pos) } }
+                .sortedWith(compareBy({ it.name.isNullOrBlank() }, { it.pos ?: Int.MAX_VALUE }, { -it.photos })) // People screen order
         }
     }
     val queue = remember(people) {
@@ -115,7 +115,7 @@ fun HelpRecognizeScreen(personId: Long?, onBack: () -> Unit) {
     HelpRecognizeContent(
         current, at, q?.size, skipped, onBack,
         onSkip = { skipped++; pos = at + 1 },
-        onNo = { face, person -> answer { dao.answer(AnswerRow(face.id, person.main.id, false)); dao.leavePerson(face.id) } },
+        onNo = { face, person -> answer { removeTag(db, face, person) } },
         onYes = { face, person ->
             val twins = person.twinsOf(face).map { it.id }
             done += twins

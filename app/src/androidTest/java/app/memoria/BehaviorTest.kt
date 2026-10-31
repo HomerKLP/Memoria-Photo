@@ -10,6 +10,8 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
@@ -155,6 +157,28 @@ class BehaviorTest {
         rule.onNodeWithTag("photosGrid").performScrollToIndex(0)
         rule.waitForIdle()
         rule.onNodeWithContentDescription("Search").assertIsDisplayed()
+    }
+
+    /** Back on the tab (App keeps the grid and the saved state): no replay of an old tab tap, and the bar that scrolled away stays away. */
+    @Test fun photos_comingBack_keepsScrollAndHiddenBar() {
+        val grid = LazyGridState()
+        var shown by mutableStateOf(true)
+        rule.setContent {
+            val tabs = rememberSaveableStateHolder()
+            MemoriaTheme { Surface {
+                if (shown) tabs.SaveableStateProvider("photos") { PhotosContent(longTimeline, grid = grid, selection = PhotoSelection(), scrollToTop = 1) }
+            } }
+        }
+
+        rule.onNodeWithTag("photosGrid").performTouchInput { swipeUp() }
+        rule.waitForIdle()
+        val before = rule.runOnIdle { grid.firstVisibleItemIndex }
+        assertTrue("scrolled down", before > 0)
+        rule.runOnIdle { shown = false }
+        rule.runOnIdle { shown = true }
+        rule.waitForIdle()
+        assertEquals(before, rule.runOnIdle { grid.firstVisibleItemIndex })
+        rule.onNodeWithContentDescription("Search").assertIsNotDisplayed()
     }
 
     @Test fun photos_topBarHidden_tapOnSelectBar_doesNotReachTheTilesUnderIt() {

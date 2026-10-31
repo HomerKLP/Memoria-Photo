@@ -45,6 +45,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -396,6 +397,7 @@ fun MonthSliderBox(
     content: @Composable () -> Unit,
 ) {
     val starts = remember(months) { months.map { it.first } }
+    val startsNow by rememberUpdatedState(starts)
     val names = remember(months) { months.map { it.second } }
     val current by remember(grid, starts) {
         derivedStateOf {
@@ -430,7 +432,8 @@ fun MonthSliderBox(
                 if (grid.firstVisibleItemIndex > first) { on = true; tick++ } else on = false
             }
         },
-        onJump = { i -> drag = i; scope.launch { grid.scrollToItem(starts.getOrElse(i) { 0 }) } },
+        // the drag handler keeps its first onJump while the month count stays, so read the starts of the latest load
+        onJump = { i -> drag = i; scope.launch { grid.scrollToItem(startsNow.getOrElse(i) { 0 }) } },
         modifier = modifier, enabled = enabled && starts.size >= 3, top = top, content = content,
     )
 }

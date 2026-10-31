@@ -76,6 +76,14 @@ class PeopleLogicTest {
         assertEquals(listOf(2L), Person(listOf(a, twin, far, sharp), a).twinsOf(a).map { it.id })
     }
 
+    @Test fun aYesUnder03SettlesNoTwins() {
+        // the regroup trusts only Yes faces of 0.3+, so look-alikes settled by a weaker one would come back
+        val weak = at(1, 0.2f, 1f)
+        val twin = at(2, 0.3f, 0.96f, 0.28f)
+        assertEquals(emptyList<Long>(), Person(listOf(weak, twin), weak).twinsOf(weak).map { it.id })
+        assertEquals(listOf(1L), Person(listOf(weak, twin), weak).twinsOf(twin).map { it.id })
+    }
+
     @Test fun sureNeedsQualityOrAYes() {
         assertTrue(face(1, 1, quality = 0.4f).sure)
         assertFalse(face(1, 1, quality = 0.39f).sure)

@@ -77,6 +77,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -261,16 +262,18 @@ var fastScrolling by mutableStateOf(false)
 /**
  * Keeps the viewer's photo in view in [grid], whose tiles come in [order], so closing the viewer lands in its tile.
  * Only after a swipe: on open the grid stays put, since the photo is growing out of its tile.
+ * [enabled] false: the grid sits under another screen, whose own grid follows the viewer.
  */
 @Composable
-fun FollowViewer(grid: LazyGridState, order: List<Tile>) {
+fun FollowViewer(grid: LazyGridState, order: List<Tile>, enabled: () -> Boolean = { true }) {
     val tiles by rememberUpdatedState(order)
+    val follow by rememberUpdatedState(enabled)
     LaunchedEffect(grid) {
         var last: Long? = null
         snapshotFlow { viewerTile }.collectLatest { id ->
             val swiped = last != null
             last = id
-            if (swiped && id != null) grid.reveal(id, tiles)
+            if (swiped && id != null && follow()) grid.reveal(id, tiles)
         }
     }
 }
@@ -434,6 +437,7 @@ fun PhotosScreen(
     reload: Int = 0,
     onSearch: () -> Unit = {},
     scrollToTop: Int = 0,
+    onTop: () -> Boolean = { true },
 ) {
     val context = LocalContext.current
     val media = arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO)
@@ -504,6 +508,7 @@ fun PhotosScreen(
         pickedSize = pickedSize,
         onSearch = onSearch,
         scrollToTop = scrollToTop,
+        onTop = onTop,
     )
 }
 
@@ -623,6 +628,7 @@ fun PhotosContent(
     onSelectBack: (() -> Unit)? = null,
     footer: (@Composable () -> Unit)? = null,
     scrollToTop: Int = 0,
+    onTop: () -> Boolean = { true }, // false while another screen covers the tab
 ) {
     val list = items.orEmpty()
     val photos = list.filterIsInstance<Tile>()
@@ -633,8 +639,10 @@ fun PhotosContent(
     val months = remember(items) { list.mapIndexedNotNull { i, x -> if (x is Header && x.month) i to x.text else null } }
     // Tab tap to the top, Immich style: one continuous scroll, capped at tabScrollToTopMs whatever the
     // distance, and no thumbnail decode for the tiles that only fly by (Thumb waits on fastScrolling).
+    // The value it had when the tab came back is an old tap: only a newer one scrolls.
+    val seenScrollToTop = remember { scrollToTop }
     LaunchedEffect(scrollToTop) {
-        if (scrollToTop == 0) return@LaunchedEffect
+        if (scrollToTop == seenScrollToTop) return@LaunchedEffect
         fastScrolling = true
         try {
             // Far down, a scroll composes every row it passes (a second per thousand rows), so first jump
@@ -671,7 +679,7 @@ fun PhotosContent(
     val collapses = onBack == null
     val barH = maxOf(48.dp, 36.dp + with(density) { MaterialTheme.typography.titleLarge.lineHeight.toDp() })
     val barPx = with(density) { barH.toPx() }
-    var barOffset by remember { mutableFloatStateOf(0f) }
+    var barOffset by rememberSaveable { mutableFloatStateOf(0f) } // kept on a tab switch, like the grid's scroll
     val selectingNow by rememberUpdatedState(selecting)
     val hideBar = remember(barPx, collapses) {
         object : NestedScrollConnection {
@@ -738,7 +746,7 @@ fun PhotosContent(
                 top = monthHeadingHeight(below = 2.dp),
                 modifier = Modifier.weight(1f),
             ) {
-                FollowViewer(grid, photos)
+                FollowViewer(grid, photos, onTop)
                 LazyVerticalGrid(
                     GridCells.Fixed(3), state = grid,
                     modifier = (if (tabs) Modifier.selectDrag(grid, tilesById, selection!!) else Modifier).testTag("photosGrid"),

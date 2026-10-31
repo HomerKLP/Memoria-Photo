@@ -255,6 +255,7 @@ fun App(dir: File, openSettings: Int = 0, atUpdates: Boolean = false) {
                                 onOpen = open, grid = photosGrid, selection = selection, reload = photosReload,
                                 onSearch = { push(Screen.Search) },
                                 scrollToTop = photosScrollTop,
+                                onTop = { stack.isEmpty() }, // a viewer opened from a screen on top moves only that screen's grid
                             )
                             else LibraryScreen(
                                 onOpenSearch = { push(Screen.Search) },
