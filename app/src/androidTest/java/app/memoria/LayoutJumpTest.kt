@@ -367,6 +367,9 @@ class LayoutJumpTest {
         rule.runOnIdle { text = "Arman" }
         assertSame("title", titleBefore, rule.onNodeWithText("Who is this?").top())
         assertSame("New person row", newBefore, rule.onNodeWithText("New person").top())
+        rule.runOnIdle { text = "Tom" }
+        rule.onNodeWithText("Nothing for \"Tom\"").assertExists()
+        assertSame("New person row, no match", newBefore, rule.onNodeWithText("New person").top())
     }
 
     @Test fun whoIsThis_longTaggedName_keepsFieldPut() {

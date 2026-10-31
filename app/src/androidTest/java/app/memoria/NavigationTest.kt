@@ -80,6 +80,7 @@ class NavigationTest {
             dao.deleteFaces(listOf(photoId))
             dao.deletePhotos(listOf(photoId))
             dao.deleteVectors(listOf(photo))
+            dao.deleteTags(listOf(photo))
         }
     }
 

@@ -279,6 +279,7 @@ class BehaviorTest {
 
         rule.onNodeWithText("New person").assertIsNotEnabled()
         rule.onNode(hasSetTextAction()).performTextInput("Bota")
+        rule.onNodeWithText("Nothing for \"Bota\"").assertIsDisplayed()
         rule.onNodeWithText("New person").assertIsEnabled().performClick()
         assertEquals("Bota", created)
     }

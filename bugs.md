@@ -117,7 +117,14 @@ Fix ideas:
 
 ## Library opens slowly
 
-Reported 2026-10-29 by the user: the Library tab feels slow to show. Not measured yet. Find the cause before adding a preload.
+Reported 2026-10-29 by the user: the Library tab feels slow to show.
+
+Measured 2026-10-31 on the phone's 0.4.0 release (simpleperf, first Library open after a cold start, ms from the tap). Compiled with the profile: data at ~280, covers at ~340. Uncompiled (as after an install or update, until Android compiles it in idle time): data at ~355, covers at ~445. One serial load, compiled run:
+- taggedFaces 25, albums (MediaStore scan) 30, trash 8, placed 8.
+- Categories ~170, 60% of the wait: `tags.json` parse 15, all photo vectors from SQL 85, scoring 67. Redone on every open, and the rows above wait for it.
+- Covers start only after the data: ~40 more.
+
+Done 2026-10-31: each photo's tags are stored (`photo_tag`, DB v15), so an open scores only new vectors. Debug build on the phone: categories ~100 ms (`tags.json` 40, missing-rows scan 11, `photo_tag` read 12, `categories()` 27); the first open after the migration scores all photos once (~390). Release not measured yet.
 
 Steps:
 1. Start the app, tap Library. Compare the first open after launch with a later one.
@@ -166,17 +173,6 @@ Fix (done on the phone):
 - `chmod 666` the model files, `chmod 2777` `models/` and `npu/` (so the app can also write NPU builds), `chmod 666` the files in `npu/`.
 - Keep the model files' dates (`cp -p` or `touch -r`): an NPU build's name holds the model's size and date, so a new date means a rebuild, and a rebuild into a folder the app cannot write fails.
 - A fresh install also re-cuts every face picture once (`recutThumbs`, no `recutTo` pref yet) before it indexes anything, so its first run takes minutes.
-
-## Index notification stays after the run ("4380 / 4386 · 1s left")
-
-Found 2026-10-30 on the test phone (debug build, full index). Tapping the progress notification stops the foreground service in the same millisecond (system side, not app code; 2 of 2 taps). The worker keeps going as a plain job and keeps posting the notification itself (`notifications.notify(1, ...)` in `IndexWorker`). About a minute after leaving the app, Android stops the idle service and the app is frozen for ~2 min with no progress. When the run ends, WorkManager's service is already gone, so nothing removes the last notice.
-
-Steps:
-1. Start a full index, tap the "Finding faces" notification, go back home.
-2. `adb logcat -b events`: `notification_clicked` and `am_foreground_service_stop ... STOP_FOREGROUND` at the same time, later `am_stop_idle_service`.
-3. After the run, the notification stays with the last count.
-
-Fix ideas: `notifications.cancel(1)` in the worker's `finally`; update the notice through `setForeground` (catch the exception) instead of `notify`, so a lost foreground shows up; find why a tap drops the foreground.
 
 # Known issues and bad patterns
 
@@ -249,3 +245,4 @@ Native heap after 8 flings 141 MB, no blank tiles on a cold fling. Taken before 
 - 2026-10-27 Grid tiles pixelated on some DSLR photos. An exact 480 px decode skipped pixels; now halving only.
 - 2026-10-30 Pet groups mixed different cats. Noodle pet vectors, boxes 0.7+, cut 0.68, split pets join under 0.76: none mixed; quality is below people's, limited by the models (`docs/objects.md`).
 - 2026-10-31 Person or Pet screen kept a face removed in the viewer (Remove tag on a one-picture New pet left "1 photo"). A fix in the viewer now bumps `peopleSaved`, so the screen reloads and closes when its last face left.
+- 2026-10-31 Index notification stayed after the run when a tap on it had dropped the foreground. The worker cancels it in `finally`.

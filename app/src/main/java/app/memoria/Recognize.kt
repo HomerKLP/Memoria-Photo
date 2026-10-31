@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -301,7 +302,12 @@ fun WhoIsThisContent(
         }
         // rows hidden by the search keep their space here, where they were: a shorter list would
         // slide the New person row and Remove tag up under the field you are typing in
-        Spacer(Modifier.height(52.dp * (named.size - shown.size)))
+        Box(Modifier.fillMaxWidth().height(52.dp * (named.size - shown.size)).padding(horizontal = 16.dp)) {
+            if (shown.isEmpty() && named.isNotEmpty()) Text(
+                "Nothing for \"$typed\"", Modifier.height(52.dp).wrapContentHeight(),
+                color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+        }
         Row(
             Modifier.fillMaxWidth().height(52.dp).alpha(if (canAdd) 1f else 0.4f).clickable(enabled = canAdd) { onNew(typed) }.padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically,

@@ -42,9 +42,13 @@ class Tag(val id: String, val name: String, val words: List<String>, val cutoff:
 
         @Volatile private var loaded: List<Tag>? = null
 
+        /** Hash of `tags.json`, set by [load]: stored tags from another file are stale. */
+        @Volatile var stamp = 0
+            private set
+
         /** Parsed once per process. */
         fun load(context: Context) = loaded ?: synchronized(this) {
-            loaded ?: parse(context.assets.open("tags.json").bufferedReader().readText()).also { loaded = it }
+            loaded ?: context.assets.open("tags.json").bufferedReader().readText().let { stamp = it.hashCode(); parse(it) }.also { loaded = it }
         }
     }
 }
@@ -52,16 +56,23 @@ class Tag(val id: String, val name: String, val words: List<String>, val cutoff:
 /** A tag and its photos, newest first. [cover] is the photo the tagger is surest of. */
 class Category(val id: String, val name: String, val words: List<String>, val cover: Tile, val tiles: List<Tile>)
 
+/** A photo's tags for [PhotoTagRow.tags]: each tag its [vector] scores above the cutoff, with the score. A change here needs a new [Tag.stamp]. */
+fun photoTags(tags: List<Tag>, vector: FloatArray): String =
+    tags.mapNotNull { t -> dot(vector, t.vector).takeIf { it > t.cutoff }?.let { "${t.id} $it" } }.joinToString(";")
+
 /**
  * Tags that have photos, most photos first. [tiles] drops photos gone from the phone. Photos only: videos have no vector.
  * [pets]: photos with a cat or dog box and its score, while the object models are here; then they make the pet tag (`docs/objects.md`).
  */
-fun categories(tags: List<Tag>, vectors: List<PhotoVectorRow>, tiles: List<Tile>, pets: Map<Long, Float>? = null): List<Category> {
+fun categories(tags: List<Tag>, rows: List<PhotoTagRow>, tiles: List<Tile>, pets: Map<Long, Float>? = null): List<Category> {
     val byId = tiles.associateBy { it.id }
-    val shown = vectors.mapNotNull { v -> byId[v.photoId]?.let { it to v.vector } }
+    val tagged = HashMap<String, MutableList<Pair<Tile, Float>>>()
+    for (r in rows) {
+        val tile = byId[r.photoId] ?: continue
+        if (r.tags.isNotEmpty()) for (hit in r.tags.split(';')) hit.split(' ').let { (id, score) -> tagged.getOrPut(id) { mutableListOf() } += tile to score.toFloat() }
+    }
     return tags.mapNotNull { tag ->
-        val hits = if (tag.id == "pet" && pets != null) pets.mapNotNull { (id, score) -> byId[id]?.let { it to score } }
-            else shown.map { (t, v) -> t to dot(v, tag.vector) }.filter { it.second > tag.cutoff }
+        val hits = if (tag.id == "pet" && pets != null) pets.mapNotNull { (id, score) -> byId[id]?.let { it to score } } else tagged[tag.id].orEmpty()
         if (hits.isEmpty()) null
         else Category(tag.id, tag.name, tag.words, hits.maxBy { it.second }.first, hits.map { it.first }.sortedByDescending { it.date })
     }.sortedByDescending { it.tiles.size }
@@ -73,12 +84,17 @@ private fun dot(a: FloatArray, b: FloatArray): Float {
     return s
 }
 
-/** Reads every photo vector (3 KB each), only when there are tags to score. */
+/**
+ * Scores only the vectors with no tags yet (new photos; all of them after a new `tags.json`), then reads the stored tags.
+ * Scoring all 4.4k vectors on each open took ~150 ms of Library's ~280 on the test phone's release build (`bugs.md`).
+ */
 suspend fun loadCategories(context: Context, tiles: List<Tile>): List<Category> = withContext(Dispatchers.IO) {
     val tags = Tag.load(context)
-    // test phone, debug build, 4383 photos: read ~50 ms, score ~55 ms (first open ~280 ms), so no cache
     val dao = Db.get(context).index()
-    if (tags.isEmpty()) emptyList() else categories(tags, dao.vectors(Tagger.VERSION), tiles, if (objectsFiles(context).all { it.exists() }) dao.petPhotos() else null)
+    if (tags.isEmpty()) return@withContext emptyList()
+    val new = dao.untaggedVectors(Tagger.VERSION, Tag.stamp)
+    if (new.isNotEmpty()) dao.insertTags(new.map { PhotoTagRow(it.photoId, Tag.stamp, photoTags(tags, it.vector)) })
+    categories(tags, dao.photoTags(Tag.stamp), tiles, if (objectsFiles(context).all { it.exists() }) dao.petPhotos() else null)
 }
 
 private suspend fun loadCategories(context: Context) = withContext(Dispatchers.IO) { loadCategories(context, albums(context).flatMap { it.tiles }) }

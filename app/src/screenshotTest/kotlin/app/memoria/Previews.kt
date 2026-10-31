@@ -547,6 +547,19 @@ fun WhoIsThisPetSheetPreview() = MemoriaTheme {
 }
 
 @PreviewTest
+@Preview(widthDp = 360, heightDp = 620)
+@Composable
+fun WhoIsThisNoMatchPreview() = MemoriaTheme {
+    Surface {
+        WhoIsThisContent(
+            fakePet(9, "Murka").main, fakePet(9, "Murka"),
+            listOf(fakePet(2, "Barsik"), fakePet(3, "Rex")),
+            "Tom", {}, {}, {}, {},
+        )
+    }
+}
+
+@PreviewTest
 @Preview(widthDp = 360, heightDp = 720)
 @Composable
 fun MergeSheetPreview() = MemoriaTheme {

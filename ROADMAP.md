@@ -208,7 +208,7 @@ Today perf is found only after someone feels it (`bugs.md` holds the numbers). N
 - [x] Photos tab: no timeline reload while the app is in the background. Fixed 2026-10-22: a change while the app is stopped only marks it missed, one reload on return (`bugs.md`).
 - [ ] Load time in `make perf`: ms from opening a screen until its data shows (Library, People, Person, Details, the viewer's sharp photo), like the cold start's timeline time. Started 2026-10-20: `make perf` reports the worst blank share on a cold fling.
 - [ ] Speed of v0.3.0 on the phone's release build: compile it with its profile (as `make release` does), then `make perf`, numbers in `bugs.md`. Library, Search, Categories and a Category now read every photo vector on each load (debug build: ~100 ms, ~280 ms on a first open); add a cache only if it shows. Feels fast enough to the user (2026-10-27).
-- [ ] Library cold start: the first open after launch shows grey tiles until the whole load ends. Measure first; suspects in `bugs.md`, "Library opens slowly".
+- [ ] Library cold start: the first open after launch shows grey tiles until the whole load ends. Measured 2026-10-31 (`bugs.md`, "Library opens slowly"): categories were 60% of it, now stored per photo (`photo_tag`, DB v15). Left: the rest of the serial load, covers after the data; a preload would hide both.
 - [ ] Regenerate the baseline profile on the emulator. With it really installed (2026-10-20), cold start was 15-25 ms slower than with the profile the app records in use.
 - [x] Perf line in `AGENTS.md` (Commands): `make release`, pause indexing, `make perf`.
 
