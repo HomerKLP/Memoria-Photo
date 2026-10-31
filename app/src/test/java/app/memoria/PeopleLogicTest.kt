@@ -150,6 +150,22 @@ class PeopleLogicTest {
         return (0 until n).filter { alive[it] && members[it].size > 5 }.map { members[it].toSet() }.toSet()
     }
 
+    @Test fun mergedPeopleStayOneAfterARegroup() {
+        val other = (11L..16L).map { at(it, 0.9f, 0f, 1f) } // 1.0 from the seeds: a person of its own
+        assertEquals(2, groupFaces(seeds + other).size)
+        val merged = groupFaces(seeds + other, merges = listOf(MergeRow(face = 11, personFace = 1)))
+        assertEquals((1L..6L).toSet() + (11L..16L), merged.single().faces.map { it.id }.toSet())
+    }
+
+    @Test fun aNewPersonKeepsItsFace_andNeverGrowsByDistance() {
+        val n = at(7, 0.35f, 0.9f, 0.436f) // 0.1 from the seeds
+        val twin = at(8, 0.35f, 0.9f, 0.436f)
+        val ids = { people: List<Person> -> people.map { p -> p.faces.map { it.id }.toSet() }.sortedBy { it.min() } }
+        assertEquals(listOf((1L..8L).toSet()), ids(groupFaces(seeds + n + twin)))
+        // New person from face 7, which was with the seeds' person (main face 1): 7 stands alone, its look-alike stays with the seeds
+        assertEquals(listOf((1L..6L).toSet() + 8L, setOf(7L)), ids(groupFaces(seeds + n + twin, listOf(AnswerRow(7, 1, false), AnswerRow(7, 7, true)))))
+    }
+
     private fun pet(id: Long, photoId: Long, x: Float, y: Float) =
         FaceVec(id, photoId, floatArrayOf(0f, 0f, 50f, 50f), floatArrayOf(x, y), 0.8f, PhotoKind.camera, null, pet = true)
 

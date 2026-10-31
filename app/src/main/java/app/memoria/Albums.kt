@@ -10,6 +10,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -49,6 +50,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.ZoneId
@@ -271,7 +273,7 @@ fun AlbumContent(
             items = listOf(
                 MenuItem(R.drawable.ic_select, "Select") { more = false; onSelect(emptySet()) },
                 // asks first only when turning it on: faces and names go away
-                MenuItem(R.drawable.ic_block, "Ignore faces in this album", dividerBefore = true, checked = ignored) {
+                MenuItem(R.drawable.ic_block, "Don't index this album", dividerBefore = true, checked = ignored) {
                     more = false
                     if (ignored) onIgnore(false) else asking = true
                 },
@@ -281,15 +283,15 @@ fun AlbumContent(
     if (asking) IgnoreFacesDialog(a?.name, onDismiss = { asking = false }) { asking = false; onIgnore(true) }
 }
 
-/** Mockup "Ignore faces": asks before an album's faces go. From the album's More and from Folders to skip. */
+/** Mockup "Don't index": asks before an album leaves the index. From the album's More and from Folders to skip. */
 @Composable
 fun IgnoreFacesDialog(name: String?, onDismiss: () -> Unit, onConfirm: () -> Unit) = AlertDialog(
     onDismissRequest = onDismiss,
     icon = { Icon(painterResource(R.drawable.ic_block), null) },
-    title = { Text("Ignore faces in $name?") },
-    text = { Text("Faces found in this album will be deleted from the index, and its photos will not be searched for faces. People seen only here go away, names too. The photos stay.") },
+    title = { Text("Don't index $name?") },
+    text = { Text("Its photos leave the index: no faces, pets, search or places for them. People seen only here go away, names too. The photos stay.") },
     confirmButton = {
-        TextButton(onConfirm, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Ignore faces") }
+        TextButton(onConfirm, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Don't index") }
     },
     dismissButton = { TextButton(onDismiss) { Text("Cancel") } },
     containerColor = MaterialTheme.colorScheme.background,
@@ -300,6 +302,7 @@ fun IgnoreFacesDialog(name: String?, onDismiss: () -> Unit, onConfirm: () -> Uni
 fun AlbumScreen(id: Long, onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit) {
     val context = LocalContext.current
     val pick = rememberPick()
+    val scope = rememberCoroutineScope()
     val album by cachedProduceState("album$id", pick.changes) { withContext(Dispatchers.IO) { albums(context, id) } }
     val a = album?.firstOrNull()
     // the last photo moved, was deleted or moved out: the album is gone, so close instead of a blank page
@@ -320,9 +323,14 @@ fun AlbumScreen(id: Long, onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit
     // moved photos leave this album; the sheet's head shows the first picked
     if (moving) MoveToAlbumSheet(picked.first(), onDismiss = { moving = false }) { path ->
         moving = false
-        val foreign = picked.filter { runCatching { movePhoto(context, it, path) }.isFailure }
-        if (foreign.isEmpty()) pick.done()
-        else pick.confirm(MediaStore.createWriteRequest(context.contentResolver, foreign.map { it.uri })) { foreign.forEach { runCatching { movePhoto(context, it, path) } } }
+        // one MediaStore write per photo: off the main thread, a few hundred take seconds
+        scope.launch {
+            val foreign = withContext(Dispatchers.IO) { picked.filter { runCatching { movePhoto(context, it, path) }.isFailure } }
+            if (foreign.isEmpty()) pick.done()
+            else pick.confirm(MediaStore.createWriteRequest(context.contentResolver, foreign.map { it.uri })) {
+                withContext(Dispatchers.IO) { foreign.forEach { runCatching { movePhoto(context, it, path) } } }
+            }
+        }
     }
 }
 

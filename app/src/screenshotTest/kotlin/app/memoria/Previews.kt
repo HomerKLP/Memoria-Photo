@@ -291,7 +291,7 @@ fun AlbumGrid() = MemoriaTheme { Surface { AlbumContent(fakeAlbum(1, "Camera", 9
 @Composable
 fun AlbumSelect() = MemoriaTheme { Surface { AlbumContent(fakeAlbum(1, "Camera", 9), selected = setOf(1000L, 1001L, 1004L), pickedSize = 9_600_000) } }
 
-/** Album, More (mockup): Select, then Ignore faces with its check on. */
+/** Album, More (mockup): Select, then Don't index with its check on. */
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 760)
 @Composable
@@ -303,7 +303,7 @@ fun AlbumMore() = MemoriaTheme {
                 true, onDismiss = {},
                 items = listOf(
                     MenuItem(R.drawable.ic_select, "Select") {},
-                    MenuItem(R.drawable.ic_block, "Ignore faces in this album", dividerBefore = true, checked = true) {},
+                    MenuItem(R.drawable.ic_block, "Don't index this album", dividerBefore = true, checked = true) {},
                 ),
             )
         }
@@ -543,6 +543,16 @@ fun WhoIsThisPetSheetPreview() = MemoriaTheme {
             listOf(fakePerson(1, "Dana"), fakePet(2, "Barsik"), fakePet(3, "Rex")),
             "", {}, {}, {}, {},
         )
+    }
+}
+
+/** Help recognize with a name that wraps; pairs with helpRecognize_longName_keepsButtonsPut. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 800)
+@Composable
+fun HelpRecognizePreview() = MemoriaTheme {
+    Surface {
+        HelpRecognizeContent(fakeFace(9, 0.3f) to fakePerson(1, "Alexandra Konstantinopolskaya"), 2, 12, 0, {}, {}, { _, _ -> }, { _, _ -> }, {}, {})
     }
 }
 

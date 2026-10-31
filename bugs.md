@@ -67,6 +67,7 @@ Steps:
 Fix ideas:
 - The two neighbour pages decode at the same time as the open one; on a fast swipe the next page may not be ready and starts its decode during the animation. Decode ahead / keep a small window decoded.
 - Check whether the page gets built during the fling (`Viewer.kt` `HorizontalPager`).
+- Done 2026-10-31, not checked on the phone: `ImageDecoder` ignores cancel, so pages swiped past kept decoding. Decodes now run two at a time (`viewerLoads`), and the ones for pages already gone drop out.
 
 ## Viewer freezes for a moment on the first photos (debug build)
 
@@ -186,7 +187,6 @@ Fixed 2026-10-22 on the phone (setup, not code), kept as a trap for pushing mode
 Fix (done on the phone):
 - `chmod 666` the model files, `chmod 2777` `models/` and `npu/` (so the app can also write NPU builds), `chmod 666` the files in `npu/`.
 - Keep the model files' dates (`cp -p` or `touch -r`): an NPU build's name holds the model's size and date, so a new date means a rebuild, and a rebuild into a folder the app cannot write fails.
-- A fresh install also re-cuts every face picture once (`recutThumbs`, no `recutTo` pref yet) before it indexes anything, so its first run takes minutes.
 
 ## Release runs uncompiled after an update
 
@@ -199,6 +199,39 @@ How other apps handle it:
 
 Done 2026-10-31: release builds also ship `assets/art-profile/baseline.prof`, AGP's profile converted to ART's format with the `profgen` inside AGP (`ArtProfileTask` in `app/build.gradle.kts`). Emulator (API 37), normal install and update over an old one: `verify` without the file, `speed-profile` with it, app starts. Check on the phone after the next OTA. Android 13-14 still wait for the idle job; a `.dm` in a session install would cover them.
 
+## Back to Photos jumps to the top
+
+Found 2026-10-31 in a code review, not checked on the phone. After one tap on the Photos tab (scroll to top), every later return from Library scrolls to the top again: `PhotosScreen` leaves composition on Library, and `LaunchedEffect(scrollToTop)` (`Photos.kt`) runs again with the old non-zero `photosScrollTop` (`MainActivity.kt`).
+
+Steps:
+1. Photos tab, scroll down, tap the Photos tab (goes to the top).
+2. Scroll down again, open Library, come back to Photos: it jumps to the top.
+
+Fix ideas:
+- Remember the last value the effect acted on and skip when it is the same.
+- Then the bar's slide (`barOffset`, `remember`) also resets on a tab switch; `rememberSaveable` keeps it.
+
+## Hidden Photos grid follows the viewer
+
+Found 2026-10-31 in a code review, not checked on the phone. The Photos tab stays composed under opened screens, and every `FollowViewer` reacts to the global `viewerTile`, so a swipe in a viewer opened from another screen also scrolls the hidden timeline (`reveal`, up to 50 screens in one go). The shared `tileSpots` map can then send the close animation to the hidden tile. May be the cause of "Viewer freezes for a moment" above, if that place was opened through Search.
+
+Steps:
+1. Photos tab > Search > a place (or person, album), open a photo, swipe a few times.
+2. Close the viewer and go back to Photos: the timeline has moved.
+
+Fix ideas:
+- Pass `stack.isEmpty()` into the tab's `PhotosContent` and skip `FollowViewer` while a screen is open.
+
+## Merge with re-sorts right after it opens
+
+Found 2026-10-31 in a code review. The sheet first sorts by the People list's faces, which have no vectors (`LightFace.toVec()`, every score NaN), then re-sorts when `dao.faceVecs()` lands (`People.kt`, Merge with). The grid jumps under the finger. `LayoutJumpTest`'s Merge with case passes no `means`, so it only covers the first order.
+
+Steps:
+1. Person > More > Merge with: watch the order change a moment after it opens.
+
+Fix ideas:
+- Pass an empty list to `MergeContent` until the vectors load; the grid is a fixed height, so nothing moves.
+
 # Known issues and bad patterns
 
 Found while reading the code, not seen on the phone yet. No steps, just the risk.
@@ -209,6 +242,10 @@ Found while reading the code, not seen on the phone yet. No steps, just the risk
 - **Global mutable state.** `lastTimeline` and `thumbs` are top-level (`Photos.kt`); the Photos tab and the viewer both depend on them silently.
 - **Bitmap churn.** `detect` makes new full-size bitmaps per photo and never recycles (`Faces.kt`). Adds to load cost and heat.
 - **`groupFaces` holds an n×n float matrix in memory** (`People.kt`). Time is O(n²) since the NN-chain (2026-10-17), but memory is 17 MB at today's 2052 starting faces and ~400 MB at 10k. Store half of it (or float16) before libraries get that big.
+- **Help recognize Yes under 0.3 quality doesn't stick for its look-alikes.** `twinsOf` (`People.kt`) settles them with no quality limit, but the regroup trusts only Yes faces of 0.3+, so they come back after the next run. Fix: the same 0.3 limit in `twinsOf`.
+- **Help recognize builds its people its own way.** `Recognize.kt` drops `coverFaceId` and ignores `pos`, so Someone else shows main faces in another order than People. Its No is two writes outside a transaction; `removeTag` does the same in one.
+- **Move to album passes the folder path as the file name.** `moveTargets` (`Albums.kt`) gives `fallbackDate` the `RELATIVE_PATH`, so a photo with no `DATE_TAKEN` can't take its date from the name, and the cover can differ from the Albums screen. Fix: add `DISPLAY_NAME` to the query.
+- **Month slider jumps to old positions after a reload.** `pointerInput(months, top)` (`Ui.kt`) keeps the first `starts`; a new or trashed photo shifts them by 1-2 items with the same month count, so a drag lands just before the month. Fix: `rememberUpdatedState(starts)`.
 - **Dead `photo.path` column.** `PhotoRow.path` (`Index.kt`) is written on insert but no query reads it. Remove it when the schema is next touched (needs a migration).
 
 ## Perf numbers (`make perf`)

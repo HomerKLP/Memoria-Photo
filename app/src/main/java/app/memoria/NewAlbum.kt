@@ -133,12 +133,15 @@ fun NewAlbumScreen(name: String, onBack: () -> Unit, onCancel: () -> Unit, onMov
     fun move(list: List<Tile>) {
         if (list.isEmpty()) return
         val path = "Pictures/${name.trim()}/"
-        val foreign = list.filter { runCatching { movePhoto(context, it, path) }.isFailure }
-        if (foreign.isEmpty()) finish(list)
-        else {
-            then = { foreign.forEach { runCatching { movePhoto(context, it, path) } }; finish(list) }
-            val request = MediaStore.createWriteRequest(context.contentResolver, foreign.map { it.uri })
-            ask.launch(IntentSenderRequest.Builder(request.intentSender).build())
+        // one MediaStore write per photo: off the main thread, a few hundred take seconds
+        scope.launch {
+            val foreign = withContext(Dispatchers.IO) { list.filter { runCatching { movePhoto(context, it, path) }.isFailure } }
+            if (foreign.isEmpty()) finish(list)
+            else {
+                then = { scope.launch { withContext(Dispatchers.IO) { foreign.forEach { runCatching { movePhoto(context, it, path) } } }; finish(list) } }
+                val request = MediaStore.createWriteRequest(context.contentResolver, foreign.map { it.uri })
+                ask.launch(IntentSenderRequest.Builder(request.intentSender).build())
+            }
         }
     }
     Box(Modifier.fillMaxSize().safeDrawingPadding()) {

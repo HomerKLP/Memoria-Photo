@@ -172,8 +172,8 @@ fun App(dir: File, openSettings: Int = 0, atUpdates: Boolean = false) {
     var pendingFavorite by remember { mutableStateOf<Boolean?>(null) }
     val selectAsk = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
-            if (pendingTrash) selection.tiles.values.forEach { forgetTile(it.id) }
-            pendingFavorite?.let { fav -> selection.tiles.values.forEach { updateTile(it.copy(favorite = fav)) } }
+            if (pendingTrash) forgetTiles(selection.ids)
+            pendingFavorite?.let { fav -> updateTiles(selection.tiles.values.map { it.copy(favorite = fav) }) }
             selection.clear()
             photosReload++
         }
@@ -191,15 +191,17 @@ fun App(dir: File, openSettings: Int = 0, atUpdates: Boolean = false) {
         }
     }
     val favoriteSelected = { favorite: Boolean ->
-        val own = mutableListOf<Tile>()
-        val foreign = mutableListOf<Tile>()
-        for (t in selectedTiles()) runCatching { setFavorite(context, t, favorite) }.onSuccess { own += t }.onFailure { foreign += t }
-        own.forEach { updateTile(it.copy(favorite = favorite)) }
-        if (foreign.isEmpty()) { selection.clear(); photosReload++ }
-        else {
-            pendingFavorite = favorite
-            val ask = MediaStore.createFavoriteRequest(context.contentResolver, foreign.map { it.uri }, favorite)
-            selectAsk.launch(IntentSenderRequest.Builder(ask.intentSender).build())
+        val picked = selectedTiles()
+        // one MediaStore write per photo: off the main thread, a few hundred take seconds
+        scope.launch {
+            val foreign = withContext(Dispatchers.IO) { picked.filter { t -> runCatching { setFavorite(context, t, favorite) }.isFailure } }
+            updateTiles(picked.filter { it !in foreign }.map { it.copy(favorite = favorite) })
+            if (foreign.isEmpty()) { selection.clear(); photosReload++ }
+            else {
+                pendingFavorite = favorite
+                val ask = MediaStore.createFavoriteRequest(context.contentResolver, foreign.map { it.uri }, favorite)
+                selectAsk.launch(IntentSenderRequest.Builder(ask.intentSender).build())
+            }
         }
     }
     val deleteSelected = {

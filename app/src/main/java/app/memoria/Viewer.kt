@@ -225,7 +225,7 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
     var trashing by remember { mutableStateOf<Long?>(null) }
     val trashAsk = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         trashing?.let { id ->
-            if (result.resultCode == Activity.RESULT_OK) { list = list.filterNot { it.id == id }; forgetTile(id); viewerEdits++ }
+            if (result.resultCode == Activity.RESULT_OK) { list = list.filterNot { it.id == id }; forgetTiles(setOf(id)); viewerEdits++ }
             trashing = null
         }
     }
@@ -319,7 +319,7 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
                     try {
                         setFavorite(context, tile, next) // our own photos need no dialog
                         favorites[tile.id] = next
-                        updateTile(tile.copy(favorite = next))
+                        updateTiles(listOf(tile.copy(favorite = next)))
                         viewerEdits++
                     } catch (e: SecurityException) {
                         // someone else's photo: Android asks the user once, then remembers
@@ -502,6 +502,9 @@ internal fun photoMotion(fit: Size, screen: Size, tile: Rect?, visible: Rect?, t
     return lerp(crop, dragged, t) to lerp(visible, dragged, t)
 }
 
+// ImageDecoder ignores cancel: two decodes at a time, so pages swiped past wait and drop out instead of decoding
+private val viewerLoads = Dispatchers.IO.limitedParallelism(2)
+
 @Composable
 fun ViewerPage(
     tile: Tile,
@@ -516,7 +519,7 @@ fun ViewerPage(
     // Grid thumbnail first, then a screen-size decode
     val thumb = remember(tile.id) { thumbs.get(tile.id) }
     val image by produceState(thumb, tile.id) {
-        val full = withContext(Dispatchers.IO) {
+        val full = withContext(viewerLoads) {
             runCatching {
                 // MediaStore keeps only a small video thumbnail, so take a sharp frame from the file
                 if (tile.duration != null) MediaMetadataRetriever().use {

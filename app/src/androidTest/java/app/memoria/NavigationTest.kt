@@ -274,7 +274,7 @@ class NavigationTest {
         openLibrary()
         rule.onNodeWithContentDescription("Settings").performClick()
         rule.onNodeWithText("Folders to skip").performScrollTo().performClick()
-        rule.onNodeWithText("No face search in a checked album. Its photos stay").assertIsDisplayed()
+        rule.onNodeWithText("A checked album is not indexed. Its photos stay").assertIsDisplayed()
         back()
         rule.onNodeWithText("Only while charging").assertIsDisplayed()
         back()

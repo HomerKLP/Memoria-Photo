@@ -859,10 +859,10 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <div class="menu" role="menu">
           <button class="mi" role="menuitem"><svg class="i"><use href="#i-select"/></svg>Select</button>
           <hr>
-          <button class="mi" role="menuitemcheckbox" aria-checked="false"><svg class="i"><use href="#i-block"/></svg>Ignore faces in this album</button>
+          <button class="mi" role="menuitemcheckbox" aria-checked="false"><svg class="i"><use href="#i-block"/></svg>Don't index this album</button>
         </div>
       </div>
-      <figcaption>Album, More: Select starts select mode, same as a long press. No sort: albums are always newest first, like the timeline. Ignore faces in this album adds the folder to Settings, Folders to skip: no face search there, and faces already found there leave their people on the next run. A check shows when it is on. No Delete album: one tap would trash a whole folder</figcaption>
+      <figcaption>Album, More: Select starts select mode, same as a long press. No sort: albums are always newest first, like the timeline. Don't index this album adds the folder to Settings, Folders to skip: its photos leave the index (faces, pets, search, places) on the next run. A check shows when it is on. No Delete album: one tap would trash a whole folder</figcaption>
     </figure>
     <figure id="album-select">
       <div class="phone">
@@ -890,13 +890,13 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <div class="scrim">
           <div class="dialog" role="alertdialog" aria-labelledby="ignore-title">
             <svg class="i"><use href="#i-block"/></svg>
-            <b id="ignore-title">Ignore faces in Camera?</b>
-            <p>Faces found in this album will be deleted from the index, and its photos will not be searched for faces. People seen only here go away, names too. The photos stay.</p>
-            <div class="dialog-btns"><button class="text-btn">Cancel</button><button class="text-btn danger">Ignore faces</button></div>
+            <b id="ignore-title">Don't index Camera?</b>
+            <p>Its photos leave the index: no faces, pets, search or places for them. People seen only here go away, names too. The photos stay.</p>
+            <div class="dialog-btns"><button class="text-btn">Cancel</button><button class="text-btn danger">Don't index</button></div>
           </div>
         </div>
       </div>
-      <figcaption>Ignore faces: asks first, only when turning it on. Turning it off asks nothing; the next run searches the album again</figcaption>
+      <figcaption>Don't index: asks first, only when turning it on. Turning it off asks nothing; the next run indexes the album again</figcaption>
     </figure>
     <figure id="new-album">
       <div class="phone dark">
@@ -1455,7 +1455,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="set run"><svg class="i"><use href="#i-search"/></svg><div><b>Scan</b><span>412 of 1,706 · 3m left</span><div class="track"><div></div></div></div><button class="pill-btn">Pause</button></div>
           <div class="set"><svg class="i"><use href="#i-bolt"/></svg><div><b>Only while charging</b><span>Pause the scan on battery</span></div><span class="switch off" role="switch" aria-checked="false"></span></div>
           <div class="set"><svg class="i"><use href="#i-battery"/></svg><div><b>Background work</b><span>Not allowed. The phone may stop the scan</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
-          <div class="set"><svg class="i"><use href="#i-folder"/></svg><div><b>Folders to skip</b><span>None, all photos are searched</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
+          <div class="set"><svg class="i"><use href="#i-folder"/></svg><div><b>Folders to skip</b><span>None, all photos are indexed</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
           <div class="set"><svg class="i"><use href="#i-refresh"/></svg><div><b>Find faces again</b><span>Deletes faces and names, scans all photos again</span></div></div>
           <div class="head"><h3>People &amp; pets</h3></div>
           <div class="set"><svg class="i"><use href="#i-block"/></svg><div><b>Hidden people &amp; pets</b><span>3 hidden</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
@@ -1522,12 +1522,12 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="title"><b>Folders to skip</b><span>2 skipped</span></div>
         </div>
         <div class="scroll">
-          <div class="note"><svg class="i"><use href="#i-info"/></svg>No face search in a checked album. Its photos stay</div>
+          <div class="note"><svg class="i"><use href="#i-info"/></svg>A checked album is not indexed. Its photos stay</div>
           <div id="skip-list"></div>
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Folders to skip: opens from Settings. Every album, in the Albums order, with its photo count; a check marks a skipped one. Tap an unchecked album: the Ignore faces dialog asks first, then it gets the check. Tap a checked one: the check goes, no question, and the next run searches it again. The same list as an album's More > Ignore faces in this album. Rows never move: the check has its own slot in every row, and a skipped album stays where it is. The Settings row then reads "2 skipped"</figcaption>
+      <figcaption>Folders to skip: opens from Settings. Every album, in the Albums order, with its photo count; a check marks a skipped one. Tap an unchecked album: the Don't index dialog asks first, then it gets the check. Tap a checked one: the check goes, no question, and the next run indexes it again. The same list as an album's More > Don't index this album. Rows never move: the check has its own slot in every row, and a skipped album stays where it is. The Settings row then reads "2 skipped"</figcaption>
     </figure>
     <figure id="hidden">
       <div class="phone">
@@ -1683,7 +1683,7 @@ Photos: …/files/test</div>
     <div class="menu" role="menu">
       <button class="mi" role="menuitem"><svg class="i"><use href="#i-select"/></svg>Select</button>
       <hr>
-      <button class="mi" role="menuitemcheckbox" aria-checked="true"><svg class="i"><use href="#i-block"/></svg>Ignore faces in this album<svg class="i tick"><use href="#i-check"/></svg></button>
+      <button class="mi" role="menuitemcheckbox" aria-checked="true"><svg class="i"><use href="#i-block"/></svg>Don't index this album<svg class="i tick"><use href="#i-check"/></svg></button>
     </div>
     <p>Opens from a top bar's More, under the bar on the right, over the screen with no dim. One line per item with an icon; lines split the groups. An item that is on shows an accent check on the right. Tap outside or Back closes it.</p>
   </article>

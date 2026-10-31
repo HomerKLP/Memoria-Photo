@@ -67,7 +67,7 @@ The models were picked on real family photos, not only on paper: 3 face finders 
 - **Favorites, Videos, Trash:** use the phone's own favorites and trash.
 - **Categories:** pets, documents, food, sunsets and 10 more, sorted on the phone.
 - **Search:** people, places, months, categories.
-- **Folders to skip:** keep some folders out of face search.
+- **Folders to skip:** keep some folders out of the index (faces, pets, search, places).
 
 ## Privacy
 

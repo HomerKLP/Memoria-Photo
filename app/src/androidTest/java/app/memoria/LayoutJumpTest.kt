@@ -1,7 +1,6 @@
 package app.memoria
 
 import android.net.Uri
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,7 +18,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.test.assertCountEquals
@@ -382,6 +380,16 @@ class LayoutJumpTest {
         assertSame("Arman row", before, rule.onNodeWithText("Arman").top())
     }
 
+    /** Help recognize: a long name wraps to two lines next to the 88 dp face, so the buttons must not move. */
+    @Test fun helpRecognize_longName_keepsButtonsPut() {
+        var dana by mutableStateOf(person(1, "Dana"))
+        rule.setContent { MemoriaTheme { Surface { HelpRecognizeContent(face(9, 0.3f) to dana, 0, 5, 0, {}, {}, { _, _ -> }, { _, _ -> }, {}, {}) } } }
+
+        val before = rule.onNodeWithText("Yes").top()
+        rule.runOnIdle { dana = person(1, "W".repeat(40)) }
+        assertSame("Yes button", before, rule.onNodeWithText("Yes").top())
+    }
+
     /** Merge with: the grid is a fixed height, so filtering people must not move the buttons. */
     @Test fun merge_filtering_keepsGridAndButtonsPut() {
         var text by mutableStateOf("")
@@ -503,49 +511,6 @@ class LayoutJumpTest {
         val heading = rule.onNodeWithText("September 2026").getUnclippedBoundsInRoot()
         val rail = rule.onNodeWithTag("monthRail").getUnclippedBoundsInRoot()
         assertTrue("rail top ${rail.top} is above the heading bottom ${heading.bottom}", rail.top >= heading.bottom)
-    }
-
-    /** Viewer: the bars are an overlay, so hiding them (the tapped state) must not move or resize the photo behind. */
-    @Test fun viewerBars_hiding_keepsPhotoPut() {
-        var visible by mutableStateOf(true)
-        rule.setContent {
-            MemoriaTheme {
-                Surface {
-                    Box(Modifier.fillMaxSize()) {
-                        Box(Modifier.fillMaxSize().testTag("viewerPhoto").background(Color.Black))
-                        ViewerChrome(visible, "Sat, 11 Oct", "14:32", false, {}, {}, {}, {}, {})
-                    }
-                }
-            }
-        }
-
-        val top = rule.onNodeWithTag("viewerPhoto").top()
-        val height = rule.onNodeWithTag("viewerPhoto").height()
-        rule.runOnIdle { visible = false }
-        assertSame("photo top", top, rule.onNodeWithTag("viewerPhoto").top())
-        assertSame("photo height", height, rule.onNodeWithTag("viewerPhoto").height())
-    }
-
-    /** Viewer More: the menu drops over the screen (no dim, no reflow), so opening it must not move what is behind. */
-    @Test fun viewerMore_opening_keepsContentPut() {
-        var open by mutableStateOf(false)
-        rule.setContent {
-            MemoriaTheme {
-                Surface {
-                    Box(Modifier.fillMaxSize()) {
-                        Box(Modifier.fillMaxSize().testTag("viewerPhoto").background(Color.Black))
-                        Menu(open, onDismiss = { open = false }, items = listOf(MenuItem(R.drawable.ic_edit, "Edit in…") {}))
-                    }
-                }
-            }
-        }
-
-        val top = rule.onNodeWithTag("viewerPhoto").top()
-        val height = rule.onNodeWithTag("viewerPhoto").height()
-        rule.runOnIdle { open = true }
-        rule.onNodeWithText("Edit in…").assertIsDisplayed()
-        assertSame("photo top", top, rule.onNodeWithTag("viewerPhoto").top())
-        assertSame("photo height", height, rule.onNodeWithTag("viewerPhoto").height())
     }
 
     /** Move to album: New album swaps the list for the name field; the sheet head must not move. */

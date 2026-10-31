@@ -73,6 +73,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -228,16 +229,18 @@ fun photosByIds(context: Context, ids: List<Long>): List<Tile> {
 var lastTimeline: List<TimelineItem>? = null
 var lastFavorites: List<TimelineItem>? = null
 
-/** Replaces one tile in the cached timelines after a change, so the grid and viewer see it on the next open. */
-fun updateTile(tile: Tile) {
-    lastTimeline = lastTimeline?.map { if (it is Tile && it.id == tile.id) tile else it }
-    lastFavorites = lastFavorites?.map { if (it is Tile && it.id == tile.id) tile else it }
+/** Replaces tiles in the cached timelines after a change, so the grid and viewer see them on the next open. One pass for any number. */
+fun updateTiles(tiles: List<Tile>) {
+    if (tiles.isEmpty()) return
+    val byId = tiles.associateBy { it.id }
+    lastTimeline = lastTimeline?.map { if (it is Tile) byId[it.id] ?: it else it }
+    lastFavorites = lastFavorites?.map { if (it is Tile) byId[it.id] ?: it else it }
 }
 
-/** Drops a trashed tile from the cached timelines, so the grid does not flash it before the reload. */
-fun forgetTile(id: Long) {
-    lastTimeline = lastTimeline?.filterNot { it is Tile && it.id == id }
-    lastFavorites = lastFavorites?.filterNot { it is Tile && it.id == id }
+/** Drops trashed tiles from the cached timelines, so the grid does not flash them before the reload. */
+fun forgetTiles(ids: Set<Long>) {
+    lastTimeline = lastTimeline?.filterNot { it is Tile && it.id in ids }
+    lastFavorites = lastFavorites?.filterNot { it is Tile && it.id in ids }
 }
 
 /** Goes up when the viewer changes a photo or closes, so the screen under it reloads in place. */
@@ -351,7 +354,7 @@ class Pick(
     val share: (List<Tile>) -> Unit = {},
     val favorite: (List<Tile>) -> Unit = {},
     val delete: (List<Tile>) -> Unit = {},
-    val confirm: (PendingIntent, () -> Unit) -> Unit = { _, _ -> },
+    val confirm: (PendingIntent, suspend () -> Unit) -> Unit = { _, _ -> },
     val done: () -> Unit = {},
 )
 
@@ -361,14 +364,18 @@ fun rememberPick(): Pick {
     var ids by remember { mutableStateOf<Set<Long>?>(null) }
     var changes by remember { mutableIntStateOf(0) }
     val size by produceState(0L, ids) { value = withContext(Dispatchers.IO) { selectedSize(context, ids.orEmpty()) } }
+    val scope = rememberCoroutineScope()
     // Android's confirm for photos another app owns: [then] runs on OK
-    var then by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var then by remember { mutableStateOf<(suspend () -> Unit)?>(null) }
     val ask = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
-        if (result.resultCode == Activity.RESULT_OK) { then?.invoke(); ids = null }
+        val onOk = then
         then = null
-        changes++ // our own photos changed before the confirm, even on Cancel
+        scope.launch {
+            if (result.resultCode == Activity.RESULT_OK) { onOk?.invoke(); ids = null }
+            changes++ // our own photos changed before the confirm, even on Cancel
+        }
     }
-    fun confirm(request: PendingIntent, onOk: () -> Unit) { then = onOk; ask.launch(IntentSenderRequest.Builder(request.intentSender).build()) }
+    fun confirm(request: PendingIntent, onOk: suspend () -> Unit) { then = onOk; ask.launch(IntentSenderRequest.Builder(request.intentSender).build()) }
     fun done() { ids = null; changes++ }
     return Pick(
         ids, size, changes + viewerEdits, set = { ids = it },
@@ -380,15 +387,17 @@ fun rememberPick(): Pick {
             }
         },
         favorite = { picked ->
-            if (picked.isNotEmpty()) {
+            if (picked.isNotEmpty()) scope.launch {
                 val fav = !picked.all { it.favorite }
-                val foreign = picked.filter { t -> runCatching { setFavorite(context, t, fav) }.onSuccess { updateTile(t.copy(favorite = fav)) }.isFailure }
+                // one MediaStore write per photo: off the main thread, a few hundred take seconds
+                val foreign = withContext(Dispatchers.IO) { picked.filter { t -> runCatching { setFavorite(context, t, fav) }.isFailure } }
+                updateTiles(picked.filter { it !in foreign }.map { it.copy(favorite = fav) })
                 if (foreign.isEmpty()) done()
-                else confirm(MediaStore.createFavoriteRequest(context.contentResolver, foreign.map { it.uri }, fav)) { foreign.forEach { updateTile(it.copy(favorite = fav)) } }
+                else confirm(MediaStore.createFavoriteRequest(context.contentResolver, foreign.map { it.uri }, fav)) { updateTiles(foreign.map { it.copy(favorite = fav) }) }
             }
         },
         delete = { picked ->
-            if (picked.isNotEmpty()) confirm(MediaStore.createTrashRequest(context.contentResolver, picked.map { it.uri }, true)) { picked.forEach { forgetTile(it.id) } }
+            if (picked.isNotEmpty()) confirm(MediaStore.createTrashRequest(context.contentResolver, picked.map { it.uri }, true)) { forgetTiles(picked.map { it.id }.toSet()) }
         },
         confirm = ::confirm, done = ::done,
     )
