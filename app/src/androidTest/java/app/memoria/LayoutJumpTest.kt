@@ -890,7 +890,7 @@ class LayoutJumpTest {
         assertSame("grid top", gridTop, rule.onNodeWithTag("personPhotos").top())
     }
 
-    /** Details: faces, place and camera facts fill in below the date; the date header must not move. */
+    /** Details: faces, pets, place and camera facts fill in below the date; the date header must not move. */
     @Test fun details_fillingInSections_keepsDatePut() {
         val tile = Tile(1, Uri.parse("content://media/external/images/media/1"), 1_700_000_000_000L, null)
         val bare = PhotoInfo("a.jpg", "DCIM/Camera", 0, 0, 0, null, null, null)
@@ -903,7 +903,7 @@ class LayoutJumpTest {
             .format(java.time.Instant.ofEpochMilli(tile.date).atZone(java.time.ZoneId.systemDefault()))
         val dateBefore = rule.onNodeWithText(dateText).top()
         rule.runOnIdle {
-            faces = listOf(face(1))
+            faces = listOf(face(1), FaceVec(2, 1, floatArrayOf(0f, 0f, 50f, 50f), FloatArray(512), 0.9f, PhotoKind.camera, null, pet = true))
             info = full
         }
         assertSame("date", dateBefore, rule.onNodeWithText(dateText).top())

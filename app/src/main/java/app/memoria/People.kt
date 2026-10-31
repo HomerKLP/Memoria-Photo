@@ -291,13 +291,18 @@ fun groupFaces(all: List<FaceVec>, answers: List<AnswerRow> = emptyList(), merge
 /**
  * Pets like people (`docs/objects.md`): average linkage on the pet vectors, cut 0.68 (better left out than in another cat's group), and a pet needs pictures from 6+ photos.
  * Then pets under 0.76 apart join, closest first: one cat's split groups. Loose pictures stay out, so they can't pull two cats together.
- * [merges] join two pets as for people. No answers: pets have no Help recognize.
+ * [merges] join two pets as for people. [answers] come from the viewer's Who is this? (pets have no Help recognize):
+ * a picture the user fixed follows them, never the distances. A yes puts it with that pet, a no alone keeps it out of every pet.
  */
-fun groupPets(all: List<FaceVec>, merges: List<MergeRow> = emptyList()): List<Person> {
+fun groupPets(all: List<FaceVec>, answers: List<AnswerRow> = emptyList(), merges: List<MergeRow> = emptyList()): List<Person> {
     // older, shorter vectors (DINOv2 alone) wait until the catch-up pass redoes their photo
     val size = all.maxOfOrNull { it.vector.size }
-    val pets = all.filter { it.vector.size == size }
-    val groups = averageLinkage(pets.map { it.vector }, 0.68f).map { g -> g.map { pets[it] } }.toMutableList()
+    val answered = answers.map { it.faceId }.toSet()
+    val (fixed, pets) = all.filter { it.vector.size == size }.partition { it.id in answered }
+    val yes = answers.filter { it.yes }.associate { it.faceId to it.personFace }
+    // "Who is this?" > New pet: a yes to the picture's own id. A pet of its own however few photos, grown only by the user's yes.
+    val own = fixed.filter { yes[it.id] == it.id }.map { it.id }.toSet()
+    val groups = (averageLinkage(pets.map { it.vector }, 0.68f).map { g -> g.map { pets[it] } } + fixed.filter { it.id in own }.map { listOf(it) }).toMutableList()
     for (m in merges) {
         val a = groups.indexOfFirst { g -> g.any { it.id == m.personFace } }
         val b = groups.indexOfFirst { g -> g.any { it.id == m.face } }
@@ -305,7 +310,9 @@ fun groupPets(all: List<FaceVec>, merges: List<MergeRow> = emptyList()): List<Pe
         groups[a] = groups[a] + groups[b]
         groups.removeAt(b)
     }
-    val shown = groups.filter { g -> g.distinctBy { it.photoId }.size > 5 }.toMutableList()
+    // a New pet never joins another by distance: the user said it is a different one
+    val (made, auto) = groups.partition { g -> g.any { it.id in own } }
+    val shown = auto.filter { g -> g.distinctBy { it.photoId }.size > 5 }.toMutableList()
     while (true) {
         val sums = shown.map { mean(it) }
         var best = 0.76f; var a = -1; var b = -1
@@ -317,7 +324,10 @@ fun groupPets(all: List<FaceVec>, merges: List<MergeRow> = emptyList()): List<Pe
         shown[a] = shown[a] + shown[b]
         shown.removeAt(b)
     }
-    return shown.map { Person(it, it.maxBy { f -> f.quality }) }.sortedByDescending { it.faces.size }
+    // the main picture comes before the moved ones, so a pet keeps the main picture its answers point to
+    return (shown + made).map { g ->
+        Person(g + fixed.filter { f -> f.id !in own && g.any { it.id == yes[f.id] } }, g.maxBy { f -> f.quality })
+    }.sortedByDescending { it.faces.size }
 }
 
 /** A person and a pet never merge (docs/design.html, Merge with). */

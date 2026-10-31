@@ -248,3 +248,4 @@ Native heap after 8 flings 141 MB, no blank tiles on a cold fling. Taken before 
 - 2026-10-22 Viewer: system bars stayed visible in the tapped state. Gone after a later viewer change.
 - 2026-10-27 Grid tiles pixelated on some DSLR photos. An exact 480 px decode skipped pixels; now halving only.
 - 2026-10-30 Pet groups mixed different cats. Noodle pet vectors, boxes 0.7+, cut 0.68, split pets join under 0.76: none mixed; quality is below people's, limited by the models (`docs/objects.md`).
+- 2026-10-31 Person or Pet screen kept a face removed in the viewer (Remove tag on a one-picture New pet left "1 photo"). A fix in the viewer now bumps `peopleSaved`, so the screen reloads and closes when its last face left.

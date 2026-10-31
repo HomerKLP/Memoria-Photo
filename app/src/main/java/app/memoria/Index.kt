@@ -129,13 +129,20 @@ interface IndexDao {
             "EXISTS(SELECT 1 FROM answer a WHERE a.faceId = f.id AND NOT a.yes) AS rejected FROM face f JOIN photo p ON p.id = f.photoId WHERE NOT f.notFace",
     )
     suspend fun faceVecs(): List<FaceVec>
-    /** The faces of one photo, with vectors: a handful of rows instead of the whole [faceVecs]. No pets: the viewer and the person-box rule are about faces. */
+    /** The faces of one photo, with vectors: a handful of rows instead of the whole [faceVecs]. No pets: the person-box rule is about faces. */
     @Query(
         "SELECT f.id, f.photoId, f.box, f.vector, f.quality, p.kind, f.personId, f.nearSure, f.pet, " +
             "EXISTS(SELECT 1 FROM answer a WHERE a.faceId = f.id AND a.yes) AS yes, " +
             "EXISTS(SELECT 1 FROM answer a WHERE a.faceId = f.id AND NOT a.yes) AS rejected FROM face f JOIN photo p ON p.id = f.photoId WHERE NOT f.notFace AND NOT f.pet AND f.photoId = :photoId",
     )
     suspend fun photoFaces(photoId: Long): List<FaceVec>
+    /** [photoFaces] with the photo's pet pictures, for the viewer's People & pets row. */
+    @Query(
+        "SELECT f.id, f.photoId, f.box, f.vector, f.quality, p.kind, f.personId, f.nearSure, f.pet, " +
+            "EXISTS(SELECT 1 FROM answer a WHERE a.faceId = f.id AND a.yes) AS yes, " +
+            "EXISTS(SELECT 1 FROM answer a WHERE a.faceId = f.id AND NOT a.yes) AS rejected FROM face f JOIN photo p ON p.id = f.photoId WHERE NOT f.notFace AND f.photoId = :photoId",
+    )
+    suspend fun viewerFaces(photoId: Long): List<FaceVec>
     /** The faces that belong to a saved person, without vectors: the viewer details panel never matches by distance. */
     @Query(
         "SELECT f.id, f.photoId, f.box, f.quality, p.kind, f.personId, f.nearSure, f.pet, " +
@@ -361,7 +368,7 @@ object IndexControl {
     fun resume(context: Context) = start(context, IndexProgress.testOnly(context))
 }
 
-/** Goes up after each savePeople, so Library and People reload while a run is going. */
+/** Goes up after each savePeople and each fix in the viewer, so Library and People reload. */
 val peopleSaved = MutableStateFlow(0)
 
 /**
@@ -686,7 +693,8 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
             val old = dao.people()
             val oldFaces = faces.filter { it.personId != null }.groupBy { it.personId!! }.mapValues { e -> e.value.map { it.id }.toSet() }
             val merges = dao.merges()
-            val people = groupFaces(faces.filter { !it.pet }, dao.answers(), merges) + groupPets(faces.filter { it.pet }, merges)
+            val answers = dao.answers()
+            val people = groupFaces(faces.filter { !it.pet }, answers, merges) + groupPets(faces.filter { it.pet }, answers, merges)
             val taken = mutableSetOf<Long>()
             var next = (old.maxOfOrNull { it.id } ?: 0) + 1
             dao.deletePeople()

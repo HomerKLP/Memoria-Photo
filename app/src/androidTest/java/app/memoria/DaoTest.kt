@@ -186,7 +186,8 @@ class DaoTest {
             ),
         )
         assertEquals(listOf(false, true), dao.faceVecs().sortedBy { it.id }.map { it.pet })
-        assertEquals(listOf(1L), dao.photoFaces(1).map { it.id }) // the viewer and the person-box rule see faces only
+        assertEquals(listOf(1L), dao.photoFaces(1).map { it.id }) // the person-box rule sees faces only
+        assertEquals(listOf(1L, 2L), dao.viewerFaces(1).map { it.id }.sorted()) // the viewer shows pets too
         dao.deletePets(1)
         assertEquals(listOf(1L), dao.faceVecs().map { it.id })
     }

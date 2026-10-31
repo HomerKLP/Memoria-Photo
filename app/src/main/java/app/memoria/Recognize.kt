@@ -217,6 +217,7 @@ private suspend fun retag(dao: IndexDao, face: FaceVec, from: Person?, toFace: L
 /**
  * "Who is this?" sheet from the mockup: pick a named person, or type a name for a new one.
  * [now] is the face's person (null: none), left out of the list. A new name must not be taken.
+ * A pet picture lists pets only and makes a New pet (docs/design.html, Who is this? for a pet).
  * [onRemove] adds Remove tag (the viewer, not Help recognize).
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -251,7 +252,7 @@ fun WhoIsThisContent(
     onNew: (String) -> Unit,
 ) {
     val typed = text.trim()
-    val named = people.filter { it.id != now?.id && !it.name.isNullOrBlank() && !it.hidden }
+    val named = people.filter { it.id != now?.id && !it.name.isNullOrBlank() && !it.hidden && it.pet == face.pet }
     val shown = named.filter { it.name.orEmpty().contains(typed, ignoreCase = true) }
     val canAdd = typed.isNotEmpty() && people.none { it.name.equals(typed, ignoreCase = true) }
     Column(Modifier.padding(bottom = 28.dp).verticalScroll(rememberScrollState())) {
@@ -262,7 +263,7 @@ fun WhoIsThisContent(
                 Text(
                     when {
                         now == null -> "Not tagged yet"
-                        now.name.isNullOrBlank() -> "Now with an unnamed person"
+                        now.name.isNullOrBlank() -> if (face.pet) "Now with an unnamed pet" else "Now with an unnamed person"
                         else -> "Now tagged as ${now.name}"
                     },
                     fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -306,9 +307,9 @@ fun WhoIsThisContent(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) {
-                Icon(painterResource(R.drawable.ic_person_add), null, tint = MaterialTheme.colorScheme.primary)
+                Icon(painterResource(if (face.pet) R.drawable.ic_paw else R.drawable.ic_person_add), null, tint = MaterialTheme.colorScheme.primary)
             }
-            Text("New person", Modifier.padding(start = 16.dp).weight(1f), fontWeight = FontWeight.Medium)
+            Text(if (face.pet) "New pet" else "New person", Modifier.padding(start = 16.dp).weight(1f), fontWeight = FontWeight.Medium)
             Text(typed, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         if (onRemove != null) {

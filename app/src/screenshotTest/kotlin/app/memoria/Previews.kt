@@ -362,8 +362,9 @@ fun DetailsView() = MemoriaTheme {
             faces = listOf(
                 fakeFace(1, 0.9f),
                 FaceVec(2, 0, floatArrayOf(0f, 0f, 50f, 50f), FloatArray(512), 0.9f, PhotoKind.camera, null),
+                fakePet(3, "Murka").main,
             ),
-            people = listOf(fakePerson(1, "Dana")),
+            people = listOf(fakePerson(1, "Dana"), fakePet(3, "Murka")),
             zone = java.time.ZoneOffset.UTC, // the recording machine's zone would leak into the baseline
         )
     }
@@ -528,6 +529,19 @@ fun WhoIsThisSheetPreview() = MemoriaTheme {
             fakeFace(9, 0.9f), null,
             listOf(fakePerson(1, "Dana"), fakePerson(2, "Arman")),
             "", {}, {}, null, {},
+        )
+    }
+}
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 620)
+@Composable
+fun WhoIsThisPetSheetPreview() = MemoriaTheme {
+    Surface {
+        WhoIsThisContent(
+            fakePet(9, "Murka").main, fakePet(9, "Murka"),
+            listOf(fakePerson(1, "Dana"), fakePet(2, "Barsik"), fakePet(3, "Rex")),
+            "", {}, {}, {}, {},
         )
     }
 }

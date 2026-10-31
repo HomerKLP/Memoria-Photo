@@ -283,6 +283,23 @@ class BehaviorTest {
         assertEquals("Bota", created)
     }
 
+    @Test fun whoIsThis_pet_listsPetsOnly_andMakesANewPet() {
+        var text by mutableStateOf("")
+        var created: String? = null
+        val pet = { id: Long, name: String -> FaceVec(id, id, floatArrayOf(0f, 0f, 50f, 50f), FloatArray(512), 0.9f, PhotoKind.camera, null, pet = true).let { Person(listOf(it), it, id, name) } }
+        rule.setContent {
+            MemoriaTheme { Surface {
+                WhoIsThisContent(pet(9, "Murka").main, null, listOf(person(1, "Dana"), pet(2, "Barsik")), text, { text = it }, {}, null, { created = it })
+            } }
+        }
+
+        rule.onNodeWithText("Barsik").assertIsDisplayed()
+        rule.onNodeWithText("Dana").assertDoesNotExist()
+        rule.onNode(hasSetTextAction()).performTextInput("Rex")
+        rule.onNodeWithText("New pet").assertIsEnabled().performClick()
+        assertEquals("Rex", created)
+    }
+
     @Test fun whoIsThis_name_stopsAt40() {
         var text by mutableStateOf("")
         rule.setContent { MemoriaTheme { Surface { WhoIsThisContent(face(9), null, emptyList(), text, { text = it }, {}, null, {}) } } }
