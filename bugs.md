@@ -174,6 +174,17 @@ Fix (done on the phone):
 - Keep the model files' dates (`cp -p` or `touch -r`): an NPU build's name holds the model's size and date, so a new date means a rebuild, and a rebuild into a folder the app cannot write fails.
 - A fresh install also re-cuts every face picture once (`recutThumbs`, no `recutTo` pref yet) before it indexes anything, so its first run takes minutes.
 
+## Release runs uncompiled after an update
+
+Found 2026-10-31: after the OTA update to 0.4.0 the phone's release app was `status=verify, reason=install` a day later, ~25% slower (Library data ~355 vs ~280 ms compiled). Outside Play, Android compiles the baseline profile only in its idle job, which needs charging and idle at once (Google lists it as a known issue).
+
+How other apps handle it:
+- Signal, Mihon: ship a baseline profile and accept the wait. Signal's own updater installs through a session, APK only. NewPipe, Element X: no profile at all. Immich is Flutter (Dart compiled ahead), so this barely matters to it.
+- NuvioTV: its updater installs `base.apk` + `base.dm` in one session; the `.dm` files ship inside the APK's assets.
+- NewTube (a SmartTube fork): a Gradle task writes `assets/art-profile/baseline.prof` with `profgen` (ART's own format, keyed to the final dex). Android 15+ reads it at install with no `.dm`, so OTA, browser and adb installs all compile at once. They measured cold start 926 -> 582 ms.
+
+Done 2026-10-31: release builds also ship `assets/art-profile/baseline.prof`, AGP's profile converted to ART's format with the `profgen` inside AGP (`ArtProfileTask` in `app/build.gradle.kts`). Emulator (API 37), normal install and update over an old one: `verify` without the file, `speed-profile` with it, app starts. Check on the phone after the next OTA. Android 13-14 still wait for the idle job; a `.dm` in a session install would cover them.
+
 # Known issues and bad patterns
 
 Found while reading the code, not seen on the phone yet. No steps, just the risk.

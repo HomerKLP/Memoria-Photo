@@ -1,3 +1,7 @@
+import com.android.tools.profgen.ArtProfile
+import com.android.tools.profgen.ArtProfileSerializer
+import com.android.tools.profgen.MetadataVersion
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
@@ -84,4 +88,32 @@ dependencies {
 // Write the generated profile into app/src/main/baseline-prof.txt, so it ships in the APK.
 baselineProfile {
     saveInSrc = true
+}
+
+// Android 15+ compiles assets/art-profile/baseline.prof at install, also outside Play; assets/dexopt waits for the idle job (bugs.md).
+abstract class ArtProfileTask : DefaultTask() {
+    @get:InputFile abstract val profile: RegularFileProperty
+    @get:InputFile abstract val metadata: RegularFileProperty
+    @get:OutputDirectory abstract val outputDir: DirectoryProperty
+
+    @TaskAction fun write() {
+        // AGP's profile is the old format plus metadata, for profileinstaller; ART wants it in its own (0.1.5)
+        val prof = profile.get().asFile.inputStream().use { ArtProfile(it) }!!
+        val meta = metadata.get().asFile.inputStream().use { ArtProfile(it) }!!
+        val out = outputDir.file("art-profile/baseline.prof").get().asFile.apply { parentFile.mkdirs() }
+        out.outputStream().use { prof.addMetadata(meta, MetadataVersion.V_002).save(it, ArtProfileSerializer.V0_1_5_S) }
+    }
+}
+
+androidComponents {
+    onVariants(selector().withBuildType("release")) { v ->
+        val cap = v.name.replaceFirstChar { it.uppercase() }
+        val dir = layout.buildDirectory.dir("intermediates")
+        val task = tasks.register<ArtProfileTask>("artProfile$cap") {
+            dependsOn("compile${cap}ArtProfile")
+            profile.set(dir.map { it.file("binary_art_profile/${v.name}/compile${cap}ArtProfile/baseline.prof") })
+            metadata.set(dir.map { it.file("binary_art_profile_metadata/${v.name}/compile${cap}ArtProfile/baseline.profm") })
+        }
+        v.sources.assets?.addGeneratedSourceDirectory(task, ArtProfileTask::outputDir)
+    }
 }
