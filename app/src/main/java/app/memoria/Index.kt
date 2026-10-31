@@ -171,7 +171,8 @@ interface IndexDao {
     @Query("SELECT COALESCE(MAX(id), 0) + 1 FROM person") suspend fun nextPersonId(): Long
     @Query("UPDATE face SET personId = NULL WHERE id = :face") suspend fun leavePerson(face: Long)
     @Query("UPDATE face SET notFace = 1, personId = NULL WHERE id = :face") suspend fun notFace(face: Long)
-    @Query("SELECT * FROM merged") suspend fun merges(): List<MergeRow>
+    @Query("SELECT * FROM merged ORDER BY rowid") suspend fun merges(): List<MergeRow> // oldest first: Unmerge lists the newest first
+    @Query("DELETE FROM merged WHERE face IN (:faces)") suspend fun unmerge(faces: List<Long>)
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun merge(merge: MergeRow)
     @Query("DELETE FROM merged") suspend fun clearMerges()
     @Query("UPDATE face SET personId = :to WHERE personId = :from") suspend fun movePerson(from: Long, to: Long)
@@ -388,12 +389,51 @@ val peopleSaved = MutableStateFlow(0)
  * The old person whose faces overlap this new group the most, if it kept at least half of them.
  * Named or hidden people win, so a name survives two people joining. `taken` keeps one old person from landing on two groups when it split.
  */
-fun carry(ids: List<Long>, old: List<PersonRow>, oldFaces: Map<Long, Set<Long>>, taken: MutableSet<Long>): PersonRow? {
+fun carry(ids: List<Long>, old: List<PersonRow>, oldFaces: Map<Long, Set<Long>>, taken: MutableSet<Long>, pins: Map<Long, Long> = emptyMap()): PersonRow? {
     val set = ids.toSet()
-    return old.filter { it.id !in taken }
+    // [pins] (Unmerge): that old person goes only to the group holding its pinned face, however small its share
+    old.firstOrNull { it.id !in taken && pins[it.id]?.let { f -> f in set } == true }?.let { taken += it.id; return it }
+    return old.filter { it.id !in taken && it.id !in pins }
         .map { it to set.count { f -> f in oldFaces[it.id].orEmpty() } }
         .filter { (o, n) -> n * 2 >= (oldFaces[o.id]?.size ?: 1) }
         .maxWithOrNull(compareBy({ it.first.name != null || it.first.hidden }, { it.second }))?.first?.also { taken += it.id }
+}
+
+/**
+ * Groups all faces again and replaces the saved people. A new group keeps the id, name and hidden flag of the old person it
+ * matches (see [carry]), so an open Person screen and a name typed mid-run stay on the same person. The caller bumps [peopleSaved].
+ */
+suspend fun regroup(db: Db, pins: Map<Long, Long> = emptyMap()) {
+    val start = System.nanoTime()
+    val dao = db.index()
+    // one transaction: a name or New person saved during the regroup waits for it instead of being lost
+    val (saved, kept) = db.withTransaction {
+        val faces = dao.faceVecs()
+        val old = dao.people()
+        val oldFaces = faces.filter { it.personId != null }.groupBy { it.personId!! }.mapValues { e -> e.value.map { it.id }.toSet() }
+        val merges = dao.merges()
+        val answers = dao.answers()
+        val people = groupFaces(faces.filter { !it.pet }, answers, merges) + groupPets(faces.filter { it.pet }, answers, merges)
+        val taken = mutableSetOf<Long>()
+        // a pinned face no group holds any more pins nothing: that person is carried by overlap as usual
+        val live = pins.filterValues { f -> people.any { p -> p.faces.any { it.id == f } } }
+        var next = (old.maxOfOrNull { it.id } ?: 0) + 1
+        dao.deletePeople()
+        dao.clearPersonIds()
+        for (p in people) {
+            val ids = p.faces.map { it.id }
+            if (ids.isEmpty()) continue // never happens (a person needs faces), keeps IN () off the DB
+            val match = carry(ids, old, oldFaces, taken, live)
+            val pid = match?.id ?: next++
+            // the cover follows the person only while its face is still with them; else the app picks one again (main face)
+            dao.insertPerson(PersonRow(pid, p.main.id, match?.name, match?.hidden ?: false, match?.coverFaceId?.takeIf { it in ids }, match?.pos))
+            dao.setPerson(ids, pid)
+            val near = p.faces.filter { it.nearSure }.map { it.id }
+            if (near.isNotEmpty()) dao.setNearSure(near)
+        }
+        people.size to taken.size
+    }
+    Log.i("Memoria", "saved $saved people ($kept kept their id) in ${(System.nanoTime() - start) / 1_000_000} ms")
 }
 
 /** Rough time left: elapsed per photo times the photos left. Null until at least one photo is done. */
@@ -699,36 +739,8 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
      * matches (see [carry]), so an open Person screen and a name typed mid-run stay on the same person.
      */
     private suspend fun savePeople(): Result {
-        val start = System.nanoTime()
-        val db = Db.get(applicationContext)
-        val dao = db.index()
-        // one transaction: a name or New person saved during the regroup waits for it instead of being lost
-        val (saved, kept) = db.withTransaction {
-            val faces = dao.faceVecs()
-            val old = dao.people()
-            val oldFaces = faces.filter { it.personId != null }.groupBy { it.personId!! }.mapValues { e -> e.value.map { it.id }.toSet() }
-            val merges = dao.merges()
-            val answers = dao.answers()
-            val people = groupFaces(faces.filter { !it.pet }, answers, merges) + groupPets(faces.filter { it.pet }, answers, merges)
-            val taken = mutableSetOf<Long>()
-            var next = (old.maxOfOrNull { it.id } ?: 0) + 1
-            dao.deletePeople()
-            dao.clearPersonIds()
-            for (p in people) {
-                val ids = p.faces.map { it.id }
-                if (ids.isEmpty()) continue // never happens (a person needs faces), keeps IN () off the DB
-                val match = carry(ids, old, oldFaces, taken)
-                val pid = match?.id ?: next++
-                // the cover follows the person only while its face is still with them; else the app picks one again (main face)
-                dao.insertPerson(PersonRow(pid, p.main.id, match?.name, match?.hidden ?: false, match?.coverFaceId?.takeIf { it in ids }, match?.pos))
-                dao.setPerson(ids, pid)
-                val near = p.faces.filter { it.nearSure }.map { it.id }
-                if (near.isNotEmpty()) dao.setNearSure(near)
-            }
-            people.size to taken.size
-        }
+        regroup(Db.get(applicationContext))
         peopleSaved.value++
-        Log.i("Memoria", "saved $saved people ($kept kept their id) in ${(System.nanoTime() - start) / 1_000_000} ms")
         return Result.success()
     }
 

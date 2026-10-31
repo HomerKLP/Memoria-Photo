@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
@@ -407,6 +408,37 @@ class LayoutJumpTest {
         rule.onNodeWithTag("pickCheck", useUnmergedTree = true).assertExists()
         assertSame("title", titleBefore, rule.onNodeWithText("Change cover").top())
         assertSame("Save button", saveBefore, rule.onNodeWithText("Save").top())
+    }
+
+    /** People select: the top bar swaps in place and the Hide / Merge bar comes up under the grid, so no card moves; a pick only adds a ring. */
+    @Test fun people_selecting_keepsGridPut() {
+        var selected by mutableStateOf<List<Long>?>(null)
+        val people = (1L..3L).map { person(it, "Person $it") } + (4L..8L).map { person(it, null) }
+        rule.setContent { MemoriaTheme { Surface { PeopleContent(PeopleData("8 people", people, emptyList()), selected = selected) } } }
+
+        val barBefore = rule.onNodeWithTag("topBar").height()
+        val cardBefore = rule.onNodeWithText("Person 1").top()
+        rule.runOnIdle { selected = emptyList() }
+        rule.onNodeWithText("Merge").assertExists()
+        assertSame("top bar height", barBefore, rule.onNodeWithTag("topBar").height())
+        assertSame("first card", cardBefore, rule.onNodeWithText("Person 1").top())
+        rule.runOnIdle { selected = listOf(1L, 4L) }
+        rule.onAllNodesWithTag("pickCheck", useUnmergedTree = true).assertCountEquals(2)
+        assertSame("first card, picked", cardBefore, rule.onNodeWithText("Person 1").top())
+    }
+
+    /** Unmerge: the parts never change while the sheet is open, so a pick moves neither the header nor the button. */
+    @Test fun unmerge_pickingFace_keepsHeaderAndButtonPut() {
+        var picked by mutableStateOf(emptySet<Long>())
+        val person = face(1).let { Person((1L..8L).map { i -> face(i) }, it, 1, "Dana") }
+        rule.setContent { MemoriaTheme { Surface { UnmergeContent(person, person.faces.take(3), picked, {}, {}, {}) } } }
+
+        val titleBefore = rule.onNodeWithText("Unmerge Dana").top()
+        val buttonBefore = rule.onNodeWithText("Unmerge").top()
+        rule.runOnIdle { picked = setOf(2L) }
+        rule.onNodeWithTag("pickCheck", useUnmergedTree = true).assertExists()
+        assertSame("title", titleBefore, rule.onNodeWithText("Unmerge Dana").top())
+        assertSame("Unmerge button", buttonBefore, rule.onNodeWithText("Unmerge").top())
     }
 
     /** Merge with: picking a face draws the check at its top right and must not move the grid or the buttons. */

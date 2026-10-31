@@ -867,6 +867,73 @@ class BehaviorTest {
         assertTrue(hide)
     }
 
+    @Test fun people_select_mergeNeedsTwoOfOneKind() {
+        var selected by mutableStateOf<List<Long>?>(null)
+        var opened: Long? = null
+        var merged: List<Person>? = null
+        var hidden: List<Person>? = null
+        val data = PeopleData("2 people · 1 pet", listOf(person(1, "Dana"), pet(2, "Murka"), person(3)), emptyList())
+        rule.setContent {
+            MemoriaTheme { Surface {
+                PeopleContent(data, onOpenPerson = { opened = it }, selected = selected, onSelect = { selected = it }, onMergeAll = { merged = it }, onHideAll = { hidden = it })
+            } }
+        }
+
+        rule.onNodeWithContentDescription("Select").performClick()
+        rule.onNodeWithText("Hide").assertIsNotEnabled()
+        rule.onNodeWithText("Merge").assertIsNotEnabled()
+        rule.onNodeWithText("Murka").performClick()
+        rule.onNodeWithText("Dana").performClick()
+        rule.onNodeWithText("2 selected").assertIsDisplayed()
+        rule.onNodeWithText("Merge").assertIsNotEnabled() // a person and a pet never merge
+        rule.onNodeWithText("Murka").performClick()
+        rule.onNodeWithTag("unnamedCard").performClick()
+        rule.onNodeWithText("Merge").performClick()
+        assertEquals(listOf(1L, 3L), merged?.map { it.id }) // pick order: the first name stays
+        rule.onNodeWithText("Hide").performClick()
+        assertEquals(listOf(1L, 3L), hidden?.map { it.id })
+        assertEquals(null, opened) // taps pick, they never open
+    }
+
+    @Test fun people_longPressUnnamed_startsSelectWithIt() {
+        var selected by mutableStateOf<List<Long>?>(null)
+        rule.setContent { MemoriaTheme { Surface { PeopleContent(peopleData, selected = selected, onSelect = { selected = it }) } } }
+
+        rule.onNodeWithTag("unnamedCard").performTouchInput { longClick() }
+        rule.runOnIdle { assertEquals(listOf(3L), selected) }
+        rule.onNodeWithContentDescription("Cancel").performClick()
+        rule.runOnIdle { assertEquals(null, selected) }
+    }
+
+    @Test fun person_menu_unmergeOnlyWithMerges() {
+        var merges by mutableStateOf(emptyList<MergeRow>())
+        var unmerge: Person? = null
+        rule.setContent { MemoriaTheme { Surface { PeopleContent(peopleData, openId = 1, merges = merges, onUnmerge = { unmerge = it }) } } }
+
+        rule.onNodeWithContentDescription("More").performClick()
+        rule.onNodeWithText("Merge with").assertIsDisplayed()
+        rule.onNodeWithText("Unmerge").assertDoesNotExist()
+        rule.onNodeWithText("Merge with").performClick() // closes the menu
+        rule.runOnIdle { merges = listOf(MergeRow(102, 101)) }
+        rule.onNodeWithContentDescription("More").performClick()
+        rule.onNodeWithText("Unmerge").performClick()
+        assertEquals(1L, unmerge?.id)
+    }
+
+    @Test fun unmerge_pickThenUnmerge_splitsThePicks() {
+        var picked by mutableStateOf(emptySet<Long>())
+        var split: List<Long>? = null
+        val dana = person(1, "Dana")
+        rule.setContent {
+            MemoriaTheme { Surface { UnmergeContent(dana, dana.faces.take(2), picked, { picked = if (it in picked) picked - it else picked + it }, {}, { split = it }) } }
+        }
+
+        rule.onNodeWithText("Unmerge").assertIsNotEnabled()
+        rule.onNodeWithTag("unmergeFace-102").performClick()
+        rule.onNodeWithText("Unmerge").performClick()
+        assertEquals(listOf(102L), split)
+    }
+
     @Test fun person_unnamed_menuAddsName() {
         var named = false
         rule.setContent { MemoriaTheme { Surface { PeopleContent(peopleData, openId = 3, onName = { named = true }) } } }

@@ -588,6 +588,34 @@ fun MergePickedPreview() = MemoriaTheme {
     }
 }
 
+/** People, selecting (mockup `#people-select`): Dana and an unnamed person picked, Merge on. Pairs with people_selecting_keepsGridPut. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 900)
+@Composable
+fun PeopleSelectPreview() = MemoriaTheme {
+    Surface {
+        PeopleContent(
+            data = PeopleData(
+                summary = "5 people · 1 pet",
+                people = listOf(fakePerson(1, "Dana"), fakePerson(2, "Arman"), fakePet(8, "Murka"), fakePerson(3, null), fakePerson(4, null), fakePerson(5, null)),
+                unsure = emptyList(),
+            ),
+            selected = listOf(1L, 4L),
+        )
+    }
+}
+
+/** Unmerge, one picked. Pairs with unmerge_pickingFace_keepsHeaderAndButtonPut. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 520)
+@Composable
+fun UnmergeSheetPreview() = MemoriaTheme {
+    Surface {
+        val p = fakePerson(1, "Dana")
+        UnmergeContent(p, p.faces.take(3), setOf(p.faces[1].id), {}, {}, {})
+    }
+}
+
 /** Change cover, one picked: the same ring and check, and Save on. */
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 720)

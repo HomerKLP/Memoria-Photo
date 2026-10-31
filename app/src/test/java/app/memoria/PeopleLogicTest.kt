@@ -195,5 +195,20 @@ class PeopleLogicTest {
 }
 
 // Small copies of a face with one flag flipped, so the tests read simply.
+class MergeRootTest {
+    private fun face(id: Long) = FaceVec(id, id, floatArrayOf(0f, 0f, 50f, 50f), FloatArray(0), 0.9f, PhotoKind.camera, 1)
+
+    @Test fun rootIsTheFirstPersonsFaceAndPartsAreNewestFirst() {
+        // X (5) joined Dana (1), Y (9) joined X; Dana's main face has since moved to X's part. Row 20 -> 99 is someone else's.
+        val dana = Person((1L..12L).map { face(it) }, face(5), 1, "Dana")
+        val rows = listOf(MergeRow(5, 1), MergeRow(20, 99), MergeRow(9, 5))
+        assertEquals(1L, mergeRoot(dana, rows))
+        assertEquals(listOf(9L, 5L), mergedParts(dana, rows).map { it.id })
+        val alone = Person(listOf(face(30)), face(30), 2)
+        assertEquals(30L, mergeRoot(alone, rows))
+        assertEquals(emptyList<Long>(), mergedParts(alone, rows).map { it.id })
+    }
+}
+
 private fun FaceVec.withYes() = FaceVec(id, photoId, box, vector, quality, kind, personId, yes = true, rejected = rejected)
 private fun FaceVec.withRejected() = FaceVec(id, photoId, box, vector, quality, kind, personId, yes = yes, rejected = true)

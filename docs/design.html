@@ -256,6 +256,8 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .people-grid.picker { padding: 4px 16px 0; }
 .pcard.on .face { outline: 3px solid var(--accent); outline-offset: 3px; }
 .pcard .sel { top: -1px; left: calc(50% + 13px); }
+/* Merge in People select: grey until it can merge */
+.answers .yes.off { background: var(--surface); color: var(--muted); }
 
 /* Move to album sheet: square covers, so albums never look like people */
 .thumb { width: var(--s, 40px); height: var(--s, 40px); flex: none; border-radius: 10px; }
@@ -423,6 +425,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
   <symbol id="i-download" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></symbol>
   <symbol id="i-upload" viewBox="0 0 24 24"><path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></symbol>
   <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M17.65 6.35A7.96 7.96 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></symbol>
+  <symbol id="i-person-remove" viewBox="0 0 24 24"><path d="M14 8c0-2.21-1.79-4-4-4S6 5.79 6 8s1.79 4 4 4 4-1.79 4-4zm3 2v2h6v-2h-6zM2 18v2h16v-2c0-2.66-5.33-4-8-4s-8 1.34-8 4z"/></symbol>
   <symbol id="i-restore" viewBox="0 0 24 24"><path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.95 8.95 0 0 0 13 21a9 9 0 0 0 0-18z"/></symbol>
   <symbol id="i-edit" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></symbol>
   <symbol id="i-wallpaper" viewBox="0 0 24 24"><path d="M4 4h7V2H4c-1.1 0-2 .9-2 2v7h2V4zm6 9-4 5h12l-3-4-2.03 2.71L10 13zm7-4.5c0-.83-.67-1.5-1.5-1.5S14 7.67 14 8.5s.67 1.5 1.5 1.5S17 9.33 17 8.5zM20 2h-7v2h7v7h2V4c0-1.1-.9-2-2-2zm0 18h-7v2h7c1.1 0 2-.9 2-2v-7h-2v7zM4 13H2v7c0 1.1.9 2 2 2h7v-2H4v-7z"/></symbol>
@@ -1031,6 +1034,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <div class="subbar">
           <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
           <div class="title"><b>People &amp; pets</b><span>18 people · 3 pets</span></div>
+          <button class="icon-btn" aria-label="Select"><svg class="i"><use href="#i-select"/></svg></button>
         </div>
         <div class="scroll">
   
@@ -1047,7 +1051,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>People &amp; pets: opens from Library, "See all". Review card, then named people and pets (96, 3 a row, name and count) in the user's order, then unnamed ones (56, 5 a row, no text) by photo count. A pet is a cat or dog seen in 6+ photos, like a person; its picture is its cat or dog box (paw here). Pets have no Help recognize, so the card counts faces only</figcaption>
+      <figcaption>People &amp; pets: opens from Library, "See all". Review card, then named people and pets (96, 3 a row, name and count) in the user's order, then unnamed ones (56, 5 a row, no text) by photo count. A pet is a cat or dog seen in 6+ photos, like a person; its picture is its cat or dog box (paw here). Pets have no Help recognize, so the card counts faces only. The check icon at the top right, or a long press on an unnamed one, starts select mode (see People, selecting)</figcaption>
     </figure>
     <figure id="people-move">
       <div class="phone">
@@ -1055,6 +1059,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <div class="subbar">
           <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
           <div class="title"><b>People &amp; pets</b><span>18 people · 3 pets</span></div>
+          <button class="icon-btn" aria-label="Select"><svg class="i"><use href="#i-select"/></svg></button>
         </div>
         <div class="scroll">
           <div class="review">
@@ -1070,6 +1075,71 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <div class="gesture"><div class="handle"></div></div>
       </div>
       <figcaption>People, moving a person: long press a named person to lift them (a bit bigger, with a shadow) and drag; the others slide to make room, and the order is saved on drop. It stays across scans. Named people only. Someone named later goes after them, by photo count</figcaption>
+    </figure>
+    <figure id="people-select">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Close"><svg class="i"><use href="#i-close"/></svg></button>
+          <div class="title"><b>3 selected</b><span>3 people</span></div>
+        </div>
+        <div class="scroll">
+          <div class="review">
+            <div class="stack" id="people-select-unsure"></div>
+            <div class="review-text"><b>Help recognize</b><span>24 faces to check</span></div>
+            <button class="pill-btn">Review</button>
+          </div>
+          <div class="head"><h3>Named</h3><span class="hint">4 people · 1 pet</span></div>
+          <div class="people-grid named tight" id="people-select-grid"></div>
+          <div class="head"><h3>No name yet</h3><span class="hint">Name them to move them up</span></div>
+          <div class="people-grid nameless" id="people-select-nameless"></div>
+        </div>
+        <div class="answers selbar">
+          <button class="no"><svg class="i"><use href="#i-block"/></svg>Hide</button>
+          <button class="yes"><svg class="i"><use href="#i-person-add"/></svg>Merge</button>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>People, selecting: tap the check icon in the top bar, or long press an unnamed one (it starts picked; a long press on a named one still moves them). Tap people and pets to pick them: accent ring and check, as in Merge with. The top bar swaps in place, the Help recognize card stays, and the bar comes up at the bottom, so nothing above the grid moves. No Select all. Moving is off while selecting. Back or X leaves. Merge asks nothing: all picked join the first one picked with a name, and it keeps its name (another picked name goes). None named: they become one unnamed person. Then select mode ends and the grid reloads</figcaption>
+    </figure>
+    <figure id="people-select-mixed">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Close"><svg class="i"><use href="#i-close"/></svg></button>
+          <div class="title"><b>3 selected</b><span>2 people · 1 pet</span></div>
+        </div>
+        <div class="scroll">
+          <div class="review">
+            <div class="stack" id="people-select-mixed-unsure"></div>
+            <div class="review-text"><b>Help recognize</b><span>24 faces to check</span></div>
+            <button class="pill-btn">Review</button>
+          </div>
+          <div class="head"><h3>Named</h3><span class="hint">4 people · 1 pet</span></div>
+          <div class="people-grid named tight" id="people-mixed-grid"></div>
+          <div class="head"><h3>No name yet</h3><span class="hint">Name them to move them up</span></div>
+          <div class="people-grid nameless" id="people-mixed-nameless"></div>
+        </div>
+        <div class="answers selbar">
+          <button class="no"><svg class="i"><use href="#i-block"/></svg>Hide</button>
+          <button class="yes off"><svg class="i"><use href="#i-person-add"/></svg>Merge</button>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>People, a person and a pet picked: Merge is grey and does nothing, since a person and a pet never merge. It is grey too until two are picked. Hide works on any mix, and both buttons are grey with nothing picked</figcaption>
+    </figure>
+    <figure id="hide-many">
+      <div class="phone modal" id="hide-many-phone">
+        <div class="scrim">
+          <div class="dialog" role="alertdialog" aria-labelledby="hide-many-title">
+            <svg class="i calm"><use href="#i-block"/></svg>
+            <b id="hide-many-title">Hide 2 people and 1 pet?</b>
+            <p>They leave People &amp; pets, Library and search. Show them again from Settings, Hidden people &amp; pets.</p>
+            <div class="dialog-btns"><button class="text-btn">Cancel</button><button class="text-btn">Hide</button></div>
+          </div>
+        </div>
+      </div>
+      <figcaption>Hide, many: Hide person for all picked at once. On Hide, select mode ends</figcaption>
     </figure>
     <figure id="person">
       <div class="phone">
@@ -1102,12 +1172,13 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <div class="menu" role="menu">
           <button class="mi" role="menuitem"><svg class="i"><use href="#i-person"/></svg>Rename</button>
           <button class="mi" role="menuitem"><svg class="i"><use href="#i-person-add"/></svg>Merge with</button>
+          <button class="mi" role="menuitem"><svg class="i"><use href="#i-person-remove"/></svg>Unmerge</button>
           <button class="mi" role="menuitem"><svg class="i"><use href="#i-photo"/></svg>Change cover</button>
           <hr>
           <button class="mi" role="menuitem"><svg class="i"><use href="#i-block"/></svg>Hide person</button>
         </div>
       </div>
-      <figcaption>Person, More: the person's fixes. Unnamed: Rename is "Add name". Hidden person: the last item is "Show person" with the eye icon. Tap outside or Back closes it</figcaption>
+      <figcaption>Person, More: the person's fixes. Unnamed: Rename is "Add name". Hidden person: the last item is "Show person" with the eye icon. Unmerge shows only when the person holds a merge. Tap outside or Back closes it</figcaption>
     </figure>
     <figure id="person-unnamed">
       <div class="phone" id="person-unnamed-phone"></div>
@@ -1137,12 +1208,13 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <div class="menu" role="menu">
           <button class="mi" role="menuitem"><svg class="i"><use href="#i-paw"/></svg>Rename</button>
           <button class="mi" role="menuitem"><svg class="i"><use href="#i-person-add"/></svg>Merge with</button>
+          <button class="mi" role="menuitem"><svg class="i"><use href="#i-person-remove"/></svg>Unmerge</button>
           <button class="mi" role="menuitem"><svg class="i"><use href="#i-photo"/></svg>Change cover</button>
           <hr>
           <button class="mi" role="menuitem"><svg class="i"><use href="#i-block"/></svg>Hide pet</button>
         </div>
       </div>
-      <figcaption>Pet, More: the person's menu with pet words. Hidden pet: the last item is "Show pet" with the eye icon. Merge with lists only pets</figcaption>
+      <figcaption>Pet, More: the person's menu with pet words. Hidden pet: the last item is "Show pet" with the eye icon. Merge with lists only pets. Unmerge as for a person</figcaption>
     </figure>
     <figure id="hide-pet">
       <div class="phone modal" id="hide-pet-phone">
@@ -1317,6 +1389,23 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         </div>
       </div>
       <figcaption>Merge with: opens from More on the person or pet screen. Only the same kind: a person lists people, a pet lists pets ("Merge with Murka", "Pick the same pet"); a person and a pet never merge, and if a mix ever reaches the merge it fails with an error and nothing changes. Every other person, most alike first, so the other halves of a split person are on top. Tap one to pick it (accent ring and check), Merge joins it into this person. One at a time: after a merge the order is worked out again, so the next part moves up. This person's name stays; if it has none, the picked one's name is used. Merge is off until something is picked. The grid scrolls, the field and buttons stay</figcaption>
+    </figure>
+    <figure id="unmerge">
+      <div class="phone dark">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="dim"></div>
+        <div class="sheet">
+          <div class="grab"></div>
+          <div class="sheet-head"><span id="unmerge-face"></span><div><b>Unmerge Dana</b><span>Pick what to split off</span></div></div>
+          <div class="people-grid picker" id="unmerge-grid"></div>
+          <div class="answers">
+            <button class="no">Cancel</button>
+            <button class="yes"><svg class="i"><use href="#i-person-remove"/></svg>Unmerge</button>
+          </div>
+          <div class="gesture light"><div class="handle"></div></div>
+        </div>
+      </div>
+      <figcaption>Unmerge: opens from More on the person or pet screen. One face for each person merged in, its clearest face, newest merge first. Tap to pick one or more, Unmerge splits them off: each comes back as its own person with no name, and Dana keeps her name. Something merged into a merged person leaves with it. Faces moved with Who is this? stay where they were put. Unmerge is off until something is picked. A pet: the same with pet words</figcaption>
     </figure>
     <figure id="change-cover">
       <div class="phone dark">
@@ -1897,6 +1986,16 @@ fill("merge-face", face(2, 48));
 const pick = '<span class="sel"><svg class="i"><use href="#i-check"/></svg></span>';
 const pcard = ([i, n, c, on]) => `<div class="pcard${on ? " on" : ""}">${on ? pick : ""}${face(i, 68)}${n ? `<b>${n}</b>` : ""}<span>${c}</span></div>`;
 fill("merge-grid", [[4, null, "31", 1], [6, null, "12"], [5, "Aliya", "64"], [1, "Mom", "230"], [3, "Arman", "96"], [0, "Me", "412"], [4, null, "8"], [6, null, "6"]].map(pcard).join(""));
+// People, selecting: Dana and two unnamed picked; then Mom, Murka and one unnamed
+const named = (on) => [["Me", 412], ["Mom", 230], ["Dana", 96], ["Murka", 84], ["Arman", 64]].map(([n, c], i) => `<div class="pcard${on.includes(n) ? " on" : ""}">${on.includes(n) ? pick : ""}${n === "Murka" ? pet(0, 96) : face(i, 96)}<b>${n}</b><span>${c}</span></div>`).join("");
+const nameless = (on) => Array.from({ length: 14 }, (_, i) => `<div class="pcard${on.includes(i) ? " on" : ""}">${on.includes(i) ? pick : ""}${i === 2 ? pet(3, 56) : i === 9 ? pet(2, 56) : face((i + 4) % 7, 56)}</div>`).join("");
+for (const id of ["people-select-unsure", "people-select-mixed-unsure"]) fill(id, document.getElementById("people-unsure").innerHTML);
+fill("people-select-grid", named(["Dana"]));
+fill("people-select-nameless", nameless([0, 5]));
+fill("people-mixed-grid", named(["Mom", "Murka"]));
+fill("people-mixed-nameless", nameless([4]));
+fill("unmerge-face", face(2, 48));
+fill("unmerge-grid", [4, 6, 1].map((i, n) => `<div class="pcard${n === 0 ? " on" : ""}">${n === 0 ? pick : ""}${face(i, 68)}</div>`).join(""));
 fill("hidden-grid", [[3, "Arman", "96"], [6, null, "27"]].map(pcard).join("") + `<div class="pcard">${pet(4, 68)}<span>9</span></div>`);
 fill("search-people", order.filter(i => people[i]).map(i => `<div class="person">${face(i, 72)}${people[i]}</div>`).join(""));
 fill("search-recent", ["Dana", "August 2026", "Camera"]
@@ -1949,6 +2048,7 @@ unnamed.prepend(...[...document.querySelector("#person .phone").children].map(n 
 unnamed.querySelector(".subbar .title b").outerHTML = `<b class="add">Add name</b>`;
 unnamed.querySelector(".head .hint").textContent = "These faces match this person";
 unnamed.querySelector(".review-text span").textContent = "12 to check";
+document.getElementById("hide-many-phone").prepend(...[...document.querySelector("#people-select-mixed .phone").children].map(n => n.cloneNode(true)));
 document.getElementById("hide-phone").prepend(...[...document.querySelector("#person .phone").children].map(n => n.cloneNode(true)));
 // Pet: like a person, a row of matching pet pictures and no Unsure card. Its More and Hide sit on it.
 fill("pet-avatar", pet(0, 40));

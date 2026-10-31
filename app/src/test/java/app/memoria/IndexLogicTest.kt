@@ -39,6 +39,16 @@ class IndexLogicTest {
         assertEquals(9L, carry(listOf(1, 2, 3, 4, 5, 6), old, oldFaces, mutableSetOf())?.id)
     }
 
+    @Test fun carryPinKeepsTheNameWithThePinnedFaceAfterUnmerge() {
+        // Dana (7) held faces 1..6, an Unmerge splits 3..6 off: without the pin that bigger part would take her name
+        val old = listOf(PersonRow(7, mainFaceId = 5, name = "Dana"))
+        val oldFaces = mapOf(7L to setOf(1L, 2L, 3L, 4L, 5L, 6L))
+        assertEquals(7L, carry(listOf(3, 4, 5, 6), old, oldFaces, mutableSetOf())?.id)
+        val taken = mutableSetOf<Long>()
+        assertNull(carry(listOf(3, 4, 5, 6), old, oldFaces, taken, mapOf(7L to 1L)))
+        assertEquals(7L, carry(listOf(1, 2), old, oldFaces, taken, mapOf(7L to 1L))?.id)
+    }
+
     @Test fun formatEta() {
         assertEquals("1s left", formatEta(0L))       // never "0s left"
         assertEquals("3s left", formatEta(3_000L))

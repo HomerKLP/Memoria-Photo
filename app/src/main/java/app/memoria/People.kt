@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
@@ -380,6 +381,9 @@ fun PeopleScreen(
     var merging by remember { mutableStateOf<Person?>(null) }
     var covering by remember { mutableStateOf<Person?>(null) }
     var hiding by remember { mutableStateOf<Person?>(null) }
+    var selected by remember { mutableStateOf<List<Long>?>(null) }
+    var hidingAll by remember { mutableStateOf<List<Person>?>(null) }
+    var unmerging by remember { mutableStateOf<Person?>(null) }
     // [saved] as a key: the run saves people every so often, so they show up while indexing.
     val saved by peopleSaved.collectAsState()
     val result by cachedProduceState("people", reload, saved) {
@@ -396,7 +400,8 @@ fun PeopleScreen(
             PeopleData(peopleAndPets(shown), people, unsure)
         }
     }
-    BackHandler { if (naming != null) naming = null else if (openId != null) onPersonBack() else onBack() }
+    BackHandler { if (naming != null) naming = null else if (selected != null) selected = null else if (openId != null) onPersonBack() else onBack() }
+    val merges by produceState(emptyList<MergeRow>(), reload, saved) { value = withContext(Dispatchers.IO) { dao.merges() } }
     val pick = rememberPick()
     LaunchedEffect(openId) { pick.set(null) }
     // The open person left the list (faces removed or regrouped away): go back to the list instead of a
@@ -427,6 +432,19 @@ fun PeopleScreen(
             // NonCancellable: Back right after a tap closes this scope, and the write must still land
             if (p.hidden) scope.launch { withContext(Dispatchers.IO + NonCancellable) { dao.setHidden(p.id, false) }; reload++ } else hiding = p
         },
+        selected = selected,
+        onSelect = { selected = it },
+        onMergeAll = { list ->
+            selected = null
+            scope.launch {
+                val merged = withContext(Dispatchers.IO + NonCancellable) { runCatching { mergeAll(db, list) } }
+                merged.exceptionOrNull()?.let { Toast.makeText(context, it.message, Toast.LENGTH_LONG).show() }
+                reload++
+            }
+        },
+        onHideAll = { hidingAll = it },
+        merges = merges,
+        onUnmerge = { unmerging = it },
         onReorder = { ids ->
             scope.launch {
                 withContext(Dispatchers.IO + NonCancellable) { db.withTransaction { ids.forEachIndexed { i, id -> dao.setPos(id, i) } } }
@@ -486,6 +504,40 @@ fun PeopleScreen(
             iconContentColor = MaterialTheme.colorScheme.primary,
         )
     }
+    hidingAll?.let { list ->
+        val pets = list.count { it.pet }
+        val people = list.size - pets
+        val what = listOfNotNull(
+            people.takeIf { it > 0 }?.let { "$it ${if (it == 1) "person" else "people"}" },
+            pets.takeIf { it > 0 }?.let { "$it pet${if (it == 1) "" else "s"}" },
+        ).joinToString(" and ")
+        AlertDialog(
+            onDismissRequest = { hidingAll = null },
+            icon = { Icon(painterResource(R.drawable.ic_block), null) },
+            title = { Text("Hide $what?") },
+            text = { Text("They leave People & pets, Library and search. Show them again from Settings, Hidden people & pets.") },
+            confirmButton = {
+                TextButton({
+                    hidingAll = null
+                    selected = null
+                    scope.launch {
+                        withContext(Dispatchers.IO + NonCancellable) { db.withTransaction { list.forEach { dao.setHidden(it.id, true) } } }
+                        reload++
+                    }
+                }) { Text("Hide") }
+            },
+            dismissButton = { TextButton({ hidingAll = null }) { Text("Cancel") } },
+            containerColor = MaterialTheme.colorScheme.background,
+            iconContentColor = MaterialTheme.colorScheme.primary,
+        )
+    }
+    unmerging?.let { p ->
+        UnmergeSheet(p, mergedParts(p, merges), onDismiss = { unmerging = null }) { faces ->
+            unmerging = null
+            // a regroup, so it takes a moment; the screen reloads when it is saved
+            scope.launch { withContext(Dispatchers.IO + NonCancellable) { unmergePeople(db, p, faces) } }
+        }
+    }
     naming?.let { p ->
         NamePersonSheet(
             person = p,
@@ -517,6 +569,12 @@ fun PeopleContent(
     onCover: (Person) -> Unit = {},
     onHide: (Person) -> Unit = {},
     onReorder: (List<Long>) -> Unit = {}, // the named people's ids in their new order, after a drag
+    selected: List<Long>? = null, // select mode: the picked ids in pick order (Merge keeps the first name), null = not selecting
+    onSelect: (List<Long>?) -> Unit = {},
+    onMergeAll: (List<Person>) -> Unit = {},
+    onHideAll: (List<Person>) -> Unit = {},
+    merges: List<MergeRow> = emptyList(), // a person with parts merged in gets Unmerge in More
+    onUnmerge: (Person) -> Unit = {},
 ) {
     // hoisted: switching to a person and back must not lose the list scroll
     val listState = rememberLazyListState()
@@ -537,6 +595,7 @@ fun PeopleContent(
             if (open != null) PersonDetail(
                 open, onBack = onClosePerson, onName = { onName(open) }, onOpen = onOpen, onReview = { onHelpRecognize(open.id) },
                 onMerge = { onMerge(open) }, onCover = { onCover(open) }, onHide = { onHide(open) }, pick = pick,
+                onUnmerge = if (mergedParts(open, merges).isEmpty()) null else { { onUnmerge(open) } },
             )
             // a zero size would clip the slide
             else Box(Modifier.fillMaxSize())
@@ -561,8 +620,22 @@ fun PeopleContent(
                     }
                 }
             } else {
-                TopBar("People & pets", data?.summary, onBack = onBack)
                 val shown = data?.people.orEmpty().filter { !it.hidden }
+                val sel = selected
+                val picked = sel.orEmpty().mapNotNull { id -> shown.firstOrNull { it.id == id } }
+                val toggle = { id: Long -> sel?.let { onSelect(if (id in it) it - id else it + id) } }
+                // the bar swaps in place at the same height, so the grid never moves
+                if (sel != null) {
+                    val pets = picked.count { it.pet }
+                    val people = picked.size - pets
+                    val kinds = listOfNotNull(
+                        people.takeIf { it > 0 }?.let { "$it ${if (it == 1) "person" else "people"}" },
+                        pets.takeIf { it > 0 }?.let { "$it pet${if (it == 1) "" else "s"}" },
+                    ).joinToString(" · ")
+                    TopBar("${picked.size} selected", kinds.ifEmpty { null }, onBack = { onSelect(null) }, backIcon = R.drawable.ic_close, backLabel = "Cancel")
+                } else TopBar("People & pets", data?.summary, onBack = onBack) {
+                    IconButton({ onSelect(emptyList()) }) { Icon(painterResource(R.drawable.ic_select), "Select") }
+                }
                 // the mockup splits them: named 96 dp 3 a row (name and count), unnamed 56 dp 5 a row (faces only)
                 val (named, unnamed) = shown.partition { !it.name.isNullOrBlank() }
                 // the order while dragging; the next load starts it over from the saved one
@@ -576,7 +649,7 @@ fun PeopleContent(
                 LaunchedEffect(reorder.isAnyItemDragging) { if (!reorder.isAnyItemDragging && order != named) onReorder(order.map { it.id }) }
                 // one grid, not rows, so a card that leaves lets the next ones slide over. 15 columns: a named card takes 5, an unnamed one 3.
                 LazyVerticalGrid(
-                    GridCells.Fixed(15), state = gridState,
+                    GridCells.Fixed(15), Modifier.weight(1f), state = gridState,
                     contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
@@ -593,10 +666,11 @@ fun PeopleContent(
                                     PersonCard(
                                         it,
                                         // fillMaxWidth: ReorderableItem's Box lets the card shrink to its face and sit left in the cell
-                                        Modifier.longPressDraggableHandle(onDragStarted = { haptic.performHapticFeedback(HapticFeedbackType.LongPress) })
+                                        // no moving while selecting: a tap picks
+                                        Modifier.longPressDraggableHandle(enabled = sel == null, onDragStarted = { haptic.performHapticFeedback(HapticFeedbackType.LongPress) })
                                             .fillMaxWidth().padding(vertical = 7.dp).testTag("namedCard"),
-                                        faceSize = 96.dp, tight = true, lifted = lifted,
-                                    ) { if (!reorder.isAnyItemDragging) onOpenPerson(it.id) } // a lift dropped in place is not a tap
+                                        faceSize = 96.dp, picked = sel?.contains(it.id) == true, tight = true, lifted = lifted,
+                                    ) { if (sel != null) toggle(it.id) else if (!reorder.isAnyItemDragging) onOpenPerson(it.id) } // a lift dropped in place is not a tap
                                 }
                             }
                         }
@@ -605,7 +679,12 @@ fun PeopleContent(
                                 Box(Modifier.animateItem(fadeInSpec = fadeIn).overSides()) { SectionHead("No name yet", hint = "Name them to move them up") }
                             }
                             items(unnamed, key = { "u${it.id}" }, span = { GridItemSpan(3) }) {
-                                PersonCard(it, Modifier.animateItem(fadeInSpec = fadeIn).padding(vertical = 4.dp).testTag("unnamedCard"), faceSize = 56.dp, tight = true, showName = false, showCount = false) { onOpenPerson(it.id) }
+                                // an unnamed card never moves, so its long press is free to start select mode
+                                PersonCard(
+                                    it, Modifier.animateItem(fadeInSpec = fadeIn).padding(vertical = 4.dp).testTag("unnamedCard"), faceSize = 56.dp,
+                                    picked = sel?.contains(it.id) == true, tight = true, showName = false, showCount = false,
+                                    onLongClick = { if (sel == null) onSelect(listOf(it.id)) else toggle(it.id) },
+                                ) { if (sel != null) toggle(it.id) else onOpenPerson(it.id) }
                             }
                         }
                         if (shown.isEmpty()) item("empty", { GridItemSpan(maxLineSpan) }) {
@@ -613,6 +692,13 @@ fun PeopleContent(
                         }
                     }
                 }
+                // under the grid, so nothing above it moves. A person and a pet never merge (canMerge).
+                if (sel != null) ActionBar(
+                    "Hide", R.drawable.ic_block, { onHideAll(picked) },
+                    "Merge", R.drawable.ic_person_add, { onMergeAll(picked) },
+                    danger = false, dangerEnabled = picked.isNotEmpty(),
+                    primaryEnabled = picked.size > 1 && picked.all { p -> canMerge(p, picked[0]) },
+                )
             }
         }
     }
@@ -662,12 +748,13 @@ private fun PersonCard(
     showName: Boolean = true,
     showCount: Boolean = true,
     lifted: Boolean = false,
+    onLongClick: (() -> Unit)? = null,
     onClick: () -> Unit,
 ) {
     Column(
         // no ripple once lifted: the held press would show as a grey box around the card
         modifier.graphicsLayer { if (lifted) { scaleX = 1.08f; scaleY = 1.08f } }
-            .clickable(interactionSource = null, indication = if (lifted) null else LocalIndication.current, onClick = onClick),
+            .combinedClickable(interactionSource = null, indication = if (lifted) null else LocalIndication.current, onLongClick = onLongClick, onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         PickFace(p.cover, faceSize, picked, lifted)
@@ -691,6 +778,7 @@ fun PersonDetail(
     onHide: () -> Unit = {},
     loadPhotos: (suspend (List<Long>) -> List<Tile>)? = null, // tests inject a fake; null loads from MediaStore
     pick: Pick = Pick(null),
+    onUnmerge: (() -> Unit)? = null, // null: nothing merged in, no Unmerge in More
 ) {
     val context = LocalContext.current
     val sel = pick.ids
@@ -791,9 +879,10 @@ fun PersonDetail(
         }
         Menu(
             more, onDismiss = { more = false },
-            items = listOf(
+            items = listOfNotNull(
                 MenuItem(if (p.pet) R.drawable.ic_paw else R.drawable.ic_person, if (p.name.isNullOrBlank()) "Add name" else "Rename") { more = false; onName() },
                 MenuItem(R.drawable.ic_person_add, "Merge with") { more = false; onMerge() },
+                onUnmerge?.let { MenuItem(R.drawable.ic_person_remove, "Unmerge") { more = false; it() } },
                 MenuItem(R.drawable.ic_photo, "Change cover") { more = false; onCover() },
                 if (p.hidden) MenuItem(R.drawable.ic_eye, if (p.pet) "Show pet" else "Show person", dividerBefore = true) { more = false; onHide() }
                 else MenuItem(R.drawable.ic_block, if (p.pet) "Hide pet" else "Hide person", dividerBefore = true) { more = false; onHide() },
@@ -821,10 +910,44 @@ fun Chip(label: String, icon: Int, onClick: () -> Unit) {
 suspend fun mergePeople(db: Db, into: Person, other: Person) = db.withTransaction {
     require(canMerge(into, other)) { "A person and a pet can't be merged" }
     val dao = db.index()
-    dao.merge(MergeRow(other.main.id, into.main.id))
+    val rows = dao.merges()
+    // roots, not main faces: the main face of a merged person can be any part's, and Unmerge must split off only what was picked
+    dao.merge(MergeRow(mergeRoot(other, rows), mergeRoot(into, rows)))
     dao.movePerson(other.id, into.id)
     if (into.name.isNullOrBlank() && !other.name.isNullOrBlank()) dao.setName(into.id, other.name)
     dao.deletePerson(other.id)
+}
+
+/** The merge rows inside [p]: both faces are [p]'s. */
+private fun mergesIn(p: Person, rows: List<MergeRow>): List<MergeRow> {
+    val ids = p.faces.map { it.id }.toSet()
+    return rows.filter { it.face in ids && it.personFace in ids }
+}
+
+/** The face all of [p]'s merges lead to: the main face of the first person, before anyone joined. [p]'s main face with no merge. */
+fun mergeRoot(p: Person, rows: List<MergeRow>): Long {
+    val inside = mergesIn(p, rows)
+    return inside.map { it.personFace }.firstOrNull { f -> inside.none { it.face == f } } ?: p.main.id
+}
+
+/** Unmerge's list: one face per part merged into [p], the newest merge first. */
+fun mergedParts(p: Person, rows: List<MergeRow>): List<FaceVec> =
+    mergesIn(p, rows).reversed().map { it.face }.distinct().mapNotNull { f -> p.faces.firstOrNull { it.id == f } }
+
+/** People select > Merge: all join the first one picked with a name, or the first picked. One transaction, so a mix of people and pets changes nothing. */
+suspend fun mergeAll(db: Db, picked: List<Person>) = db.withTransaction {
+    val into = picked.firstOrNull { !it.name.isNullOrBlank() } ?: picked.first()
+    picked.filter { it.id != into.id }.forEach { mergePeople(db, into, it) }
+}
+
+/** Unmerge: the parts starting at [faces] leave [p] as people with no name; [p] keeps its id and name (see [carry]'s pins). */
+suspend fun unmergePeople(db: Db, p: Person, faces: List<Long>) {
+    db.withTransaction {
+        val root = mergeRoot(p, db.index().merges())
+        db.index().unmerge(faces)
+        regroup(db, mapOf(p.id to root))
+    }
+    peopleSaved.value++
 }
 
 /** "Merge with" sheet from the mockup: [people] most alike [person] first, pick one, Merge joins it into [person]. */
@@ -989,6 +1112,42 @@ fun ChangeCoverContent(person: Person, picked: Long?, onPick: (Long) -> Unit, on
                 Text("Save", color = color, fontWeight = FontWeight.Medium)
             }
         }
+    }
+}
+
+/** "Unmerge" sheet from the mockup: one face per part merged into [person]; the picked parts split off. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun UnmergeSheet(person: Person, parts: List<FaceVec>, onDismiss: () -> Unit, onUnmerge: (List<Long>) -> Unit) {
+    val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var picked by remember { mutableStateOf(emptySet<Long>()) }
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet, containerColor = MaterialTheme.colorScheme.background) {
+        UnmergeContent(person, parts, picked, { f -> picked = if (f in picked) picked - f else picked + f }, onDismiss, onUnmerge)
+    }
+}
+
+/** The sheet's body without the bottom-sheet chrome, so tests can render it directly. */
+@Composable
+fun UnmergeContent(person: Person, parts: List<FaceVec>, picked: Set<Long>, onPick: (Long) -> Unit, onCancel: () -> Unit, onUnmerge: (List<Long>) -> Unit) {
+    Column(Modifier.padding(bottom = 16.dp)) {
+        Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            FaceImage(person.cover, Modifier.size(48.dp).clip(CircleShape))
+            Column(Modifier.padding(start = 16.dp)) {
+                Text("Unmerge ${person.name?.takeIf { it.isNotBlank() } ?: if (person.pet) "this pet" else "this person"}", style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("Pick what to split off", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        // the parts never change while the sheet is open, so the grid's height (and the buttons) stay put
+        LazyVerticalGrid(GridCells.Fixed(4), Modifier.heightIn(max = 320.dp), contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp)) {
+            items(parts, key = { it.id }) { f ->
+                Box(Modifier.padding(4.dp).testTag("unmergeFace-${f.id}").clickable { onPick(f.id) }) { PickFace(f, 68.dp, f.id in picked) }
+            }
+        }
+        ActionBar(
+            "Cancel", null, onCancel, "Unmerge", R.drawable.ic_person_remove, { onUnmerge(picked.toList()) },
+            danger = false, primaryEnabled = picked.isNotEmpty(),
+        )
     }
 }
 
