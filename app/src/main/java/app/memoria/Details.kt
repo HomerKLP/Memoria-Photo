@@ -141,7 +141,7 @@ internal fun zoneLabel(offset: ZoneOffset): String {
 
 /**
  * Viewer details, per docs/design.html "Viewer, swiped up": the panel under the photo.
- * A face of a named person or of no one opens Who is this?; a face of an unnamed person ("Add name") names that person.
+ * A face of a named person or of no one opens Who is this?; a face of an unnamed person ("Add name") names that person. Pets the same way.
  */
 @Composable
 fun DetailsPanel(tile: Tile, modifier: Modifier = Modifier) {
@@ -158,19 +158,21 @@ fun DetailsPanel(tile: Tile, modifier: Modifier = Modifier) {
             val dao = db.index()
             val info = runCatching { loadInfo(context, tile) }.getOrNull()
             // only this photo's faces and the (vectorless) faces of saved people: no whole-library read
-            val photoFaces = if (tile.duration != null) emptyList() else dao.photoFaces(tile.id).sortedBy { it.box[0] } // left to right, like the photo
+            // people left to right, like the photo, then pets
+            val photoFaces = if (tile.duration != null) emptyList() else dao.viewerFaces(tile.id).sortedWith(compareBy({ it.pet }, { it.box[0] }))
             val byPerson = if (tile.duration != null) emptyMap() else dao.taggedFaces().groupBy { it.personId }
             val people = dao.people().mapNotNull { p ->
                 byPerson[p.id]?.let { fs ->
                     val main = fs.firstOrNull { it.id == p.mainFaceId } ?: fs.first()
                     Person(fs.map { it.toVec() }, main.toVec(), p.id, p.name, p.hidden, p.coverFaceId)
                 }
-            }.filter { !it.pet }.sortedWith(compareBy({ it.name.isNullOrBlank() }, { -it.photos }))
+            }.sortedWith(compareBy({ it.name.isNullOrBlank() }, { -it.photos }))
             Triple(info, photoFaces, people)
         }.let { (i, f, p) -> info = i; faces = f; people = p }
     }
-    // closes the sheet at once, then writes and reloads the row; NonCancellable, so closing the viewer right after keeps the write
-    val fix: (suspend () -> Unit) -> Unit = { write -> fixing = null; scope.launch { withContext(Dispatchers.IO + NonCancellable) { write() }; reload++ } }
+    // closes the sheet at once, then writes and reloads the row; NonCancellable, so closing the viewer right after keeps the write.
+    // peopleSaved: the Person or Pet screen under the viewer reloads too, and closes if its last face left.
+    val fix: (suspend () -> Unit) -> Unit = { write -> fixing = null; scope.launch { withContext(Dispatchers.IO + NonCancellable) { write(); peopleSaved.value++ }; reload++ } }
     fixing?.let { f ->
         val p = people.firstOrNull { it.id == f.personId }
         if (p != null && p.name.isNullOrBlank()) NamePersonSheet(p, onDismiss = { fixing = null }) { name ->
@@ -213,7 +215,7 @@ fun DetailsContent(
             modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 2.dp),
         )
         if (faces.isNotEmpty()) {
-            Section("People", "Tap a face to fix it")
+            Section(if (faces.none { it.pet }) "People" else if (faces.all { it.pet }) "Pets" else "People & pets", "Tap one to fix it")
             Row(
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(14.dp),

@@ -104,6 +104,10 @@ class ObjectBoxRow(@PrimaryKey(autoGenerate = true) val id: Long = 0, val photoI
 @Entity(tableName = "photo_vector")
 class PhotoVectorRow(@PrimaryKey val photoId: Long, val model: Int, val vector: FloatArray)
 
+/** A photo's tags from its vector, as "id score;id score" ([photoTags]). [stamp] is [Tag.stamp]: a new `tags.json` scores every photo again. */
+@Entity(tableName = "photo_tag")
+class PhotoTagRow(@PrimaryKey val photoId: Long, val stamp: Int, val tags: String)
+
 class Converters {
     @TypeConverter fun toBytes(v: FloatArray): ByteArray = ByteBuffer.allocate(v.size * 4).apply { asFloatBuffer().put(v) }.array()
     @TypeConverter fun toFloats(b: ByteArray): FloatArray = FloatArray(b.size / 4).also { ByteBuffer.wrap(b).asFloatBuffer().get(it) }
@@ -129,13 +133,20 @@ interface IndexDao {
             "EXISTS(SELECT 1 FROM answer a WHERE a.faceId = f.id AND NOT a.yes) AS rejected FROM face f JOIN photo p ON p.id = f.photoId WHERE NOT f.notFace",
     )
     suspend fun faceVecs(): List<FaceVec>
-    /** The faces of one photo, with vectors: a handful of rows instead of the whole [faceVecs]. No pets: the viewer and the person-box rule are about faces. */
+    /** The faces of one photo, with vectors: a handful of rows instead of the whole [faceVecs]. No pets: the person-box rule is about faces. */
     @Query(
         "SELECT f.id, f.photoId, f.box, f.vector, f.quality, p.kind, f.personId, f.nearSure, f.pet, " +
             "EXISTS(SELECT 1 FROM answer a WHERE a.faceId = f.id AND a.yes) AS yes, " +
             "EXISTS(SELECT 1 FROM answer a WHERE a.faceId = f.id AND NOT a.yes) AS rejected FROM face f JOIN photo p ON p.id = f.photoId WHERE NOT f.notFace AND NOT f.pet AND f.photoId = :photoId",
     )
     suspend fun photoFaces(photoId: Long): List<FaceVec>
+    /** [photoFaces] with the photo's pet pictures, for the viewer's People & pets row. */
+    @Query(
+        "SELECT f.id, f.photoId, f.box, f.vector, f.quality, p.kind, f.personId, f.nearSure, f.pet, " +
+            "EXISTS(SELECT 1 FROM answer a WHERE a.faceId = f.id AND a.yes) AS yes, " +
+            "EXISTS(SELECT 1 FROM answer a WHERE a.faceId = f.id AND NOT a.yes) AS rejected FROM face f JOIN photo p ON p.id = f.photoId WHERE NOT f.notFace AND f.photoId = :photoId",
+    )
+    suspend fun viewerFaces(photoId: Long): List<FaceVec>
     /** The faces that belong to a saved person, without vectors: the viewer details panel never matches by distance. */
     @Query(
         "SELECT f.id, f.photoId, f.box, f.quality, p.kind, f.personId, f.nearSure, f.pet, " +
@@ -172,8 +183,12 @@ interface IndexDao {
     @Query("UPDATE photo SET lat = :lat, lon = :lon, townId = :townId, town = :town WHERE id = :id")
     suspend fun setPlace(id: Long, lat: Double?, lon: Double?, townId: Int, town: String?)
     @Query("SELECT photoId FROM photo_vector WHERE model = :model") suspend fun taggedIds(model: Int): List<Long>
-    /** Vectors for categories; an empty one is a photo that couldn't be read. */
-    @Query("SELECT * FROM photo_vector WHERE model = :model AND length(vector) > 0") suspend fun vectors(model: Int): List<PhotoVectorRow>
+    /** Vectors with no tags from this [stamp] yet; an empty one is a photo that couldn't be read. */
+    @Query("SELECT * FROM photo_vector WHERE model = :model AND length(vector) > 0 AND photoId NOT IN (SELECT photoId FROM photo_tag WHERE stamp = :stamp)")
+    suspend fun untaggedVectors(model: Int, stamp: Int): List<PhotoVectorRow>
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertTags(rows: List<PhotoTagRow>)
+    @Query("SELECT * FROM photo_tag WHERE stamp = :stamp") suspend fun photoTags(stamp: Int): List<PhotoTagRow>
+    @Query("DELETE FROM photo_tag WHERE photoId IN (:ids)") suspend fun deleteTags(ids: List<Long>)
     /** Photos with every index step done: the face pass, a vector from tagger [model] while [tagger] is on the phone, boxes from [objectsModel] while [objects] is. */
     @Query(
         "SELECT COUNT(*) FROM photo WHERE (NOT :tagger OR id IN (SELECT photoId FROM photo_vector WHERE model = :model)) " +
@@ -195,7 +210,7 @@ interface IndexDao {
     suspend fun petPhotos(): Map<@MapColumn("photoId") Long, @MapColumn("score") Float>
 }
 
-@Database(entities = [PhotoRow::class, FaceRow::class, PersonRow::class, AnswerRow::class, MergeRow::class, PhotoVectorRow::class, ObjectBoxRow::class], version = 14)
+@Database(entities = [PhotoRow::class, FaceRow::class, PersonRow::class, AnswerRow::class, MergeRow::class, PhotoVectorRow::class, ObjectBoxRow::class, PhotoTagRow::class], version = 15)
 @TypeConverters(Converters::class)
 abstract class Db : RoomDatabase() {
     abstract fun index(): IndexDao
@@ -260,7 +275,12 @@ abstract class Db : RoomDatabase() {
                 db.execSQL("UPDATE photo SET objects = NULL")
             }
         }
-        internal val MIGRATIONS = arrayOf(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
+        /** v15: each photo's tags, so categories don't score every vector on each open; the first open fills it. */
+        private val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) =
+                db.execSQL("CREATE TABLE IF NOT EXISTS `photo_tag` (`photoId` INTEGER NOT NULL, `stamp` INTEGER NOT NULL, `tags` TEXT NOT NULL, PRIMARY KEY(`photoId`))")
+        }
+        internal val MIGRATIONS = arrayOf(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
         private var db: Db? = null
         @Synchronized fun get(context: Context) =
             db ?: // a missing migration crashes instead of wiping names; MigrationTest checks each bump
@@ -361,7 +381,7 @@ object IndexControl {
     fun resume(context: Context) = start(context, IndexProgress.testOnly(context))
 }
 
-/** Goes up after each savePeople, so Library and People reload while a run is going. */
+/** Goes up after each savePeople and each fix in the viewer, so Library and People reload. */
 val peopleSaved = MutableStateFlow(0)
 
 /**
@@ -416,7 +436,7 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         val tagged = dao.taggedIds(Tagger.VERSION).toHashSet()
         val boxed = dao.boxedIds(ObjectDetector.VERSION).toHashSet()
         // photos deleted from the phone: forget them, their faces, vectors and boxes, so counts and people match the phone
-        if (!testOnly) (done + tagged - all.map { it.id }.toSet()).chunked(500).forEach { dao.deleteFaces(it); dao.deletePhotos(it); dao.deleteVectors(it); dao.deleteBoxes(it) }
+        if (!testOnly) (done + tagged - all.map { it.id }.toSet()).chunked(500).forEach { dao.deleteFaces(it); dao.deletePhotos(it); dao.deleteVectors(it); dao.deleteTags(it); dao.deleteBoxes(it) }
         recutThumbs()
         if (isStopped) return Result.success()
         val todo = all.filter { it.id !in done }
@@ -554,6 +574,8 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
             tagger?.close()
             objects?.first?.close()
             objects?.second?.close()
+            // a tap on the notice can drop the foreground (bugs.md), then nothing else removes our last notify()
+            notifications.cancel(1)
             IndexProgress.finish(applicationContext)
             val stop = if (isStopped) ", stopped, reason $stopReason" else ""
             Log.i("Memoria", "indexed $count photos, tagged $tagCount, caught up $catchUpCount in %.0f s$stop".format((System.nanoTime() - start) / 1e9))
@@ -686,7 +708,8 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
             val old = dao.people()
             val oldFaces = faces.filter { it.personId != null }.groupBy { it.personId!! }.mapValues { e -> e.value.map { it.id }.toSet() }
             val merges = dao.merges()
-            val people = groupFaces(faces.filter { !it.pet }, dao.answers(), merges) + groupPets(faces.filter { it.pet }, merges)
+            val answers = dao.answers()
+            val people = groupFaces(faces.filter { !it.pet }, answers, merges) + groupPets(faces.filter { it.pet }, answers, merges)
             val taken = mutableSetOf<Long>()
             var next = (old.maxOfOrNull { it.id } ?: 0) + 1
             dao.deletePeople()

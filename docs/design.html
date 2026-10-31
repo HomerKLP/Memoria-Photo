@@ -245,6 +245,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .pick .round { width: 40px; height: 40px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; flex: none; }
 .pick.danger { margin-top: 4px; border-top: 1px solid var(--line); color: var(--danger); }
 .pick.danger .round { background: transparent; color: var(--danger); }
+.pick.none { color: var(--muted); }
 
 /* Name a person sheet */
 .field.filled { color: var(--fg); font-weight: 500; gap: 0; }
@@ -628,7 +629,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="grab"></div>
           <div class="date"><b>Saturday, 11 October 2026</b><span>14:32 · GMT+1</span></div>
 
-          <div class="head"><h3>People</h3><span class="hint">Tap a face to fix it</span></div>
+          <div class="head"><h3>People &amp; pets</h3><span class="hint">Tap one to fix it</span></div>
           <div class="row" id="viewer-people"></div>
 
           <div class="head"><h3>Place</h3></div>
@@ -641,7 +642,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Viewer, swiped up: the photo moves to the top as a full-width square, zoomed to fill it, and only the panel's rounded edge covers it. The details sit under it on the viewer's black, with rounded top corners that overlap the photo a little, and scroll inside the space left when they are longer. People (only if the photo has faces, left to right), place (only if the photo has GPS: the nearest town, never coordinates), details. A named face or a face with no person opens Who is this?; "Add name" on an unnamed person's face opens Name this person (names the whole person)</figcaption>
+      <figcaption>Viewer, swiped up: the photo moves to the top as a full-width square, zoomed to fill it, and only the panel's rounded edge covers it. The details sit under it on the viewer's black, with rounded top corners that overlap the photo a little, and scroll inside the space left when they are longer. People &amp; pets (only if the photo has faces or a pet: people left to right, then pets; the head says "People" or "Pets" when only one kind is there), place (only if the photo has GPS: the nearest town, never coordinates), details. A named face or a face with no person opens Who is this?; "Add name" on an unnamed person's face opens Name this person (names the whole person). A pet works the same way: a named pet or a picture in no pet opens Who is this? for a pet, "Add name" on an unnamed pet opens Name this pet. A pet picture in no pet shows too, so a left-out picture can join its pet</figcaption>
     </figure>
   </div>
 </section>
@@ -1249,6 +1250,39 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
       </div>
       <figcaption>Who is this? Opens from a face in the viewer, or from "Someone else" in Help recognize (there without Remove tag). The list is the named people minus the current one, filtered by the search. New person needs a typed name that is not taken; the name shows on its right. Hidden rows keep their space, so the field never moves while typing</figcaption>
     </figure>
+    <figure id="who-pet">
+      <div class="phone dark">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="dim" id="pet-dim"></div>
+        <div class="sheet">
+          <div class="grab"></div>
+          <div class="sheet-head"><span id="pet-pick-face"></span><div><b>Who is this?</b><span>Now tagged as Murka</span></div></div>
+          <div class="field"><svg class="i"><use href="#i-search"/></svg>Search or type a new name</div>
+          <div id="pet-pick-list"></div>
+          <div class="pick"><span class="round"><svg class="i"><use href="#i-paw"/></svg></span><b>New pet</b></div>
+          <div class="pick danger"><span class="round"><svg class="i"><use href="#i-close"/></svg></span><b>Remove tag</b></div>
+          <div class="gesture light"><div class="handle"></div></div>
+        </div>
+      </div>
+      <figcaption>Who is this? for a pet: opens from a pet in the viewer. The same sheet with pet words: the list is the named pets minus the current one (never people, as in Merge with), New pet starts a pet from this picture. Remove tag takes the picture out of Murka, and it stays out of every pet until it is picked here again (better left out than with the wrong pet). Once picked, a picture stays with that pet</figcaption>
+    </figure>
+    <figure id="who-none">
+      <div class="phone dark">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="dim" id="none-dim"></div>
+        <div class="sheet">
+          <div class="grab"></div>
+          <div class="sheet-head"><span id="none-pick-face"></span><div><b>Who is this?</b><span>Now tagged as Murka</span></div></div>
+          <div class="field filled"><svg class="i" style="margin-right:12px"><use href="#i-search"/></svg>Tom<span class="caret"></span></div>
+          <div class="pick none">Nothing for "Tom"</div>
+          <div class="pick"></div>
+          <div class="pick"><span class="round"><svg class="i"><use href="#i-paw"/></svg></span><b>New pet</b><span>Tom</span></div>
+          <div class="pick danger"><span class="round"><svg class="i"><use href="#i-close"/></svg></span><b>Remove tag</b></div>
+          <div class="gesture light"><div class="handle"></div></div>
+        </div>
+      </div>
+      <figcaption>Who is this?, nothing matches: the first free row says Nothing for "Tom", like Search. The rows hidden by the search keep their space, so New pet and Remove tag never move under the finger while typing. People and pets alike</figcaption>
+    </figure>
     <figure id="name-person">
       <div class="phone dark">
         <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
@@ -1841,14 +1875,20 @@ fill("albums", [["Camera", "1,412"], ["Screenshots", "214"], ["Telegram", "96"],
   .map(([n, c]) => cover(n, c)).slice(0, 3).join("")); // all 6 drawn, so the photos further down keep their colors
 fill("places", [["Riverton", "642"], ["Northport", "118"], ["Harborview", "87"]].map(([n, c]) => cover(n, c)).join(""));
 
-fill("viewer-people", [[0, "Me"], [2, "Dana"], [4, null]]
-  .map(([i, n]) => `<div class="person">${face(i, 72)}${n ?? '<span class="unnamed">Add name</span>'}</div>`).join(""));
+fill("viewer-people", [[0, "Me"], [4, null]]
+  .map(([i, n]) => `<div class="person">${face(i, 72)}${n ?? '<span class="unnamed">Add name</span>'}</div>`).join("")
+  + `<div class="person">${pet(0, 72)}Murka</div><div class="person">${pet(3, 72)}<span class="unnamed">Add name</span></div>`);
 
 fill("ask-face", face(5, 88));
 fill("known", [2, 2, 2, 2, 2].map(i => face(i, 40)).join(""));
 fill("pick-face", face(2, 48));
 fill("pick-list", [[0, "Me", "412"], [1, "Mom", "230"], [3, "Arman", "96"], [5, "Aliya", "64"]]
   .map(([i, n, c]) => `<div class="pick">${face(i, 40)}<b>${n}</b><span>${c} photos</span></div>`).join(""));
+
+fill("pet-pick-face", pet(0, 48));
+fill("none-pick-face", pet(0, 48));
+fill("pet-pick-list", [[2, "Barsik", "41"], [3, "Rex", "22"]]
+  .map(([i, n, c]) => `<div class="pick">${pet(i, 40)}<b>${n}</b><span>${c} photos</span></div>`).join(""));
 
 fill("name-face", face(0, 48));
 fill("name-sub", "24 photos · 31 faces");
@@ -1873,6 +1913,8 @@ document.querySelectorAll("[data-shot]").forEach(el => el.style.background = sho
 document.querySelectorAll("[data-photo]").forEach(el => el.style.background = photo());
 document.getElementById("dim").style.background = `linear-gradient(rgba(0,0,0,.55), rgba(0,0,0,.55)), ${shot}`;
 document.getElementById("move-dim").style.background = document.getElementById("dim").style.background;
+document.getElementById("pet-dim").style.background = document.getElementById("dim").style.background;
+document.getElementById("none-dim").style.background = document.getElementById("dim").style.background;
 // Settings with the Models row in each state: the same screen, only that row changes.
 const modelRows = {
   "models-missing": ["download", "Not downloaded · 425 MB", "off", 0, "Download"],

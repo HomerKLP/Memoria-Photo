@@ -18,12 +18,16 @@ class CategoriesTest {
         Tag("c", "C", emptyList(), 0.5f, floatArrayOf(-1f, 0f)),
     )
 
+    /** Stored rows for these vectors, scored by [photoTags] as the app does. */
+    private fun rows(tags: List<Tag>, vararg v: Pair<Long, FloatArray>) = v.map { (id, vector) -> PhotoTagRow(id, 0, photoTags(tags, vector)) }
+
     @Test fun aboveTheCutoff_newestFirst_coverIsTheTopScore() {
-        val vectors = listOf(
-            PhotoVectorRow(1, 1, floatArrayOf(0.9f, 0.1f)),
-            PhotoVectorRow(2, 1, floatArrayOf(0.6f, 0.2f)),
-            PhotoVectorRow(3, 1, floatArrayOf(0.5f, 0.6f)), // on A's cutoff: not in A
-            PhotoVectorRow(4, 1, floatArrayOf(0.7f, 0.1f)),
+        val vectors = rows(
+            tags,
+            1L to floatArrayOf(0.9f, 0.1f),
+            2L to floatArrayOf(0.6f, 0.2f),
+            3L to floatArrayOf(0.5f, 0.6f), // on A's cutoff: not in A
+            4L to floatArrayOf(0.7f, 0.1f),
         )
         val a = categories(tags, vectors, listOf(tile(1, 100), tile(2, 300), tile(3, 200), tile(4, 400))).first { it.id == "a" }
         assertEquals(listOf(4L, 2L, 1L), a.tiles.map { it.id })
@@ -31,11 +35,12 @@ class CategoriesTest {
     }
 
     @Test fun mostPhotosFirst_emptyTagsAndGonePhotosLeftOut() {
-        val vectors = listOf(
-            PhotoVectorRow(1, 1, floatArrayOf(0f, 1f)),
-            PhotoVectorRow(2, 1, floatArrayOf(0f, 1f)),
-            PhotoVectorRow(3, 1, floatArrayOf(1f, 0f)),
-            PhotoVectorRow(9, 1, floatArrayOf(1f, 0f)), // gone from the phone
+        val vectors = rows(
+            tags,
+            1L to floatArrayOf(0f, 1f),
+            2L to floatArrayOf(0f, 1f),
+            3L to floatArrayOf(1f, 0f),
+            9L to floatArrayOf(1f, 0f), // gone from the phone
         )
         val found = categories(tags, vectors, listOf(tile(1), tile(2), tile(3)))
         assertEquals(listOf("b", "a"), found.map { it.id })
@@ -54,7 +59,7 @@ class CategoriesTest {
 
     @Test fun petTag_fromBoxesWhenThereAreAny_coverIsTheSurestBox() {
         val pet = Tag("pet", "Pets", emptyList(), 0.5f, floatArrayOf(1f, 0f))
-        val vectors = listOf(PhotoVectorRow(1, 1, floatArrayOf(0.9f, 0f)), PhotoVectorRow(2, 1, floatArrayOf(0f, 0f)))
+        val vectors = rows(listOf(pet), 1L to floatArrayOf(0.9f, 0f), 2L to floatArrayOf(0f, 0f))
         val tiles = listOf(tile(1, 100), tile(2, 200), tile(3, 300))
         assertEquals(listOf(1L), categories(listOf(pet), vectors, tiles).single().tiles.map { it.id }) // no boxes: the tagger
         val boxed = categories(listOf(pet), vectors, tiles, mapOf(2L to 0.9f, 3L to 0.6f, 9L to 0.7f)).single() // 9 is gone from the phone

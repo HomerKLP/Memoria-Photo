@@ -137,13 +137,16 @@ class DaoTest {
         assertEquals(setOf(1L, 3L), dao.placed().map { it.id }.toSet())
     }
 
-    @Test fun vectors_onlyThisModel_noEmpty() = runBlocking {
+    @Test fun untaggedVectors_thisModel_noEmpty_noTagsFromThisStamp() = runBlocking {
         dao.insertVector(PhotoVectorRow(1, 1, floatArrayOf(0.6f, 0.8f)))
         dao.insertVector(PhotoVectorRow(2, 1, FloatArray(0))) // couldn't be read
         dao.insertVector(PhotoVectorRow(3, 2, floatArrayOf(1f, 0f))) // another model
-        val rows = dao.vectors(1)
+        dao.insertVector(PhotoVectorRow(4, 1, floatArrayOf(1f, 0f)))
+        dao.insertTags(listOf(PhotoTagRow(4, 7, "a 0.9"), PhotoTagRow(1, 6, ""))) // 1: tagged from an older tags file
+        val rows = dao.untaggedVectors(1, 7)
         assertEquals(listOf(1L), rows.map { it.photoId })
         assertEquals(listOf(0.6f, 0.8f), rows.single().vector.toList())
+        assertEquals(listOf(4L), dao.photoTags(7).map { it.photoId })
     }
 
     @Test fun answer_sameFaceAndPersonReplaced_dropYesKeepsNo() = runBlocking {
@@ -186,7 +189,8 @@ class DaoTest {
             ),
         )
         assertEquals(listOf(false, true), dao.faceVecs().sortedBy { it.id }.map { it.pet })
-        assertEquals(listOf(1L), dao.photoFaces(1).map { it.id }) // the viewer and the person-box rule see faces only
+        assertEquals(listOf(1L), dao.photoFaces(1).map { it.id }) // the person-box rule sees faces only
+        assertEquals(listOf(1L, 2L), dao.viewerFaces(1).map { it.id }.sorted()) // the viewer shows pets too
         dao.deletePets(1)
         assertEquals(listOf(1L), dao.faceVecs().map { it.id })
     }

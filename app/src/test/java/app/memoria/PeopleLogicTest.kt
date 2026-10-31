@@ -160,7 +160,7 @@ class PeopleLogicTest {
         val pets = groupPets(cat + dog + seenOnce)
         assertEquals(listOf((1L..6L).toSet(), (11L..16L).toSet()), pets.map { p -> p.faces.map { it.id }.toSet() }.sortedBy { it.min() })
         assertTrue(pets.all { it.pet })
-        assertEquals(12, groupPets(cat + dog, listOf(MergeRow(face = 11, personFace = 1))).single().faces.size)
+        assertEquals(12, groupPets(cat + dog, merges = listOf(MergeRow(face = 11, personFace = 1))).single().faces.size)
     }
 
     @Test fun splitPetsJoinUnder076_loosePicturesDont() {
@@ -170,6 +170,18 @@ class PeopleLogicTest {
         assertEquals(12, groupPets(cat + near).single().faces.size)
         assertEquals(2, groupPets(cat + far).size)
         assertEquals(6, groupPets(cat + near.take(5)).single().faces.size) // 5 photos: not a pet, so it never joins
+    }
+
+    @Test fun petPicturesFollowTheViewersAnswers() {
+        val cat = (1L..7L).map { pet(it, it, 1f, 0f) }
+        val dog = (11L..16L).map { pet(it, it, 0f, 1f) }
+        val ids = { pets: List<Person> -> pets.map { p -> p.faces.map { it.id }.toSet() }.sortedBy { it.min() } }
+        // moved: picture 7 is the dog, though it looks like the cat
+        assertEquals(listOf((1L..6L).toSet(), setOf(7L) + (11L..16L)), ids(groupPets(cat + dog, listOf(AnswerRow(7, 1, false), AnswerRow(7, 11, true)))))
+        // Remove tag: out of every pet, even the near one
+        assertEquals(listOf((1L..6L).toSet(), (11L..16L).toSet()), ids(groupPets(cat + dog, listOf(AnswerRow(7, 1, false)))))
+        // New pet: one picture is enough, and it never joins the cat by distance
+        assertEquals(listOf((1L..6L).toSet(), setOf(7L), (11L..16L).toSet()), ids(groupPets(cat + dog, listOf(AnswerRow(7, 1, false), AnswerRow(7, 7, true)))))
     }
 
     @Test fun aPersonAndAPetNeverMerge() {

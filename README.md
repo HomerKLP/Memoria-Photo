@@ -44,19 +44,23 @@ No cloud. No account. No trackers.
 
 ```mermaid
 flowchart LR
-    A[Photo] --> B[Find faces<br>YOLOv5m-face]
+    A[Photo] --> O[People, cats, dogs<br>YOLO26-M]
+    A --> T[Categories<br>SigLIP 2]
+    O -->|person box| B[Find faces<br>YOLOv5m-face]
     B --> C[Check quality<br>eDifFIQA-T]
     B --> D[Face vector<br>AdaFace IR101]
     C --> E[People]
     D --> E
+    O -->|cat or dog box| P[Pet vector<br>DINOv2-S + Noodle]
+    P --> F[Pets]
 ```
 
-The models were picked on real family photos, not only on paper: 3 face finders and 3 recognizers compared side by side. Details in [docs/face-pipeline.md](docs/face-pipeline.md).
+The models were picked on real family photos, not only on paper: 3 face finders and 3 recognizers compared side by side. Details in [docs/face-pipeline.md](docs/face-pipeline.md); the tagger in [docs/tagger.md](docs/tagger.md), the object and pet models in [docs/objects.md](docs/objects.md).
 
 ## Features
 
 - **Photos:** timeline by day and month, month slider, select many with a drag.
-- **Viewer:** zoom, swipe, details (date, time zone, place, camera, people).
+- **Viewer:** zoom, swipe, details (date, time zone, place, camera, people and pets).
 - **Albums:** phone folders, new albums, move photos.
 - **Places:** photos by town, names found offline.
 - **Pets:** cats and dogs, found and grouped like people, with names.
@@ -122,7 +126,7 @@ make install                   # macOS: build, install over USB, open the app
 
 The debug build installs as "Memoria Debug", next to the release app. `make` alone lists every command.
 
-The models are made from the original ONNX files by [`bench/tflite.py`](bench/tflite.py) (needs [uv](https://docs.astral.sh/uv/)). The tagger's ONNX file comes from `bench/tags.py onnx` first.
+The models are made from the original ONNX files by [`bench/tflite.py`](bench/tflite.py) (needs [uv](https://docs.astral.sh/uv/)). Three ONNX files are made first: the tagger by `bench/tags.py onnx`, the pet model by `bench/pets.py onnx noodle_s`, YOLO26-M by Ultralytics' export (command in [`bench/objects.py`](bench/objects.py)).
 
 ## Tech
 

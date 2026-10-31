@@ -117,7 +117,14 @@ Fix ideas:
 
 ## Library opens slowly
 
-Reported 2026-10-29 by the user: the Library tab feels slow to show. Not measured yet. Find the cause before adding a preload.
+Reported 2026-10-29 by the user: the Library tab feels slow to show.
+
+Measured 2026-10-31 on the phone's 0.4.0 release (simpleperf, first Library open after a cold start, ms from the tap). Compiled with the profile: data at ~280, covers at ~340. Uncompiled (as after an install or update, until Android compiles it in idle time): data at ~355, covers at ~445. One serial load, compiled run:
+- taggedFaces 25, albums (MediaStore scan) 30, trash 8, placed 8.
+- Categories ~170, 60% of the wait: `tags.json` parse 15, all photo vectors from SQL 85, scoring 67. Redone on every open, and the rows above wait for it.
+- Covers start only after the data: ~40 more.
+
+Done 2026-10-31: each photo's tags are stored (`photo_tag`, DB v15), so an open scores only new vectors. Debug build on the phone: categories ~100 ms (`tags.json` 40, missing-rows scan 11, `photo_tag` read 12, `categories()` 27); the first open after the migration scores all photos once (~390). Release not measured yet.
 
 Steps:
 1. Start the app, tap Library. Compare the first open after launch with a later one.
@@ -158,6 +165,20 @@ Fix ideas (`docs/objects.md`):
 - Drop a face that is not inside any person box of the object detector (YOLO26, planned for pets too). With YOLO26-M at person score 0.05 it drops 32 faces of quality 0.4+, only 1 of them a real face; the rest are a painting, statues, cartoons, a cat.
 - Softer: such a face can't start a person but can still join one, like quality under 0.4.
 
+## No pets on another phone (Snapdragon 8 Gen 3)
+
+Seen 2026-10-31 on another phone, release 0.4.0, fresh install, scan done: the Pets category shows the owner's cat, but People & pets has no pet. The same owner's photos (sent over a messenger) on the test phone's debug app give the owner's cat (64 photos, box scores 0.73-0.99, mean 0.91) and a stray (8 photos), so the 0.7 box cut and the 6-photo rule are not the cause. No code path differs by phone.
+
+The models are downloaded. A model falls back to the next chip only when it fails to load (`open` in `Faces.kt`); errors while it runs and wrong numbers get no fallback. Likely causes (that chip: HTP V75 NPU, Adreno 750 GPU; only the test phone's 8 Elite was checked):
+- `pets.tflite` loads but throws on each run: in the main loop the whole photo becomes an error, so it loses its pets, its boxes and its faces. Only photos whose best cat box is 0.5-0.7 (no pet run) keep boxes, which fits a Pets category with no pets. Logcat shows `index <id>` errors.
+- A model runs with no error but gives wrong numbers: YOLO26-M cat scores under 0.7 but over 0.5, or broken pet vectors that never group. Logcat shows nothing.
+
+Steps to find out (the phone in hand):
+1. USB, take a new photo of the cat so a scan runs, then `adb logcat -d -s Memoria`: "objects.tflite on NPU/GPU/CPU", "pets.tflite on ...", "object models not loaded", "box <id>" errors.
+2. If the models load: install the debug build next to the release (own data, the release app is untouched), push a few cat photos to its `test/`, Dev tools Run on NPU, GPU and CPU, compare each `objects_<mode>.json` with `uv run bench/objects.py phone`.
+
+Fix ideas: wait for the phone (the user's call, no self-check at load). If one chip is wrong, skip it for that model, as `PetVectors` skips the NPU. If the pet model throws, keep the photo's faces and boxes and skip only the pet.
+
 ## Memoria Debug never auto-indexed new photos
 
 Fixed 2026-10-22 on the phone (setup, not code), kept as a trap for pushing models by hand. After the debug/release split, the face models and the NPU builds were copied into `Android/data/app.memoria.debug/files/` with `cp` on the phone, so they belonged to `shell` and were `rw-rw----`. The app could see `models/` but not read it, so `modelsReady()` was false and the watcher never started a run.
@@ -167,16 +188,16 @@ Fix (done on the phone):
 - Keep the model files' dates (`cp -p` or `touch -r`): an NPU build's name holds the model's size and date, so a new date means a rebuild, and a rebuild into a folder the app cannot write fails.
 - A fresh install also re-cuts every face picture once (`recutThumbs`, no `recutTo` pref yet) before it indexes anything, so its first run takes minutes.
 
-## Index notification stays after the run ("4380 / 4386 · 1s left")
+## Release runs uncompiled after an update
 
-Found 2026-10-30 on the test phone (debug build, full index). Tapping the progress notification stops the foreground service in the same millisecond (system side, not app code; 2 of 2 taps). The worker keeps going as a plain job and keeps posting the notification itself (`notifications.notify(1, ...)` in `IndexWorker`). About a minute after leaving the app, Android stops the idle service and the app is frozen for ~2 min with no progress. When the run ends, WorkManager's service is already gone, so nothing removes the last notice.
+Found 2026-10-31: after the OTA update to 0.4.0 the phone's release app was `status=verify, reason=install` a day later, ~25% slower (Library data ~355 vs ~280 ms compiled). Outside Play, Android compiles the baseline profile only in its idle job, which needs charging and idle at once (Google lists it as a known issue).
 
-Steps:
-1. Start a full index, tap the "Finding faces" notification, go back home.
-2. `adb logcat -b events`: `notification_clicked` and `am_foreground_service_stop ... STOP_FOREGROUND` at the same time, later `am_stop_idle_service`.
-3. After the run, the notification stays with the last count.
+How other apps handle it:
+- Signal, Mihon: ship a baseline profile and accept the wait. Signal's own updater installs through a session, APK only. NewPipe, Element X: no profile at all. Immich is Flutter (Dart compiled ahead), so this barely matters to it.
+- NuvioTV: its updater installs `base.apk` + `base.dm` in one session; the `.dm` files ship inside the APK's assets.
+- NewTube (a SmartTube fork): a Gradle task writes `assets/art-profile/baseline.prof` with `profgen` (ART's own format, keyed to the final dex). Android 15+ reads it at install with no `.dm`, so OTA, browser and adb installs all compile at once. They measured cold start 926 -> 582 ms.
 
-Fix ideas: `notifications.cancel(1)` in the worker's `finally`; update the notice through `setForeground` (catch the exception) instead of `notify`, so a lost foreground shows up; find why a tap drops the foreground.
+Done 2026-10-31: release builds also ship `assets/art-profile/baseline.prof`, AGP's profile converted to ART's format with the `profgen` inside AGP (`ArtProfileTask` in `app/build.gradle.kts`). Emulator (API 37), normal install and update over an old one: `verify` without the file, `speed-profile` with it, app starts. Check on the phone after the next OTA. Android 13-14 still wait for the idle job; a `.dm` in a session install would cover them.
 
 # Known issues and bad patterns
 
@@ -248,3 +269,5 @@ Native heap after 8 flings 141 MB, no blank tiles on a cold fling. Taken before 
 - 2026-10-22 Viewer: system bars stayed visible in the tapped state. Gone after a later viewer change.
 - 2026-10-27 Grid tiles pixelated on some DSLR photos. An exact 480 px decode skipped pixels; now halving only.
 - 2026-10-30 Pet groups mixed different cats. Noodle pet vectors, boxes 0.7+, cut 0.68, split pets join under 0.76: none mixed; quality is below people's, limited by the models (`docs/objects.md`).
+- 2026-10-31 Person or Pet screen kept a face removed in the viewer (Remove tag on a one-picture New pet left "1 photo"). A fix in the viewer now bumps `peopleSaved`, so the screen reloads and closes when its last face left.
+- 2026-10-31 Index notification stayed after the run when a tap on it had dropped the foreground. The worker cancels it in `finally`.
