@@ -626,6 +626,17 @@ fun UnmergeSheetPreview() = MemoriaTheme {
     }
 }
 
+/** Unmerge while the regroup runs: the button reads Unmerging… and is off. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 520)
+@Composable
+fun UnmergeBusyPreview() = MemoriaTheme {
+    Surface {
+        val p = fakePerson(1, "Dana")
+        UnmergeContent(p, p.faces.take(3), setOf(p.faces[1].id), {}, {}, {}, busy = true)
+    }
+}
+
 /** Change cover, one picked: the same ring and check, and Save on. */
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 720)

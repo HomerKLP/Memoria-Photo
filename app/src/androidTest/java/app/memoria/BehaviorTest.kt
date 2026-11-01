@@ -966,6 +966,16 @@ class BehaviorTest {
         assertEquals(listOf(102L), split)
     }
 
+    @Test fun unmerge_busy_lockedUntilDone() {
+        val dana = person(1, "Dana")
+        var picks = 0
+        rule.setContent { MemoriaTheme { Surface { UnmergeContent(dana, dana.faces.take(2), setOf(101L), { picks++ }, {}, {}, busy = true) } } }
+
+        rule.onNodeWithText("Unmerging…").assertIsNotEnabled()
+        rule.onNodeWithTag("unmergeFace-102").performClick()
+        assertEquals(0, picks)
+    }
+
     @Test fun person_unnamed_menuAddsName() {
         var named = false
         rule.setContent { MemoriaTheme { Surface { PeopleContent(peopleData, openId = 3, onName = { named = true }) } } }

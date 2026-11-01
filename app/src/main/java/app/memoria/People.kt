@@ -384,6 +384,7 @@ fun PeopleScreen(
     var selected by remember { mutableStateOf<List<Long>?>(null) }
     var hidingAll by remember { mutableStateOf<List<Person>?>(null) }
     var unmerging by remember { mutableStateOf<Person?>(null) }
+    var unmergeBusy by remember { mutableStateOf(false) }
     // [saved] as a key: the run saves people every so often, so they show up while indexing.
     val saved by peopleSaved.collectAsState()
     val result by cachedProduceState("people", reload, saved) {
@@ -532,10 +533,14 @@ fun PeopleScreen(
         )
     }
     unmerging?.let { p ->
-        UnmergeSheet(p, mergedParts(p, merges), onDismiss = { unmerging = null }) { faces ->
-            unmerging = null
-            // a regroup, so it takes a moment; the screen reloads when it is saved
-            scope.launch { withContext(Dispatchers.IO + NonCancellable) { unmergePeople(db, p, faces) } }
+        UnmergeSheet(p, mergedParts(p, merges), unmergeBusy, onDismiss = { unmerging = null }) { faces ->
+            // a full regroup takes a few seconds: the sheet stays open until it is saved
+            unmergeBusy = true
+            scope.launch {
+                withContext(Dispatchers.IO + NonCancellable) { unmergePeople(db, p, faces) }
+                unmergeBusy = false
+                unmerging = null
+            }
         }
     }
     naming?.let { p ->
@@ -1119,17 +1124,17 @@ fun ChangeCoverContent(person: Person, picked: Long?, onPick: (Long) -> Unit, on
 /** "Unmerge" sheet from the mockup: one face per part merged into [person]; the picked parts split off. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun UnmergeSheet(person: Person, parts: List<FaceVec>, onDismiss: () -> Unit, onUnmerge: (List<Long>) -> Unit) {
+fun UnmergeSheet(person: Person, parts: List<FaceVec>, busy: Boolean, onDismiss: () -> Unit, onUnmerge: (List<Long>) -> Unit) {
     val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var picked by remember { mutableStateOf(emptySet<Long>()) }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet, containerColor = MaterialTheme.colorScheme.background) {
-        UnmergeContent(person, parts, picked, { f -> picked = if (f in picked) picked - f else picked + f }, onDismiss, onUnmerge)
+        UnmergeContent(person, parts, picked, { f -> picked = if (f in picked) picked - f else picked + f }, onDismiss, onUnmerge, busy)
     }
 }
 
 /** The sheet's body without the bottom-sheet chrome, so tests can render it directly. */
 @Composable
-fun UnmergeContent(person: Person, parts: List<FaceVec>, picked: Set<Long>, onPick: (Long) -> Unit, onCancel: () -> Unit, onUnmerge: (List<Long>) -> Unit) {
+fun UnmergeContent(person: Person, parts: List<FaceVec>, picked: Set<Long>, onPick: (Long) -> Unit, onCancel: () -> Unit, onUnmerge: (List<Long>) -> Unit, busy: Boolean = false) {
     Column(Modifier.padding(bottom = 16.dp)) {
         Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             FaceImage(person.cover, Modifier.size(48.dp).clip(CircleShape))
@@ -1142,12 +1147,13 @@ fun UnmergeContent(person: Person, parts: List<FaceVec>, picked: Set<Long>, onPi
         // the parts never change while the sheet is open, so the grid's height (and the buttons) stay put
         LazyVerticalGrid(GridCells.Fixed(4), Modifier.heightIn(max = 320.dp), contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp)) {
             items(parts, key = { it.id }) { f ->
-                Box(Modifier.padding(4.dp).testTag("unmergeFace-${f.id}").clickable { onPick(f.id) }) { PickFace(f, 68.dp, f.id in picked) }
+                Box(Modifier.padding(4.dp).testTag("unmergeFace-${f.id}").clickable(enabled = !busy) { onPick(f.id) }) { PickFace(f, 68.dp, f.id in picked) }
             }
         }
         ActionBar(
-            "Cancel", null, onCancel, "Unmerge", R.drawable.ic_person_remove, { onUnmerge(picked.toList()) },
-            danger = false, primaryEnabled = picked.isNotEmpty(),
+            // the buttons share the row by weight, so the longer label never changes the width
+            "Cancel", null, onCancel, if (busy) "Unmerging…" else "Unmerge", R.drawable.ic_person_remove, { onUnmerge(picked.toList()) },
+            danger = false, primaryEnabled = picked.isNotEmpty() && !busy,
         )
     }
 }

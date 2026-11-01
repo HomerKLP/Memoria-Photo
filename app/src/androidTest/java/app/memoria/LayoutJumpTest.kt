@@ -435,18 +435,21 @@ class LayoutJumpTest {
         assertSame("first card, picked", cardBefore, rule.onNodeWithText("Person 1").top())
     }
 
-    /** Unmerge: the parts never change while the sheet is open, so a pick moves neither the header nor the button. */
+    /** Unmerge: a pick moves neither the header nor the button, and "Unmerging…" keeps the button's place and width. */
     @Test fun unmerge_pickingFace_keepsHeaderAndButtonPut() {
         var picked by mutableStateOf(emptySet<Long>())
+        var busy by mutableStateOf(false)
         val person = face(1).let { Person((1L..8L).map { i -> face(i) }, it, 1, "Dana") }
-        rule.setContent { MemoriaTheme { Surface { UnmergeContent(person, person.faces.take(3), picked, {}, {}, {}) } } }
+        rule.setContent { MemoriaTheme { Surface { UnmergeContent(person, person.faces.take(3), picked, {}, {}, {}, busy) } } }
 
         val titleBefore = rule.onNodeWithText("Unmerge Dana").top()
-        val buttonBefore = rule.onNodeWithText("Unmerge").top()
+        val buttonBefore = rule.onNodeWithText("Unmerge").getUnclippedBoundsInRoot()
         rule.runOnIdle { picked = setOf(2L) }
         rule.onNodeWithTag("pickCheck", useUnmergedTree = true).assertExists()
         assertSame("title", titleBefore, rule.onNodeWithText("Unmerge Dana").top())
-        assertSame("Unmerge button", buttonBefore, rule.onNodeWithText("Unmerge").top())
+        assertSame("Unmerge button", buttonBefore.top, rule.onNodeWithText("Unmerge").top())
+        rule.runOnIdle { busy = true }
+        assertEquals("Unmerging button", buttonBefore, rule.onNodeWithText("Unmerging…").getUnclippedBoundsInRoot())
     }
 
     /** Merge with: picking a face draws the check at its top right and must not move the grid or the buttons. */
