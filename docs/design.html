@@ -23,9 +23,11 @@
   --on-viewer: #F4ECE1;
   --display: "Bricolage Grotesque", "Roboto", system-ui, sans-serif;
   --body: "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --rail: 200px;
   color-scheme: light;
 }
 
+html { scroll-behavior: smooth; }
 body {
   margin: 0;
   background: var(--page);
@@ -33,6 +35,24 @@ body {
   font: 14px/1.4 var(--body);
   padding: 32px 16px 56px;
 }
+/* Fixed table of contents: groups with their sub-screens, always visible on the left. */
+.rail { display: none; }
+@media (min-width: 1024px) {
+  body { padding-left: calc(var(--rail) + 24px); }
+  .rail {
+    display: block; position: fixed; inset: 0 auto 0 0; box-sizing: border-box; width: var(--rail); z-index: 10;
+    padding: 22px 10px 22px 14px; overflow-y: auto;
+    background: var(--surface); border-right: 1px solid var(--line); font-size: 13px;
+  }
+  .rail h2 { font: 700 12px/1.2 var(--body); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); margin: 22px 0 6px; }
+  .rail h2:first-child { margin-top: 0; }
+  .rail a { display: block; color: var(--fg); text-decoration: none; padding: 4px 8px; border-radius: 8px; }
+  .rail a:hover { background: var(--bg); }
+  .rail a.on { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+  .rail .sub a { padding-left: 16px; color: var(--muted); }
+  .rail .sub a.on { color: var(--accent); }
+}
+:target { scroll-margin-top: 16px; }
 /* The app bundles the static Bricolage "24pt" cut; without this the browser reshapes it per size */
 * { font-variation-settings: "opsz" 24; }
 img { max-width: 100%; }
@@ -43,8 +63,7 @@ svg.i { width: 24px; height: 24px; fill: currentColor; flex: none; }
 .top, .group { max-width: 1400px; margin: 0 auto 48px; }
 h1 { font: 700 28px/1.1 var(--display); margin: 0; text-wrap: balance; }
 .lede { margin: 6px 0 0; color: var(--muted); }
-.toc { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 12px; }
-.toc a { color: var(--accent); font-weight: 500; text-decoration: none; }
+/* The table of contents lives in the fixed .rail on the left. */
 .group > h2 { font: 700 24px/1.2 var(--display); margin: 0 0 16px; }
 .group > h3 { font: 700 18px/1.2 var(--display); margin: 40px 0 16px; }
 
@@ -455,8 +474,43 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 <header class="top">
   <h1>Memoria Photo</h1>
   <p class="lede">Light theme, Honey palette. Photos and faces are placeholders, names and places are made up.</p>
-  <nav class="toc"><a href="#page-photos">Photos</a><a href="#page-search">Search</a><a href="#page-viewer">Viewer</a><a href="#page-library">Library</a><a href="#favorites">Favorites</a><a href="#page-albums">Albums</a><a href="#page-places">Places</a><a href="#page-categories">Categories</a><a href="#page-people">People</a><a href="#page-settings">Settings</a><a href="#devtools">Dev tools</a><a href="#parts">Shared parts</a><a href="#app-icon">App icon</a></nav>
 </header>
+
+<aside class="rail" aria-label="Contents">
+  <h2>Screens</h2>
+  <a href="#page-photos">Photos</a>
+  <a href="#page-search">Search</a>
+  <a href="#page-viewer">Viewer</a>
+  <a href="#page-library">Library</a>
+  <div class="sub">
+    <a href="#favorites">Favorites</a>
+    <a href="#videos-select">Videos</a>
+    <a href="#trash">Trash</a>
+    <a href="#page-albums">Albums</a>
+    <a href="#page-places">Places</a>
+    <a href="#page-categories">Categories</a>
+  </div>
+  <a href="#page-people">People &amp; pets</a>
+  <div class="sub">
+    <a href="#recognize-done">Help recognize</a>
+    <a href="#who-pet">Who is this?</a>
+  </div>
+  <h2>Settings</h2>
+  <a href="#page-settings">Settings</a>
+  <div class="sub">
+    <a href="#models-missing">Models</a>
+    <a href="#search-done">Scan</a>
+    <a href="#update-new">Updates</a>
+    <a href="#rescan">Find faces again</a>
+    <a href="#skip">Folders to skip</a>
+    <a href="#hidden">Hidden people &amp; pets</a>
+    <a href="#licenses">Licenses</a>
+    <a href="#devtools">Dev tools</a>
+  </div>
+  <h2>Reference</h2>
+  <a href="#parts">Shared parts</a>
+  <a href="#app-icon">App icon</a>
+</aside>
 
 <main>
 <section class="group" id="page-photos">
@@ -1043,7 +1097,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
   </div>
 </section>
 <section class="group" id="page-people">
-  <h2>People</h2>
+  <h2>People &amp; pets</h2>
   <div class="phones">
     <figure>
       <div class="phone">
@@ -2157,6 +2211,26 @@ for (const id of ["album-photos", "person-scrolled-list", "videos", "favorites-g
   const list = document.getElementById(id), secs = list.querySelectorAll(".month-sec");
   list.scrollTop = secs[1].offsetTop - list.offsetTop + 120; // one tile row gone: the next row starts right under the pinned month
 }
+</script>
+
+<script>
+// Sidebar: highlight the screen you are at while scrolling.
+const railLinks = [...document.querySelectorAll(".rail a[href^='#']")];
+const railTargets = railLinks.map(a => document.querySelector(a.getAttribute("href")));
+function markRail() {
+  const at = scrollY + 140;
+  let bestTop = -Infinity, on = 0;
+  // the anchor closest above the top of the viewport, whatever order the rail lists them in
+  railTargets.forEach((el, i) => {
+    if (!el) return;
+    const top = el.getBoundingClientRect().top + scrollY;
+    if (top <= at && top >= bestTop) { bestTop = top; on = i; }
+  });
+  railLinks.forEach((a, i) => a.classList.toggle("on", i === on));
+}
+addEventListener("scroll", markRail, { passive: true });
+addEventListener("resize", markRail);
+markRail();
 </script>
 
 </body>
