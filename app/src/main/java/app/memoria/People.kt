@@ -138,8 +138,8 @@ class Person(val faces: List<FaceVec>, val main: FaceVec, val id: Long = 0, val 
     /** The unsure faces of this person that look like [face] (0.3 or closer): one Yes on [face] settles them too. Not under quality 0.3: the regroup doesn't trust that Yes. */
     fun twinsOf(face: FaceVec) = if (face.quality < 0.3f) emptyList() else faces.filter { !it.sure && it.id != face.id && it.distanceTo(face) <= 0.3f }
 
-    /** Distinct photos the person appears in. */
-    val photos get() = faces.map { it.photoId }.distinct().size
+    /** Distinct photos the person appears in. Counted once: the faces never change while this snapshot lives. */
+    val photos = faces.map { it.photoId }.distinct().size
 
     /** The face shown for this person (People, Library, the top bar, the sheets): the user's pick, or the main face. */
     val cover get() = faces.firstOrNull { it.id == coverFaceId } ?: main
