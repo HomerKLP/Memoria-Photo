@@ -1,5 +1,7 @@
 package app.memoria
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.Alignment
 import android.content.Context
 import android.media.ExifInterface
 import android.net.Uri
@@ -168,36 +170,34 @@ fun PlaceContent(place: Place?, onBack: () -> Unit = {}, onOpen: (List<Tile>, Ti
         val grid = rememberLazyGridState()
         val allTiles = p?.tiles.orEmpty()
         FollowViewer(grid, allTiles)
-        MonthSliderBox(grid = grid, months = months, enabled = sel == null, top = monthHeadingHeight(below = 10.dp), modifier = Modifier.weight(1f)) {
-            LazyVerticalGrid(
-                GridCells.Fixed(3), Modifier.testTag("placeGrid"), state = grid,
-                horizontalArrangement = Arrangement.spacedBy(1.dp), verticalArrangement = Arrangement.spacedBy(1.dp),
-            ) {
-                groups.forEach { (m, tiles) ->
-                    stickyHeader(key = m) {
-                        // background: the pinned month covers the tiles passing under it
-                        Text(
-                            m, Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(start = 16.dp, top = 20.dp, bottom = 10.dp),
-                            style = MaterialTheme.typography.titleLarge,
-                        )
-                    }
-                    items(tiles, key = { it.id }) { t ->
-                        val on = sel != null && t.id in sel
-                        TileImage(
-                            t,
-                            Modifier.combinedClickable(
-                                onClick = { if (sel == null) onOpen(allTiles, t) else pick.set(if (on) sel - t.id else sel + t.id) },
-                                onLongClick = { pick.set(sel.orEmpty() + t.id) },
-                            ).testTag("tile-${t.id}").animateItem(fadeInSpec = null), // no fade in: a first load shows at once
-                            selecting = sel != null, selected = on,
-                        )
+        // the Select bar floats over the grid, so nothing moves when it comes in
+        Box(Modifier.weight(1f)) {
+            MonthSliderBox(grid = grid, months = months, enabled = sel == null, top = monthHeadingHeight(below = 10.dp), modifier = Modifier.fillMaxSize()) {
+                LazyVerticalGrid(
+                    GridCells.Fixed(3), Modifier.testTag("placeGrid"), state = grid,
+                    contentPadding = PaddingValues(bottom = if (sel != null) 72.dp else 0.dp),
+                    horizontalArrangement = Arrangement.spacedBy(1.dp), verticalArrangement = Arrangement.spacedBy(1.dp),
+                ) {
+                    groups.forEach { (m, tiles) ->
+                        stickyHeader(key = m, contentType = "month") { MonthHeading(m, m, grid, below = 10.dp) }
+                        items(tiles, key = { it.id }) { t ->
+                            val on = sel != null && t.id in sel
+                            TileImage(
+                                t,
+                                Modifier.combinedClickable(
+                                    onClick = { if (sel == null) onOpen(allTiles, t) else pick.set(if (on) sel - t.id else sel + t.id) },
+                                    onLongClick = { pick.set(sel.orEmpty() + t.id) },
+                                ).testTag("tile-${t.id}").animateItem(fadeInSpec = null), // no fade in: a first load shows at once
+                                selecting = sel != null, selected = on,
+                            )
+                        }
                     }
                 }
             }
-        }
-        if (sel != null) {
-            val picked = p?.tiles.orEmpty().filter { it.id in sel }
-            SelectBar(picked.isNotEmpty() && picked.all { it.favorite }, { pick.share(picked) }, { pick.favorite(picked) }, { pick.delete(picked) })
+            if (sel != null) {
+                val picked = p?.tiles.orEmpty().filter { it.id in sel }
+                SelectBar(picked.isNotEmpty() && picked.all { it.favorite }, { pick.share(picked) }, { pick.favorite(picked) }, { pick.delete(picked) }, modifier = Modifier.align(Alignment.BottomCenter))
+            }
         }
     }
 }

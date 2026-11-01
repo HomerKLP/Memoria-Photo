@@ -13,6 +13,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,16 +26,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationItemIconPosition
-import androidx.compose.material3.ShortNavigationBar
-import androidx.compose.material3.ShortNavigationBarItem
-import androidx.compose.material3.ShortNavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -53,6 +53,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -214,11 +217,52 @@ fun ActionBar(
 }
 
 /**
- * Bottom bar while selecting (mockup "Select bar"). It takes the bottom tabs' place and is built from
- * the same [ShortNavigationBar], so it has exactly the same height and the grid never moves. Share and
- * Favorite read normally, Delete sits last in red. [favorite] true: everything picked is already a
- * favorite, so the middle action reads Unfavorite. [onMove] adds Move (albums only); four actions put
- * the label under the icon, or they do not fit at 360 dp.
+ * The floating pill under [Tabs] and [SelectBar] (mockup "Tabs"): no bar behind it, so photos show on
+ * both sides. It keeps clear of the gesture bar itself; the list under it ends with room to clear it.
+ */
+@Composable
+private fun FloatingBar(modifier: Modifier, content: @Composable RowScope.() -> Unit) {
+    Row(
+        modifier.navigationBarsPadding().padding(bottom = 8.dp)
+            .shadow(6.dp, CircleShape, spotColor = Color(0x73462D14))
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.94f), CircleShape)
+            // a tap between the buttons must not reach the photo under the pill
+            .pointerInput(Unit) {}
+            .padding(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        content = content,
+    )
+}
+
+/** Photos and Library (mockup "Tabs"): text only, a fixed width each, so the bold tab never moves the pill. */
+@Composable
+fun Tabs(tab: String, onPhotos: () -> Unit, onLibrary: () -> Unit, modifier: Modifier = Modifier) {
+    FloatingBar(modifier) {
+        TabButton("Photos", tab == "photos", onPhotos)
+        TabButton("Library", tab == "library", onLibrary)
+    }
+}
+
+@Composable
+private fun TabButton(label: String, on: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier.width(96.dp).height(40.dp).clip(CircleShape)
+            .then(if (on) Modifier.background(MaterialTheme.colorScheme.secondaryContainer) else Modifier)
+            .selectable(on, role = Role.Tab, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            label, fontSize = 14.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.Medium,
+            color = if (on) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/**
+ * The floating pill while selecting (mockup "Select bar"): it takes the tabs' spot on a tab screen and
+ * floats in over the grid elsewhere, so nothing moves. A fixed width per action, so Unfavorite never
+ * moves the pill. [favorite] true: everything picked is already a favorite. [onMove] adds Move (albums
+ * only); four actions put the label under the icon, or they do not fit at 360 dp. Delete goes last, in red.
  */
 @Composable
 fun SelectBar(
@@ -227,43 +271,28 @@ fun SelectBar(
     onFavorite: () -> Unit,
     onDelete: () -> Unit,
     onMove: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
 ) {
-    val error = MaterialTheme.colorScheme.error
-    val normal = ShortNavigationBarItemDefaults.colors(
-        unselectedIconColor = MaterialTheme.colorScheme.onSurface,
-        unselectedTextColor = MaterialTheme.colorScheme.onSurface,
-    )
-    val danger = ShortNavigationBarItemDefaults.colors(unselectedIconColor = error, unselectedTextColor = error)
-    val at = if (onMove != null) NavigationItemIconPosition.Top else NavigationItemIconPosition.Start
-    ShortNavigationBar {
-        ShortNavigationBarItem(
-            false, onShare,
-            { Icon(painterResource(R.drawable.ic_share), null) },
-            { Text("Share") },
-            iconPosition = at,
-            colors = normal,
-        )
-        ShortNavigationBarItem(
-            false, onFavorite,
-            { Icon(painterResource(R.drawable.ic_favorite_border), null) },
-            { Text(if (favorite) "Unfavorite" else "Favorite") },
-            iconPosition = at,
-            colors = normal,
-        )
-        if (onMove != null) ShortNavigationBarItem(
-            false, onMove,
-            { Icon(painterResource(R.drawable.ic_move), null) },
-            { Text("Move") },
-            iconPosition = at,
-            colors = normal,
-        )
-        ShortNavigationBarItem(
-            false, onDelete,
-            { Icon(painterResource(R.drawable.ic_trash_line), null) },
-            { Text("Delete") },
-            iconPosition = at,
-            colors = danger,
-        )
+    val four = onMove != null
+    FloatingBar(modifier) {
+        SelectAction(R.drawable.ic_share, "Share", four, onShare)
+        SelectAction(R.drawable.ic_favorite_border, if (favorite) "Unfavorite" else "Favorite", four, onFavorite)
+        if (onMove != null) SelectAction(R.drawable.ic_move, "Move", four, onMove)
+        SelectAction(R.drawable.ic_trash_line, "Delete", four, onDelete, danger = true)
+    }
+}
+
+@Composable
+private fun SelectAction(icon: Int, label: String, four: Boolean, onClick: () -> Unit, danger: Boolean = false) {
+    val color = if (danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+    val button = Modifier.width(if (four) 76.dp else 104.dp).height(if (four) 52.dp else 40.dp).clip(CircleShape).clickable(onClick = onClick)
+    if (four) Column(button, verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+        Icon(painterResource(icon), null, Modifier.size(24.dp), tint = color)
+        Text(label, color = color, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+    }
+    else Row(button, horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
+        Icon(painterResource(icon), null, Modifier.size(24.dp), tint = color)
+        Text(label, color = color, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1)
     }
 }
 
@@ -295,6 +324,46 @@ private val sliderTopGap = 3.dp
 @Composable
 fun monthHeadingHeight(below: Dp): Dp =
     20.dp + with(LocalDensity.current) { MaterialTheme.typography.titleLarge.lineHeight.toDp() } + below
+
+/**
+ * A month heading in a `stickyHeader` (mockup "Sticky month header"): plain in the list, a small floating
+ * pill once pinned, in a box of the same height, so nothing moves. [key] is the header's item key; give
+ * every month header `contentType = "month"` so the next one can push this one up. Both read the live
+ * layout by key, never a remembered index.
+ */
+@Composable
+fun MonthHeading(text: String, key: Any, grid: LazyGridState, below: Dp) {
+    val pinned by remember(grid, key) {
+        derivedStateOf {
+            val me = grid.layoutInfo.visibleItemsInfo.firstOrNull { it.key == key }
+            me != null && (grid.firstVisibleItemIndex > me.index || grid.firstVisibleItemIndex == me.index && grid.firstVisibleItemScrollOffset > 0)
+        }
+    }
+    Box(
+        // over the tiles: the pill can sit lower than the header's own slot (below)
+        Modifier.zIndex(1f).fillMaxWidth().height(monthHeadingHeight(below)).testTag("monthHeading").graphicsLayer {
+            // Compose pins at the grid's edge, inside its top padding (the status bar on the Photos tab);
+            // the pill goes where the content starts instead, and the next month pushes it up from there.
+            // Only a header above the content start moves, so one further down never shifts.
+            val items = grid.layoutInfo.visibleItemsInfo
+            val me = items.firstOrNull { it.key == key } ?: return@graphicsLayer
+            if (me.offset.y >= 0) return@graphicsLayer
+            val next = items.firstOrNull { it.index > me.index && it.contentType == "month" }
+            translationY = (minOf(0, next?.let { it.offset.y - me.size.height } ?: 0) - me.offset.y).toFloat()
+        },
+        contentAlignment = Alignment.BottomStart,
+    ) {
+        if (pinned) Text(
+            text,
+            Modifier.padding(start = 8.dp, bottom = (below - 6.dp).coerceAtLeast(0.dp))
+                .shadow(6.dp, CircleShape, spotColor = Color(0x73462D14))
+                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.94f), CircleShape)
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            style = MaterialTheme.typography.titleMedium,
+        )
+        else Text(text, Modifier.padding(start = 16.dp, bottom = below), style = MaterialTheme.typography.titleLarge)
+    }
+}
 
 /** Where the month at [index] of the rail sits. The months run from [pad] to height - [pad]. */
 internal fun trackY(months: Int, index: Int, height: Dp, pad: Dp): Dp {
@@ -330,6 +399,7 @@ fun MonthSlider(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     top: Dp = 0.dp,
+    bottom: Dp = 0.dp,
     content: @Composable () -> Unit,
 ) {
     val haptics = LocalHapticFeedback.current
@@ -341,13 +411,14 @@ fun MonthSlider(
         modifier.fillMaxSize().monthSliderDrag(
             months = if (enabled) months.size else 0,
             top = top + sliderTopGap,
+            bottom = sliderBottom + bottom,
             onDragging = onDragging,
             onMonth = { onJump(it); haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove) },
         )
     ) {
         content()
         // keep it composed while it fades out, and leave it out entirely when the slider is off
-        if (alpha > 0.01f) BoxWithConstraints(Modifier.fillMaxSize().padding(top = top + sliderTopGap, bottom = sliderBottom).alpha(alpha)) {
+        if (alpha > 0.01f) BoxWithConstraints(Modifier.fillMaxSize().padding(top = top + sliderTopGap, bottom = sliderBottom + bottom).alpha(alpha)) {
             val now = dragging ?: current
             // rail
             Box(
@@ -385,7 +456,7 @@ fun MonthSlider(
  * heading. The slider fades in while scrolling and out 2 s after the last step, stays hidden at the
  * top, and a drag jumps the grid to that month's heading. Shared by the timeline and Place.
  * With fewer than three months there is nothing worth jumping to, so it never shows.
- * [top] is the pinned heading's height, see [monthHeadingHeight].
+ * [top] is the pinned heading's height, see [monthHeadingHeight]; [bottom] is extra room under the slider.
  */
 @Composable
 fun MonthSliderBox(
@@ -394,6 +465,7 @@ fun MonthSliderBox(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     top: Dp = 0.dp,
+    bottom: Dp = 0.dp,
     content: @Composable () -> Unit,
 ) {
     val starts = remember(months) { months.map { it.first } }
@@ -434,18 +506,18 @@ fun MonthSliderBox(
         },
         // the drag handler keeps its first onJump while the month count stays, so read the starts of the latest load
         onJump = { i -> drag = i; scope.launch { grid.scrollToItem(startsNow.getOrElse(i) { 0 }) } },
-        modifier = modifier, enabled = enabled && starts.size >= 3, top = top, content = content,
+        modifier = modifier, enabled = enabled && starts.size >= 3, top = top, bottom = bottom, content = content,
     )
 }
 
 /** Drags that start on the right [sliderWidth] strip jump to a month; all other touches go to the content. */
-private fun Modifier.monthSliderDrag(months: Int, top: Dp, onDragging: (Boolean) -> Unit, onMonth: (Int) -> Unit): Modifier =
-    pointerInput(months, top) {
+private fun Modifier.monthSliderDrag(months: Int, top: Dp, bottom: Dp, onDragging: (Boolean) -> Unit, onMonth: (Int) -> Unit): Modifier =
+    pointerInput(months, top, bottom) {
         if (months < 1) return@pointerInput
         val strip = sliderWidth.toPx()
         val pad = sliderPad.toPx()
         val above = top.toPx()
-        val below = sliderBottom.toPx()
+        val below = bottom.toPx()
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
             if (down.position.x < size.width - strip) return@awaitEachGesture

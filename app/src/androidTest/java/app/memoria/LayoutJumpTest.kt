@@ -6,11 +6,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.LazyGridState
-import androidx.compose.material3.Icon
+import androidx.compose.foundation.gestures.scrollBy
+import kotlinx.coroutines.runBlocking
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationItemIconPosition
-import androidx.compose.material3.ShortNavigationBar
-import androidx.compose.material3.ShortNavigationBarItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
@@ -19,7 +22,6 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertIsDisplayed
@@ -664,28 +666,81 @@ class LayoutJumpTest {
         rule.onNodeWithTag("tile-100").assertIsDisplayed()
     }
 
-    /** Photos select mode: the Select bar takes the tabs' place and must have exactly the same height. */
-    @Test fun photos_selectBar_keepsBottomBarHeight() {
-        var selecting by mutableStateOf(false)
+    /** Tabs: each has a fixed width, so the bold one never moves the other. */
+    @Test fun tabs_switching_keepsThemPut() {
+        var tab by mutableStateOf("photos")
+        rule.setContent { MemoriaTheme { Surface { Tabs(tab, {}, {}) } } }
+
+        val before = rule.onNodeWithText("Library").getUnclippedBoundsInRoot().left
+        rule.runOnIdle { tab = "library" }
+        assertSame("Library tab", before, rule.onNodeWithText("Library").getUnclippedBoundsInRoot().left)
+    }
+
+    /** Select bar: Favorite turning into Unfavorite keeps every action where it was. */
+    @Test fun selectBar_unfavorite_keepsActionsPut() {
+        var favorite by mutableStateOf(false)
+        rule.setContent { MemoriaTheme { Surface { SelectBar(favorite, {}, {}, {}) } } }
+
+        val before = rule.onNodeWithText("Delete").getUnclippedBoundsInRoot().left
+        rule.runOnIdle { favorite = true }
+        rule.onNodeWithText("Unfavorite").assertIsDisplayed()
+        assertSame("Delete", before, rule.onNodeWithText("Delete").getUnclippedBoundsInRoot().left)
+    }
+
+    /** The month heading turns into a pill once pinned, in a box of the same height, so the photos under it never move. */
+    @Test fun photos_monthHeadingPinned_keepsItsHeight() {
+        val items: List<TimelineItem> = listOf(Header("m1", "October 2026", true), Header("d1", "Sat, 11 Oct", false)) + (1L..80L).map { tile(it) }
+        val grid = LazyGridState()
+        rule.setContent { MemoriaTheme { Surface { PhotosContent(items, grid = grid) } } }
+
+        val before = rule.onNodeWithTag("monthHeading").height()
+        rule.onNodeWithTag("photosGrid").performScrollToIndex(20)
+        rule.waitForIdle()
+        assertTrue("pinned", rule.runOnIdle { grid.firstVisibleItemIndex } > 1)
+        assertSame("month heading", before, rule.onNodeWithTag("monthHeading").height())
+        rule.onNodeWithText("October 2026").assertIsDisplayed()
+    }
+
+    /**
+     * A month heading below the pinned one stays in its own slot, on a grid with a top padding like the
+     * Photos tab under the status bar: scrolled, after new photos arrive on top, after scrolling back up
+     * from that month pinned, and after a jump.
+     */
+    @Test fun monthHeading_belowThePinnedOne_staysInItsSlot() {
+        var newOnTop by mutableStateOf(0)
+        val grid = LazyGridState()
         rule.setContent {
             MemoriaTheme {
                 Surface {
-                    Box(Modifier.testTag("bottomBar")) {
-                        if (selecting) SelectBar(false, {}, {}, {})
-                        else ShortNavigationBar {
-                            ShortNavigationBarItem(
-                                false, {}, { Icon(painterResource(R.drawable.ic_photo), null) }, { Text("Photos") },
-                                iconPosition = NavigationItemIconPosition.Start,
-                            )
+                    LazyVerticalGrid(GridCells.Fixed(3), state = grid, contentPadding = PaddingValues(top = 40.dp)) {
+                        if (newOnTop > 0) {
+                            stickyHeader(key = "nov", contentType = "month") { MonthHeading("November 2026", "nov", grid, below = 2.dp) }
+                            items(newOnTop, key = { "n$it" }) { Box(Modifier.aspectRatio(1f)) }
                         }
+                        stickyHeader(key = "oct", contentType = "month") { MonthHeading("October 2026", "oct", grid, below = 2.dp) }
+                        items(15, key = { "o$it" }) { Box(Modifier.aspectRatio(1f)) }
+                        stickyHeader(key = "sep", contentType = "month") { MonthHeading("September 2026", "sep", grid, below = 2.dp) }
+                        item(key = "day", span = { GridItemSpan(maxLineSpan) }) { Text("Wed, 30 Sep", Modifier.padding(top = 12.dp, bottom = 6.dp)) }
+                        items(60, key = { "s$it" }) { Box(Modifier.aspectRatio(1f)) }
                     }
                 }
             }
         }
+        fun assertInSlot(step: String) {
+            rule.waitForIdle()
+            val heading = rule.onNodeWithText("September 2026").getUnclippedBoundsInRoot()
+            val day = rule.onNodeWithText("Wed, 30 Sep").getUnclippedBoundsInRoot()
+            assertTrue("$step: heading ${heading.bottom} over the day ${day.top}", heading.bottom <= day.top)
+        }
 
-        val before = rule.onNodeWithTag("bottomBar").height()
-        rule.runOnIdle { selecting = true }
-        assertSame("bottom bar height", before, rule.onNodeWithTag("bottomBar").height())
+        rule.runOnIdle { runBlocking { grid.scrollToItem(4) } } // October pinned, September further down
+        assertInSlot("scrolled")
+        rule.runOnIdle { newOnTop = 3 }
+        assertInSlot("new photos on top")
+        rule.runOnIdle { runBlocking { grid.scrollToItem(newOnTop + 1 + 15 + 2 + 6); grid.scrollBy(-600f) } } // September pinned, then back up
+        assertInSlot("back up")
+        rule.runOnIdle { runBlocking { grid.scrollToItem(newOnTop + 1 + 6) } }
+        assertInSlot("jump")
     }
 
     /**

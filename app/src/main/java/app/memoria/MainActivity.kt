@@ -37,16 +37,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.layout.LazyLayoutCacheWindow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationItemIconPosition
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.ShortNavigationBar
-import androidx.compose.material3.ShortNavigationBarItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -224,32 +221,10 @@ fun App(dir: File, openSettings: Int = 0, atUpdates: Boolean = false) {
     Box(Modifier.fillMaxSize()) {
         Box(if (viewing != null) Modifier.clearAndSetSemantics {} else Modifier) {
             Box(Modifier.graphicsLayer { translationX = -pushed * size.width }.then(if (opened.targetState != null) Modifier.clearAndSetSemantics {} else Modifier)) {
-                Scaffold(bottomBar = {
-                    // The tabs and the Select bar are the same height (both build on ShortNavigationBar),
-                    // so crossfading them never moves the grid.
-                    Crossfade(targetState = tab == "photos" && selection.active, label = "bottomBar") { selecting ->
-                        if (selecting) SelectBar(
-                            favorite = selection.allFavorite,
-                            onShare = shareSelected,
-                            onFavorite = { favoriteSelected(!selection.allFavorite) },
-                            onDelete = deleteSelected,
-                        )
-                        else ShortNavigationBar {
-                            ShortNavigationBarItem(
-                                tab == "photos", {
-                                    if (tab == "photos") photosScrollTop++ else tab = "photos"
-                                }, { Icon(painterResource(R.drawable.ic_photo), null) }, { Text("Photos") },
-                                iconPosition = NavigationItemIconPosition.Start,
-                            )
-                            ShortNavigationBarItem(
-                                tab == "library", { tab = "library" }, { Icon(painterResource(R.drawable.ic_library), null) }, { Text("Library") },
-                                iconPosition = NavigationItemIconPosition.Start,
-                            )
-                        }
-                    }
-                }) { padding ->
-                    // tabs are side by side, so they fade; a push would read as going deeper
-                    Crossfade(tab, Modifier.padding(padding), animationSpec = tween(200), label = "tab") { t ->
+                Box(Modifier.fillMaxSize()) {
+                    // tabs are side by side, so they fade; a push would read as going deeper. Each tab keeps
+                    // clear of the system bars itself: Photos runs its grid under both, behind the floating tabs.
+                    Crossfade(tab, animationSpec = tween(200), label = "tab") { t ->
                         tabs.SaveableStateProvider(t) {
                             if (t == "photos") PhotosScreen(
                                 onOpen = open, grid = photosGrid, selection = selection, reload = photosReload,
@@ -274,6 +249,18 @@ fun App(dir: File, openSettings: Int = 0, atUpdates: Boolean = false) {
                                 onOpenSettings = { push(Screen.Settings()) },
                                 reload = returns,
                             )
+                        }
+                    }
+                    // The tabs and the Select bar float over the tab, so swapping them never moves the grid
+                    Crossfade(tab == "photos" && selection.active, Modifier.align(Alignment.BottomCenter).fillMaxWidth(), label = "bottomBar") { selecting ->
+                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            if (selecting) SelectBar(
+                                favorite = selection.allFavorite,
+                                onShare = shareSelected,
+                                onFavorite = { favoriteSelected(!selection.allFavorite) },
+                                onDelete = deleteSelected,
+                            )
+                            else Tabs(tab, onPhotos = { if (tab == "photos") photosScrollTop++ else tab = "photos" }, onLibrary = { tab = "library" })
                         }
                     }
                 }

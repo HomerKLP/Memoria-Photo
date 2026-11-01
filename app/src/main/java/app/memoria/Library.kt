@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -165,6 +167,8 @@ fun LibraryContent(
     onOpenSettings: () -> Unit = {},
 ) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        // the list scrolls under the status bar, like Photos
+        Spacer(Modifier.statusBarsPadding())
         Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("Library", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
             IconButton(onOpenSettings) { Icon(painterResource(R.drawable.ic_settings), "Settings") }
@@ -184,6 +188,8 @@ fun LibraryContent(
         CategoryRow(data?.categories, onOpenCategory)
 
         Shortcuts(onOpenFavorites, onOpenVideos, onOpenTrash, data?.favorites ?: 0, data?.videos ?: 0, data?.trash ?: 0)
+        // room for the floating tabs, so the last row can scroll above them
+        Spacer(Modifier.navigationBarsPadding().height(72.dp))
     }
 }
 

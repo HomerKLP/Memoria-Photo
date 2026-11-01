@@ -33,6 +33,8 @@ body {
   font: 14px/1.4 var(--body);
   padding: 32px 16px 56px;
 }
+/* The app bundles the static Bricolage "24pt" cut; without this the browser reshapes it per size */
+* { font-variation-settings: "opsz" 24; }
 img { max-width: 100%; }
 button { font: inherit; color: inherit; cursor: pointer; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -66,7 +68,11 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .scroll::-webkit-scrollbar { display: none; }
 
 /* Photos tab */
-.month { margin: 0; padding: 20px 16px 2px; font: 700 20px/1.2 var(--display); position: sticky; top: 0; z-index: 2; background: var(--bg); }
+/* Plain in the list, a floating pill only when pinned. The pill's negative margins keep the box size, so nothing moves (scroll-state needs Chrome 133+) */
+.month { margin: 0; padding: 20px 16px 2px; font: 700 20px/1.2 var(--display); position: sticky; top: 0; z-index: 2; container-type: scroll-state; }
+@container scroll-state(stuck: top) {
+  .month > span { display: inline-block; margin: -6px 0 -6px -8px; padding: 6px 12px; border-radius: 16px; font-size: 16px; background: rgba(251, 246, 236, .94); box-shadow: 0 4px 14px -4px rgba(70, 45, 20, .45); }
+}
 .month-sec { display: block; }
 .day { position: relative; display: flex; gap: 8px; align-items: baseline; padding: 12px 16px 8px; font-weight: 500; }
 .day small { color: var(--muted); font-weight: 400; font-size: 13px; }
@@ -84,6 +90,11 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .slider .rail { position: absolute; right: 12px; top: 10px; bottom: 10px; width: 3px; border-radius: 2px; background: var(--line); }
 .slider .knob { position: absolute; right: 4px; width: 18px; height: 18px; margin-top: -9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px rgba(255, 255, 255, .85), 0 2px 6px rgba(0, 0, 0, .3); }
 .slider .bubble { position: absolute; right: 30px; transform: translateY(-50%); height: 32px; padding: 0 14px; border-radius: 16px; background: var(--accent); color: #fff; display: flex; align-items: center; white-space: nowrap; font-weight: 500; font-size: 13px; box-shadow: 0 6px 16px -6px rgba(70, 45, 20, .6); }
+
+/* Photos, top bar gone: the photos run under a plain transparent status bar, the month pins just below it */
+.phone.float > .status { position: absolute; top: 0; left: 0; right: 0; z-index: 3; }
+.phone.float .scroll::before { content: ""; display: block; height: 30px; }
+.phone.float .month { top: 30px; }
 
 /* Library tab */
 .search { margin: 2px 16px 4px; height: 48px; padding: 0 16px; border-radius: 24px; background: var(--surface); color: var(--muted); display: flex; align-items: center; gap: 12px; }
@@ -163,10 +174,14 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .vids .month { padding-bottom: 10px; }
 
 /* Bottom nav and gesture bar */
-.bottom { background: var(--surface); padding: 6px 0 4px; }
-.bottom nav { display: flex; }
-.tab { flex: 1; border: 0; background: transparent; display: grid; place-items: center; color: var(--muted); font-weight: 500; font-size: 13px; }
-.pill { height: 36px; padding: 0 16px; border-radius: 18px; display: flex; align-items: center; gap: 8px; }
+/* Tabs and Select bar: one pill floating over the photos, no bar behind it. Fixed tab width, so bold never moves it */
+.bottom { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; padding-bottom: 8px; pointer-events: none; }
+.bottom nav { display: flex; width: max-content; margin: 0 auto 16px; padding: 4px; border-radius: 24px; background: rgba(251, 246, 236, .94); box-shadow: 0 4px 14px -4px rgba(70, 45, 20, .45); pointer-events: auto; }
+.phone:has(> .bottom) .scroll { padding-bottom: 84px; }
+.part .bottom { position: static; padding: 0; }
+.part .bottom nav { margin-bottom: 0; }
+.tab { flex: none; width: 96px; padding: 0; border: 0; background: transparent; display: grid; place-items: center; color: var(--muted); font-weight: 500; font-size: 14px; }
+.pill { width: 100%; height: 40px; padding: 0 16px; border-radius: 20px; display: flex; align-items: center; justify-content: center; gap: 8px; box-sizing: border-box; }
 .tab.on { color: var(--fg); font-weight: 700; }
 .tab.on .pill { background: var(--accent-soft); }
 .handle { width: 108px; height: 4px; margin: 6px auto 0; border-radius: 2px; background: var(--fg); opacity: .75; }
@@ -311,8 +326,10 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .tile.on .sel, .day.on .sel, .pcard.on .sel { border-color: var(--accent); background: var(--accent); }
 .tile.on .sel svg.i, .day.on .sel svg.i, .pcard.on .sel svg.i { width: 16px; height: 16px; fill: #fff; }
 .day .sel { top: 50%; left: auto; right: 16px; margin-top: -11px; border-color: var(--muted); box-shadow: none; }
-.picking .tab { color: var(--fg); }
-.picking .pill { padding: 0 8px; }
+/* Fixed width fits "Unfavorite", so the pill never moves when the text changes */
+.picking .tab { width: 104px; color: var(--fg); font-size: 13px; }
+.picking.four .tab { width: 76px; }
+.picking .pill { padding: 0 4px; }
 .tab.danger { color: var(--danger); }
 .answers.selbar { padding: 12px 16px; border-top: 1px solid var(--line); }
 .answers .no.danger { border-color: var(--danger); color: var(--danger); }
@@ -455,31 +472,31 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <div class="scroll" id="timeline"></div>
         <div class="bottom">
           <nav>
-            <button class="tab on"><span class="pill"><svg class="i"><use href="#i-photo"/></svg>Photos</span></button>
-            <button class="tab"><span class="pill"><svg class="i"><use href="#i-library"/></svg>Library</span></button>
+            <button class="tab on"><span class="pill">Photos</span></button>
+            <button class="tab"><span class="pill">Library</span></button>
           </nav>
           <div class="handle"></div>
         </div>
       </div>
-      <figcaption>Photos tab, at the very top: the top bar shows here and only here. The wordmark, the month heading and the day headings start on one left edge (16 px). The month slider is hidden at the top; see the next figure for scrolling</figcaption>
+      <figcaption>Photos tab, at the very top: the top bar shows here and only here. The wordmark, the month heading and the day headings start on one left edge (16 px). The month slider is hidden at the top; see the next figure for scrolling. Photos and Library float as one pill at the bottom center (see Tabs), with photos on both sides</figcaption>
     </figure>
     <figure id="photos-hidden-bar">
-      <div class="phone has-slider">
+      <div class="phone float has-slider">
         <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
         <div class="scroll" id="timeline-hidden"></div>
-        <div class="slider on" style="top:90px" aria-hidden="true">
+        <div class="slider on" style="top:79px; bottom:70px" aria-hidden="true">
           <span class="rail"></span>
           <span class="knob" style="top:calc(10px + (100% - 20px) * .2)"></span>
         </div>
         <div class="bottom">
           <nav>
-            <button class="tab on"><span class="pill"><svg class="i"><use href="#i-photo"/></svg>Photos</span></button>
-            <button class="tab"><span class="pill"><svg class="i"><use href="#i-library"/></svg>Library</span></button>
+            <button class="tab on"><span class="pill">Photos</span></button>
+            <button class="tab"><span class="pill">Library</span></button>
           </nav>
           <div class="handle"></div>
         </div>
       </div>
-      <figcaption>Photos tab, scrolled: the top bar has gone up with the list, so the pinned month sits right under the status bar and the grid gets that room. The month stays pinned while its photos pass under it, and the month slider has faded in (it hides again a moment after you stop). Scrolling back up does not bring the bar: it returns only when you reach the very top. The slider starts under the pinned month heading and never covers it or the bottom bar. The bottom tabs stay</figcaption>
+      <figcaption>Photos tab, scrolled: the top bar has gone up with the list, and the photos run under the status bar, which is plain transparent (no fade, no blur). The month pins just under the status bar as a small floating pill, with photos showing around it (see Sticky month header). The month slider has faded in (it hides again a moment after you stop); it runs from under the pinned month to just above the tabs pill. Scrolling back up does not bring the bar: it returns only when you reach the very top. The tabs stay</figcaption>
     </figure>
     <figure id="photos-select">
       <div class="phone">
@@ -498,7 +515,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="handle"></div>
         </div>
       </div>
-      <figcaption>Photos, selecting: long press a photo to start, drag to add the ones you pass, tap a day's circle for the whole day. The top bar and the tabs swap in place at the same height, so the grid never moves. Delete sends all to the phone's trash with one Android confirm. Favorite reads Unfavorite when all picked are favorites. The circle covers the heart while selecting. Back or X leaves</figcaption>
+      <figcaption>Photos, selecting: long press a photo to start, drag to add the ones you pass, tap a day's circle for the whole day. The top bar swaps in place and the Select bar pill takes the tabs' spot; both float, so the grid never moves. Delete sends all to the phone's trash with one Android confirm. Favorite reads Unfavorite when all picked are favorites. The circle covers the heart while selecting. Back or X leaves</figcaption>
     </figure>
     <figure id="photos-select-hidden">
       <div class="phone">
@@ -519,7 +536,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="handle"></div>
         </div>
       </div>
-      <figcaption>Photos, selecting while the top bar is hidden: the select bar comes in over the pinned month, so the grid stays where it is under your finger. Back or X closes it, and the top bar stays hidden until you scroll back to the very top</figcaption>
+      <figcaption>Photos, selecting while the top bar is hidden: the select bar comes in over the pinned month, with a solid status bar behind it, so the grid stays where it is under your finger. Back or X closes it, and the top bar stays hidden until you scroll back to the very top</figcaption>
     </figure>
   </div>
 </section>
@@ -688,13 +705,13 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         </div>
         <div class="bottom">
           <nav>
-            <button class="tab"><span class="pill"><svg class="i"><use href="#i-photo"/></svg>Photos</span></button>
-            <button class="tab on"><span class="pill"><svg class="i"><use href="#i-library"/></svg>Library</span></button>
+            <button class="tab"><span class="pill">Photos</span></button>
+            <button class="tab on"><span class="pill">Library</span></button>
           </nav>
           <div class="handle"></div>
         </div>
       </div>
-      <figcaption>Library while indexing: the first row is People &amp; pets (cats and dogs sit among the people, see People &amp; pets). No people yet, so the row's one muted item (see Empty) reads "Finding faces…" instead of "No people yet". Progress and Pause are in Settings, Scan. People and the Help recognize card appear only once a run has finished. Albums, Places and Categories are one row of 3 each, the biggest first; See all opens the whole page. While loading, or with none yet, grey tiles hold the row's space, so nothing below moves.</figcaption>
+      <figcaption>Library while indexing: like Photos, the list scrolls under a plain transparent status bar. The first row is People &amp; pets (cats and dogs sit among the people, see People &amp; pets). No people yet, so the row's one muted item (see Empty) reads "Finding faces…" instead of "No people yet". Progress and Pause are in Settings, Scan. People and the Help recognize card appear only once a run has finished. Albums, Places and Categories are one row of 3 each, the biggest first; See all opens the whole page. While loading, or with none yet, grey tiles hold the row's space, so nothing below moves.</figcaption>
     </figure>
     <figure>
       <div class="phone has-slider">
@@ -883,7 +900,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="handle"></div>
         </div>
       </div>
-      <figcaption>Album, selecting: long press a photo, or More > Select. The top bar swaps in place; the Select bar comes up at the bottom, under the grid, so nothing above it moves. Select all picks the whole album. Move opens the Move to album sheet; moved photos leave this album. Delete sends all to the phone's trash with one Android confirm. Favorite reads Unfavorite when all picked are favorites. Back or X leaves. Favorites, a Place, a person and Videos select the same way, without Move: only an album says which album its photos are in</figcaption>
+      <figcaption>Album, selecting: long press a photo, or More > Select. The top bar swaps in place; the Select bar pill floats in at the bottom over the grid, so nothing moves. Select all picks the whole album. Move opens the Move to album sheet; moved photos leave this album. Delete sends all to the phone's trash with one Android confirm. Favorite reads Unfavorite when all picked are favorites. Back or X leaves. Favorites, a Place, a person and Videos select the same way, without Move: only an album says which album its photos are in</figcaption>
     </figure>
     <figure id="ignore">
       <div class="phone modal" id="ignore-phone">
@@ -1667,15 +1684,30 @@ Photos: …/files/test</div>
   </article>
 
   <article class="part">
-    <h3>Select bar</h3>
-    <div class="bottom picking">
-      <nav>
-        <button class="tab"><span class="pill"><svg class="i"><use href="#i-share"/></svg>Share</span></button>
-        <button class="tab"><span class="pill"><svg class="i"><use href="#i-heart-line"/></svg>Favorite</span></button>
-        <button class="tab danger"><span class="pill"><svg class="i"><use href="#i-trash-line"/></svg>Delete</span></button>
-      </nav>
+    <h3>Tabs</h3>
+    <div style="border-radius:12px; background:linear-gradient(160deg,#9CC3E6,#E9D8B8); padding:16px 0">
+      <div class="bottom">
+        <nav>
+          <button class="tab on"><span class="pill">Photos</span></button>
+          <button class="tab"><span class="pill">Library</span></button>
+        </nav>
+      </div>
     </div>
-    <p>Takes the bottom tabs' place while selecting on a tab screen, same height, so the grid keeps its size. On a screen without tabs (Album, Favorites, Place, Person, Videos) it comes up at the bottom, under the grid, so nothing above moves. Move only in an album, the one screen that says where its photos are; four actions put the label under the icon. Delete goes last, in red. Trash has two actions and uses the Action bar.</p>
+    <p>Photos and Library as one pill floating at the bottom center, text only. No bar behind it: photos show on both sides and under the gesture bar. Each tab has a fixed width, so the bold one never moves the pill. Lists end with room, so their last row clears it.</p>
+  </article>
+
+  <article class="part">
+    <h3>Select bar</h3>
+    <div style="border-radius:12px; background:linear-gradient(160deg,#9CC3E6,#E9D8B8); padding:16px 0">
+      <div class="bottom picking">
+        <nav>
+          <button class="tab"><span class="pill"><svg class="i"><use href="#i-share"/></svg>Share</span></button>
+          <button class="tab"><span class="pill"><svg class="i"><use href="#i-heart-line"/></svg>Favorite</span></button>
+          <button class="tab danger"><span class="pill"><svg class="i"><use href="#i-trash-line"/></svg>Delete</span></button>
+        </nav>
+      </div>
+    </div>
+    <p>A floating pill like the tabs, with icons, and a fixed width per action so Favorite / Unfavorite never moves it. Takes the tabs' spot while selecting on a tab screen. On a screen without tabs (Album, Favorites, Place, Person, Videos) it floats in at the bottom over the grid, so nothing moves. Move only in an album, the one screen that says where its photos are; four actions put the label under the icon. Delete goes last, in red. Trash has two actions and uses the Action bar.</p>
   </article>
 
   <article class="part">
@@ -1700,11 +1732,10 @@ Photos: …/files/test</div>
 
   <article class="part">
     <h3>Sticky month header</h3>
-    <div style="border:1px solid var(--line); border-radius:12px; background:linear-gradient(160deg,#9CC3E6,#E9D8B8); padding-top:1px">
-      <h3 class="month">September 2026</h3>
-      <div class="day" style="margin:0 16px">Sun, 28 Sep<small>Northport</small></div>
+    <div class="scroll" id="month-demo" style="height:150px; flex:none; border:1px solid var(--line); border-radius:12px">
+      <section class="month-sec"><h3 class="month"><span>September 2026</span></h3><div class="day">Sun, 28 Sep<small>Northport</small></div><div style="height:320px; background:linear-gradient(160deg,#9CC3E6,#E9D8B8)"></div></section>
     </div>
-    <p>The month heading sticks to the top of the timeline for as long as any photo of that month is on screen, then the next month pushes it up. Same text and style as the heading in place. It keeps its own background, so photos scroll under it and nothing jumps.</p>
+    <p>Plain in the list, like any heading. Once pinned at the top it turns into a small floating pill with no band behind it, so photos show around it (scroll the box above). It stays pinned while any photo of that month is on screen, then the next month pushes it up. The heading box keeps its size both ways, so nothing jumps.</p>
   </article>
 
   <article class="part">
@@ -1895,7 +1926,7 @@ for (const x of days) {
     sec = document.createElement("section");
     sec.className = "month-sec";
     timeline.appendChild(sec);
-    sec.insertAdjacentHTML("beforeend", `<h3 class="month">${x.m}</h3>`);
+    sec.insertAdjacentHTML("beforeend", `<h3 class="month"><span>${x.m}</span></h3>`);
   } else sec.insertAdjacentHTML("beforeend", `<div class="day">${x.d}${x.p ? `<small>${x.p}</small>` : ""}</div><div class="grid">${
     Array.from({ length: x.n }, (_, i) => `<div class="tile" style="background:${photo()}">${
       x.f?.includes(i) ? `<span class="fav"><svg class="i"><use href="#i-heart"/></svg></span>` : ""}${
@@ -1908,6 +1939,7 @@ const secs = timeline.querySelectorAll(".month-sec");
 const timelineHidden = document.getElementById("timeline-hidden");
 timelineHidden.innerHTML = timeline.innerHTML;
 if (secs[1]) timelineHidden.scrollTop = secs[1].offsetTop + 150;
+document.getElementById("month-demo").scrollTop = 80;
 
 const faces = ["#D9A27F", "#B9876B", "#E0B48A", "#A88C7A", "#C99A86", "#BFA27E", "#D4A99A"];
 const face = (i, s = 72) => `<div class="face" style="--s:${s}px;background:linear-gradient(160deg, ${faces[i]}, ${faces[(i + 3) % faces.length]})"><svg class="i"><use href="#i-person"/></svg></div>`;
@@ -1940,9 +1972,9 @@ fill("person-unsure", [6, 4].map(i => face(i, 36)).join(""));
 // Months below the fold, so a scrolled Album and Person can pin their second month. They put the seed back, so no later photo changes color.
 const keepSeed = fn => { const s = seed; const r = fn(); seed = s; return r; };
 fill("person-photos", [["October 2026", 5, [3], [1]], ["August 2026", 4, [2], []], ["March 2026", 3, [], []]]
-  .map(([m, n, v, f]) => `<section class="month-sec"><h3 class="month">${m}</h3><div class="grid big">${tiles(n, v, f)}</div></section>`).join("")
+  .map(([m, n, v, f]) => `<section class="month-sec"><h3 class="month"><span>${m}</span></h3><div class="grid big">${tiles(n, v, f)}</div></section>`).join("")
   + keepSeed(() => [["January 2026", 6, [], []], ["November 2025", 6, [], []]]
-  .map(([m, n, v, f]) => `<section class="month-sec"><h3 class="month">${m}</h3><div class="grid big">${tiles(n, v, f)}</div></section>`).join("")));
+  .map(([m, n, v, f]) => `<section class="month-sec"><h3 class="month"><span>${m}</span></h3><div class="grid big">${tiles(n, v, f)}</div></section>`).join("")));
 
 // Cover tile, shared by albums and places. [bg] defaults to a made-up photo.
 const cover = (n, c, bg = photo()) => `<div class="place" style="background:linear-gradient(transparent 30%, rgba(0,0,0,.7)), ${bg}"><b>${n}</b><span>${c}</span></div>`;
@@ -1953,13 +1985,13 @@ fill("album-grid", [cover("Camera", "1,412"), cover("Screenshots", "214", bright
   cover("Ремонт квартиры для дизайнера", "21", bright("#FF9EC7", "#FFE0EE")), cover("WhatsApp Images", "58", bright("#C8F560", "#F0FFD0")), cover("Downloads", "12")].join("")
   + `<div class="place new"><svg class="i"><use href="#i-add"/></svg><b>New album</b><span>Pick photos</span></div>`);
 fill("album-photos", [["October 2026", 5, [4], [0]], ["September 2026", 6, [], [4]], ["August 2026", 4, [0], []]]
-  .map(([m, n, v, f]) => `<section class="month-sec"><h3 class="month">${m}</h3><div class="grid big">${tiles(n, v, f)}</div></section>`).join("")
+  .map(([m, n, v, f]) => `<section class="month-sec"><h3 class="month"><span>${m}</span></h3><div class="grid big">${tiles(n, v, f)}</div></section>`).join("")
   + keepSeed(() => [["July 2026", 6, [], []]]
-  .map(([m, n, v, f]) => `<section class="month-sec"><h3 class="month">${m}</h3><div class="grid big">${tiles(n, v, f)}</div></section>`).join("")));
+  .map(([m, n, v, f]) => `<section class="month-sec"><h3 class="month"><span>${m}</span></h3><div class="grid big">${tiles(n, v, f)}</div></section>`).join("")));
 fill("videos", [["October 2026", 5], ["September 2026", 7], ["August 2026", 6]]
-  .map(([m, n]) => `<section class="month-sec"><h3 class="month">${m}</h3><div class="grid big">${tiles(n, [...Array(n).keys()], [1])}</div></section>`).join("")
+  .map(([m, n]) => `<section class="month-sec"><h3 class="month"><span>${m}</span></h3><div class="grid big">${tiles(n, [...Array(n).keys()], [1])}</div></section>`).join("")
   + keepSeed(() => [["July 2026", 6]]
-  .map(([m, n]) => `<section class="month-sec"><h3 class="month">${m}</h3><div class="grid big">${tiles(n, [...Array(n).keys()], [1])}</div></section>`).join("")));
+  .map(([m, n]) => `<section class="month-sec"><h3 class="month"><span>${m}</span></h3><div class="grid big">${tiles(n, [...Array(n).keys()], [1])}</div></section>`).join("")));
 fill("albums", [["Camera", "1,412"], ["Screenshots", "214"], ["Telegram", "96"], ["WhatsApp Images", "58"], ["Downloads", "33"], ["Instagram", "21"]]
   .map(([n, c]) => cover(n, c)).slice(0, 3).join("")); // all 6 drawn, so the photos further down keep their colors
 fill("places", [["Riverton", "642"], ["Northport", "118"], ["Harborview", "87"]].map(([n, c]) => cover(n, c)).join(""));
@@ -2054,7 +2086,7 @@ document.getElementById("hide-phone").prepend(...[...document.querySelector("#pe
 fill("pet-avatar", pet(0, 40));
 fill("pet-pictures", [0, 0, 0, 0, 0, 0].map(i => pet(i, 44)).join(""));
 fill("pet-photos", keepSeed(() => [["October 2026", 4, [], [0]], ["September 2026", 6, [2], []], ["July 2026", 5, [], []]]
-  .map(([m, n, v, f]) => `<section class="month-sec"><h3 class="month">${m}</h3><div class="grid big">${tiles(n, v, f)}</div></section>`).join("")));
+  .map(([m, n, v, f]) => `<section class="month-sec"><h3 class="month"><span>${m}</span></h3><div class="grid big">${tiles(n, v, f)}</div></section>`).join("")));
 document.getElementById("pet-more-phone").prepend(...[...document.querySelector("#pet .phone").children].map(n => n.cloneNode(true)));
 document.getElementById("hide-pet-phone").prepend(...[...document.querySelector("#pet .phone").children].map(n => n.cloneNode(true)));
 document.getElementById("viewer-more-phone").prepend(...[...document.querySelector("#viewer .phone").children].map(n => n.cloneNode(true)));
@@ -2072,7 +2104,7 @@ fill("trash-picked", trashTiles([1, 4]));
 // Photos, selecting: Today picked whole, plus a few from other days.
 const check = '<svg class="i"><use href="#i-check"/></svg>';
 const picked = { "Today": [0, 1, 2], "Yesterday": [4], "Sat, 11 Oct": [2, 6] };
-fill("timeline-select", `<section class="month-sec"><h3 class="month">October 2026</h3>${days.slice(1, 4).map(x => {
+fill("timeline-select", `<section class="month-sec"><h3 class="month"><span>October 2026</span></h3>${days.slice(1, 4).map(x => {
   const on = picked[x.d] ?? [], all = on.length == x.n;
   return `<div class="day${all ? " on" : ""}">${x.d}${x.p ? `<small>${x.p}</small>` : ""}<span class="sel">${all ? check : ""}</span></div><div class="grid">${
     Array.from({ length: x.n }, (_, i) => `<div class="tile${on.includes(i) ? " on" : ""}" style="background:${photo()}"><span class="sel">${on.includes(i) ? check : ""}</span>${
@@ -2087,7 +2119,7 @@ fill("place-grid", [["Riverton", "642"], ["Northport", "118"], ["Harborview", "8
   ["Pinecrest", "33"], ["Stonebridge", "27"], ["Ashford", "19"], ["Oakvale", "12"], ["Millbrook", "8"], ["Fairhaven", "5"]]
   .map(([n, c]) => cover(n, c)).join(""));
 fill("place-photos", [["October 2026", 5], ["September 2026", 8], ["July 2026", 6]]
-  .map(([m, n]) => `<section class="month-sec"><h3 class="month">${m}</h3><div class="grid big">${tiles(n, [2], [0])}</div></section>`).join(""));
+  .map(([m, n]) => `<section class="month-sec"><h3 class="month"><span>${m}</span></h3><div class="grid big">${tiles(n, [2], [0])}</div></section>`).join(""));
 // Move to album: filled last so the photos above keep their colors.
 fill("move-list", [["Screenshots", "214"], ["Telegram", "96"], ["Holidays 2024", "47"], ["Instagram", "21"], ["Edits", "9"]]
   .map(([n, c]) => `<div class="pick"><span class="thumb" style="background:${photo()}"></span><b>${n}</b><span>${c}</span></div>`).join(""));
@@ -2096,15 +2128,15 @@ fill("skip-list", [["Camera", "1,204", 0], ["WhatsApp", "312", 1], ["Screenshots
   .map(([n, c, on]) => `<div class="pick" role="checkbox" aria-checked="${!!on}"><span class="thumb" style="background:${photo()}"></span><b>${n}</b><span>${c}</span><svg class="i tick${on ? "" : " off"}"><use href="#i-check"/></svg></div>`).join(""));
 // Album, selecting: same tiles as an album, three picked.
 fill("album-picked", [["October 2026", 5, [1, 2], [4]], ["September 2026", 6, [1], []], ["August 2026", 4, [], []]]
-  .map(([m, n, on, v]) => `<section class="month-sec"><h3 class="month">${m}</h3><div class="grid big">${Array.from({ length: n }, (_, i) => `<div class="tile${on.includes(i) ? " on" : ""}" style="background:${photo()}"><span class="sel">${
+  .map(([m, n, on, v]) => `<section class="month-sec"><h3 class="month"><span>${m}</span></h3><div class="grid big">${Array.from({ length: n }, (_, i) => `<div class="tile${on.includes(i) ? " on" : ""}" style="background:${photo()}"><span class="sel">${
     on.includes(i) ? check : ""}</span>${v.includes(i) ? `<span class="dur">0:18<svg class="i"><use href="#i-play"/></svg></span>` : ""}</div>`).join("")}</div></section>`).join(""));
 fill("album-pick", document.getElementById("timeline-select").innerHTML);
 fill("favorites-grid", [["October 2026", 4], ["August 2026", 7], ["May 2026", 3], ["December 2025", 5]]
-  .map(([m, n]) => `<section class="month-sec"><h3 class="month">${m}</h3><div class="grid big">${tiles(n, [2])}</div></section>`).join(""));
+  .map(([m, n]) => `<section class="month-sec"><h3 class="month"><span>${m}</span></h3><div class="grid big">${tiles(n, [2])}</div></section>`).join(""));
 // Videos, Favorites, Place and Person, selecting: filled last so the photos above keep their colors.
 const pickTiles = (n, on, vids) => Array.from({ length: n }, (_, i) => `<div class="tile${on.includes(i) ? " on" : ""}" style="background:${photo()}"><span class="sel">${
   on.includes(i) ? check : ""}</span>${vids.includes(i) ? `<span class="dur">${durs[i % durs.length]}<svg class="i"><use href="#i-play"/></svg></span>` : ""}</div>`).join("");
-const pickMonths = (ms, vids) => ms.map(([m, n, on]) => `<section class="month-sec"><h3 class="month">${m}</h3><div class="grid big">${pickTiles(n, on, vids(n))}</div></section>`).join("");
+const pickMonths = (ms, vids) => ms.map(([m, n, on]) => `<section class="month-sec"><h3 class="month"><span>${m}</span></h3><div class="grid big">${pickTiles(n, on, vids(n))}</div></section>`).join("");
 fill("videos-picked", pickMonths([["October 2026", 5, [1, 3]], ["September 2026", 7, []]], n => [...Array(n).keys()]));
 fill("favorites-picked", pickMonths([["October 2026", 4, [0, 2]], ["August 2026", 7, [5]]], () => [2]));
 fill("place-picked", pickMonths([["October 2026", 5, [1]], ["September 2026", 8, [0, 3]]], () => [2]));
@@ -2120,7 +2152,7 @@ fill("library-categories", categories.slice(0, 3).map(([n, c]) => cover(n, c)).j
 fill("category-grid", categories.map(([n, c]) => cover(n, c)).join(""));
 document.getElementById("hit-category").style.background = photo();
 fill("category-photos", [["October 2026", 6], ["September 2026", 4], ["July 2026", 7]]
-  .map(([m, n]) => `<section class="month-sec"><h3 class="month">${m}</h3><div class="grid big">${tiles(n, [], [1])}</div></section>`).join(""));
+  .map(([m, n]) => `<section class="month-sec"><h3 class="month"><span>${m}</span></h3><div class="grid big">${tiles(n, [], [1])}</div></section>`).join(""));
 for (const id of ["album-photos", "person-scrolled-list", "videos", "favorites-grid"]) {
   const list = document.getElementById(id), secs = list.querySelectorAll(".month-sec");
   list.scrollTop = secs[1].offsetTop - list.offsetTop + 120; // one tile row gone: the next row starts right under the pinned month

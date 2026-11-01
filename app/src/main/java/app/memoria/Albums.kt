@@ -236,36 +236,34 @@ fun AlbumContent(
             }
             val grid = rememberLazyGridState()
             FollowViewer(grid, a?.tiles.orEmpty())
-            MonthSliderBox(grid = grid, months = months, enabled = selected == null, top = monthHeadingHeight(below = 10.dp), modifier = Modifier.weight(1f)) {
-                LazyVerticalGrid(
-                    GridCells.Fixed(3), Modifier.testTag("albumGrid"), state = grid,
-                    horizontalArrangement = Arrangement.spacedBy(1.dp), verticalArrangement = Arrangement.spacedBy(1.dp),
-                ) {
-                    groups.forEach { (m, tiles) ->
-                        stickyHeader(key = m) {
-                            // background: the pinned month covers the tiles passing under it
-                            Text(
-                                m, Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(start = 16.dp, top = 20.dp, bottom = 10.dp),
-                                style = MaterialTheme.typography.titleLarge,
-                            )
-                        }
-                        items(tiles, key = { it.id }) { t ->
-                            val on = selected != null && t.id in selected
-                            TileImage(
-                                t,
-                                Modifier.combinedClickable(
-                                    onClick = { if (selected == null) onOpen(a!!.tiles, t) else onSelect(if (on) selected - t.id else selected + t.id) },
-                                    onLongClick = { onSelect(selected.orEmpty() + t.id) },
-                                ).testTag("tile-${t.id}").animateItem(fadeInSpec = null), // no fade in: a first load shows at once
-                                selecting = selected != null, selected = on,
-                            )
+            // the Select bar floats over the grid, so nothing moves when it comes in
+            Box(Modifier.weight(1f)) {
+                MonthSliderBox(grid = grid, months = months, enabled = selected == null, top = monthHeadingHeight(below = 10.dp), modifier = Modifier.fillMaxSize()) {
+                    LazyVerticalGrid(
+                        GridCells.Fixed(3), Modifier.testTag("albumGrid"), state = grid,
+                        contentPadding = PaddingValues(bottom = if (selected != null) 72.dp else 0.dp),
+                        horizontalArrangement = Arrangement.spacedBy(1.dp), verticalArrangement = Arrangement.spacedBy(1.dp),
+                    ) {
+                        groups.forEach { (m, tiles) ->
+                            stickyHeader(key = m, contentType = "month") { MonthHeading(m, m, grid, below = 10.dp) }
+                            items(tiles, key = { it.id }) { t ->
+                                val on = selected != null && t.id in selected
+                                TileImage(
+                                    t,
+                                    Modifier.combinedClickable(
+                                        onClick = { if (selected == null) onOpen(a!!.tiles, t) else onSelect(if (on) selected - t.id else selected + t.id) },
+                                        onLongClick = { onSelect(selected.orEmpty() + t.id) },
+                                    ).testTag("tile-${t.id}").animateItem(fadeInSpec = null), // no fade in: a first load shows at once
+                                    selecting = selected != null, selected = on,
+                                )
+                            }
                         }
                     }
                 }
-            }
-            if (selected != null) {
-                val picked = a?.tiles.orEmpty().filter { it.id in selected }
-                SelectBar(picked.isNotEmpty() && picked.all { it.favorite }, onShare, onFavorite, onDelete, onMove = onMove)
+                if (selected != null) {
+                    val picked = a?.tiles.orEmpty().filter { it.id in selected }
+                    SelectBar(picked.isNotEmpty() && picked.all { it.favorite }, onShare, onFavorite, onDelete, onMove = onMove, modifier = Modifier.align(Alignment.BottomCenter))
+                }
             }
         }
         Menu(
@@ -359,36 +357,34 @@ fun VideosContent(videos: Videos?, onBack: () -> Unit = {}, onOpen: (List<Tile>,
             var i = 0
             v?.months?.map { (m, tiles) -> (i to m).also { i += 1 + tiles.size } }.orEmpty()
         }
-        MonthSliderBox(grid = grid, months = months, enabled = sel == null, top = monthHeadingHeight(below = 10.dp), modifier = Modifier.weight(1f)) {
-            LazyVerticalGrid(
-                GridCells.Fixed(3), Modifier.testTag("videosGrid"), state = grid,
-                horizontalArrangement = Arrangement.spacedBy(1.dp), verticalArrangement = Arrangement.spacedBy(1.dp),
-            ) {
-                v?.months?.forEach { (month, tiles) ->
-                    stickyHeader(key = month) {
-                        // background: the pinned month covers the tiles passing under it
-                        Text(
-                            month, Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(start = 16.dp, top = 20.dp, bottom = 10.dp),
-                            style = MaterialTheme.typography.titleLarge,
-                        )
-                    }
-                    items(tiles, key = { it.id }) { t ->
-                        val on = sel != null && t.id in sel
-                        TileImage(
-                            t,
-                            Modifier.combinedClickable(
-                                onClick = { if (sel == null) onOpen(v.all, t) else pick.set(if (on) sel - t.id else sel + t.id) },
-                                onLongClick = { pick.set(sel.orEmpty() + t.id) },
-                            ).testTag("tile-${t.id}").animateItem(fadeInSpec = null),
-                            selecting = sel != null, selected = on,
-                        )
+        // the Select bar floats over the grid, so nothing moves when it comes in
+        Box(Modifier.weight(1f)) {
+            MonthSliderBox(grid = grid, months = months, enabled = sel == null, top = monthHeadingHeight(below = 10.dp), modifier = Modifier.fillMaxSize()) {
+                LazyVerticalGrid(
+                    GridCells.Fixed(3), Modifier.testTag("videosGrid"), state = grid,
+                    contentPadding = PaddingValues(bottom = if (sel != null) 72.dp else 0.dp),
+                    horizontalArrangement = Arrangement.spacedBy(1.dp), verticalArrangement = Arrangement.spacedBy(1.dp),
+                ) {
+                    v?.months?.forEach { (month, tiles) ->
+                        stickyHeader(key = month, contentType = "month") { MonthHeading(month, month, grid, below = 10.dp) }
+                        items(tiles, key = { it.id }) { t ->
+                            val on = sel != null && t.id in sel
+                            TileImage(
+                                t,
+                                Modifier.combinedClickable(
+                                    onClick = { if (sel == null) onOpen(v.all, t) else pick.set(if (on) sel - t.id else sel + t.id) },
+                                    onLongClick = { pick.set(sel.orEmpty() + t.id) },
+                                ).testTag("tile-${t.id}").animateItem(fadeInSpec = null),
+                                selecting = sel != null, selected = on,
+                            )
+                        }
                     }
                 }
             }
-        }
-        if (sel != null) {
-            val picked = v?.all.orEmpty().filter { it.id in sel }
-            SelectBar(picked.isNotEmpty() && picked.all { it.favorite }, { pick.share(picked) }, { pick.favorite(picked) }, { pick.delete(picked) })
+            if (sel != null) {
+                val picked = v?.all.orEmpty().filter { it.id in sel }
+                SelectBar(picked.isNotEmpty() && picked.all { it.favorite }, { pick.share(picked) }, { pick.favorite(picked) }, { pick.delete(picked) }, modifier = Modifier.align(Alignment.BottomCenter))
+            }
         }
     }
 }

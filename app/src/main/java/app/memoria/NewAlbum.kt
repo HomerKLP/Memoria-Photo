@@ -9,6 +9,11 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -144,7 +149,8 @@ fun NewAlbumScreen(name: String, onBack: () -> Unit, onCancel: () -> Unit, onMov
             }
         }
     }
-    Box(Modifier.fillMaxSize().safeDrawingPadding()) {
+    // PhotosContent keeps its own title bar clear of the status bar
+    Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal))) {
         PhotosContent(
             items = items,
             selection = selection,

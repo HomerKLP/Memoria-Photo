@@ -835,51 +835,48 @@ fun PersonDetail(
             )
             val grid = rememberLazyGridState()
             FollowViewer(grid, shownPhotos)
-            MonthSliderBox(grid = grid, months = months, enabled = sel == null, top = monthHeadingHeight(below = 10.dp), modifier = Modifier.weight(1f)) {
-                LazyVerticalGrid(
-                    GridCells.Fixed(3), modifier = Modifier.testTag("personPhotos"), state = grid,
-                    contentPadding = PaddingValues(bottom = 24.dp),
-                    horizontalArrangement = Arrangement.spacedBy(1.dp), verticalArrangement = Arrangement.spacedBy(1.dp),
-                ) {
-                    item(span = { GridItemSpan(maxLineSpan) }) { SectionHead(if (p.pet) "Pictures" else "Faces", hint = if (p.pet) "These match $who" else "These faces match $who") }
-                    item(span = { GridItemSpan(maxLineSpan) }) {
-                        Row(
-                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 2.dp),
-                            horizontalArrangement = Arrangement.spacedBy(14.dp),
-                        ) {
-                            sure.take(30).forEach { FaceImage(it, Modifier.size(44.dp).clip(CircleShape)) }
+            // the Select bar floats over the grid, so nothing moves when it comes in
+            Box(Modifier.weight(1f)) {
+                MonthSliderBox(grid = grid, months = months, enabled = sel == null, top = monthHeadingHeight(below = 10.dp), modifier = Modifier.fillMaxSize()) {
+                    LazyVerticalGrid(
+                        GridCells.Fixed(3), modifier = Modifier.testTag("personPhotos"), state = grid,
+                        contentPadding = PaddingValues(bottom = if (sel != null) 72.dp else 24.dp),
+                        horizontalArrangement = Arrangement.spacedBy(1.dp), verticalArrangement = Arrangement.spacedBy(1.dp),
+                    ) {
+                        item(span = { GridItemSpan(maxLineSpan) }) { SectionHead(if (p.pet) "Pictures" else "Faces", hint = if (p.pet) "These match $who" else "These faces match $who") }
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            Row(
+                                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 2.dp),
+                                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                            ) {
+                                sure.take(30).forEach { FaceImage(it, Modifier.size(44.dp).clip(CircleShape)) }
+                            }
                         }
-                    }
-                    if (unsure.isNotEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
-                        // "may be this person" wraps next to the face stack
-                        ReviewCard(unsure, onReview, title = "Unsure faces", note = if (p.name.isNullOrBlank()) "${unsure.size} to check" else "${unsure.size} may be ${p.name}")
-                    }
-                    item(span = { GridItemSpan(maxLineSpan) }) { SectionHead("Photos", hint = "${p.photos} · by date") }
-                    groups.forEach { (m, tiles) ->
-                        stickyHeader(key = m) {
-                            // background: the pinned month covers the tiles passing under it
-                            Text(
-                                m, Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(start = 16.dp, top = 20.dp, bottom = 10.dp),
-                                style = MaterialTheme.typography.titleLarge,
-                            )
+                        if (unsure.isNotEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
+                            // "may be this person" wraps next to the face stack
+                            ReviewCard(unsure, onReview, title = "Unsure faces", note = if (p.name.isNullOrBlank()) "${unsure.size} to check" else "${unsure.size} may be ${p.name}")
                         }
-                        items(tiles, key = { it.id }) { t ->
-                            val on = sel != null && t.id in sel
-                            TileImage(
-                                t,
-                                Modifier.combinedClickable(
-                                    onClick = { if (sel == null) onOpen(shownPhotos, t) else pick.set(if (on) sel - t.id else sel + t.id) },
-                                    onLongClick = { pick.set(sel.orEmpty() + t.id) },
-                                ).testTag("tile-${t.id}").animateItem(fadeInSpec = null), // no fade in: a first load shows at once
-                                selecting = sel != null, selected = on,
-                            )
+                        item(span = { GridItemSpan(maxLineSpan) }) { SectionHead("Photos", hint = "${p.photos} · by date") }
+                        groups.forEach { (m, tiles) ->
+                            stickyHeader(key = m, contentType = "month") { MonthHeading(m, m, grid, below = 10.dp) }
+                            items(tiles, key = { it.id }) { t ->
+                                val on = sel != null && t.id in sel
+                                TileImage(
+                                    t,
+                                    Modifier.combinedClickable(
+                                        onClick = { if (sel == null) onOpen(shownPhotos, t) else pick.set(if (on) sel - t.id else sel + t.id) },
+                                        onLongClick = { pick.set(sel.orEmpty() + t.id) },
+                                    ).testTag("tile-${t.id}").animateItem(fadeInSpec = null), // no fade in: a first load shows at once
+                                    selecting = sel != null, selected = on,
+                                )
+                            }
                         }
                     }
                 }
-            }
-            if (sel != null) {
-                val picked = shownPhotos.filter { it.id in sel }
-                SelectBar(picked.isNotEmpty() && picked.all { it.favorite }, { pick.share(picked) }, { pick.favorite(picked) }, { pick.delete(picked) })
+                if (sel != null) {
+                    val picked = shownPhotos.filter { it.id in sel }
+                    SelectBar(picked.isNotEmpty() && picked.all { it.favorite }, { pick.share(picked) }, { pick.favorite(picked) }, { pick.delete(picked) }, modifier = Modifier.align(Alignment.BottomCenter))
+                }
             }
         }
         Menu(
