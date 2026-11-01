@@ -45,6 +45,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -172,7 +173,7 @@ fun Note(icon: Int, text: String, modifier: Modifier = Modifier) {
 /**
  * Two buttons at the bottom: the danger one outlined, the safe one filled with the accent. [danger] false: grey
  * outline (Help recognize's No, the New album picker's Cancel). [dangerIcon] null draws no icon (New album's Cancel
- * has none in the mockup). [primaryEnabled] false greys the safe button out (Move here until a photo is picked).
+ * has none in the mockup). [primaryEnabled] false greys the safe button out (Move here until a photo is picked), [dangerEnabled] the other one.
  */
 @Composable
 fun ActionBar(
@@ -185,9 +186,10 @@ fun ActionBar(
     modifier: Modifier = Modifier,
     danger: Boolean = true,
     primaryEnabled: Boolean = true,
+    dangerEnabled: Boolean = true,
 ) {
-    val outline = if (danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
-    val content = if (danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+    val outline = if (!dangerEnabled) MaterialTheme.colorScheme.outlineVariant else if (danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+    val content = if (!dangerEnabled) MaterialTheme.colorScheme.onSurfaceVariant else if (danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
     val primaryBg = if (primaryEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
     val primaryContent = if (primaryEnabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
     Row(
@@ -195,7 +197,7 @@ fun ActionBar(
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Row(
-            Modifier.weight(1f).height(52.dp).clip(CircleShape).border(1.dp, outline, CircleShape).clickable(onClick = onDanger),
+            Modifier.weight(1f).height(52.dp).clip(CircleShape).border(1.dp, outline, CircleShape).clickable(enabled = dangerEnabled, onClick = onDanger),
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically,
         ) {
             dangerIcon?.let { Icon(painterResource(it), null, Modifier.size(20.dp), tint = content) }
@@ -395,6 +397,7 @@ fun MonthSliderBox(
     content: @Composable () -> Unit,
 ) {
     val starts = remember(months) { months.map { it.first } }
+    val startsNow by rememberUpdatedState(starts)
     val names = remember(months) { months.map { it.second } }
     val current by remember(grid, starts) {
         derivedStateOf {
@@ -429,7 +432,8 @@ fun MonthSliderBox(
                 if (grid.firstVisibleItemIndex > first) { on = true; tick++ } else on = false
             }
         },
-        onJump = { i -> drag = i; scope.launch { grid.scrollToItem(starts.getOrElse(i) { 0 }) } },
+        // the drag handler keeps its first onJump while the month count stays, so read the starts of the latest load
+        onJump = { i -> drag = i; scope.launch { grid.scrollToItem(startsNow.getOrElse(i) { 0 }) } },
         modifier = modifier, enabled = enabled && starts.size >= 3, top = top, content = content,
     )
 }

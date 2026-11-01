@@ -92,9 +92,9 @@ fun HelpRecognizeScreen(personId: Long?, onBack: () -> Unit) {
     val people by produceState<List<Person>?>(null) {
         value = withContext(Dispatchers.IO) {
             val byPerson = dao.faceVecs().filter { it.personId != null }.groupBy { it.personId!! }
-            // no pets: they have no unsure faces, and a face never goes to a pet
-            dao.people().mapNotNull { p -> byPerson[p.id]?.let { fs -> Person(fs, fs.firstOrNull { it.id == p.mainFaceId } ?: fs.first(), p.id, p.name, p.hidden) } }
-                .filter { !it.pet }.sortedWith(compareBy({ it.name.isNullOrBlank() }, { -it.photos })) // People screen order
+            // pets stay in: they have no unsure faces, but a New person's name must not be a pet's (Who is this? lists only the face's kind)
+            dao.people().mapNotNull { p -> byPerson[p.id]?.let { fs -> Person(fs, fs.firstOrNull { it.id == p.mainFaceId } ?: fs.first(), p.id, p.name, p.hidden, p.coverFaceId, p.pos) } }
+                .sortedWith(compareBy({ it.name.isNullOrBlank() }, { it.pos ?: Int.MAX_VALUE }, { -it.photos })) // People screen order
         }
     }
     val queue = remember(people) {
@@ -112,11 +112,54 @@ fun HelpRecognizeScreen(personId: Long?, onBack: () -> Unit) {
     val current = q?.getOrNull(at)
     // NonCancellable: Back right after an answer closes this scope, and the answer must still land
     val answer: (suspend () -> Unit) -> Unit = { write -> scope.launch { withContext(Dispatchers.IO + NonCancellable) { write() } }; pos = at + 1 }
-    Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-        TopBar("Help recognize", q?.let { "${min(at + 1, it.size)} of ${it.size}" }, onBack = onBack) {
-            if (current != null) TextButton({ skipped++; pos = at + 1 }) { Text("Skip") }
+    HelpRecognizeContent(
+        current, at, q?.size, skipped, onBack,
+        onSkip = { skipped++; pos = at + 1 },
+        onNo = { face, person -> answer { removeTag(db, face, person) } },
+        onYes = { face, person ->
+            val twins = person.twinsOf(face).map { it.id }
+            done += twins
+            answer { dao.answer(AnswerRow(face.id, person.main.id, true)); if (twins.isNotEmpty()) dao.setNearSure(twins) }
+        },
+        onSomeoneElse = { picking = true },
+        onNotFace = { face -> answer { dao.notFace(face.id) } },
+    )
+    if (picking && current != null) {
+        val (face, person) = current
+        WhoIsThisSheet(
+            face, person, people.orEmpty() + added,
+            onDismiss = { picking = false },
+            onPick = { to -> picking = false; answer { moveFace(db, face, person, to) } },
+        ) { name ->
+            picking = false
+            pos = at + 1
+            scope.launch {
+                val id = withContext(Dispatchers.IO + NonCancellable) { newPerson(db, face, person, name) }
+                added = added + Person(listOf(face), face, id, name)
+            }
         }
-        if (q != null && current == null) EmptyState(
+    }
+}
+
+/** Help recognize without the DB: [current] is the face asked about and its person (null: all done), [total] is null while loading. */
+@Composable
+fun HelpRecognizeContent(
+    current: Pair<FaceVec, Person>?,
+    at: Int,
+    total: Int?,
+    skipped: Int,
+    onBack: () -> Unit,
+    onSkip: () -> Unit,
+    onNo: (FaceVec, Person) -> Unit,
+    onYes: (FaceVec, Person) -> Unit,
+    onSomeoneElse: () -> Unit,
+    onNotFace: (FaceVec) -> Unit,
+) {
+    Column(Modifier.fillMaxSize().safeDrawingPadding()) {
+        TopBar("Help recognize", total?.let { "${min(at + 1, it)} of $it" }, onBack = onBack) {
+            if (current != null) TextButton(onSkip) { Text("Skip") }
+        }
+        if (total != null && current == null) EmptyState(
             R.drawable.ic_check, "All done",
             if (skipped > 0) "$skipped skipped faces come back next time" else "New unsure faces show up after the next index run",
         )
@@ -147,41 +190,22 @@ fun HelpRecognizeScreen(personId: Long?, onBack: () -> Unit) {
                 person.faces.filter { it.sure }.sortedByDescending { it.quality }.take(5).forEach { FaceImage(it, Modifier.size(40.dp).clip(CircleShape)) }
             }
             ActionBar(
-                "No", R.drawable.ic_close, { answer { dao.answer(AnswerRow(face.id, person.main.id, false)); dao.leavePerson(face.id) } },
-                "Yes", R.drawable.ic_check, {
-                    val twins = person.twinsOf(face).map { it.id }
-                    done += twins
-                    answer { dao.answer(AnswerRow(face.id, person.main.id, true)); if (twins.isNotEmpty()) dao.setNearSure(twins) }
-                },
+                "No", R.drawable.ic_close, { onNo(face, person) },
+                "Yes", R.drawable.ic_check, { onYes(face, person) },
                 Modifier.padding(top = 8.dp),
                 danger = false,
             )
             Row(Modifier.fillMaxWidth().padding(bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally)) {
-                TextButton({ picking = true }) {
+                TextButton(onSomeoneElse) {
                     Icon(painterResource(R.drawable.ic_person), null, Modifier.size(20.dp))
                     Spacer(Modifier.width(6.dp))
                     Text("Someone else")
                 }
-                TextButton({ answer { dao.notFace(face.id) } }) {
+                TextButton({ onNotFace(face) }) {
                     Icon(painterResource(R.drawable.ic_block), null, Modifier.size(20.dp))
                     Spacer(Modifier.width(6.dp))
                     Text("Not a face")
                 }
-            }
-        }
-    }
-    if (picking && current != null) {
-        val (face, person) = current
-        WhoIsThisSheet(
-            face, person, people.orEmpty() + added,
-            onDismiss = { picking = false },
-            onPick = { to -> picking = false; answer { moveFace(db, face, person, to) } },
-        ) { name ->
-            picking = false
-            pos = at + 1
-            scope.launch {
-                val id = withContext(Dispatchers.IO + NonCancellable) { newPerson(db, face, person, name) }
-                added = added + Person(listOf(face), face, id, name)
             }
         }
     }

@@ -73,9 +73,11 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -228,16 +230,18 @@ fun photosByIds(context: Context, ids: List<Long>): List<Tile> {
 var lastTimeline: List<TimelineItem>? = null
 var lastFavorites: List<TimelineItem>? = null
 
-/** Replaces one tile in the cached timelines after a change, so the grid and viewer see it on the next open. */
-fun updateTile(tile: Tile) {
-    lastTimeline = lastTimeline?.map { if (it is Tile && it.id == tile.id) tile else it }
-    lastFavorites = lastFavorites?.map { if (it is Tile && it.id == tile.id) tile else it }
+/** Replaces tiles in the cached timelines after a change, so the grid and viewer see them on the next open. One pass for any number. */
+fun updateTiles(tiles: List<Tile>) {
+    if (tiles.isEmpty()) return
+    val byId = tiles.associateBy { it.id }
+    lastTimeline = lastTimeline?.map { if (it is Tile) byId[it.id] ?: it else it }
+    lastFavorites = lastFavorites?.map { if (it is Tile) byId[it.id] ?: it else it }
 }
 
-/** Drops a trashed tile from the cached timelines, so the grid does not flash it before the reload. */
-fun forgetTile(id: Long) {
-    lastTimeline = lastTimeline?.filterNot { it is Tile && it.id == id }
-    lastFavorites = lastFavorites?.filterNot { it is Tile && it.id == id }
+/** Drops trashed tiles from the cached timelines, so the grid does not flash them before the reload. */
+fun forgetTiles(ids: Set<Long>) {
+    lastTimeline = lastTimeline?.filterNot { it is Tile && it.id in ids }
+    lastFavorites = lastFavorites?.filterNot { it is Tile && it.id in ids }
 }
 
 /** Goes up when the viewer changes a photo or closes, so the screen under it reloads in place. */
@@ -258,16 +262,18 @@ var fastScrolling by mutableStateOf(false)
 /**
  * Keeps the viewer's photo in view in [grid], whose tiles come in [order], so closing the viewer lands in its tile.
  * Only after a swipe: on open the grid stays put, since the photo is growing out of its tile.
+ * [enabled] false: the grid sits under another screen, whose own grid follows the viewer.
  */
 @Composable
-fun FollowViewer(grid: LazyGridState, order: List<Tile>) {
+fun FollowViewer(grid: LazyGridState, order: List<Tile>, enabled: () -> Boolean = { true }) {
     val tiles by rememberUpdatedState(order)
+    val follow by rememberUpdatedState(enabled)
     LaunchedEffect(grid) {
         var last: Long? = null
         snapshotFlow { viewerTile }.collectLatest { id ->
             val swiped = last != null
             last = id
-            if (swiped && id != null) grid.reveal(id, tiles)
+            if (swiped && id != null && follow()) grid.reveal(id, tiles)
         }
     }
 }
@@ -351,7 +357,7 @@ class Pick(
     val share: (List<Tile>) -> Unit = {},
     val favorite: (List<Tile>) -> Unit = {},
     val delete: (List<Tile>) -> Unit = {},
-    val confirm: (PendingIntent, () -> Unit) -> Unit = { _, _ -> },
+    val confirm: (PendingIntent, suspend () -> Unit) -> Unit = { _, _ -> },
     val done: () -> Unit = {},
 )
 
@@ -361,14 +367,18 @@ fun rememberPick(): Pick {
     var ids by remember { mutableStateOf<Set<Long>?>(null) }
     var changes by remember { mutableIntStateOf(0) }
     val size by produceState(0L, ids) { value = withContext(Dispatchers.IO) { selectedSize(context, ids.orEmpty()) } }
+    val scope = rememberCoroutineScope()
     // Android's confirm for photos another app owns: [then] runs on OK
-    var then by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var then by remember { mutableStateOf<(suspend () -> Unit)?>(null) }
     val ask = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
-        if (result.resultCode == Activity.RESULT_OK) { then?.invoke(); ids = null }
+        val onOk = then
         then = null
-        changes++ // our own photos changed before the confirm, even on Cancel
+        scope.launch {
+            if (result.resultCode == Activity.RESULT_OK) { onOk?.invoke(); ids = null }
+            changes++ // our own photos changed before the confirm, even on Cancel
+        }
     }
-    fun confirm(request: PendingIntent, onOk: () -> Unit) { then = onOk; ask.launch(IntentSenderRequest.Builder(request.intentSender).build()) }
+    fun confirm(request: PendingIntent, onOk: suspend () -> Unit) { then = onOk; ask.launch(IntentSenderRequest.Builder(request.intentSender).build()) }
     fun done() { ids = null; changes++ }
     return Pick(
         ids, size, changes + viewerEdits, set = { ids = it },
@@ -380,15 +390,17 @@ fun rememberPick(): Pick {
             }
         },
         favorite = { picked ->
-            if (picked.isNotEmpty()) {
+            if (picked.isNotEmpty()) scope.launch {
                 val fav = !picked.all { it.favorite }
-                val foreign = picked.filter { t -> runCatching { setFavorite(context, t, fav) }.onSuccess { updateTile(t.copy(favorite = fav)) }.isFailure }
+                // one MediaStore write per photo: off the main thread, a few hundred take seconds
+                val foreign = withContext(Dispatchers.IO) { picked.filter { t -> runCatching { setFavorite(context, t, fav) }.isFailure } }
+                updateTiles(picked.filter { it !in foreign }.map { it.copy(favorite = fav) })
                 if (foreign.isEmpty()) done()
-                else confirm(MediaStore.createFavoriteRequest(context.contentResolver, foreign.map { it.uri }, fav)) { foreign.forEach { updateTile(it.copy(favorite = fav)) } }
+                else confirm(MediaStore.createFavoriteRequest(context.contentResolver, foreign.map { it.uri }, fav)) { updateTiles(foreign.map { it.copy(favorite = fav) }) }
             }
         },
         delete = { picked ->
-            if (picked.isNotEmpty()) confirm(MediaStore.createTrashRequest(context.contentResolver, picked.map { it.uri }, true)) { picked.forEach { forgetTile(it.id) } }
+            if (picked.isNotEmpty()) confirm(MediaStore.createTrashRequest(context.contentResolver, picked.map { it.uri }, true)) { forgetTiles(picked.map { it.id }.toSet()) }
         },
         confirm = ::confirm, done = ::done,
     )
@@ -425,6 +437,7 @@ fun PhotosScreen(
     reload: Int = 0,
     onSearch: () -> Unit = {},
     scrollToTop: Int = 0,
+    onTop: () -> Boolean = { true },
 ) {
     val context = LocalContext.current
     val media = arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO)
@@ -495,6 +508,7 @@ fun PhotosScreen(
         pickedSize = pickedSize,
         onSearch = onSearch,
         scrollToTop = scrollToTop,
+        onTop = onTop,
     )
 }
 
@@ -614,6 +628,7 @@ fun PhotosContent(
     onSelectBack: (() -> Unit)? = null,
     footer: (@Composable () -> Unit)? = null,
     scrollToTop: Int = 0,
+    onTop: () -> Boolean = { true }, // false while another screen covers the tab
 ) {
     val list = items.orEmpty()
     val photos = list.filterIsInstance<Tile>()
@@ -624,8 +639,10 @@ fun PhotosContent(
     val months = remember(items) { list.mapIndexedNotNull { i, x -> if (x is Header && x.month) i to x.text else null } }
     // Tab tap to the top, Immich style: one continuous scroll, capped at tabScrollToTopMs whatever the
     // distance, and no thumbnail decode for the tiles that only fly by (Thumb waits on fastScrolling).
+    // The value it had when the tab came back is an old tap: only a newer one scrolls.
+    val seenScrollToTop = remember { scrollToTop }
     LaunchedEffect(scrollToTop) {
-        if (scrollToTop == 0) return@LaunchedEffect
+        if (scrollToTop == seenScrollToTop) return@LaunchedEffect
         fastScrolling = true
         try {
             // Far down, a scroll composes every row it passes (a second per thousand rows), so first jump
@@ -662,7 +679,7 @@ fun PhotosContent(
     val collapses = onBack == null
     val barH = maxOf(48.dp, 36.dp + with(density) { MaterialTheme.typography.titleLarge.lineHeight.toDp() })
     val barPx = with(density) { barH.toPx() }
-    var barOffset by remember { mutableFloatStateOf(0f) }
+    var barOffset by rememberSaveable { mutableFloatStateOf(0f) } // kept on a tab switch, like the grid's scroll
     val selectingNow by rememberUpdatedState(selecting)
     val hideBar = remember(barPx, collapses) {
         object : NestedScrollConnection {
@@ -729,7 +746,7 @@ fun PhotosContent(
                 top = monthHeadingHeight(below = 2.dp),
                 modifier = Modifier.weight(1f),
             ) {
-                FollowViewer(grid, photos)
+                FollowViewer(grid, photos, onTop)
                 LazyVerticalGrid(
                     GridCells.Fixed(3), state = grid,
                     modifier = (if (tabs) Modifier.selectDrag(grid, tilesById, selection!!) else Modifier).testTag("photosGrid"),

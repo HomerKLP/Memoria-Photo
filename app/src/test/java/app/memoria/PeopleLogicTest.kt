@@ -76,6 +76,14 @@ class PeopleLogicTest {
         assertEquals(listOf(2L), Person(listOf(a, twin, far, sharp), a).twinsOf(a).map { it.id })
     }
 
+    @Test fun aYesUnder03SettlesNoTwins() {
+        // the regroup trusts only Yes faces of 0.3+, so look-alikes settled by a weaker one would come back
+        val weak = at(1, 0.2f, 1f)
+        val twin = at(2, 0.3f, 0.96f, 0.28f)
+        assertEquals(emptyList<Long>(), Person(listOf(weak, twin), weak).twinsOf(weak).map { it.id })
+        assertEquals(listOf(1L), Person(listOf(weak, twin), weak).twinsOf(twin).map { it.id })
+    }
+
     @Test fun sureNeedsQualityOrAYes() {
         assertTrue(face(1, 1, quality = 0.4f).sure)
         assertFalse(face(1, 1, quality = 0.39f).sure)
@@ -150,6 +158,22 @@ class PeopleLogicTest {
         return (0 until n).filter { alive[it] && members[it].size > 5 }.map { members[it].toSet() }.toSet()
     }
 
+    @Test fun mergedPeopleStayOneAfterARegroup() {
+        val other = (11L..16L).map { at(it, 0.9f, 0f, 1f) } // 1.0 from the seeds: a person of its own
+        assertEquals(2, groupFaces(seeds + other).size)
+        val merged = groupFaces(seeds + other, merges = listOf(MergeRow(face = 11, personFace = 1)))
+        assertEquals((1L..6L).toSet() + (11L..16L), merged.single().faces.map { it.id }.toSet())
+    }
+
+    @Test fun aNewPersonKeepsItsFace_andNeverGrowsByDistance() {
+        val n = at(7, 0.35f, 0.9f, 0.436f) // 0.1 from the seeds
+        val twin = at(8, 0.35f, 0.9f, 0.436f)
+        val ids = { people: List<Person> -> people.map { p -> p.faces.map { it.id }.toSet() }.sortedBy { it.min() } }
+        assertEquals(listOf((1L..8L).toSet()), ids(groupFaces(seeds + n + twin)))
+        // New person from face 7, which was with the seeds' person (main face 1): 7 stands alone, its look-alike stays with the seeds
+        assertEquals(listOf((1L..6L).toSet() + 8L, setOf(7L)), ids(groupFaces(seeds + n + twin, listOf(AnswerRow(7, 1, false), AnswerRow(7, 7, true)))))
+    }
+
     private fun pet(id: Long, photoId: Long, x: Float, y: Float) =
         FaceVec(id, photoId, floatArrayOf(0f, 0f, 50f, 50f), floatArrayOf(x, y), 0.8f, PhotoKind.camera, null, pet = true)
 
@@ -195,5 +219,20 @@ class PeopleLogicTest {
 }
 
 // Small copies of a face with one flag flipped, so the tests read simply.
+class MergeRootTest {
+    private fun face(id: Long) = FaceVec(id, id, floatArrayOf(0f, 0f, 50f, 50f), FloatArray(0), 0.9f, PhotoKind.camera, 1)
+
+    @Test fun rootIsTheFirstPersonsFaceAndPartsAreNewestFirst() {
+        // X (5) joined Dana (1), Y (9) joined X; Dana's main face has since moved to X's part. Row 20 -> 99 is someone else's.
+        val dana = Person((1L..12L).map { face(it) }, face(5), 1, "Dana")
+        val rows = listOf(MergeRow(5, 1), MergeRow(20, 99), MergeRow(9, 5))
+        assertEquals(1L, mergeRoot(dana, rows))
+        assertEquals(listOf(9L, 5L), mergedParts(dana, rows).map { it.id })
+        val alone = Person(listOf(face(30)), face(30), 2)
+        assertEquals(30L, mergeRoot(alone, rows))
+        assertEquals(emptyList<Long>(), mergedParts(alone, rows).map { it.id })
+    }
+}
+
 private fun FaceVec.withYes() = FaceVec(id, photoId, box, vector, quality, kind, personId, yes = true, rejected = rejected)
 private fun FaceVec.withRejected() = FaceVec(id, photoId, box, vector, quality, kind, personId, yes = yes, rejected = true)

@@ -39,6 +39,30 @@ class IndexLogicTest {
         assertEquals(9L, carry(listOf(1, 2, 3, 4, 5, 6), old, oldFaces, mutableSetOf())?.id)
     }
 
+    @Test fun carryPinKeepsTheNameWithThePinnedFaceAfterUnmerge() {
+        // Dana (7) held faces 1..6, an Unmerge splits 3..6 off: without the pin that bigger part would take her name
+        val old = listOf(PersonRow(7, mainFaceId = 5, name = "Dana"))
+        val oldFaces = mapOf(7L to setOf(1L, 2L, 3L, 4L, 5L, 6L))
+        assertEquals(7L, carry(listOf(3, 4, 5, 6), old, oldFaces, mutableSetOf())?.id)
+        val taken = mutableSetOf<Long>()
+        assertNull(carry(listOf(3, 4, 5, 6), old, oldFaces, taken, mapOf(7L to 1L)))
+        assertEquals(7L, carry(listOf(1, 2), old, oldFaces, taken, mapOf(7L to 1L))?.id)
+    }
+
+    @Test fun indexPlanSplitsNewGoneAndCatchUp() {
+        fun photo(id: Long) = MediaPhoto(id, "DCIM/Camera/$id.jpg", "image/jpeg", 4000, 3000)
+        val phone = listOf(photo(1), photo(2), photo(3), photo(4))
+        // 1: fully done, 2: no vector, 3: old boxes, 4: new; 5 and 6 left the phone (6 kept only its vector after a Rescan)
+        val plan = indexPlan(phone, done = setOf(1, 2, 3, 5), tagged = setOf(1, 3, 5, 6), boxed = setOf(1, 2, 5), tagging = true, boxing = true)
+        assertEquals(setOf(5L, 6L), plan.gone)
+        assertEquals(listOf(4L), plan.todo.map { it.id })
+        assertEquals(listOf(2L, 3L), plan.catchUp.map { it.id })
+        // models not on the phone: nothing to catch up, deleted photos still go
+        val bare = indexPlan(phone, done = setOf(1, 2, 3, 5), tagged = setOf(1, 3, 5, 6), boxed = setOf(1, 2, 5), tagging = false, boxing = false)
+        assertEquals(setOf(5L, 6L), bare.gone)
+        assertEquals(emptyList<Long>(), bare.catchUp.map { it.id })
+    }
+
     @Test fun formatEta() {
         assertEquals("1s left", formatEta(0L))       // never "0s left"
         assertEquals("3s left", formatEta(3_000L))

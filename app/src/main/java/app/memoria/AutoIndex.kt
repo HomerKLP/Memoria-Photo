@@ -119,14 +119,12 @@ private fun indexBusy(context: Context): Boolean = runCatching {
         .any { it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.BLOCKED }
 }.getOrDefault(true)
 
-/** Photos the index has not seen yet, indexed photos deleted from the phone (a run forgets them), photos with no GPS read yet, and, while the tagger or the object models are here, photos with no vector or no boxes. */
+/** The work a run would do ([indexPlan], like the worker), plus photos with no GPS read yet. */
 private suspend fun changedPhotos(context: Context): Int {
     val dao = Db.get(context).index()
-    val indexed = dao.photoIds().toHashSet()
-    val phone = libraryPhotos(context).map { it.id }.toHashSet()
-    val tagged = if (taggerFile(context).exists()) dao.taggedIds(Tagger.VERSION).toHashSet() else null
-    val boxed = if (objectsFiles(context).all { it.exists() }) dao.boxedIds(ObjectDetector.VERSION).toHashSet() else null
-    return phone.count { it !in indexed } + indexed.count { it !in phone } + dao.unplaced().size +
-        (tagged?.let { t -> indexed.count { it in phone && it !in t } } ?: 0) +
-        (boxed?.let { b -> indexed.count { it in phone && it !in b } } ?: 0)
+    val plan = indexPlan(
+        libraryPhotos(context), dao.photoIds().toHashSet(), dao.taggedIds(Tagger.VERSION).toHashSet(), dao.boxedIds(ObjectDetector.VERSION).toHashSet(),
+        tagging = taggerFile(context).exists(), boxing = objectsFiles(context).all { it.exists() },
+    )
+    return plan.gone.size + plan.todo.size + plan.catchUp.size + dao.unplaced().size
 }

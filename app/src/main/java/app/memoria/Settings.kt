@@ -181,7 +181,7 @@ fun SettingsScreen(onBack: () -> Unit, onHidden: () -> Unit, onSkip: () -> Unit,
     )
 }
 
-/** Folders to skip: every album, a check on the ones face search skips. The next index run drops or searches them. */
+/** Folders to skip: every album, a check on the ones the index skips. The next index run drops or searches them. */
 @Composable
 fun SkipScreen(onBack: () -> Unit) {
     val context = LocalContext.current
@@ -197,7 +197,7 @@ fun SkipContent(albums: List<Album>?, skipped: Set<Long>, onBack: () -> Unit = {
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         TopBar("Folders to skip", if (skipped.isEmpty()) "None skipped" else "${skipped.size} skipped", onBack = onBack)
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(bottom = 16.dp)) {
-            item { Note(R.drawable.ic_info, "No face search in a checked album. Its photos stay", Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp)) }
+            item { Note(R.drawable.ic_info, "A checked album is not indexed. Its photos stay", Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp)) }
             items(albums.orEmpty(), key = { it.id }) { a ->
                 val on = a.id in skipped
                 PickRow(a.tiles.first(), label = a.name, note = "${a.tiles.size}", checked = on) { if (on) onSkip(a.id, false) else asking = a }
@@ -268,7 +268,7 @@ fun SettingsContent(
         ) { Chevron() }
         SettingRow(
             R.drawable.ic_folder, "Folders to skip",
-            if (skipped == 0) "None, all photos are searched" else "$skipped skipped",
+            if (skipped == 0) "None, all photos are indexed" else "$skipped skipped",
             onSkip,
         ) { Chevron() }
         SettingRow(R.drawable.ic_refresh, "Find faces again", "Deletes faces and names, scans all photos again", onRescan)

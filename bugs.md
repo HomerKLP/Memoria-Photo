@@ -67,6 +67,7 @@ Steps:
 Fix ideas:
 - The two neighbour pages decode at the same time as the open one; on a fast swipe the next page may not be ready and starts its decode during the animation. Decode ahead / keep a small window decoded.
 - Check whether the page gets built during the fling (`Viewer.kt` `HorizontalPager`).
+- Done 2026-10-31, not checked on the phone: `ImageDecoder` ignores cancel, so pages swiped past kept decoding. Decodes now run two at a time (`viewerLoads`), and the ones for pages already gone drop out.
 
 ## Viewer freezes for a moment on the first photos (debug build)
 
@@ -75,7 +76,7 @@ Seen once, 2026-10-22, in Memoria Debug right after a `make install`: the first 
 Steps:
 1. `make install`, open a place, tap its first photo, swipe to the next two.
 
-Next time: record a Perfetto trace while it happens.
+Next time: record a Perfetto trace while it happens. A likely cause was fixed 2026-10-31: the hidden Photos grid followed the viewer of a screen opened from Search (see Fixed); check again if it shows up.
 
 ## Opening a photo: the grow animation sometimes skips or breaks
 
@@ -186,7 +187,6 @@ Fixed 2026-10-22 on the phone (setup, not code), kept as a trap for pushing mode
 Fix (done on the phone):
 - `chmod 666` the model files, `chmod 2777` `models/` and `npu/` (so the app can also write NPU builds), `chmod 666` the files in `npu/`.
 - Keep the model files' dates (`cp -p` or `touch -r`): an NPU build's name holds the model's size and date, so a new date means a rebuild, and a rebuild into a folder the app cannot write fails.
-- A fresh install also re-cuts every face picture once (`recutThumbs`, no `recutTo` pref yet) before it indexes anything, so its first run takes minutes.
 
 ## Release runs uncompiled after an update
 
@@ -209,6 +209,7 @@ Found while reading the code, not seen on the phone yet. No steps, just the risk
 - **Global mutable state.** `lastTimeline` and `thumbs` are top-level (`Photos.kt`); the Photos tab and the viewer both depend on them silently.
 - **Bitmap churn.** `detect` makes new full-size bitmaps per photo and never recycles (`Faces.kt`). Adds to load cost and heat.
 - **`groupFaces` holds an n×n float matrix in memory** (`People.kt`). Time is O(n²) since the NN-chain (2026-10-17), but memory is 17 MB at today's 2052 starting faces and ~400 MB at 10k. Store half of it (or float16) before libraries get that big.
+- **Flaky `NavigationTest.search_categoryWordHit_backReturnsToSearchWithTheText`.** Failed once on the emulator (2026-10-31) with Compose's "Detected multithreaded access to SnapshotStateObserver", no app frames in the trace; the class passed 13/13 on a rerun. If it shows again, look for a draw started off the main thread.
 - **Dead `photo.path` column.** `PhotoRow.path` (`Index.kt`) is written on insert but no query reads it. Remove it when the schema is next touched (needs a migration).
 
 ## Perf numbers (`make perf`)
@@ -271,3 +272,10 @@ Native heap after 8 flings 141 MB, no blank tiles on a cold fling. Taken before 
 - 2026-10-30 Pet groups mixed different cats. Noodle pet vectors, boxes 0.7+, cut 0.68, split pets join under 0.76: none mixed; quality is below people's, limited by the models (`docs/objects.md`).
 - 2026-10-31 Person or Pet screen kept a face removed in the viewer (Remove tag on a one-picture New pet left "1 photo"). A fix in the viewer now bumps `peopleSaved`, so the screen reloads and closes when its last face left.
 - 2026-10-31 Index notification stayed after the run when a tap on it had dropped the foreground. The worker cancels it in `finally`.
+- 2026-10-31 Back to Photos from Library jumped to the top after any earlier tab tap: the effect replayed the old tap. Only a newer tap scrolls now, and the bar that scrolled away stays away (`rememberSaveable`).
+- 2026-10-31 The Photos grid under an opened screen followed the viewer too, walking up to 50 screens per swipe. Only the tab on top follows (`onTop`).
+- 2026-10-31 Merge with re-sorted a moment after it opened. The grid stays empty until the face vectors load.
+- 2026-10-31 Help recognize: a Yes on a face under 0.3 quality settled look-alikes only until the next regroup. `twinsOf` skips such faces, like the regroup.
+- 2026-10-31 Help recognize: Someone else showed main faces, not covers, out of People order, and a New person could take a pet's name. Its No is one transaction now (`removeTag`).
+- 2026-10-31 Move to album read the folder path as the file name for photos with no date taken. It reads `DISPLAY_NAME`.
+- 2026-10-31 Month slider landed 1-2 items early after a reload with the same month count. The drag reads the latest month starts.

@@ -101,7 +101,7 @@ class MergeRow(val face: Long, val personFace: Long)
 class ObjectBoxRow(@PrimaryKey(autoGenerate = true) val id: Long = 0, val photoId: Long, val cls: Int, val score: Float, val box: FloatArray)
 
 /** The tagger's vector for a photo (`docs/tagger.md`), empty when the photo can't be read. [model] is [Tagger.VERSION]. */
-@Entity(tableName = "photo_vector")
+@Entity(tableName = "photo_vector", indices = [Index("model")])
 class PhotoVectorRow(@PrimaryKey val photoId: Long, val model: Int, val vector: FloatArray)
 
 /** A photo's tags from its vector, as "id score;id score" ([photoTags]). [stamp] is [Tag.stamp]: a new `tags.json` scores every photo again. */
@@ -164,14 +164,14 @@ interface IndexDao {
     @Insert suspend fun insertPerson(person: PersonRow)
     @Query("UPDATE face SET personId = :person WHERE id IN (:faces)") suspend fun setPerson(faces: List<Long>, person: Long)
     @Query("SELECT thumb FROM face WHERE id = :id") suspend fun thumb(id: Long): ByteArray?
-    @Query("UPDATE face SET thumb = :thumb WHERE id = :id") suspend fun setThumb(id: Long, thumb: ByteArray)
     @Query("SELECT * FROM answer") suspend fun answers(): List<AnswerRow>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun answer(answer: AnswerRow)
     @Query("DELETE FROM answer WHERE faceId = :face AND yes") suspend fun dropYes(face: Long)
     @Query("SELECT COALESCE(MAX(id), 0) + 1 FROM person") suspend fun nextPersonId(): Long
     @Query("UPDATE face SET personId = NULL WHERE id = :face") suspend fun leavePerson(face: Long)
     @Query("UPDATE face SET notFace = 1, personId = NULL WHERE id = :face") suspend fun notFace(face: Long)
-    @Query("SELECT * FROM merged") suspend fun merges(): List<MergeRow>
+    @Query("SELECT * FROM merged ORDER BY rowid") suspend fun merges(): List<MergeRow> // oldest first: Unmerge lists the newest first
+    @Query("DELETE FROM merged WHERE face IN (:faces)") suspend fun unmerge(faces: List<Long>)
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun merge(merge: MergeRow)
     @Query("DELETE FROM merged") suspend fun clearMerges()
     @Query("UPDATE face SET personId = :to WHERE personId = :from") suspend fun movePerson(from: Long, to: Long)
@@ -210,7 +210,7 @@ interface IndexDao {
     suspend fun petPhotos(): Map<@MapColumn("photoId") Long, @MapColumn("score") Float>
 }
 
-@Database(entities = [PhotoRow::class, FaceRow::class, PersonRow::class, AnswerRow::class, MergeRow::class, PhotoVectorRow::class, ObjectBoxRow::class, PhotoTagRow::class], version = 15)
+@Database(entities = [PhotoRow::class, FaceRow::class, PersonRow::class, AnswerRow::class, MergeRow::class, PhotoVectorRow::class, ObjectBoxRow::class, PhotoTagRow::class], version = 16)
 @TypeConverters(Converters::class)
 abstract class Db : RoomDatabase() {
     abstract fun index(): IndexDao
@@ -280,7 +280,12 @@ abstract class Db : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) =
                 db.execSQL("CREATE TABLE IF NOT EXISTS `photo_tag` (`photoId` INTEGER NOT NULL, `stamp` INTEGER NOT NULL, `tags` TEXT NOT NULL, PRIMARY KEY(`photoId`))")
         }
-        internal val MIGRATIONS = arrayOf(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
+        /** v16: an index on photo_vector.model, so counting tagged photos stops reading every vector. */
+        private val MIGRATION_15_16 = object : Migration(15, 16) {
+            override fun migrate(db: SupportSQLiteDatabase) =
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_photo_vector_model` ON `photo_vector` (`model`)")
+        }
+        internal val MIGRATIONS = arrayOf(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
         private var db: Db? = null
         @Synchronized fun get(context: Context) =
             db ?: // a missing migration crashes instead of wiping names; MigrationTest checks each bump
@@ -304,7 +309,7 @@ fun testPhotos(context: Context): List<MediaPhoto> {
 
 /**
  * Every image MediaStore knows about, like Immich's import paths: include all, minus the albums
- * the user ignores (Album, More > Ignore faces). A run forgets the faces of photos that drop out.
+ * the user skips (Album, More > Don't index). A run forgets the faces of photos that drop out.
  * Videos stay out for now. kindOf sorts camera / other / skip.
  */
 fun libraryPhotos(context: Context): List<MediaPhoto> {
@@ -347,7 +352,7 @@ object IndexProgress {
     fun setTestOnly(context: Context, testOnly: Boolean) = prefs(context).edit().putBoolean("testOnly", testOnly).apply()
     fun chargingOnly(context: Context) = prefs(context).getBoolean("chargingOnly", false)
     fun setChargingOnly(context: Context, on: Boolean) = prefs(context).edit().putBoolean("chargingOnly", on).apply()
-    /** Albums (MediaStore bucket ids) left out of face search. */
+    /** Albums (MediaStore bucket ids) left out of the index. */
     fun skipped(context: Context): Set<Long> = prefs(context).getStringSet("skipped", null).orEmpty().map { it.toLong() }.toSet()
     fun setSkipped(context: Context, bucket: Long, on: Boolean) {
         val ids = skipped(context).map { "$it" }.toSet()
@@ -388,12 +393,51 @@ val peopleSaved = MutableStateFlow(0)
  * The old person whose faces overlap this new group the most, if it kept at least half of them.
  * Named or hidden people win, so a name survives two people joining. `taken` keeps one old person from landing on two groups when it split.
  */
-fun carry(ids: List<Long>, old: List<PersonRow>, oldFaces: Map<Long, Set<Long>>, taken: MutableSet<Long>): PersonRow? {
+fun carry(ids: List<Long>, old: List<PersonRow>, oldFaces: Map<Long, Set<Long>>, taken: MutableSet<Long>, pins: Map<Long, Long> = emptyMap()): PersonRow? {
     val set = ids.toSet()
-    return old.filter { it.id !in taken }
+    // [pins] (Unmerge): that old person goes only to the group holding its pinned face, however small its share
+    old.firstOrNull { it.id !in taken && pins[it.id]?.let { f -> f in set } == true }?.let { taken += it.id; return it }
+    return old.filter { it.id !in taken && it.id !in pins }
         .map { it to set.count { f -> f in oldFaces[it.id].orEmpty() } }
         .filter { (o, n) -> n * 2 >= (oldFaces[o.id]?.size ?: 1) }
         .maxWithOrNull(compareBy({ it.first.name != null || it.first.hidden }, { it.second }))?.first?.also { taken += it.id }
+}
+
+/**
+ * Groups all faces again and replaces the saved people. A new group keeps the id, name and hidden flag of the old person it
+ * matches (see [carry]), so an open Person screen and a name typed mid-run stay on the same person. The caller bumps [peopleSaved].
+ */
+suspend fun regroup(db: Db, pins: Map<Long, Long> = emptyMap()) {
+    val start = System.nanoTime()
+    val dao = db.index()
+    // one transaction: a name or New person saved during the regroup waits for it instead of being lost
+    val (saved, kept) = db.withTransaction {
+        val faces = dao.faceVecs()
+        val old = dao.people()
+        val oldFaces = faces.filter { it.personId != null }.groupBy { it.personId!! }.mapValues { e -> e.value.map { it.id }.toSet() }
+        val merges = dao.merges()
+        val answers = dao.answers()
+        val people = groupFaces(faces.filter { !it.pet }, answers, merges) + groupPets(faces.filter { it.pet }, answers, merges)
+        val taken = mutableSetOf<Long>()
+        // a pinned face no group holds any more pins nothing: that person is carried by overlap as usual
+        val live = pins.filterValues { f -> people.any { p -> p.faces.any { it.id == f } } }
+        var next = (old.maxOfOrNull { it.id } ?: 0) + 1
+        dao.deletePeople()
+        dao.clearPersonIds()
+        for (p in people) {
+            val ids = p.faces.map { it.id }
+            if (ids.isEmpty()) continue // never happens (a person needs faces), keeps IN () off the DB
+            val match = carry(ids, old, oldFaces, taken, live)
+            val pid = match?.id ?: next++
+            // the cover follows the person only while its face is still with them; else the app picks one again (main face)
+            dao.insertPerson(PersonRow(pid, p.main.id, match?.name, match?.hidden ?: false, match?.coverFaceId?.takeIf { it in ids }, match?.pos))
+            dao.setPerson(ids, pid)
+            val near = p.faces.filter { it.nearSure }.map { it.id }
+            if (near.isNotEmpty()) dao.setNearSure(near)
+        }
+        people.size to taken.size
+    }
+    Log.i("Memoria", "saved $saved people ($kept kept their id) in ${(System.nanoTime() - start) / 1_000_000} ms")
 }
 
 /** Rough time left: elapsed per photo times the photos left. Null until at least one photo is done. */
@@ -409,6 +453,19 @@ fun formatEta(ms: Long): String {
         s < 3600 -> "${s / 60}m left"
         else -> "${s / 3600}h ${(s % 3600) / 60}m left"
     }
+}
+
+/** A run's work: [gone] indexed photos no longer on the phone, [todo] new photos, [catchUp] indexed photos missing a vector or boxes. */
+class IndexPlan(val gone: Set<Long>, val todo: List<MediaPhoto>, val catchUp: List<MediaPhoto>)
+
+/** [tagging] and [boxing]: the tagger and the object models are on the phone, so photos without their output need a catch-up. */
+fun indexPlan(phone: List<MediaPhoto>, done: Set<Long>, tagged: Set<Long>, boxed: Set<Long>, tagging: Boolean, boxing: Boolean): IndexPlan {
+    val ids = phone.map { it.id }.toSet()
+    return IndexPlan(
+        gone = done + tagged - ids,
+        todo = phone.filter { it.id !in done },
+        catchUp = phone.filter { it.id in done && ((tagging && it.id !in tagged) || (boxing && it.id !in boxed)) },
+    )
 }
 
 /** Folders, mime types and tiny images that never enter people grouping. Pure part of [kindOf]. */
@@ -435,15 +492,14 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         val done = dao.photoIds().toHashSet()
         val tagged = dao.taggedIds(Tagger.VERSION).toHashSet()
         val boxed = dao.boxedIds(ObjectDetector.VERSION).toHashSet()
-        // photos deleted from the phone: forget them, their faces, vectors and boxes, so counts and people match the phone
-        if (!testOnly) (done + tagged - all.map { it.id }.toSet()).chunked(500).forEach { dao.deleteFaces(it); dao.deletePhotos(it); dao.deleteVectors(it); dao.deleteTags(it); dao.deleteBoxes(it) }
-        recutThumbs()
-        if (isStopped) return Result.success()
-        val todo = all.filter { it.id !in done }
         val tagging = taggerFile(applicationContext).exists()
         val boxing = objectsFiles(applicationContext).all { it.exists() }
-        // photos indexed before the tagger or the object models, or by older ones
-        val catchUp = all.filter { it.id in done && ((tagging && it.id !in tagged) || (boxing && it.id !in boxed)) }
+        val plan = indexPlan(all, done, tagged, boxed, tagging, boxing)
+        // photos deleted from the phone: forget them, their faces, vectors and boxes, so counts and people match the phone
+        if (!testOnly) plan.gone.chunked(500).forEach { dao.deleteFaces(it); dao.deletePhotos(it); dao.deleteVectors(it); dao.deleteTags(it); dao.deleteBoxes(it) }
+        if (isStopped) return Result.success()
+        val todo = plan.todo
+        val catchUp = plan.catchUp // photos indexed before the tagger or the object models, or by older ones
         if (todo.isEmpty() && catchUp.isEmpty()) {
             IndexProgress.finish(applicationContext)
             placePhotos()
@@ -658,28 +714,6 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         FloatArray(0)
     }
 
-    /** Cuts the face pictures saved at the old 160 px cap again, once per install. Resumes by photo id after a stop. */
-    private suspend fun recutThumbs() {
-        val prefs = applicationContext.getSharedPreferences("index", Context.MODE_PRIVATE)
-        val after = prefs.getLong("recutTo", 0)
-        if (after == Long.MAX_VALUE) return
-        val start = System.nanoTime()
-        val dao = Db.get(applicationContext).index()
-        val photos = dao.faceVecs().filter { it.photoId > after }.groupBy { it.photoId }.toSortedMap()
-        for ((id, faces) in photos) {
-            if (isStopped) return
-            try {
-                val image = loadPhoto(ImageDecoder.createSource(applicationContext.contentResolver, ContentUris.withAppendedId(Media.EXTERNAL_CONTENT_URI, id)))
-                faces.forEach { dao.setThumb(it.id, faceThumb(image, it.box)) }
-            } catch (e: Exception) {
-                Log.w("Memoria", "recut $id", e)
-            }
-            prefs.edit().putLong("recutTo", id).apply()
-        }
-        prefs.edit().putLong("recutTo", Long.MAX_VALUE).apply()
-        Log.i("Memoria", "recut ${photos.size} photos in ${(System.nanoTime() - start) / 1_000_000_000} s")
-    }
-
     /** Reads GPS and finds the nearest town for photos saved without one: new photos, and photos indexed before DB v9. */
     private suspend fun placePhotos() {
         val start = System.nanoTime()
@@ -699,36 +733,8 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
      * matches (see [carry]), so an open Person screen and a name typed mid-run stay on the same person.
      */
     private suspend fun savePeople(): Result {
-        val start = System.nanoTime()
-        val db = Db.get(applicationContext)
-        val dao = db.index()
-        // one transaction: a name or New person saved during the regroup waits for it instead of being lost
-        val (saved, kept) = db.withTransaction {
-            val faces = dao.faceVecs()
-            val old = dao.people()
-            val oldFaces = faces.filter { it.personId != null }.groupBy { it.personId!! }.mapValues { e -> e.value.map { it.id }.toSet() }
-            val merges = dao.merges()
-            val answers = dao.answers()
-            val people = groupFaces(faces.filter { !it.pet }, answers, merges) + groupPets(faces.filter { it.pet }, answers, merges)
-            val taken = mutableSetOf<Long>()
-            var next = (old.maxOfOrNull { it.id } ?: 0) + 1
-            dao.deletePeople()
-            dao.clearPersonIds()
-            for (p in people) {
-                val ids = p.faces.map { it.id }
-                if (ids.isEmpty()) continue // never happens (a person needs faces), keeps IN () off the DB
-                val match = carry(ids, old, oldFaces, taken)
-                val pid = match?.id ?: next++
-                // the cover follows the person only while its face is still with them; else the app picks one again (main face)
-                dao.insertPerson(PersonRow(pid, p.main.id, match?.name, match?.hidden ?: false, match?.coverFaceId?.takeIf { it in ids }, match?.pos))
-                dao.setPerson(ids, pid)
-                val near = p.faces.filter { it.nearSure }.map { it.id }
-                if (near.isNotEmpty()) dao.setNearSure(near)
-            }
-            people.size to taken.size
-        }
+        regroup(Db.get(applicationContext))
         peopleSaved.value++
-        Log.i("Memoria", "saved $saved people ($kept kept their id) in ${(System.nanoTime() - start) / 1_000_000} ms")
         return Result.success()
     }
 

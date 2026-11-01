@@ -43,4 +43,28 @@ class MigrationTest {
         }
         db.close()
     }
+
+    /** The columns the v7 seed can't fill: covers, order, pets, vectors and tags. */
+    @Test fun v15DataSurvivesUpgrade() {
+        helper.createDatabase("migration-test-15", 15).apply {
+            execSQL("INSERT INTO photo (id, path, kind, objects) VALUES (1, 'DCIM/Camera/a.jpg', 'camera', ${ObjectDetector.VERSION})")
+            execSQL("INSERT INTO face (id, photoId, box, score, landmarks, vector, quality, thumb, personId, notFace, nearSure, pet) VALUES (10, 1, x'', 0.9, x'', x'', 0.9, x'', 1, 0, 0, 1)")
+            execSQL("INSERT INTO person (id, mainFaceId, name, hidden, coverFaceId, pos) VALUES (1, 10, 'Barsik', 0, 10, 2)")
+            execSQL("INSERT INTO photo_vector (photoId, model, vector) VALUES (1, ${Tagger.VERSION}, x'')")
+            execSQL("INSERT INTO photo_tag (photoId, stamp, tags) VALUES (1, 7, '3 0.5')")
+            close()
+        }
+        val db = Room.databaseBuilder(instrumentation.targetContext, Db::class.java, "migration-test-15").addMigrations(*Db.MIGRATIONS).build()
+        val dao = db.index()
+        runBlocking {
+            val person = dao.people().single()
+            assertEquals(10L, person.coverFaceId)
+            assertEquals(2, person.pos)
+            assertTrue(dao.faceVecs().single().pet)
+            assertEquals(listOf(1L), dao.taggedIds(Tagger.VERSION)) // v16: the model index
+            assertEquals(listOf(1L), dao.boxedIds(ObjectDetector.VERSION))
+            assertEquals("3 0.5", dao.photoTags(7).single().tags)
+        }
+        db.close()
+    }
 }
