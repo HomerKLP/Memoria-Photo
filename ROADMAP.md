@@ -231,6 +231,7 @@ Goal: faces and pets in videos join People, as in photos. The index reads only p
 - Google Takeout import: copy photos not already on the phone, dates from the JSON, skip duplicates. Plan: `docs/library-unification.md`.
 - Names from Takeout: match Google's people tags to our people (photos with one tag and one face, then a majority vote per person, like `bench.py eval`).
 - Split a person. Ignore a face (strangers in the back).
+- Setting: photos needed to make a person (today 6, hardcoded as `> 5` in `groupFaces` and `groupPets`, `People.kt`). Easy to build: a `minPhotos` parameter, `regroup()` reads it from prefs, a change runs one regroup (3-4 s on the test phone), no re-index. Open: a named person under a raised number vanishes with its name (keep named people whatever the number?); one number for people and pets, or two. Mockup first (Settings row).
 - A first-run hint on Library about the models download (left open from Phase 2).
 - Dark theme: a dark Honey palette that follows the system setting. Replaces the light-only call (2026-10-15). Not in the mockup yet: design first.
 - Locked folder behind PIN or fingerprint (Library card in the mockup, no screen yet).
