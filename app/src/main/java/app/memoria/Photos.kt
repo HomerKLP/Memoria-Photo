@@ -117,13 +117,21 @@ import java.time.LocalDateTime
 import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlin.math.abs
 import kotlin.math.min
 
 /** A row of the Photos grid: a month or day [Header], or a [Tile]. */
 sealed interface TimelineItem
 
-/** A photo or video in the timeline. duration is set for videos only. favorite is MediaStore's own flag. */
-data class Tile(val id: Long, val uri: Uri, val date: Long, val duration: Long?, val favorite: Boolean = false) : TimelineItem
+/** A photo or video in the timeline. duration is set for videos only. favorite is MediaStore's own flag. ratio is width / height as shown, 0 if unknown. */
+data class Tile(val id: Long, val uri: Uri, val date: Long, val duration: Long?, val favorite: Boolean = false, val ratio: Float = 0f) : TimelineItem
+
+/** Width / height as shown: MediaStore keeps the stored size, so a 90 or 270 turn swaps it. */
+fun shownRatio(width: Int, height: Int, orientation: Int): Float = when {
+    width <= 0 || height <= 0 -> 0f
+    orientation % 180 == 0 -> width.toFloat() / height
+    else -> height.toFloat() / width
+}
 
 class Header(val key: String, val text: String, val month: Boolean) : TimelineItem
 
@@ -146,7 +154,7 @@ fun fallbackDate(name: String, added: Long, modified: Long, zone: ZoneId): Long 
 fun timeline(context: Context, favoritesOnly: Boolean = false): List<TimelineItem> {
     val zone = ZoneId.systemDefault()
     val tiles = mutableListOf<Tile>()
-    val cols = arrayOf(FileColumns._ID, FileColumns.MEDIA_TYPE, FileColumns.DATE_TAKEN, FileColumns.DATE_ADDED, FileColumns.DURATION, FileColumns.DATE_MODIFIED, FileColumns.DISPLAY_NAME, FileColumns.IS_FAVORITE)
+    val cols = arrayOf(FileColumns._ID, FileColumns.MEDIA_TYPE, FileColumns.DATE_TAKEN, FileColumns.DATE_ADDED, FileColumns.DURATION, FileColumns.DATE_MODIFIED, FileColumns.DISPLAY_NAME, FileColumns.IS_FAVORITE, FileColumns.WIDTH, FileColumns.HEIGHT, FileColumns.ORIENTATION)
     val where = "${FileColumns.MEDIA_TYPE} IN (${FileColumns.MEDIA_TYPE_IMAGE}, ${FileColumns.MEDIA_TYPE_VIDEO})" +
         if (favoritesOnly) "" else " AND ${FileColumns.RELATIVE_PATH} NOT LIKE 'Android/media/%' AND ${FileColumns.RELATIVE_PATH} NOT LIKE 'Android/data/%'"
     val args = Bundle().apply {
@@ -158,7 +166,7 @@ fun timeline(context: Context, favoritesOnly: Boolean = false): List<TimelineIte
             val video = c.getInt(1) == FileColumns.MEDIA_TYPE_VIDEO
             val base = if (video) MediaStore.Video.Media.EXTERNAL_CONTENT_URI else MediaStore.Images.Media.EXTERNAL_CONTENT_URI
             val date = if (c.isNull(2)) fallbackDate(c.getString(6), c.getLong(3), c.getLong(5), zone) else c.getLong(2)
-            tiles += Tile(c.getLong(0), ContentUris.withAppendedId(base, c.getLong(0)), date, if (video) c.getLong(4) else null, c.getInt(7) != 0)
+            tiles += Tile(c.getLong(0), ContentUris.withAppendedId(base, c.getLong(0)), date, if (video) c.getLong(4) else null, c.getInt(7) != 0, shownRatio(c.getInt(8), c.getInt(9), c.getInt(10)))
         }
     }
     val today = LocalDate.now()
@@ -187,7 +195,7 @@ class Trashed(val tile: Tile, val daysLeft: Int)
 
 /** Everything in the phone's own trash, the fewest days left last. Our app never keeps its own trash. */
 fun trash(context: Context): List<Trashed> {
-    val cols = arrayOf(FileColumns._ID, FileColumns.MEDIA_TYPE, FileColumns.DURATION, FileColumns.DATE_TAKEN, MediaStore.MediaColumns.DATE_EXPIRES)
+    val cols = arrayOf(FileColumns._ID, FileColumns.MEDIA_TYPE, FileColumns.DURATION, FileColumns.DATE_TAKEN, MediaStore.MediaColumns.DATE_EXPIRES, FileColumns.WIDTH, FileColumns.HEIGHT, FileColumns.ORIENTATION)
     val args = Bundle().apply { putInt(MediaStore.QUERY_ARG_MATCH_TRASHED, MediaStore.MATCH_ONLY) }
     val out = mutableListOf<Trashed>()
     val now = System.currentTimeMillis()
@@ -198,7 +206,7 @@ fun trash(context: Context): List<Trashed> {
             val id = c.getLong(0)
             // DATE_EXPIRES is in seconds, every other MediaStore date is in milliseconds
             val daysLeft = if (c.isNull(4)) 0 else ((c.getLong(4) * 1000 - now).coerceAtLeast(0) / 86_400_000L).toInt()
-            out += Trashed(Tile(id, ContentUris.withAppendedId(base, id), c.getLong(3), if (video) c.getLong(2) else null), daysLeft)
+            out += Trashed(Tile(id, ContentUris.withAppendedId(base, id), c.getLong(3), if (video) c.getLong(2) else null, ratio = shownRatio(c.getInt(5), c.getInt(6), c.getInt(7))), daysLeft)
         }
     }
     return out.sortedByDescending { it.daysLeft }
@@ -209,14 +217,14 @@ fun photosByIds(context: Context, ids: List<Long>): List<Tile> {
     if (ids.isEmpty()) return emptyList()
     val zone = ZoneId.systemDefault()
     val out = mutableListOf<Tile>()
-    val cols = arrayOf(FileColumns._ID, FileColumns.DATE_TAKEN, FileColumns.DATE_ADDED, FileColumns.DURATION, FileColumns.DATE_MODIFIED, FileColumns.DISPLAY_NAME, FileColumns.IS_FAVORITE)
+    val cols = arrayOf(FileColumns._ID, FileColumns.DATE_TAKEN, FileColumns.DATE_ADDED, FileColumns.DURATION, FileColumns.DATE_MODIFIED, FileColumns.DISPLAY_NAME, FileColumns.IS_FAVORITE, FileColumns.WIDTH, FileColumns.HEIGHT, FileColumns.ORIENTATION)
     val where = "${FileColumns._ID} IN (${ids.joinToString(",")}) AND ${FileColumns.MEDIA_TYPE} = ${FileColumns.MEDIA_TYPE_IMAGE}"
     val args = Bundle().apply { putString(ContentResolver.QUERY_ARG_SQL_SELECTION, where) }
     context.contentResolver.query(MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL), cols, args, null)?.use { c ->
         while (c.moveToNext()) {
             val id = c.getLong(0)
             val date = if (c.isNull(1)) fallbackDate(c.getString(5), c.getLong(2), c.getLong(4), zone) else c.getLong(1)
-            out += Tile(id, ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id), date, if (c.isNull(3)) null else c.getLong(3), c.getInt(6) != 0)
+            out += Tile(id, ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id), date, if (c.isNull(3)) null else c.getLong(3), c.getInt(6) != 0, shownRatio(c.getInt(7), c.getInt(8), c.getInt(9)))
         }
     }
     return out.sortedByDescending { it.date }
@@ -847,6 +855,9 @@ fun TileImage(tile: Tile, modifier: Modifier, selecting: Boolean = false, select
     }
 }
 
+/** True when a [width] x [height] picture has the photo's [ratio] (5% slack for rounding), or the ratio is unknown. */
+internal fun sameShape(width: Int, height: Int, ratio: Float): Boolean = ratio <= 0f || abs(width.toFloat() / height / ratio - 1f) < 0.05f
+
 // At most 4 thumbnail loads at once, so a fling can't bury the tiles on screen.
 private val thumbLoads = Dispatchers.IO.limitedParallelism(4)
 
@@ -864,11 +875,13 @@ fun Thumb(tile: Tile, modifier: Modifier) {
             val thumb = runCatching { context.contentResolver.loadThumbnail(tile.uri, Size(300, 300), signal) }.getOrNull()
             // old camera photos: MediaStore hands back the 160 px EXIF preview, blurry in a tile, so decode the photo itself
             val small = thumb != null && tile.duration == null && min(thumb.width, thumb.height) < 200
+            // some old cameras wrote a preview of another shape (a middle cut), which shows around the photo in the viewer
+            val wrongShape = thumb != null && tile.duration == null && !sameShape(thumb.width, thumb.height, tile.ratio)
             // halving only, to about a third of the screen: an exact size makes Skia keep every n-th pixel, which looks pixelated
             fun decode() = ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, tile.uri)) { decoder, info, _ ->
                 decoder.setTargetSampleSize(viewerSample(info.size.width, info.size.height, context.resources.displayMetrics.widthPixels / 3))
             }
-            value = (if (small) runCatching { decode() }.getOrNull() ?: thumb else thumb)
+            value = (if (small || wrongShape) runCatching { decode() }.getOrNull() ?: thumb else thumb)
                 ?.also { thumbs.put(tile.id, it) }
         }
         // The tile left the screen: stop its load

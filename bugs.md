@@ -279,3 +279,4 @@ Native heap after 8 flings 141 MB, no blank tiles on a cold fling. Taken before 
 - 2026-10-31 Help recognize: Someone else showed main faces, not covers, out of People order, and a New person could take a pet's name. Its No is one transaction now (`removeTag`).
 - 2026-10-31 Move to album read the folder path as the file name for photos with no date taken. It reads `DISPLAY_NAME`.
 - 2026-10-31 Month slider landed 1-2 items early after a reload with the same month count. The drag reads the latest month starts.
+- 2026-11-01 Viewer: a blurry, zoomed copy stayed above and below a photo whose camera preview had another shape (a 3:4 middle cut of a 4:3 photo). `Thumb` decodes the photo itself when the preview's shape differs (`Tile.ratio`).
