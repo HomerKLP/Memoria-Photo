@@ -137,7 +137,10 @@ fun PlacesContent(places: List<Place>?, onBack: () -> Unit = {}, onOpenPlace: (I
 fun PlaceScreen(id: Int, onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit) {
     val context = LocalContext.current
     val pick = rememberPick()
-    val place by cachedProduceState("place$id", pick.changes, isEmpty = { it.tiles.isEmpty() }) { loadPlaces(context).firstOrNull { it.id == id } ?: Place(id, "", emptyList()) }
+    val place by cachedProduceState("place$id", pick.changes, isEmpty = { it.tiles.isEmpty() }) {
+        // this town's photos only, no MediaStore scan of the whole library
+        withContext(Dispatchers.IO) { Db.get(context).index().photosIn(id).let { rows -> places(rows, photosByIds(context, rows.map { it.id })) } }.firstOrNull() ?: Place(id, "", emptyList())
+    }
     // the last photo of the place was deleted: the town is gone, so close instead of a blank page
     CloseWhenEmpty(place, place?.tiles?.isEmpty() == true, onBack)
     PlaceContent(place, onBack, onOpen, pick)

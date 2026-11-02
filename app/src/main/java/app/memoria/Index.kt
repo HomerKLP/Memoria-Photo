@@ -180,6 +180,7 @@ interface IndexDao {
     @Query("UPDATE person SET coverFaceId = :face WHERE id = :id") suspend fun setCover(id: Long, face: Long?)
     @Query("SELECT id FROM photo WHERE townId IS NULL") suspend fun unplaced(): List<Long>
     @Query("SELECT * FROM photo WHERE townId > 0") suspend fun placed(): List<PhotoRow>
+    @Query("SELECT * FROM photo WHERE townId = :town") suspend fun photosIn(town: Int): List<PhotoRow>
     @Query("UPDATE photo SET lat = :lat, lon = :lon, townId = :townId, town = :town WHERE id = :id")
     suspend fun setPlace(id: Long, lat: Double?, lon: Double?, townId: Int, town: String?)
     @Query("SELECT photoId FROM photo_vector WHERE model = :model") suspend fun taggedIds(model: Int): List<Long>

@@ -99,6 +99,19 @@ suspend fun loadCategories(context: Context, tiles: List<Tile>): List<Category> 
 
 private suspend fun loadCategories(context: Context) = withContext(Dispatchers.IO) { loadCategories(context, albums(context).flatMap { it.tiles }) }
 
+/** One tag on just its photos, for the Category screen: no MediaStore scan of the whole library. */
+private suspend fun loadCategory(context: Context, id: String): Category? = withContext(Dispatchers.IO) {
+    val tags = Tag.load(context)
+    val tag = tags.firstOrNull { it.id == id } ?: return@withContext null
+    val dao = Db.get(context).index()
+    val new = dao.untaggedVectors(Tagger.VERSION, Tag.stamp)
+    if (new.isNotEmpty()) dao.insertTags(new.map { PhotoTagRow(it.photoId, Tag.stamp, photoTags(tags, it.vector)) })
+    val rows = dao.photoTags(Tag.stamp)
+    val pets = if (id == "pet" && objectsFiles(context).all { it.exists() }) dao.petPhotos() else null
+    val ids = pets?.keys?.toList() ?: rows.filter { r -> r.tags.split(';').any { it.substringBefore(' ') == id } }.map { it.photoId }
+    categories(listOf(tag), rows, photosByIds(context, ids), pets).firstOrNull()
+}
+
 /** Library's Categories row: the 3 with the most photos. null (loading) or none yet: grey tiles hold the space, like [PlaceRow]. */
 @Composable
 fun CategoryRow(categories: List<Category>?, onOpen: (String) -> Unit) {
@@ -139,7 +152,7 @@ fun CategoryScreen(id: String, onBack: () -> Unit, onOpen: (List<Tile>, Tile) ->
     val context = LocalContext.current
     val pick = rememberPick()
     val category by cachedProduceState("category$id", pick.changes, isEmpty = { it.tiles.isEmpty() }) {
-        loadCategories(context).firstOrNull { it.id == id }.let { Place(0, it?.name.orEmpty(), it?.tiles.orEmpty()) }
+        loadCategory(context, id).let { Place(0, it?.name.orEmpty(), it?.tiles.orEmpty()) }
     }
     // the last photo was deleted, or the tags are gone: close instead of a blank page
     CloseWhenEmpty(category, category?.tiles?.isEmpty() == true, onBack)
