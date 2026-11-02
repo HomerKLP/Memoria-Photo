@@ -166,6 +166,31 @@ Fix ideas (`docs/objects.md`):
 - Drop a face that is not inside any person box of the object detector (YOLO26, planned for pets too). With YOLO26-M at person score 0.05 it drops 32 faces of quality 0.4+, only 1 of them a real face; the rest are a painting, statues, cartoons, a cat.
 - Softer: such a face can't start a person but can still join one, like quality under 0.4.
 
+## Non-Qualcomm phone runs every model on the CPU, logs "on NPU"
+
+Seen 2026-11-02 on a MediaTek phone (MT6993), release 0.6.0, first scan. Logcat says `tagger`, `objects`, `detector_raw`, `recognizer`, `quality` "on NPU", but LiteRT logs `Failed to initialize QNN backend` for each and runs them on XNNPACK (CPU). Only `pets.tflite` (no NPU in its list) went to the GPU.
+
+Cause: `env.getAvailableAccelerators()` lists the NPU on every phone (the Qualcomm plugin is bundled), and `CompiledModel.create` with the NPU does not fail when the plugin fails, it quietly runs on the CPU. So `open` in `Faces.kt` never tries the GPU. LiteRT 2.3.0's Kotlin API has no "fully accelerated" check.
+
+Fix idea: in `Net`, drop the NPU unless `Build.SOC_MANUFACTURER` is Qualcomm. A Qualcomm phone whose NPU fails to init would still fall to the CPU silently (maybe the 8 Gen 3 bug below).
+
+Tried (debug, not committed): Dev tools Run on NPU, 3 photos, 2 faces, while both apps indexed: detect 58 ms, embed 112 ms per face, YOLO26 100 ms, tagger 118 ms. That is GPU speed (test phone GPU: 52, 45, 40; CPU: 380, 201, 488). With the indexes paused, Run on NPU (3 photos) and Run on GPU (23 photos, 9 faces) match: detect 80 / 70, embed 58 / 81, tagger 86 / 85, YOLO26 92 / 93. So that GPU is ~1.5-2x slower than the test phone's on these models. The app sets no `gpuOptions`, so precision is LiteRT's default; FP16 may be faster there, not tried. That phone's logd rate limit (`persist.log.ratelimit`) drops the app's log lines, so the chip lines can't be read there.
+
+## Mirrored HEIC selfies show upside down in the viewer, sideways in the grid
+
+Seen 2026-11-02 on another phone (MediaTek), release app: front-camera HEIC photos show upside down in the viewer and turned 90° in the grid; the phone's own gallery shows them right. Sample of that phone's HEICs (first 64 KB read, nothing kept):
+
+| MediaStore | HEIC `irot` (ccw) | HEIC `imir` axis | EXIF | count |
+|---|---|---|---|---|
+| 270 | 90 | 1 (top-bottom) | 7 | 8 |
+| 90 | 90 | 0 (left-right) | 5 | 1 |
+| 180 | 0 | 0 | 4 | 21 |
+| 0 | 0 | 1 | 2 | 3 |
+
+Cause: for mirrored photos the HEIC's `irot` + `imir` and the EXIF tag disagree by 180° (`irot` 90 then top-bottom mirror is EXIF 5, the file says 7). `ImageDecoder` (viewer, `Thumb` re-decode, `loadPhoto` in the index) gives the 180°-off picture, so faces in these selfies are likely missed too. The grid preview comes from `loadThumbnail`, and Android's thumbnailer turns only for EXIF 3, 6, 8, not the mirrored 2, 4, 5, 7, so it stays sideways.
+
+Fix idea: for a HEIC with a mirrored EXIF tag, turn the decoded picture to match EXIF (the phone's gallery follows it), in one place all three decodes share; re-decode such tiles in `Thumb` like the wrong-shape ones. First check on the emulator with a made-up HEIC (arrow picture, `irot` + `imir`) what `ImageDecoder` applies. Rows 3 and 4 may be wrong too, not checked.
+
 ## No pets on another phone (Snapdragon 8 Gen 3)
 
 Seen 2026-10-31 on another phone, release 0.4.0, fresh install, scan done: the Pets category shows the owner's cat, but People & pets has no pet. The same owner's photos (sent over a messenger) on the test phone's debug app give the owner's cat (64 photos, box scores 0.73-0.99, mean 0.91) and a stray (8 photos), so the 0.7 box cut and the 6-photo rule are not the cause. No code path differs by phone.

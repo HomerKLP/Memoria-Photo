@@ -66,7 +66,8 @@ fun liteEnv(context: Context): Environment = env ?: context.applicationContext.l
 
 /** One model with its input and output buffers, on the first of [accelerators] the phone has and the model runs on. */
 class Net(env: Environment, file: File, accelerators: List<Accelerator>) : AutoCloseable {
-    private val model = open(env, file, accelerators.filter { it in env.getAvailableAccelerators() })
+    // Only Qualcomm's NPU plugin is bundled; on other chips an NPU load quietly runs on the CPU (bugs.md).
+    private val model = open(env, file, accelerators.filter { it in env.getAvailableAccelerators() && (it != Accelerator.NPU || Build.SOC_MANUFACTURER == "QTI") })
     private val inputs = model.createInputBuffers()
     private val outputs = model.createOutputBuffers()
 
