@@ -955,7 +955,7 @@ class LayoutJumpTest {
         val full = PhotoInfo("a.jpg", "DCIM/Camera", 3_500_000, 4032, 3024, "Mountain View", "Pixel 9", "f/1.8 · 1/120 s")
         var faces by mutableStateOf(emptyList<FaceVec>())
         var info by mutableStateOf(bare)
-        rule.setContent { MemoriaTheme { Surface { DetailsContent(tile, info, faces, emptyList()) } } }
+        rule.setContent { MemoriaTheme { Surface { DetailsContent(tile, info, faces, emptyMap()) } } }
 
         val dateText = java.time.format.DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy")
             .format(java.time.Instant.ofEpochMilli(tile.date).atZone(java.time.ZoneId.systemDefault()))

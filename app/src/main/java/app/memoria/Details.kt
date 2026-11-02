@@ -150,41 +150,51 @@ fun DetailsPanel(tile: Tile, modifier: Modifier = Modifier) {
     val db = remember { Db.get(context) }
     var info by remember(tile.id) { mutableStateOf<PhotoInfo?>(null) }
     var faces by remember(tile.id) { mutableStateOf(emptyList<FaceVec>()) }
-    var people by remember(tile.id) { mutableStateOf(emptyList<Person>()) }
+    var names by remember(tile.id) { mutableStateOf(emptyMap<Long, String?>()) }
     var fixing by remember(tile.id) { mutableStateOf<FaceVec?>(null) }
     var reload by remember { mutableIntStateOf(0) }
     LaunchedEffect(tile.id, reload) {
         withContext(Dispatchers.IO) {
             val dao = db.index()
             val info = runCatching { loadInfo(context, tile) }.getOrNull()
-            // only this photo's faces and the (vectorless) faces of saved people: no whole-library read
+            // only this photo's faces and the people's names: no whole-library read
             // people left to right, like the photo, then pets
             val photoFaces = if (tile.duration != null) emptyList() else dao.viewerFaces(tile.id).sortedWith(compareBy({ it.pet }, { it.box[0] }))
-            val byPerson = if (tile.duration != null) emptyMap() else dao.taggedFaces().groupBy { it.personId }
-            val people = dao.people().mapNotNull { p ->
+            val names = if (photoFaces.isEmpty()) emptyMap() else dao.people().associate { it.id to it.name }
+            Triple(info, photoFaces, names)
+        }.let { (i, f, n) -> info = i; faces = f; names = n }
+    }
+    // every saved person with their faces, read only when a face is tapped: the fix sheets list them
+    var people by remember(tile.id, fixing) { mutableStateOf<List<Person>?>(null) }
+    LaunchedEffect(fixing) {
+        if (fixing == null) return@LaunchedEffect
+        people = withContext(Dispatchers.IO) {
+            val dao = db.index()
+            val byPerson = dao.taggedFaces().groupBy { it.personId }
+            dao.people().mapNotNull { p ->
                 byPerson[p.id]?.let { fs ->
                     val main = fs.firstOrNull { it.id == p.mainFaceId } ?: fs.first()
                     Person(fs.map { it.toVec() }, main.toVec(), p.id, p.name, p.hidden, p.coverFaceId)
                 }
             }.sortedWith(compareBy({ it.name.isNullOrBlank() }, { -it.photos }))
-            Triple(info, photoFaces, people)
-        }.let { (i, f, p) -> info = i; faces = f; people = p }
+        }
     }
     // closes the sheet at once, then writes and reloads the row; NonCancellable, so closing the viewer right after keeps the write.
     // peopleSaved: the Person or Pet screen under the viewer reloads too, and closes if its last face left.
     val fix: (suspend () -> Unit) -> Unit = { write -> fixing = null; scope.launch { withContext(Dispatchers.IO + NonCancellable) { write(); peopleSaved.value++ }; reload++ } }
-    fixing?.let { f ->
-        val p = people.firstOrNull { it.id == f.personId }
+    val all = people
+    if (all != null) fixing?.let { f ->
+        val p = all.firstOrNull { it.id == f.personId }
         if (p != null && p.name.isNullOrBlank()) NamePersonSheet(p, onDismiss = { fixing = null }) { name ->
             fix { db.index().setName(p.id, name.trim().ifEmpty { null }) }
         } else WhoIsThisSheet(
-            f, p, people,
+            f, p, all,
             onDismiss = { fixing = null },
             onPick = { to -> fix { moveFace(db, f, p, to) } },
             onRemove = p?.let { { fix { removeTag(db, f, it) } } },
         ) { name -> fix { newPerson(db, f, p, name) } }
     }
-    DetailsContent(tile, info, faces, people, onFixFace = { fixing = it }, modifier)
+    DetailsContent(tile, info, faces, names, onFixFace = { fixing = it }, modifier)
 }
 
 /** The panel's body, split from the load so previews and layout tests can render it. Light text for the viewer's black. */
@@ -193,7 +203,7 @@ fun DetailsContent(
     tile: Tile,
     info: PhotoInfo?,
     faces: List<FaceVec>,
-    people: List<Person>,
+    names: Map<Long, String?>,
     onFixFace: (FaceVec) -> Unit = {},
     modifier: Modifier = Modifier,
     zone: ZoneId = ZoneId.systemDefault(),
@@ -221,7 +231,7 @@ fun DetailsContent(
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 faces.forEach { f ->
-                    val name = people.firstOrNull { it.id == f.personId }?.name?.takeIf { it.isNotBlank() }
+                    val name = f.personId?.let { names[it] }?.takeIf { it.isNotBlank() }
                     Column(Modifier.width(72.dp).clickable { onFixFace(f) }, horizontalAlignment = Alignment.CenterHorizontally) {
                         FaceImage(f, Modifier.size(72.dp).clip(CircleShape))
                         Text(name ?: "Add name", Modifier.padding(top = 6.dp), fontSize = 13.sp, color = if (name == null) detailsMuted else Color.Unspecified, maxLines = 1, overflow = TextOverflow.Ellipsis)

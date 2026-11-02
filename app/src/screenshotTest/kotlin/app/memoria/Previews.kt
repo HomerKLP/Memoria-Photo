@@ -366,7 +366,7 @@ fun DetailsView() = MemoriaTheme {
                 FaceVec(2, 0, floatArrayOf(0f, 0f, 50f, 50f), FloatArray(512), 0.9f, PhotoKind.camera, null),
                 fakePet(3, "Murka").main,
             ),
-            people = listOf(fakePerson(1, "Dana"), fakePet(3, "Murka")),
+            names = mapOf(1L to "Dana", 3L to "Murka"),
             zone = java.time.ZoneOffset.UTC, // the recording machine's zone would leak into the baseline
         )
     }
