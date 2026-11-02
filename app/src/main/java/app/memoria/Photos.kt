@@ -72,6 +72,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -865,7 +866,8 @@ private val thumbLoads = Dispatchers.IO.limitedParallelism(4)
 @Composable
 fun Thumb(tile: Tile, modifier: Modifier) {
     val context = LocalContext.current
-    val image by produceState(thumbs.get(tile.id), tile.id) {
+    // keyed: a slot that gets another tile (Library rows reorder during a scan) must not keep the old photo
+    val image by key(tile.id) { produceState(thumbs.get(tile.id), tile.id) {
         if (value != null) return@produceState
         // A tab-tap scroll to the top: a tile only flying by waits instead of decoding, so the fly-by
         // does not load (or drop frames on) photos you will scroll past anyway.
@@ -886,7 +888,7 @@ fun Thumb(tile: Tile, modifier: Modifier) {
         }
         // The tile left the screen: stop its load
         awaitDispose { signal.cancel() }
-    }
+    } }
     Box(modifier.background(MaterialTheme.colorScheme.surfaceVariant)) {
         image?.let { Image(it.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
         tile.duration?.let { ms ->

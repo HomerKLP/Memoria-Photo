@@ -45,30 +45,6 @@ Fix ideas:
 
 Other apps: Immich calls `loadThumbnail` for anything up to 768 px (its `LocalImagesImpl.kt`), so it should get the same preview. The phone's own gallery shows no jump, so it likely makes its own thumbnails and keeps them on disk.
 
-## Viewer closes when the phone rotates
-
-Fixed for every restart that keeps the process: portrait lock (2026-10-17), and the viewer's photo list is top-level state (2026-10-22, `NavigationTest.restore_keepsTheOpenPhoto`). Still open after process death: the list is gone and the viewer closes.
-
-Steps:
-1. Open a photo, press Home, `adb shell am kill app.memoria.debug`.
-2. Reopen from recents: the viewer is closed.
-
-Fix ideas:
-- Reload the tiles from the timeline by the open photo's id.
-
-## Viewer: stutter when swiping to neighbours fast
-
-Swiping to the next/previous photo in the viewer stutters, but only on a fast swipe. A slow swipe feels fine.
-
-Steps:
-1. Open a photo in the viewer.
-2. Swipe to a neighbour quickly, a few times in a row.
-
-Fix ideas:
-- The two neighbour pages decode at the same time as the open one; on a fast swipe the next page may not be ready and starts its decode during the animation. Decode ahead / keep a small window decoded.
-- Check whether the page gets built during the fling (`Viewer.kt` `HorizontalPager`).
-- Done 2026-10-31, not checked on the phone: `ImageDecoder` ignores cancel, so pages swiped past kept decoding. Decodes now run two at a time (`viewerLoads`), and the ones for pages already gone drop out.
-
 ## Viewer freezes for a moment on the first photos (debug build)
 
 Seen once, 2026-10-22, in Memoria Debug right after a `make install`: the first photo of a place lagged, and the swipes to the 2nd and 3rd photo froze for about half a second (365, 375, 236 ms frames). Not seen again on debug or release. Cause unknown.
@@ -89,17 +65,6 @@ Fix ideas:
 - Parallax when opening an album or a place: the page under it slides out slower than the new page comes in.
 - From the code only: a tile whose thumbnail is not cached yet opens with a fade, and the sharp photo pops in mid-motion. A video once opened at near full size, half see-through (2026-10-27, not reproduced).
 - The phone blocks `screenrecord`; measure frame by frame with `gfxinfo framestats`.
-
-## Play Protect warns on install
-
-Seen 2026-10-27 on the first in-app update (0.3.0 to 0.3.1, test phone). The update went through and kept the data, but on the way: the updater opened the APK with an "Open with" chooser (`ResolverActivity`), then the phone maker's installer, then Google's developer verifier ran (`com.google.android.verifier`) and Play Protect showed a warning that the app may be harmful. The user went on and it installed.
-
-Cause, most likely: the app is not registered with Google's developer verification (sideloaded apps must come from a registered developer; enforced in four countries since 2026-09-30, worldwide planned for 2027). Not a finding in our code.
-
-Fix ideas:
-- Register the developer and `app.memoria` with the release key in Google's console before the worldwide start. The user's call: it ties the app to a verified identity at Google.
-- Say in the release notes and README that Play Protect may warn, and how to check the APK (signing certificate SHA-256).
-- Install with a `PackageInstaller` session instead of an `ACTION_VIEW` intent, so no "Open with" chooser shows.
 
 ## Album named with only spaces shows as "(invalid)"
 
@@ -141,21 +106,6 @@ Fix ideas:
 - First, log each step's time and when the covers are drawn, on the first open and a later one; release numbers after `make release`.
 - Then: show people and albums before categories, start the load at app start (preload), or keep the cache on disk.
 
-## Library cover rows show another row item's photo while indexing
-
-Seen 2026-10-28 during a scan: the Categories row showed Pets on a meme, Memes on a document, Documents on a cat. Once the scan ends, a fresh open is right.
-
-Steps:
-1. Start a scan with many new photos, open Library.
-2. As counts grow, the categories change places in the row (most photos first).
-3. The names move, the photos stay in their old slots.
-
-Cause: `Thumb` (`Photos.kt`) keeps its picture when its `tile` changes. `produceState` creates the state once; the `tile.id` key only restarts the loader, which sees the old picture in `value` and stops. The Library rows (`CategoryRow`, `PlaceRow`, the Albums row) draw their tiles by position with no key, so a slot that gets a new item keeps the old photo. Lazy grids with item keys are fine.
-
-Fix ideas:
-- In `Thumb`, `key(tile.id) { produceState(...) }`, so a new tile gets a new state. One line, fixes every caller.
-- Test: put two bitmaps in `thumbs`, show a `CoverTile` with the first tile, switch to the second, check the pixels.
-
 ## A cat and a fish meme formed a person
 
 Seen 2026-10-28 on another phone's release build: a "No name" person with 16 photos of a cat, plus a meme of a fish with a human-like face.
@@ -187,9 +137,9 @@ Seen 2026-11-02 on another phone (MediaTek), release app: front-camera HEIC phot
 | 180 | 0 | 0 | 4 | 21 |
 | 0 | 0 | 1 | 2 | 3 |
 
-Cause: for mirrored photos the HEIC's `irot` + `imir` and the EXIF tag disagree by 180° (`irot` 90 then top-bottom mirror is EXIF 5, the file says 7). `ImageDecoder` (viewer, `Thumb` re-decode, `loadPhoto` in the index) gives the 180°-off picture, so faces in these selfies are likely missed too. The grid preview comes from `loadThumbnail`, and Android's thumbnailer turns only for EXIF 3, 6, 8, not the mirrored 2, 4, 5, 7, so it stays sideways.
+Cause: the files are fine, the decoder is not. With `imir` read as libheif and the current HEIF text do (0 = top and bottom swap, 1 = left and right swap) and `irot` applied first, all four rows match their EXIF tag; an earlier note read `imir` the other way and put every row 180° off. Android's HEIF reader likely passes only a rotation to Skia (not checked), so `ImageDecoder` (viewer, `Thumb` re-decode, `loadPhoto` in the index) applies `irot` and drops `imir`: row 3 (EXIF 4) shows upside down, rows 1, 2, 4 mirrored. If that phone shows row 1 upside down too, its decoder reads `imir` the old way. Either way faces in these photos are likely missed. The grid preview comes from `loadThumbnail`, and Android's thumbnailer turns only for EXIF 3, 6, 8, not the mirrored 2, 4, 5, 7: rows 1 and 2 stay sideways, row 3 upside down.
 
-Fix idea: for a HEIC with a mirrored EXIF tag, turn the decoded picture to match EXIF (the phone's gallery follows it), in one place all three decodes share; re-decode such tiles in `Thumb` like the wrong-shape ones. First check on the emulator with a made-up HEIC (arrow picture, `irot` + `imir`) what `ImageDecoder` applies. Rows 3 and 4 may be wrong too, not checked.
+Fix idea: for a HEIC with a mirrored EXIF tag (2, 4, 5, 7), follow EXIF like the phone's gallery: decode the stored pixels with no turn (maybe `BitmapFactory`, check it skips `irot`) and apply the EXIF matrix, in one place all three decodes share; re-decode such tiles in `Thumb` like the wrong-shape ones. First check on the emulator with a made-up HEIC per row (arrow picture, `irot` + `imir`) what `ImageDecoder` and `BitmapFactory` apply, then on that phone.
 
 ## No pets on another phone (Snapdragon 8 Gen 3)
 
@@ -312,3 +262,5 @@ Native heap after 8 flings 141 MB, no blank tiles on a cold fling. Taken before 
 - 2026-10-31 Month slider landed 1-2 items early after a reload with the same month count. The drag reads the latest month starts.
 - 2026-11-01 Viewer: a blurry, zoomed copy stayed above and below a photo whose camera preview had another shape (a 3:4 middle cut of a 4:3 photo). `Thumb` decodes the photo itself when the preview's shape differs (`Tile.ratio`).
 - 2026-11-02 `Person.photos` was a `get`, so People, Library, Search, Details and Help recognize recounted each person's photo count on every read, inside their sorts too. Counted once when the snapshot is built, like `faces` (`People.kt`).
+- 2026-10-31 Viewer stuttered on a fast swipe to a neighbour. Decodes run two at a time and drop pages swiped past (`viewerLoads`), and only the tab on top follows the viewer. Checked smooth on release 2026-11-03.
+- 2026-11-03 Library cover rows showed another item's photo while a scan reordered them. `Thumb` keys its state by `tile.id` (`ThumbTest`).
