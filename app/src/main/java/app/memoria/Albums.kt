@@ -1,6 +1,8 @@
 package app.memoria
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.AlertDialog
@@ -226,15 +228,17 @@ fun AlbumContent(
     if (selected != null) BackHandler { onSelect(null) }
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-            if (selected != null) TopBar(
-                "${selected.size} selected", a?.let { "${it.name} · ${formatBytes(pickedSize)}" },
-                onBack = { onSelect(null) }, backIcon = R.drawable.ic_close, backLabel = "Cancel",
-            ) {
-                if (a != null && selected.size < a.tiles.size) TextButton({ onSelect(a.tiles.map { it.id }.toSet()) }) { Text("Select all") }
-            }
-            // " " while loading: an empty title may measure to nothing and the grid would jump
-            else TopBar(a?.name ?: " ", a?.let { "${it.tiles.size - videos} photos" + if (videos > 0) " · $videos videos" else "" }, onBack = onBack) {
-                IconButton({ more = true }) { Icon(painterResource(R.drawable.ic_more), "More") }
+            Crossfade(selected != null, Modifier.fillMaxWidth(), animationSpec = tween(150), label = "topBar") { on ->
+                if (on) TopBar(
+                    "${selected.orEmpty().size} selected", a?.let { "${it.name} · ${formatBytes(pickedSize)}" },
+                    onBack = { onSelect(null) }, backIcon = R.drawable.ic_close, backLabel = "Cancel",
+                ) {
+                    if (a != null && selected.orEmpty().size < a.tiles.size) TextButton({ onSelect(a.tiles.map { it.id }.toSet()) }) { Text("Select all") }
+                }
+                // " " while loading: an empty title may measure to nothing and the grid would jump
+                else TopBar(a?.name ?: " ", a?.let { "${it.tiles.size - videos} photos" + if (videos > 0) " · $videos videos" else "" }, onBack = onBack) {
+                    IconButton({ more = true }) { Icon(painterResource(R.drawable.ic_more), "More") }
+                }
             }
             val grid = rememberLazyGridState()
             FollowViewer(grid, a?.tiles.orEmpty())
@@ -345,13 +349,15 @@ fun VideosContent(videos: Videos?, onBack: () -> Unit = {}, onOpen: (List<Tile>,
     if (sel != null) BackHandler { pick.set(null) }
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         val size = v?.bytes?.let { if (it >= 1e9) "%.1f GB".format(it / 1e9) else "%.0f MB".format(it / 1e6) }
-        if (sel != null) TopBar(
-            "${sel.size} selected", "Videos · ${formatBytes(pick.size)}",
-            onBack = { pick.set(null) }, backIcon = R.drawable.ic_close, backLabel = "Cancel",
-        ) {
-            if (v != null && sel.size < v.all.size) TextButton({ pick.set(v.all.map { it.id }.toSet()) }) { Text("Select all") }
+        Crossfade(sel != null, Modifier.fillMaxWidth(), animationSpec = tween(150), label = "topBar") { on ->
+            if (on) TopBar(
+                "${sel.orEmpty().size} selected", "Videos · ${formatBytes(pick.size)}",
+                onBack = { pick.set(null) }, backIcon = R.drawable.ic_close, backLabel = "Cancel",
+            ) {
+                if (v != null && sel.orEmpty().size < v.all.size) TextButton({ pick.set(v.all.map { it.id }.toSet()) }) { Text("Select all") }
+            }
+            else TopBar("Videos", v?.let { "${it.all.size} videos · $size" }, onBack = onBack)
         }
-        else TopBar("Videos", v?.let { "${it.all.size} videos · $size" }, onBack = onBack)
         val grid = rememberLazyGridState()
         FollowViewer(grid, v?.all.orEmpty())
         // one (grid item index, month name) per month heading, so the slider can jump to it

@@ -96,7 +96,8 @@ fun TrashContent(
     onEmpty: () -> Unit = {},
 ) {
     val selecting = selected.isNotEmpty()
-    BackHandler { if (selecting) onCancelSelect() else onBack() }
+    // only while selecting: the app's own Back closes the screen, with the back swipe preview
+    BackHandler(selecting) { onCancelSelect() }
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         TopBar(
             title = if (selecting) "${selected.size} selected" else "Trash",

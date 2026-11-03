@@ -45,6 +45,11 @@ class ViewerFitTest {
         assertEquals(visible, photoMotion(fit, screen, tile, visible, 0f, 0f).second)
     }
 
+    @Test fun revealedPhotoIsNotCroppedMidMotion() {
+        val (rect, clip) = photoMotion(fit, screen, tile, tile, 0.5f, 0f, reveal = 1f)
+        assertEquals(rect, clip)
+    }
+
     @Test fun fullScreenPhotoIsCenteredAndNotClipped() =
         assertEquals(androidx.compose.ui.geometry.Rect(0f, 750f, 1000f, 1250f) to null, photoMotion(fit, screen, tile, tile, 1f, 0f))
 

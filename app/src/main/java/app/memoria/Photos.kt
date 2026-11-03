@@ -553,13 +553,15 @@ fun FavoritesContent(
     val sel = pick.ids
     if (sel != null) BackHandler { pick.set(null) }
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-        if (sel != null) TopBar(
-            "${sel.size} selected", "Favorites · ${formatBytes(pick.size)}",
-            onBack = { pick.set(null) }, backIcon = R.drawable.ic_close, backLabel = "Cancel",
-        ) {
-            if (f != null && sel.size < f.all.size) TextButton({ pick.set(f.all.map { it.id }.toSet()) }) { Text("Select all") }
+        Crossfade(sel != null, Modifier.fillMaxWidth(), animationSpec = tween(150), label = "topBar") { on ->
+            if (on) TopBar(
+                "${sel.orEmpty().size} selected", "Favorites · ${formatBytes(pick.size)}",
+                onBack = { pick.set(null) }, backIcon = R.drawable.ic_close, backLabel = "Cancel",
+            ) {
+                if (f != null && sel.orEmpty().size < f.all.size) TextButton({ pick.set(f.all.map { it.id }.toSet()) }) { Text("Select all") }
+            }
+            else TopBar("Favorites", f?.let(::favoritesSubtitle), onBack = onBack)
         }
-        else TopBar("Favorites", f?.let(::favoritesSubtitle), onBack = onBack)
         if (!granted) {
             // ponytail: after two denials Android stops asking, then the user has to allow it in system settings
             Column(Modifier.padding(horizontal = 20.dp)) {

@@ -7,6 +7,8 @@ import android.media.ExifInterface
 import android.net.Uri
 import android.provider.MediaStore
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -162,14 +164,16 @@ fun PlaceContent(place: Place?, onBack: () -> Unit = {}, onOpen: (List<Tile>, Ti
         groups.map { (m, tiles) -> (i to m).also { i += 1 + tiles.size } }
     }
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-        if (sel != null) TopBar(
-            "${sel.size} selected", "${p?.name} · ${formatBytes(pick.size)}",
-            onBack = { pick.set(null) }, backIcon = R.drawable.ic_close, backLabel = "Cancel",
-        ) {
-            if (p != null && sel.size < p.tiles.size) TextButton({ pick.set(p.tiles.map { it.id }.toSet()) }) { Text("Select all") }
+        Crossfade(sel != null, Modifier.fillMaxWidth(), animationSpec = tween(150), label = "topBar") { on ->
+            if (on) TopBar(
+                "${sel.orEmpty().size} selected", "${p?.name} · ${formatBytes(pick.size)}",
+                onBack = { pick.set(null) }, backIcon = R.drawable.ic_close, backLabel = "Cancel",
+            ) {
+                if (p != null && sel.orEmpty().size < p.tiles.size) TextButton({ pick.set(p.tiles.map { it.id }.toSet()) }) { Text("Select all") }
+            }
+            // " " while loading: an empty title may measure to nothing and the grid would jump
+            else TopBar(p?.name?.ifEmpty { " " } ?: " ", p?.let { count(it.tiles.size, "photo") }, onBack = onBack)
         }
-        // " " while loading: an empty title may measure to nothing and the grid would jump
-        else TopBar(p?.name?.ifEmpty { " " } ?: " ", p?.let { count(it.tiles.size, "photo") }, onBack = onBack)
         val grid = rememberLazyGridState()
         val allTiles = p?.tiles.orEmpty()
         FollowViewer(grid, allTiles)

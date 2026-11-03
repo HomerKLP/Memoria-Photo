@@ -6,6 +6,7 @@ import android.util.LruCache
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -401,7 +402,8 @@ fun PeopleScreen(
             PeopleData(peopleAndPets(shown), people, unsure)
         }
     }
-    BackHandler { if (naming != null) naming = null else if (selected != null) selected = null else if (openId != null) onPersonBack() else onBack() }
+    // the app's own Back closes the list, with the back swipe preview
+    BackHandler(naming != null || selected != null || openId != null) { if (naming != null) naming = null else if (selected != null) selected = null else onPersonBack() }
     val merges by produceState(emptyList<MergeRow>(), reload, saved) { value = withContext(Dispatchers.IO) { dao.merges() } }
     val pick = rememberPick()
     LaunchedEffect(openId) { pick.set(null) }
@@ -629,17 +631,19 @@ fun PeopleContent(
                 val sel = selected
                 val picked = sel.orEmpty().mapNotNull { id -> shown.firstOrNull { it.id == id } }
                 val toggle = { id: Long -> sel?.let { onSelect(if (id in it) it - id else it + id) } }
-                // the bar swaps in place at the same height, so the grid never moves
-                if (sel != null) {
-                    val pets = picked.count { it.pet }
-                    val people = picked.size - pets
-                    val kinds = listOfNotNull(
-                        people.takeIf { it > 0 }?.let { "$it ${if (it == 1) "person" else "people"}" },
-                        pets.takeIf { it > 0 }?.let { "$it pet${if (it == 1) "" else "s"}" },
-                    ).joinToString(" · ")
-                    TopBar("${picked.size} selected", kinds.ifEmpty { null }, onBack = { onSelect(null) }, backIcon = R.drawable.ic_close, backLabel = "Cancel")
-                } else TopBar("People & pets", data?.summary, onBack = onBack) {
-                    IconButton({ onSelect(emptyList()) }) { Icon(painterResource(R.drawable.ic_select), "Select") }
+                // the bar fades in place at the same height, so the grid never moves
+                Crossfade(sel != null, Modifier.fillMaxWidth(), animationSpec = tween(150), label = "topBar") { on ->
+                    if (on) {
+                        val pets = picked.count { it.pet }
+                        val people = picked.size - pets
+                        val kinds = listOfNotNull(
+                            people.takeIf { it > 0 }?.let { "$it ${if (it == 1) "person" else "people"}" },
+                            pets.takeIf { it > 0 }?.let { "$it pet${if (it == 1) "" else "s"}" },
+                        ).joinToString(" · ")
+                        TopBar("${picked.size} selected", kinds.ifEmpty { null }, onBack = { onSelect(null) }, backIcon = R.drawable.ic_close, backLabel = "Cancel")
+                    } else TopBar("People & pets", data?.summary, onBack = onBack) {
+                        IconButton({ onSelect(emptyList()) }) { Icon(painterResource(R.drawable.ic_select), "Select") }
+                    }
                 }
                 // the mockup splits them: named 96 dp 3 a row (name and count), unnamed 56 dp 5 a row (faces only)
                 val (named, unnamed) = shown.partition { !it.name.isNullOrBlank() }
@@ -817,22 +821,24 @@ fun PersonDetail(
     Box(Modifier.fillMaxSize()) {
         // own Column: the Select bar goes under the grid
         Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-            if (sel != null) TopBar(
-                "${sel.size} selected", "$name · ${formatBytes(pick.size)}",
-                onBack = { pick.set(null) }, backIcon = R.drawable.ic_close, backLabel = "Cancel",
-            ) {
-                if (sel.size < shownPhotos.size) TextButton({ pick.set(shownPhotos.map { it.id }.toSet()) }) { Text("Select all") }
+            Crossfade(sel != null, Modifier.fillMaxWidth(), animationSpec = tween(150), label = "topBar") { on ->
+                if (on) TopBar(
+                    "${sel.orEmpty().size} selected", "$name · ${formatBytes(pick.size)}",
+                    onBack = { pick.set(null) }, backIcon = R.drawable.ic_close, backLabel = "Cancel",
+                ) {
+                    if (sel.orEmpty().size < shownPhotos.size) TextButton({ pick.set(shownPhotos.map { it.id }.toSet()) }) { Text("Select all") }
+                }
+                else TopBar(
+                    title = if (p.name.isNullOrBlank()) "Add name" else name,
+                    // a pet's pictures are its photos' boxes, so photos only
+                    subtitle = "${p.photos} photo${if (p.photos == 1) "" else "s"}" + if (p.pet) "" else " · ${p.faces.size} face${if (p.faces.size == 1) "" else "s"}",
+                    onBack = onBack,
+                    leading = { FaceImage(p.cover, Modifier.padding(end = 12.dp).size(40.dp).clip(CircleShape)) },
+                    onTitle = onName,
+                    titleColor = if (p.name.isNullOrBlank()) MaterialTheme.colorScheme.primary else Color.Unspecified,
+                    trailing = { IconButton({ more = true }) { Icon(painterResource(R.drawable.ic_more), "More") } },
+                )
             }
-            else TopBar(
-                title = if (p.name.isNullOrBlank()) "Add name" else name,
-                // a pet's pictures are its photos' boxes, so photos only
-                subtitle = "${p.photos} photo${if (p.photos == 1) "" else "s"}" + if (p.pet) "" else " · ${p.faces.size} face${if (p.faces.size == 1) "" else "s"}",
-                onBack = onBack,
-                leading = { FaceImage(p.cover, Modifier.padding(end = 12.dp).size(40.dp).clip(CircleShape)) },
-                onTitle = onName,
-                titleColor = if (p.name.isNullOrBlank()) MaterialTheme.colorScheme.primary else Color.Unspecified,
-                trailing = { IconButton({ more = true }) { Icon(painterResource(R.drawable.ic_more), "More") } },
-            )
             val grid = rememberLazyGridState()
             FollowViewer(grid, shownPhotos)
             // the Select bar floats over the grid, so nothing moves when it comes in
