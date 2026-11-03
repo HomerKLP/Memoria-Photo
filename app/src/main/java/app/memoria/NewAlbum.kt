@@ -71,6 +71,7 @@ fun NewAlbumContent(name: String, onName: (String) -> Unit, taken: Boolean, onCa
         Spacer(Modifier.height(14.dp))
         AlbumNameField(name, onName, Modifier.padding(horizontal = 16.dp))
         Row(Modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            val off = name.trim().all { it == '.' } || taken // empty, "." and ".." become "(invalid)" in Android
             Box(
                 Modifier.weight(1f).height(52.dp).clip(RoundedCornerShape(26.dp))
                     .border(1.dp, MaterialTheme.colorScheme.onSurfaceVariant, RoundedCornerShape(26.dp))
@@ -79,11 +80,11 @@ fun NewAlbumContent(name: String, onName: (String) -> Unit, taken: Boolean, onCa
             ) { Text("Cancel", fontWeight = FontWeight.Medium) }
             Row(
                 Modifier.weight(1f).height(52.dp).clip(RoundedCornerShape(26.dp))
-                    .background(if (name.isBlank() || taken) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primary)
-                    .clickable(enabled = name.isNotBlank() && !taken) { onNext() },
+                    .background(if (off) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primary)
+                    .clickable(enabled = !off) { onNext() },
                 horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
             ) {
-                val color = if (name.isBlank() || taken) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary
+                val color = if (off) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary
                 Text("Next", color = color, fontWeight = FontWeight.Medium)
                 Spacer(Modifier.width(6.dp))
                 Icon(painterResource(R.drawable.ic_chevron), null, Modifier.size(18.dp), tint = color)

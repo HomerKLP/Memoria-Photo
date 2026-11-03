@@ -638,6 +638,30 @@ class BehaviorTest {
         assertTrue(next)
     }
 
+    @Test fun newAlbum_next_staysOffForNamesAndroidCallsInvalid() {
+        var name by mutableStateOf("")
+        rule.setContent { MemoriaTheme { Surface { NewAlbumContent(name, { name = it }, false, {}, {}) } } }
+
+        for (bad in listOf("     ", ".", ". ", "..", ".    ")) {
+            rule.runOnIdle { name = bad }
+            rule.onNodeWithText("Next").assertIsNotEnabled()
+        }
+        rule.runOnIdle { name = ".a" }
+        rule.onNodeWithText("Next").assertIsEnabled()
+    }
+
+    @Test fun moveToAlbum_newAlbum_staysOffForNamesAndroidCallsInvalid() {
+        var typed by mutableStateOf("")
+        rule.setContent { MemoriaTheme { Surface { MoveToAlbumContent(tile(1), "Camera", emptyList(), true, typed, { typed = it }, {}, {}, {}, {}) } } }
+
+        for (bad in listOf("     ", ".", ". ", "..", ".    ")) {
+            rule.runOnIdle { typed = bad }
+            rule.onNodeWithText("Move").assertIsNotEnabled()
+        }
+        rule.runOnIdle { typed = ".a" }
+        rule.onNodeWithText("Move").assertIsEnabled()
+    }
+
     @Test fun newAlbum_name_dropsSlashes() {
         var name by mutableStateOf("")
         rule.setContent { MemoriaTheme { Surface { NewAlbumContent(name, { name = it }, false, {}, {}) } } }
