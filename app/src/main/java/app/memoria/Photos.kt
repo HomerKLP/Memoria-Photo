@@ -654,6 +654,8 @@ fun PhotosContent(
             // to about three screens below the top and scroll only the rest.
             val shown = grid.layoutInfo.visibleItemsInfo.size
             if (grid.firstVisibleItemIndex > shown * 3) grid.scrollToItem(shown * 3)
+            // A pinned month heading has no line, so the cache window can start at line -1 and the jump asks the grid for it; moving by 1 px resets the window.
+            grid.scrollToItem(grid.firstVisibleItemIndex, grid.firstVisibleItemScrollOffset + 1)
             // The exact pixel distance to the top, measured with a scroll there and back inside one
             // frame: the two scrolls happen before the next draw, so the jump is never shown.
             val back = grid.scrollBy(-1e9f)
