@@ -890,6 +890,84 @@ class LayoutJumpTest {
         assertSame("grid top", gridBefore, rule.onNodeWithTag("placeGrid").top())
     }
 
+    /** Selecting: the top bar fades between the two modes, so for a moment both are there. Same for the five tests below. */
+    @Test fun favorites_selecting_topBarFades() {
+        val tiles = albumTiles(1, 9)
+        var ids by mutableStateOf<Set<Long>?>(null)
+        rule.setContent { MemoriaTheme { Surface { FavoritesContent(Favorites(linkedMapOf("October 2026" to tiles), tiles), pick = Pick(ids)) } } }
+
+        rule.mainClock.autoAdvance = false
+        rule.runOnUiThread { ids = setOf(1001L) }
+        rule.mainClock.advanceTimeBy(60)
+        rule.onAllNodesWithTag("topBar").assertCountEquals(2)
+        rule.mainClock.autoAdvance = true
+        rule.onAllNodesWithTag("topBar").assertCountEquals(1)
+    }
+
+    @Test fun videos_selecting_topBarFades() {
+        val tiles = albumTiles(1, 9)
+        var ids by mutableStateOf<Set<Long>?>(null)
+        rule.setContent { MemoriaTheme { Surface { VideosContent(Videos(linkedMapOf("October 2026" to tiles), tiles, 2_500_000_000L), pick = Pick(ids)) } } }
+
+        rule.mainClock.autoAdvance = false
+        rule.runOnUiThread { ids = setOf(1001L) }
+        rule.mainClock.advanceTimeBy(60)
+        rule.onAllNodesWithTag("topBar").assertCountEquals(2)
+        rule.mainClock.autoAdvance = true
+        rule.onAllNodesWithTag("topBar").assertCountEquals(1)
+    }
+
+    @Test fun place_selecting_topBarFades() {
+        var ids by mutableStateOf<Set<Long>?>(null)
+        rule.setContent { MemoriaTheme { Surface { PlaceContent(Place(1, "Riverton", albumTiles(1, 9)), pick = Pick(ids)) } } }
+
+        rule.mainClock.autoAdvance = false
+        rule.runOnUiThread { ids = setOf(1001L) }
+        rule.mainClock.advanceTimeBy(60)
+        rule.onAllNodesWithTag("topBar").assertCountEquals(2)
+        rule.mainClock.autoAdvance = true
+        rule.onAllNodesWithTag("topBar").assertCountEquals(1)
+    }
+
+    @Test fun album_selecting_topBarFades() {
+        var selected by mutableStateOf<Set<Long>?>(null)
+        rule.setContent { MemoriaTheme { Surface { AlbumContent(album(1, "Camera", 9), selected = selected) } } }
+
+        rule.mainClock.autoAdvance = false
+        rule.runOnUiThread { selected = setOf(1001L) }
+        rule.mainClock.advanceTimeBy(60)
+        rule.onAllNodesWithTag("topBar").assertCountEquals(2)
+        rule.mainClock.autoAdvance = true
+        rule.onAllNodesWithTag("topBar").assertCountEquals(1)
+    }
+
+    @Test fun personDetail_selecting_topBarFades() {
+        val faces = (1L..6L).map { face(it) }
+        val person = Person(faces, faces.first(), 1, "Dana")
+        var ids by mutableStateOf<Set<Long>?>(null)
+        rule.setContent { MemoriaTheme { Surface { PersonDetail(person, onBack = {}, onName = {}, onOpen = { _, _ -> }, loadPhotos = { albumTiles(1, 6) }, pick = Pick(ids)) } } }
+
+        rule.mainClock.autoAdvance = false
+        rule.runOnUiThread { ids = setOf(1001L) }
+        rule.mainClock.advanceTimeBy(60)
+        rule.onAllNodesWithTag("topBar").assertCountEquals(2)
+        rule.mainClock.autoAdvance = true
+        rule.onAllNodesWithTag("topBar").assertCountEquals(1)
+    }
+
+    @Test fun people_selecting_topBarFades() {
+        var selected by mutableStateOf<List<Long>?>(null)
+        val people = (1L..3L).map { person(it, "Person $it") } + (4L..8L).map { person(it, null) }
+        rule.setContent { MemoriaTheme { Surface { PeopleContent(PeopleData("8 people", people, emptyList()), selected = selected) } } }
+
+        rule.mainClock.autoAdvance = false
+        rule.runOnUiThread { selected = emptyList() }
+        rule.mainClock.advanceTimeBy(60)
+        rule.onAllNodesWithTag("topBar").assertCountEquals(2)
+        rule.mainClock.autoAdvance = true
+        rule.onAllNodesWithTag("topBar").assertCountEquals(1)
+    }
+
     /** Person, selecting: the bar loses the face and More, but keeps its height; the faces and grid above the photos stay put. */
     @Test fun personDetail_selecting_keepsTopBarAndFaces() {
         val faces = (1L..6L).map { face(it) }
