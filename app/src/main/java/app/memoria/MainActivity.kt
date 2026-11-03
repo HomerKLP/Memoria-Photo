@@ -13,7 +13,7 @@ import android.provider.MediaStore
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
-import androidx.activity.compose.BackHandler
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -21,11 +21,13 @@ import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.SeekableTransitionState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.updateTransition
+import androidx.compose.animation.core.rememberTransition
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
@@ -37,16 +39,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.layout.LazyLayoutCacheWindow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationItemIconPosition
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.ShortNavigationBar
-import androidx.compose.material3.ShortNavigationBarItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -67,6 +66,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
@@ -83,6 +83,7 @@ import androidx.work.WorkInfo
 import com.google.ai.edge.litert.Accelerator
 import java.io.File
 import java.io.Serializable
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
@@ -140,8 +141,21 @@ fun App(dir: File, openSettings: Int = 0, atUpdates: Boolean = false) {
     val back = { stack.lastOrNull()?.let { tabs.removeState(screenKey(stack.lastIndex, it)) }; stack = stack.dropLast(1) }
     // the same screen with new arguments (a person opened inside People): it keeps its state
     val replaceTop = { s: Screen -> stack = stack.dropLast(1) + s }
-    // first, so a screen's own Back (a sheet, select mode) goes before it
-    BackHandler(stack.isNotEmpty(), back)
+    // The top screen with its place in the stack, or null on the tab. Seekable, so the back swipe can drag it.
+    val top = stack.withIndex().lastOrNull()
+    val screens = remember { SeekableTransitionState(top) }
+    LaunchedEffect(top) { screens.animateTo(top) }
+    // first, so a screen's own Back (a sheet, select mode) goes before it. The back swipe slides the
+    // screen with the finger; letting go finishes the slide, a cancel slides it back.
+    PredictiveBackHandler(stack.isNotEmpty()) { swipe ->
+        try {
+            swipe.collect { screens.seekTo(it.progress, stack.dropLast(1).withIndex().lastOrNull()) }
+            back()
+        } catch (e: CancellationException) {
+            screens.animateTo(screens.currentState)
+            throw e
+        }
+    }
     // bumped when a screen goes back to its tab: Library stays composed under it, so it reloads to show changes made there
     var returns by remember { mutableIntStateOf(0) }
     LaunchedEffect(Unit) { snapshotFlow { stack.isEmpty() }.drop(1).collect { if (it) returns++ } }
@@ -217,39 +231,20 @@ fun App(dir: File, openSettings: Int = 0, atUpdates: Boolean = false) {
     // and shrinks back in. The screen under is hidden from TalkBack while the viewer is open.
     // A screen opened from a tab sits on top of it too, so the tab stays composed and back only slides the
     // screen away (building Library again during the slide made it stutter).
-    // The top screen with its place in the stack, or null on the tab.
-    val opened = updateTransition(stack.withIndex().lastOrNull(), label = "screen")
-    // Settings pushes: the tab slides out to the left as Settings comes in, like a window to the right
-    val pushed by opened.animateFloat({ tween(250) }, label = "push") { if (it?.value.isSettingsPage()) 1f else 0f }
+    val opened = rememberTransition(screens, label = "screen")
+    // Parallax: the tab moves a quarter to the left and darkens while a screen slides over it
+    val pushed by opened.animateFloat({ tween(250) }, label = "push") { if (it != null) 1f else 0f }
     Box(Modifier.fillMaxSize()) {
         Box(if (viewing != null) Modifier.clearAndSetSemantics {} else Modifier) {
-            Box(Modifier.graphicsLayer { translationX = -pushed * size.width }.then(if (opened.targetState != null) Modifier.clearAndSetSemantics {} else Modifier)) {
-                Scaffold(bottomBar = {
-                    // The tabs and the Select bar are the same height (both build on ShortNavigationBar),
-                    // so crossfading them never moves the grid.
-                    Crossfade(targetState = tab == "photos" && selection.active, label = "bottomBar") { selecting ->
-                        if (selecting) SelectBar(
-                            favorite = selection.allFavorite,
-                            onShare = shareSelected,
-                            onFavorite = { favoriteSelected(!selection.allFavorite) },
-                            onDelete = deleteSelected,
-                        )
-                        else ShortNavigationBar {
-                            ShortNavigationBarItem(
-                                tab == "photos", {
-                                    if (tab == "photos") photosScrollTop++ else tab = "photos"
-                                }, { Icon(painterResource(R.drawable.ic_photo), null) }, { Text("Photos") },
-                                iconPosition = NavigationItemIconPosition.Start,
-                            )
-                            ShortNavigationBarItem(
-                                tab == "library", { tab = "library" }, { Icon(painterResource(R.drawable.ic_library), null) }, { Text("Library") },
-                                iconPosition = NavigationItemIconPosition.Start,
-                            )
-                        }
-                    }
-                }) { padding ->
-                    // tabs are side by side, so they fade; a push would read as going deeper
-                    Crossfade(tab, Modifier.padding(padding), animationSpec = tween(200), label = "tab") { t ->
+            Box(
+                Modifier.graphicsLayer { translationX = -pushed * size.width / 4 }
+                    .drawWithContent { drawContent(); drawRect(Color.Black, alpha = underDim * pushed) }
+                    .then(if (opened.targetState != null) Modifier.clearAndSetSemantics {} else Modifier),
+            ) {
+                Box(Modifier.fillMaxSize()) {
+                    // tabs are side by side, so they fade; a push would read as going deeper. Each tab keeps
+                    // clear of the system bars itself: Photos runs its grid under both, behind the floating tabs.
+                    Crossfade(tab, animationSpec = tween(200), label = "tab") { t ->
                         tabs.SaveableStateProvider(t) {
                             if (t == "photos") PhotosScreen(
                                 onOpen = open, grid = photosGrid, selection = selection, reload = photosReload,
@@ -276,26 +271,42 @@ fun App(dir: File, openSettings: Int = 0, atUpdates: Boolean = false) {
                             )
                         }
                     }
+                    // The tabs and the Select bar float over the tab, so swapping them never moves the grid
+                    Crossfade(tab == "photos" && selection.active, Modifier.align(Alignment.BottomCenter).fillMaxWidth(), label = "bottomBar") { selecting ->
+                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            if (selecting) SelectBar(
+                                favorite = selection.allFavorite,
+                                onShare = shareSelected,
+                                onFavorite = { favoriteSelected(!selection.allFavorite) },
+                                onDelete = deleteSelected,
+                            )
+                            else Tabs(tab, onPhotos = { if (tab == "photos") photosScrollTop++ else tab = "photos" }, onLibrary = { tab = "library" })
+                        }
+                    }
                 }
             }
             // An opened screen slides in from the right, and back slides it out to the right. Screen to screen
-            // pushes: the old one slides out to the left, Back reverses it. Each screen paints its own
-            // background and takes the taps, so the tab under it neither shows through nor reacts.
+            // pushes with parallax: the old one moves a quarter to the left and darkens, Back reverses it.
+            // A deeper screen is always drawn on top. Each screen paints its own background and takes the
+            // taps, so the tab under it neither shows through nor reacts.
             opened.AnimatedContent(contentKey = { it?.let { e -> screenKey(e.index, e.value) } }, transitionSpec = {
                 val from = initialState
                 val to = targetState
                 when {
                     from == null -> slideInHorizontally(tween(250)) { it } togetherWith ExitTransition.None
                     to == null -> EnterTransition.None togetherWith slideOutHorizontally(tween(250)) { it }
-                    else -> {
-                        val dir = if (to.index >= from.index) 1 else -1
-                        slideInHorizontally(tween(250)) { it * dir } togetherWith slideOutHorizontally(tween(250)) { -it * dir }
-                    }
-                }
+                    to.index >= from.index -> slideInHorizontally(tween(250)) { it } togetherWith slideOutHorizontally(tween(250)) { -it / 4 }
+                    else -> slideInHorizontally(tween(250)) { -it / 4 } togetherWith slideOutHorizontally(tween(250)) { it }
+                }.apply { targetContentZIndex = (to?.index ?: -1).toFloat() }
             }) { target ->
+                val under = target != null && listOfNotNull(opened.currentState, opened.targetState).any { it.index > target.index }
+                val dim by transition.animateFloat({ tween(250) }, label = "dim") { if (under && it != EnterExitState.Visible) underDim else 0f }
                 // no screen is an empty full-size box: a zero size would clip the screen sliding in or out
                 if (target == null) Box(Modifier.fillMaxSize())
-                else Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).pointerInput(Unit) {}) {
+                else Box(
+                    Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).pointerInput(Unit) {}
+                        .drawWithContent { drawContent(); drawRect(Color.Black, alpha = dim) },
+                ) {
                     // keeps the screen's scroll and fields while the viewer or another screen is on top
                     tabs.SaveableStateProvider(screenKey(target.index, target.value)) {
                         when (val s = target.value) {
@@ -415,7 +426,8 @@ sealed interface Screen : Serializable {
 /** A stack entry's id for its saved state: the kind and the depth, not the arguments, so [Screen.People] keeps its state as a person opens. */
 internal fun screenKey(depth: Int, screen: Screen) = "$depth ${screen.javaClass.simpleName}"
 
-private fun Screen?.isSettingsPage() = this is Screen.Settings || this is Screen.Licenses || this is Screen.Skip || this is Screen.Hidden || this is Screen.Dev
+// how dark the screen under a sliding one gets
+private const val underDim = 0.2f
 
 /** Library shortcut card from the mockup (Favorites, Videos, Trash). One line each, so the two cards in a row stay the same height. */
 @Composable

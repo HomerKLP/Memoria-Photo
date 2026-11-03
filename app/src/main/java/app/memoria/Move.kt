@@ -81,6 +81,7 @@ fun MoveToAlbumContent(
             // name field + Cancel / Move, like Name a person
             AlbumNameField(name, onName, Modifier.padding(horizontal = 16.dp))
             Row(Modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                val off = name.trim().all { it == '.' } || taken // empty, "." and ".." become "(invalid)" in Android
                 Box(
                     Modifier.weight(1f).height(52.dp).clip(RoundedCornerShape(26.dp))
                         .border(1.dp, MaterialTheme.colorScheme.onSurfaceVariant, RoundedCornerShape(26.dp))
@@ -89,11 +90,11 @@ fun MoveToAlbumContent(
                 ) { Text("Cancel", fontWeight = FontWeight.Medium) }
                 Row(
                     Modifier.weight(1f).height(52.dp).clip(RoundedCornerShape(26.dp))
-                        .background(if (name.isBlank() || taken) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primary)
-                        .clickable(enabled = name.isNotBlank() && !taken) { onMoveNew(name) },
+                        .background(if (off) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primary)
+                        .clickable(enabled = !off) { onMoveNew(name) },
                     horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    val color = if (name.isBlank() || taken) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary
+                    val color = if (off) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary
                     Icon(painterResource(R.drawable.ic_move), null, Modifier.size(18.dp), tint = color)
                     Spacer(Modifier.width(8.dp))
                     Text("Move", color = color, fontWeight = FontWeight.Medium)

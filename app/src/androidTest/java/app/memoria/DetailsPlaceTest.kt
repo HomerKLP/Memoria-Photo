@@ -16,13 +16,13 @@ class DetailsPlaceTest {
     private val tile = Tile(1, Uri.parse("content://media/external/images/media/1"), 1_700_000_000_000L, null)
 
     @Test fun place_showsTownName() {
-        rule.setContent { MemoriaTheme { Surface { DetailsContent(tile, PhotoInfo("a.jpg", "DCIM/Camera", 0, 0, 0, "Riverton", null, null), emptyList(), emptyList()) } } }
+        rule.setContent { MemoriaTheme { Surface { DetailsContent(tile, PhotoInfo("a.jpg", "DCIM/Camera", 0, 0, 0, "Riverton", null, null), emptyList(), emptyMap()) } } }
         rule.onNodeWithText("Place").assertIsDisplayed()
         rule.onNodeWithText("Riverton").assertIsDisplayed()
     }
 
     @Test fun noGps_hidesPlace() {
-        rule.setContent { MemoriaTheme { Surface { DetailsContent(tile, PhotoInfo("a.jpg", "DCIM/Camera", 0, 0, 0, null, null, null), emptyList(), emptyList()) } } }
+        rule.setContent { MemoriaTheme { Surface { DetailsContent(tile, PhotoInfo("a.jpg", "DCIM/Camera", 0, 0, 0, null, null, null), emptyList(), emptyMap()) } } }
         rule.onNodeWithText("Place").assertDoesNotExist()
     }
 }

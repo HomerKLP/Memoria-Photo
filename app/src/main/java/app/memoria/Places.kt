@@ -1,10 +1,14 @@
 package app.memoria
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.Alignment
 import android.content.Context
 import android.media.ExifInterface
 import android.net.Uri
 import android.provider.MediaStore
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -135,7 +139,10 @@ fun PlacesContent(places: List<Place>?, onBack: () -> Unit = {}, onOpenPlace: (I
 fun PlaceScreen(id: Int, onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit) {
     val context = LocalContext.current
     val pick = rememberPick()
-    val place by cachedProduceState("place$id", pick.changes, isEmpty = { it.tiles.isEmpty() }) { loadPlaces(context).firstOrNull { it.id == id } ?: Place(id, "", emptyList()) }
+    val place by cachedProduceState("place$id", pick.changes, isEmpty = { it.tiles.isEmpty() }) {
+        // this town's photos only, no MediaStore scan of the whole library
+        withContext(Dispatchers.IO) { Db.get(context).index().photosIn(id).let { rows -> places(rows, photosByIds(context, rows.map { it.id })) } }.firstOrNull() ?: Place(id, "", emptyList())
+    }
     // the last photo of the place was deleted: the town is gone, so close instead of a blank page
     CloseWhenEmpty(place, place?.tiles?.isEmpty() == true, onBack)
     PlaceContent(place, onBack, onOpen, pick)
@@ -157,47 +164,47 @@ fun PlaceContent(place: Place?, onBack: () -> Unit = {}, onOpen: (List<Tile>, Ti
         groups.map { (m, tiles) -> (i to m).also { i += 1 + tiles.size } }
     }
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-        if (sel != null) TopBar(
-            "${sel.size} selected", "${p?.name} · ${formatBytes(pick.size)}",
-            onBack = { pick.set(null) }, backIcon = R.drawable.ic_close, backLabel = "Cancel",
-        ) {
-            if (p != null && sel.size < p.tiles.size) TextButton({ pick.set(p.tiles.map { it.id }.toSet()) }) { Text("Select all") }
+        Crossfade(sel != null, Modifier.fillMaxWidth(), animationSpec = tween(150), label = "topBar") { on ->
+            if (on) TopBar(
+                "${sel.orEmpty().size} selected", "${p?.name} · ${formatBytes(pick.size)}",
+                onBack = { pick.set(null) }, backIcon = R.drawable.ic_close, backLabel = "Cancel",
+            ) {
+                if (p != null && sel.orEmpty().size < p.tiles.size) TextButton({ pick.set(p.tiles.map { it.id }.toSet()) }) { Text("Select all") }
+            }
+            // " " while loading: an empty title may measure to nothing and the grid would jump
+            else TopBar(p?.name?.ifEmpty { " " } ?: " ", p?.let { count(it.tiles.size, "photo") }, onBack = onBack)
         }
-        // " " while loading: an empty title may measure to nothing and the grid would jump
-        else TopBar(p?.name?.ifEmpty { " " } ?: " ", p?.let { count(it.tiles.size, "photo") }, onBack = onBack)
         val grid = rememberLazyGridState()
         val allTiles = p?.tiles.orEmpty()
         FollowViewer(grid, allTiles)
-        MonthSliderBox(grid = grid, months = months, enabled = sel == null, top = monthHeadingHeight(below = 10.dp), modifier = Modifier.weight(1f)) {
-            LazyVerticalGrid(
-                GridCells.Fixed(3), Modifier.testTag("placeGrid"), state = grid,
-                horizontalArrangement = Arrangement.spacedBy(1.dp), verticalArrangement = Arrangement.spacedBy(1.dp),
-            ) {
-                groups.forEach { (m, tiles) ->
-                    stickyHeader(key = m) {
-                        // background: the pinned month covers the tiles passing under it
-                        Text(
-                            m, Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(start = 16.dp, top = 20.dp, bottom = 10.dp),
-                            style = MaterialTheme.typography.titleLarge,
-                        )
-                    }
-                    items(tiles, key = { it.id }) { t ->
-                        val on = sel != null && t.id in sel
-                        TileImage(
-                            t,
-                            Modifier.combinedClickable(
-                                onClick = { if (sel == null) onOpen(allTiles, t) else pick.set(if (on) sel - t.id else sel + t.id) },
-                                onLongClick = { pick.set(sel.orEmpty() + t.id) },
-                            ).testTag("tile-${t.id}").animateItem(fadeInSpec = null), // no fade in: a first load shows at once
-                            selecting = sel != null, selected = on,
-                        )
+        // the Select bar floats over the grid, so nothing moves when it comes in
+        Box(Modifier.weight(1f)) {
+            MonthSliderBox(grid = grid, months = months, enabled = sel == null, top = monthHeadingHeight(below = 10.dp), modifier = Modifier.fillMaxSize()) {
+                LazyVerticalGrid(
+                    GridCells.Fixed(3), Modifier.testTag("placeGrid"), state = grid,
+                    contentPadding = PaddingValues(bottom = if (sel != null) 72.dp else 0.dp),
+                    horizontalArrangement = Arrangement.spacedBy(1.dp), verticalArrangement = Arrangement.spacedBy(1.dp),
+                ) {
+                    groups.forEach { (m, tiles) ->
+                        stickyHeader(key = m, contentType = "month") { MonthHeading(m, m, grid, below = 10.dp) }
+                        items(tiles, key = { it.id }) { t ->
+                            val on = sel != null && t.id in sel
+                            TileImage(
+                                t,
+                                Modifier.combinedClickable(
+                                    onClick = { if (sel == null) onOpen(allTiles, t) else pick.set(if (on) sel - t.id else sel + t.id) },
+                                    onLongClick = { pick.set(sel.orEmpty() + t.id) },
+                                ).testTag("tile-${t.id}").animateItem(fadeInSpec = null), // no fade in: a first load shows at once
+                                selecting = sel != null, selected = on,
+                            )
+                        }
                     }
                 }
             }
-        }
-        if (sel != null) {
-            val picked = p?.tiles.orEmpty().filter { it.id in sel }
-            SelectBar(picked.isNotEmpty() && picked.all { it.favorite }, { pick.share(picked) }, { pick.favorite(picked) }, { pick.delete(picked) })
+            if (sel != null) {
+                val picked = p?.tiles.orEmpty().filter { it.id in sel }
+                SelectBar(picked.isNotEmpty() && picked.all { it.favorite }, { pick.share(picked) }, { pick.favorite(picked) }, { pick.delete(picked) }, modifier = Modifier.align(Alignment.BottomCenter))
+            }
         }
     }
 }

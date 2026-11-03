@@ -493,14 +493,19 @@ private fun onScreen(id: Long): Boolean = tileSpots[id]?.takeIf { it.isAttached 
 /**
  * Where the photo is drawn and what part of it shows, between its grid [tile] ([t] = 0, cropped to the
  * tile's [visible] part) and full screen ([t] = 1). [dragY] pulls the full-screen photo down and shrinks it.
+ * [reveal] = 1: the crop is gone and the whole photo shows.
  */
-internal fun photoMotion(fit: Size, screen: Size, tile: Rect?, visible: Rect?, t: Float, dragY: Float): Pair<Rect, Rect?> {
+internal fun photoMotion(fit: Size, screen: Size, tile: Rect?, visible: Rect?, t: Float, dragY: Float, reveal: Float = t): Pair<Rect, Rect?> {
     fun scaled(center: Offset, k: Float) = Rect(center - Offset(fit.width * k / 2f, fit.height * k / 2f), fit * k)
     val dragged = scaled(Offset(screen.width / 2f, screen.height / 2f + dragY), 1f - 0.3f * (dragY / (screen.height / 2f)).coerceIn(0f, 1f))
     if (tile == null || visible == null || t >= 1f) return dragged to null
     val crop = scaled(tile.center, max(tile.width / fit.width, tile.height / fit.height))
-    return lerp(crop, dragged, t) to lerp(visible, dragged, t)
+    val rect = lerp(crop, dragged, t)
+    return rect to lerp(visible, rect, reveal)
 }
+
+// The crop opens in the first part of the open, then the whole photo grows: a crop widening all the way looked cheap
+private const val cropOpensBy = 0.4f
 
 // ImageDecoder ignores cancel: two decodes at a time, so pages swiped past wait and drop out instead of decoding
 private val viewerLoads = Dispatchers.IO.limitedParallelism(2)
@@ -589,7 +594,7 @@ fun ViewerPage(
         val visible = if (spot != null && here != null) bounds(here, spot, clip = true) else null
         if (visible == null || visible.isEmpty) return photoMotion(fit, screen, null, null, 1f, dragY())
         val full = bounds(here!!, spot!!, clip = false) ?: return photoMotion(fit, screen, null, null, 1f, dragY())
-        return photoMotion(fit, screen, full, visible, shown(), dragY())
+        return photoMotion(fit, screen, full, visible, shown(), dragY(), reveal = (shown() / cropOpensBy).coerceAtMost(1f))
     }
     Box(
         Modifier.fillMaxSize()

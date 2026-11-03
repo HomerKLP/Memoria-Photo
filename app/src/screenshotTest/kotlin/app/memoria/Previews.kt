@@ -1,5 +1,7 @@
 package app.memoria
 
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -364,7 +366,7 @@ fun DetailsView() = MemoriaTheme {
                 FaceVec(2, 0, floatArrayOf(0f, 0f, 50f, 50f), FloatArray(512), 0.9f, PhotoKind.camera, null),
                 fakePet(3, "Murka").main,
             ),
-            people = listOf(fakePerson(1, "Dana"), fakePet(3, "Murka")),
+            names = mapOf(1L to "Dana", 3L to "Murka"),
             zone = java.time.ZoneOffset.UTC, // the recording machine's zone would leak into the baseline
         )
     }
@@ -806,6 +808,30 @@ fun PhotosSelect() = MemoriaTheme {
     val items: List<TimelineItem> = remember { listOf(Header("m1", "October 2026", true), Header("d1", "Sat, 11 Oct", false)) + tiles }
     val selection = remember { PhotoSelection().apply { addAll(tiles.take(6)) } }
     Surface { PhotosContent(items, selection = selection, pickedSize = 18_400_000) }
+}
+
+/** Photos, scrolled (mockup): the month pinned as a floating pill, photos around it. Pairs with photos_monthHeadingPinned_keepsItsHeight. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 800)
+@Composable
+fun PhotosMonthPinned() = MemoriaTheme {
+    val tiles = (1L..80L).map { Tile(it, android.net.Uri.parse("content://media/external/images/media/$it"), 0L, null) }
+    val items: List<TimelineItem> = remember { listOf(Header("m1", "October 2026", true), Header("d1", "Sat, 11 Oct", false)) + tiles }
+    Surface { PhotosContent(items, grid = rememberLazyGridState(20)) }
+}
+
+/** Tabs and the Select bar (mockup "Tabs", "Select bar"): floating pills over the photos. Pairs with tabs_switching_keepsThemPut and selectBar_unfavorite_keepsActionsPut. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 360)
+@Composable
+fun FloatingBars() = MemoriaTheme {
+    Surface {
+        Column(Modifier.fillMaxSize().background(Color(0xFF9CC3E6)), verticalArrangement = Arrangement.SpaceEvenly, horizontalAlignment = Alignment.CenterHorizontally) {
+            Tabs("photos", {}, {})
+            SelectBar(true, {}, {}, {})
+            SelectBar(false, {}, {}, {}, onMove = {})
+        }
+    }
 }
 
 private val fakeCategories = listOf("Pets" to 412, "Food" to 174, "Selfies" to 96, "Group photos" to 71, "Documents" to 58, "Night" to 44, "Sunsets" to 41).mapIndexed { i, (n, c) ->

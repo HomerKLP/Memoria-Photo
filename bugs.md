@@ -2,33 +2,6 @@
 
 Style: one-line description, steps to reproduce, fix ideas. Code paths only when they help. Open bugs in full; a fixed bug becomes one line under Fixed at the bottom (the full write-up stays in git history).
 
-## Emulator GPU gives every face after face 51 the same result, so people never form
-
-Found 2026-10-23 on the `Memoria_Demo` emulator (no NPU, so the models ran on LiteRT's GPU over OpenGL, a software GPU there). The first 49 faces are fine. All 43 faces after them have the exact same quality (0.396484375, just under the 0.4 start cut) and the exact same vector, so only 4 of 9 people formed. It is face 51's real result: the Mac scores that photo 0.387, and the vector best matches another photo of the same person. So both GPU models ran right once, then gave that answer for every new face. Not fp16 overflow: the quality model's largest inner value is 15.5 in fp32. Had face 51 scored over 0.4, all 43 faces would have merged into one person.
-
-Steps:
-1. `Memoria_Demo` emulator, debug app, models pushed; 93 demo photos (9 people) in `DCIM/Camera` (`testdata/demo/photos/`).
-2. Let the index run, pull the DB: `select quality, count(*) from face group by quality order by 2 desc`.
-3. One value repeats for dozens of faces, all at the end (`order by id`), all with one vector.
-
-Not on the phone: two Dev tools GPU runs in one process on the same 93 demo photos gave no repeats and matched the CPU (`docs/face-pipeline.md`, 2026-10-23). So it is the emulator's OpenGL GPU only.
-
-Fix ideas:
-- Find the trigger: rerun on the emulator with logcat. Maybe a second `FacePipeline` in the same process (a new worker run, or Dev tools): `docs/face-pipeline.md` already says the emulator's GPU builds only on the first try in a process.
-- Done for now: `FacePipeline` uses the CPU on the emulator (`Build.HARDWARE == "ranchu"`). Dev tools Run on GPU still forces the GPU there, to test a fix.
-- Guard: if faces from two different photos get the exact same vector, the GPU is broken; reopen the pipeline on the CPU and redo that photo. Keeps any other broken GPU from a mass merge.
-
-## Viewer opens blurry, then sharpens
-
-The viewer shows the grid thumbnail first, then fades (150 ms) into the real decode. Since 2026-10-20 it decodes at about screen size (tap to sharp ~330 -> ~175 ms), so only a short blur is left.
-
-Steps:
-1. Open any photo in the viewer.
-
-Fix ideas:
-- Pre-decode the tapped photo and its neighbours before opening.
-- Decode the open page first: the two neighbour pages decode at the same time now.
-
 ## Grid thumbnails are the camera's EXIF preview
 
 MediaStore's thumbnail is the photo's embedded EXIF preview, which causes two problems:
@@ -44,77 +17,6 @@ Fix ideas:
 - Only when EXIF DigitalZoomRatio > 1: cheap, but misses the 1x shots and the soft grid.
 
 Other apps: Immich calls `loadThumbnail` for anything up to 768 px (its `LocalImagesImpl.kt`), so it should get the same preview. The phone's own gallery shows no jump, so it likely makes its own thumbnails and keeps them on disk.
-
-## Viewer closes when the phone rotates
-
-Fixed for every restart that keeps the process: portrait lock (2026-10-17), and the viewer's photo list is top-level state (2026-10-22, `NavigationTest.restore_keepsTheOpenPhoto`). Still open after process death: the list is gone and the viewer closes.
-
-Steps:
-1. Open a photo, press Home, `adb shell am kill app.memoria.debug`.
-2. Reopen from recents: the viewer is closed.
-
-Fix ideas:
-- Reload the tiles from the timeline by the open photo's id.
-
-## Viewer: stutter when swiping to neighbours fast
-
-Swiping to the next/previous photo in the viewer stutters, but only on a fast swipe. A slow swipe feels fine.
-
-Steps:
-1. Open a photo in the viewer.
-2. Swipe to a neighbour quickly, a few times in a row.
-
-Fix ideas:
-- The two neighbour pages decode at the same time as the open one; on a fast swipe the next page may not be ready and starts its decode during the animation. Decode ahead / keep a small window decoded.
-- Check whether the page gets built during the fling (`Viewer.kt` `HorizontalPager`).
-- Done 2026-10-31, not checked on the phone: `ImageDecoder` ignores cancel, so pages swiped past kept decoding. Decodes now run two at a time (`viewerLoads`), and the ones for pages already gone drop out.
-
-## Viewer freezes for a moment on the first photos (debug build)
-
-Seen once, 2026-10-22, in Memoria Debug right after a `make install`: the first photo of a place lagged, and the swipes to the 2nd and 3rd photo froze for about half a second (365, 375, 236 ms frames). Not seen again on debug or release. Cause unknown.
-
-Steps:
-1. `make install`, open a place, tap its first photo, swipe to the next two.
-
-Next time: record a Perfetto trace while it happens. A likely cause was fixed 2026-10-31: the hidden Photos grid followed the viewer of a screen opened from Search (see Fixed); check again if it shows up.
-
-## Opening a photo: the grow animation sometimes skips or breaks
-
-Found 2026-10-24 by the user. Fixed 2026-10-27 (debug, not measured on release): half the motion was one frame (the curve), the grid scrolled under the opening photo, and the bars composed at the end. Now the open is a spring from rest (damping 1, stiffness 500, ~340 ms), the grid stays put, the bars stay composed.
-
-Left (Phase 7): the photo still opens as a crop window that widens step by step (`photoMotion`, `Viewer.kt`), which looks cheap; the user wants it to feel like a mature gallery app.
-
-Fix ideas:
-- The whole photo scales from the tile to full screen, no crop reveal; the grid behind dims. Check on a release build.
-- Parallax when opening an album or a place: the page under it slides out slower than the new page comes in.
-- From the code only: a tile whose thumbnail is not cached yet opens with a fade, and the sharp photo pops in mid-motion. A video once opened at near full size, half see-through (2026-10-27, not reproduced).
-- The phone blocks `screenrecord`; measure frame by frame with `gfxinfo framestats`.
-
-## Play Protect warns on install
-
-Seen 2026-10-27 on the first in-app update (0.3.0 to 0.3.1, test phone). The update went through and kept the data, but on the way: the updater opened the APK with an "Open with" chooser (`ResolverActivity`), then the phone maker's installer, then Google's developer verifier ran (`com.google.android.verifier`) and Play Protect showed a warning that the app may be harmful. The user went on and it installed.
-
-Cause, most likely: the app is not registered with Google's developer verification (sideloaded apps must come from a registered developer; enforced in four countries since 2026-09-30, worldwide planned for 2027). Not a finding in our code.
-
-Fix ideas:
-- Register the developer and `app.memoria` with the release key in Google's console before the worldwide start. The user's call: it ties the app to a verified identity at Google.
-- Say in the release notes and README that Play Protect may warn, and how to check the APK (signing certificate SHA-256).
-- Install with a `PackageInstaller` session instead of an `ACTION_VIEW` intent, so no "Open with" chooser shows.
-
-## Album named with only spaces shows as "(invalid)"
-
-Seen 2026-10-28: a new album named with 5 spaces was made, and its Library tile reads "(invalid)".
-
-Steps:
-1. Library > Albums > New album (or Move to album > New album in the viewer).
-2. Type 5 spaces as the name, pick a photo, move it.
-3. Library's Albums row shows "(invalid)" with 1 photo.
-
-Odd, since Next and Move should stay off for a blank name (`isBlank` in `NewAlbum.kt` and `Move.kt`). Android names a folder "(invalid)" when nothing is left of its name after it removes characters a file name can't have.
-
-Fix ideas:
-- Find what got past `isBlank` (keyboard space character, or a name with only dots and spaces).
-- Turn Next / Move off when the name is empty after Android's file name cleanup, not only after `trim()`.
 
 ## Library opens slowly
 
@@ -141,30 +43,20 @@ Fix ideas:
 - First, log each step's time and when the covers are drawn, on the first open and a later one; release numbers after `make release`.
 - Then: show people and albums before categories, start the load at app start (preload), or keep the cache on disk.
 
-## Library cover rows show another row item's photo while indexing
+## Mirrored HEIC selfies show upside down in the viewer, sideways in the grid
 
-Seen 2026-10-28 during a scan: the Categories row showed Pets on a meme, Memes on a document, Documents on a cat. Once the scan ends, a fresh open is right.
+Seen 2026-11-02 on another phone (MediaTek), release app: front-camera HEIC photos show upside down in the viewer and turned 90° in the grid; the phone's own gallery shows them right. Sample of that phone's HEICs (first 64 KB read, nothing kept):
 
-Steps:
-1. Start a scan with many new photos, open Library.
-2. As counts grow, the categories change places in the row (most photos first).
-3. The names move, the photos stay in their old slots.
+| MediaStore | HEIC `irot` (ccw) | HEIC `imir` axis | EXIF | count |
+|---|---|---|---|---|
+| 270 | 90 | 1 (top-bottom) | 7 | 8 |
+| 90 | 90 | 0 (left-right) | 5 | 1 |
+| 180 | 0 | 0 | 4 | 21 |
+| 0 | 0 | 1 | 2 | 3 |
 
-Cause: `Thumb` (`Photos.kt`) keeps its picture when its `tile` changes. `produceState` creates the state once; the `tile.id` key only restarts the loader, which sees the old picture in `value` and stops. The Library rows (`CategoryRow`, `PlaceRow`, the Albums row) draw their tiles by position with no key, so a slot that gets a new item keeps the old photo. Lazy grids with item keys are fine.
+Cause: the files are fine, the decoder is not. With `imir` read as libheif and the current HEIF text do (0 = top and bottom swap, 1 = left and right swap) and `irot` applied first, all four rows match their EXIF tag; an earlier note read `imir` the other way and put every row 180° off. Android's HEIF reader likely passes only a rotation to Skia (not checked), so `ImageDecoder` (viewer, `Thumb` re-decode, `loadPhoto` in the index) applies `irot` and drops `imir`: row 3 (EXIF 4) shows upside down, rows 1, 2, 4 mirrored. If that phone shows row 1 upside down too, its decoder reads `imir` the old way. Either way faces in these photos are likely missed. The grid preview comes from `loadThumbnail`, and Android's thumbnailer turns only for EXIF 3, 6, 8, not the mirrored 2, 4, 5, 7: rows 1 and 2 stay sideways, row 3 upside down.
 
-Fix ideas:
-- In `Thumb`, `key(tile.id) { produceState(...) }`, so a new tile gets a new state. One line, fixes every caller.
-- Test: put two bitmaps in `thumbs`, show a `CoverTile` with the first tile, switch to the second, check the pixels.
-
-## A cat and a fish meme formed a person
-
-Seen 2026-10-28 on another phone's release build: a "No name" person with 16 photos of a cat, plus a meme of a fish with a human-like face.
-
-Cause: a person starts from 6+ camera photos with face quality 0.4+, and EDifFIQA-T rates sharp, front-facing cat faces as good faces (it rates how clear a face is, not whether it is human). Then every other face joins the closest person under the cut, and AdaFace puts non-human faces near each other, so the fish joined the cat.
-
-Fix ideas (`docs/objects.md`):
-- Drop a face that is not inside any person box of the object detector (YOLO26, planned for pets too). With YOLO26-M at person score 0.05 it drops 32 faces of quality 0.4+, only 1 of them a real face; the rest are a painting, statues, cartoons, a cat.
-- Softer: such a face can't start a person but can still join one, like quality under 0.4.
+Fix idea: for a HEIC with a mirrored EXIF tag (2, 4, 5, 7), follow EXIF like the phone's gallery: decode the stored pixels with no turn (maybe `BitmapFactory`, check it skips `irot`) and apply the EXIF matrix, in one place all three decodes share; re-decode such tiles in `Thumb` like the wrong-shape ones. First check on the emulator with a made-up HEIC per row (arrow picture, `irot` + `imir`) what `ImageDecoder` and `BitmapFactory` apply, then on that phone.
 
 ## No pets on another phone (Snapdragon 8 Gen 3)
 
@@ -180,25 +72,6 @@ Steps to find out (the phone in hand):
 
 Fix ideas: wait for the phone (the user's call, no self-check at load). If one chip is wrong, skip it for that model, as `PetVectors` skips the NPU. If the pet model throws, keep the photo's faces and boxes and skip only the pet.
 
-## Memoria Debug never auto-indexed new photos
-
-Fixed 2026-10-22 on the phone (setup, not code), kept as a trap for pushing models by hand. After the debug/release split, the face models and the NPU builds were copied into `Android/data/app.memoria.debug/files/` with `cp` on the phone, so they belonged to `shell` and were `rw-rw----`. The app could see `models/` but not read it, so `modelsReady()` was false and the watcher never started a run.
-
-Fix (done on the phone):
-- `chmod 666` the model files, `chmod 2777` `models/` and `npu/` (so the app can also write NPU builds), `chmod 666` the files in `npu/`.
-- Keep the model files' dates (`cp -p` or `touch -r`): an NPU build's name holds the model's size and date, so a new date means a rebuild, and a rebuild into a folder the app cannot write fails.
-
-## Release runs uncompiled after an update
-
-Found 2026-10-31: after the OTA update to 0.4.0 the phone's release app was `status=verify, reason=install` a day later, ~25% slower (Library data ~355 vs ~280 ms compiled). Outside Play, Android compiles the baseline profile only in its idle job, which needs charging and idle at once (Google lists it as a known issue).
-
-How other apps handle it:
-- Signal, Mihon: ship a baseline profile and accept the wait. Signal's own updater installs through a session, APK only. NewPipe, Element X: no profile at all. Immich is Flutter (Dart compiled ahead), so this barely matters to it.
-- NuvioTV: its updater installs `base.apk` + `base.dm` in one session; the `.dm` files ship inside the APK's assets.
-- NewTube (a SmartTube fork): a Gradle task writes `assets/art-profile/baseline.prof` with `profgen` (ART's own format, keyed to the final dex). Android 15+ reads it at install with no `.dm`, so OTA, browser and adb installs all compile at once. They measured cold start 926 -> 582 ms.
-
-Done 2026-10-31: release builds also ship `assets/art-profile/baseline.prof`, AGP's profile converted to ART's format with the `profgen` inside AGP (`ArtProfileTask` in `app/build.gradle.kts`). Emulator (API 37), normal install and update over an old one: `verify` without the file, `speed-profile` with it, app starts. Check on the phone after the next OTA. Android 13-14 still wait for the idle job; a `.dm` in a session install would cover them.
-
 # Known issues and bad patterns
 
 Found while reading the code, not seen on the phone yet. No steps, just the risk.
@@ -211,6 +84,10 @@ Found while reading the code, not seen on the phone yet. No steps, just the risk
 - **`groupFaces` holds an n×n float matrix in memory** (`People.kt`). Time is O(n²) since the NN-chain (2026-10-17), but memory is 17 MB at today's 2052 starting faces and ~400 MB at 10k. Store half of it (or float16) before libraries get that big.
 - **Flaky `NavigationTest.search_categoryWordHit_backReturnsToSearchWithTheText`.** Failed once on the emulator (2026-10-31) with Compose's "Detected multithreaded access to SnapshotStateObserver", no app frames in the trace; the class passed 13/13 on a rerun. If it shows again, look for a draw started off the main thread.
 - **Dead `photo.path` column.** `PhotoRow.path` (`Index.kt`) is written on insert but no query reads it. Remove it when the schema is next touched (needs a migration).
+- **`FaceImage` loads one face per query.** Every face on screen runs its own `thumb(id)` query and WebP decode (`People.kt`). People draws ~50 covers (one per person, not per face), so ~50 queries where one `WHERE id IN (...)` would do. Not a wall (people grow slowly), but the wrong shape: batch the ids a screen is about to show, or coalesce the requests in the cache so no screen has to remember to prefetch.
+- **AutoIndex scans the whole library on every app open.** `changedPhotos` (`AutoIndex.kt`) builds `libraryPhotos` (~4.4k `MediaPhoto`s) plus `photoIds` / `taggedIds` / `boxedIds` sets and `unplaced().size` each time the app comes to the front (3 s after the change burst), even when nothing is new. ~50-100 ms of background work per open, linear in the library. Compare a cheap count first.
+- **Each screen scans MediaStore again.** `timeline`, `albums` and `trash` are three separate scans of the same table; Library runs two per open, and Search, Categories, Category, Place, Videos and Folders to skip each call `albums(context)` for the same rows (`Photos.kt`, `Albums.kt`). One shared, in-memory scan is in `ROADMAP.md` Phase 11 (from the 2026-11-02 perf review).
+- **The face and thumb caches are never trimmed.** `thumbs` (`maxMemory / 2`) and `faceBitmaps` (`maxMemory / 8`) have no `onTrimMemory` (`Photos.kt`, `People.kt`), so 5/8 of the heap is held across a background/foreground switch.
 
 ## Perf numbers (`make perf`)
 
@@ -260,6 +137,7 @@ Native heap after 8 flings 141 MB, no blank tiles on a cold fling. Taken before 
 - 2026-10-19 Double-tap zoom always zoomed to the center. `zoomToFocusPan`.
 - 2026-10-19 Month slider: taller than the mockup, knob stopped above the rail's end, only on the timeline. Tick marks removed (the user's call).
 - 2026-10-20 Grid and viewer felt slow though frame times were fine. Grid loads a screen ahead with no fade and a 128 MB cache (no blank tiles); viewer decodes by halving into a hardware bitmap (tap to sharp ~330 -> ~175 ms).
+- 2026-10-20 Viewer opened blurry, then sharpened. The sharp decode is at screen size now, so the fade is short.
 - 2026-10-21 Back from an opened screen stuttered (Library). The tab stays composed under the opened screen.
 - 2026-10-21 Back from a person showed the People list while sliding out.
 - 2026-10-22 Photos tab stuttered on first load. Debug build only; judge smoothness on release.
@@ -268,7 +146,12 @@ Native heap after 8 flings 141 MB, no blank tiles on a cold fling. Taken before 
 - 2026-10-22 Help recognize card text shifted left with fewer than 3 faces. The stack is always 3 faces wide.
 - 2026-10-22 Photos tab reloaded the timeline while the app was in the background. One reload on return.
 - 2026-10-22 Viewer: system bars stayed visible in the tapped state. Gone after a later viewer change.
+- 2026-10-22 Memoria Debug never auto-indexed new photos: the models copied by hand were `shell`-owned and unreadable, so `modelsReady()` stayed false. `make push-models` sets the rights.
+- 2026-10-23 Emulator: its software OpenGL GPU gave one face's result for every face after the 51st. `FacePipeline` runs the CPU on the emulator now.
 - 2026-10-27 Grid tiles pixelated on some DSLR photos. An exact 480 px decode skipped pixels; now halving only.
+- 2026-10-27 Opening a photo: the grow animation skipped or broke. It is a spring from rest now, and the grid stays put. A more mature open is Phase 7 in `ROADMAP.md`.
+- 2026-11-03 An album named with 5 spaces showed as "(invalid)". Android makes "." and ".." into "(invalid)", and a keyboard likely turned the spaces into a dot. Next and Move stay off for names of only dots (`NewAlbum.kt`, `Move.kt`); not reproduced with the keyboard.
+- 2026-10-29 A cat and a fish meme formed a person. A face outside every person box is dropped (`inPerson`, `Index.kt`), shipped in 0.4.0. The fish photo is not checked on that phone.
 - 2026-10-30 Pet groups mixed different cats. Noodle pet vectors, boxes 0.7+, cut 0.68, split pets join under 0.76: none mixed; quality is below people's, limited by the models (`docs/objects.md`).
 - 2026-10-31 Person or Pet screen kept a face removed in the viewer (Remove tag on a one-picture New pet left "1 photo"). A fix in the viewer now bumps `peopleSaved`, so the screen reloads and closes when its last face left.
 - 2026-10-31 Index notification stayed after the run when a tap on it had dropped the foreground. The worker cancels it in `finally`.
@@ -279,3 +162,12 @@ Native heap after 8 flings 141 MB, no blank tiles on a cold fling. Taken before 
 - 2026-10-31 Help recognize: Someone else showed main faces, not covers, out of People order, and a New person could take a pet's name. Its No is one transaction now (`removeTag`).
 - 2026-10-31 Move to album read the folder path as the file name for photos with no date taken. It reads `DISPLAY_NAME`.
 - 2026-10-31 Month slider landed 1-2 items early after a reload with the same month count. The drag reads the latest month starts.
+- 2026-10-31 Viewer froze for a moment on the first photos (debug). Not seen again after the hidden-grid fix.
+- 2026-10-31 Release ran uncompiled after an update. Release APKs ship `assets/art-profile/baseline.prof`, which Android 15+ reads at install.
+- 2026-11-01 Viewer: a blurry, zoomed copy stayed above and below a photo whose camera preview had another shape (a 3:4 middle cut of a 4:3 photo). `Thumb` decodes the photo itself when the preview's shape differs (`Tile.ratio`).
+- 2026-11-02 `Person.photos` was a `get`, so People, Library, Search, Details and Help recognize recounted each person's photo count on every read, inside their sorts too. Counted once when the snapshot is built, like `faces` (`People.kt`).
+- 2026-11-02 Only take the NPU on a Qualcomm chip: LiteRT's NPU fails quietly and runs on the CPU elsewhere, so `Net` drops it unless `Build.SOC_MANUFACTURER` is Qualcomm (`Faces.kt`).
+- 2026-10-31 Viewer stuttered on a fast swipe to a neighbour. Decodes run two at a time and drop pages swiped past (`viewerLoads`), and only the tab on top follows the viewer. Checked smooth on release 2026-11-03.
+- 2026-11-03 Library cover rows showed another item's photo while a scan reordered them. `Thumb` keys its state by `tile.id` (`ThumbTest`).
+- 2026-11-03 Opening one Category or Place built every category or town from a full MediaStore scan. They read only their own photos now (`loadCategory`, `photosIn` + `photosByIds`).
+- 2026-11-03 The Details panel read every tagged face on each swipe-up. It reads the person names now; the full list loads only when a face is tapped, for Who is this?.
