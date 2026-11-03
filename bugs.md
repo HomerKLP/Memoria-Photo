@@ -16,7 +16,22 @@ Fix ideas:
 - `Thumb` decodes the photo itself for every tile (halving, like the small-preview fix), plus a disk cache in the app's cache folder so only the first scroll pays. Check blank tiles with `make perf` before and after.
 - Only when EXIF DigitalZoomRatio > 1: cheap, but misses the 1x shots and the soft grid.
 
-Other apps: Immich calls `loadThumbnail` for anything up to 768 px (its `LocalImagesImpl.kt`), so it should get the same preview. The phone's own gallery shows no jump, so it likely makes its own thumbnails and keeps them on disk.
+Why (AOSP `ThumbnailUtils.createImageThumbnail`, checked 2026-11-04): a JPEG's EXIF preview is used at any size, with no size check, and turned only for EXIF 3, 6, 8. HEIC goes through `MediaMetadataRetriever`.
+- The `small` check in `Thumb` is 200 px, but a tile is ~360 px, so a 240x320 preview passes it and stays soft.
+- A mirrored EXIF (2, 4) keeps the preview's shape, so `sameShape` does not catch it.
+
+Measured 2026-11-04 on the second test phone (MediaTek, 1216 px wide, 1050 HEIC + 881 JPEG), 60 random photos of each type, tile ~405 px:
+- System thumbs are soft: HEIC 60 of 60 (all 240x320), JPEG 55 of 60 (mostly 144x192). The 200 px check in `Thumb` fixes only the JPEG ones, never HEIC.
+- Shape differs from the photo: HEIC 1 of 60, JPEG 7 of 60.
+- With today's checks (decode the file when the thumb is under 200 px or the wrong shape), same phone: HEIC 59 of 60 stay soft (240x320, 1.7x stretch). JPEG 49 of 60 are decoded from the file, the other 11 are fine or 1.1-1.2x. PNG (29 screenshots) comes back 292x633, 1.4x soft, no shape problem. So here only HEIC is clearly bad. On the Snapdragon 8 Elite phone the 240x320 previews (format not checked) pass the 200 px check, so JPEG there can be soft too.
+- Own decode with halving (`ImageDecoder`, 12 MP, one thread, not a clean cold read): JPEG median 35 ms (p90 52), HEIC median 238 ms (p90 264). 4 threads on a HEIC + JPEG mix gave only 14 photos/s, so HEIC does not scale with threads.
+- Scale to tile + WebP q80: +35 ms; ~32 KB (JPEG) / ~41 KB (HEIC) per thumb, so ~350 MB for 10k photos. Reading one back: ~4 ms.
+- Not measured: `loadThumbnail` time (`ThumbnailUtils` needs an app context), the Snapdragon 8 Elite phone, a clean cold read. The program was a throwaway `app_process` dex, not kept.
+
+Other apps:
+- Immich shows its server's thumbnails: 250 px, made from the full photo, all 8 EXIF turns. For photos only on the phone it calls `loadThumbnail` like we do (`LocalImagesImpl.kt`), so those can be soft too.
+- Glide galleries decode the file with halving, turn by all 8 EXIF values, and keep a disk cache.
+- The phone's own gallery shows no jump, so it likely does the same (not checked).
 
 ## Library opens slowly
 
@@ -71,6 +86,30 @@ Steps to find out (the phone in hand):
 2. If the models load: install the debug build next to the release (own data, the release app is untouched), push a few cat photos to its `test/`, Dev tools Run on NPU, GPU and CPU, compare each `objects_<mode>.json` with `uv run bench/objects.py phone`.
 
 Fix ideas: wait for the phone (the user's call, no self-check at load). If one chip is wrong, skip it for that model, as `PetVectors` skips the NPU. If the pet model throws, keep the photo's faces and boxes and skip only the pet.
+
+## Index is slow on a Dimensity 9500 phone with HEIC photos
+
+Seen 2026-11-04, debug 0.7.0, fresh install: ~0.7-0.8 s per photo, so ~25 min for 2000 photos.
+
+Not the models. All six run on the GPU (this chip has no Qualcomm NPU, so `Net` in `Faces.kt` skips it) and nothing failed. The index does one step at a time, so the CPU decodes while the GPU waits and the other way round; ~75% of the CPU is idle.
+
+Per photo, ms, averaged over 80 photos: small decode 170, full decode 186 (only photos with faces), EXIF read in `kindOf` 31, tagger 88, objects 99, face detect 50, embed 68-290 (depends on the faces), database and people grouping ~40. Decoding is 35-50% of the total.
+
+HEIC is the slow part: the 640 px decode takes 100-166 ms, a JPEG 19-37 ms. Reading the file takes ~10 ms, and bytes, file path and content URI give the same time, so it is the codec, not file access. HEIC decodes whole, so a smaller target size does not help and the full decode costs about the same again (120-340 ms).
+
+Decode bench 2026-11-04 (12 HEIC, 6 JPEG, median ms per photo, index finished so nothing else ran):
+- HEIC: `ImageDecoder` 640 px 129, full 257. `BitmapFactory` full 130, sample 4 136: the size changes nothing, the floor is ~130 ms. `MediaMetadataRetriever` primary image 274, scaled frame returns nothing. `loadThumbnail` 9, but only 320x240.
+- JPEG: `ImageDecoder` 640 px 52, full 69. `BitmapFactory` sample 4 28, full 37.
+- avif-coder 3.0.1 (software HEVC): HEIC full 596, sampled to 640 px 430, fails on JPEG. 3-4x slower than the system decoder, so not an option.
+- Threads, `ImageDecoder` 640 px on HEIC: 143 ms per photo on 1 thread, 106 on 2, 100 on 4. The hardware decoder is shared, so one decode-ahead thread is enough.
+
+Steps: run the scan on a phone with many HEIC photos and time each step. Logcat shows no app lines on this phone (`log.ratelimit`), so debug builds also write `memoria.log` in the app's files folder (`AppLog`): the chip each model runs on, errors, and the time per step.
+
+Done 2026-11-04: the next photo's `kindOf` and 640 px decode run on a helper thread while the models work on this one (`prepare` in `Index.kt`). Same 196 photos indexed again: 128 s and 134 s without it, 101 s with it (~0.67 to ~0.52 s a photo). The loop waits 5-10 ms for a decode instead of ~170. The decode itself is unchanged, only the thread it runs on.
+
+Still open:
+- The full decode for photos with faces (~120-145 ms a photo on average) still runs in the loop, after the faces are found. The helper thread could do it early, at the price of decoding photos that turn out to have no faces.
+- A 2048 px full decode is cheaper but changes the face crops. Face quality comes first, so only with the user's OK.
 
 # Known issues and bad patterns
 

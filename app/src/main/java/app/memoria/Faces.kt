@@ -6,7 +6,6 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.ImageDecoder
 import android.os.Build
-import android.util.Log
 import com.google.ai.edge.litert.Accelerator
 import com.google.ai.edge.litert.BuiltinNpuAcceleratorProvider
 import com.google.ai.edge.litert.CompiledModel
@@ -90,10 +89,10 @@ private fun open(env: Environment, file: File, accelerators: List<Accelerator>):
         if (on == Accelerator.CPU) cpuOptions = CompiledModel.CpuOptions(numThreads = 4) // LiteRT's default is ~3x slower than ONNX Runtime was
     }
     return try {
-        CompiledModel.create(file.path, options, env).also { Log.i("Memoria", "${file.name} on $on") }
+        CompiledModel.create(file.path, options, env).also { AppLog.i("${file.name} on $on") }
     } catch (e: Exception) {
         if (accelerators.size == 1) throw e
-        Log.w("Memoria", "${file.name} failed on $on", e)
+        AppLog.w("${file.name} failed on $on", e)
         open(env, file, accelerators.drop(1))
     }
 }
