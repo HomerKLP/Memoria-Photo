@@ -85,7 +85,7 @@ Tests needed (so no phone has to be checked by eye; ROADMAP Phase 9):
 - The emulator is NOT enough for HEIC (found 2026-11-04, API 37 emulator): every HEIC case is green there, orientation 1-8 on grid, viewer and index, and the grid thumb is sharp. So Android 17 applies `imir` and gives a full-size HEIC thumb; the bug on the MediaTek phone needs an older emulator image (which Android version does that phone run?) or the phone. Once a fix flips by `imir` itself, the API 37 run must stay green (no double flip).
 - Red on the API 37 emulator before the fixes (2026-11-04), all 176 cases green after: JPEG with a camera preview (grid for tags 2 and 4, sharpness for 1, 2, 3, 4, 6, 8) and DNG tags 3, 6, 8 on grid, viewer and index (Android does not turn a DNG by its TIFF tag). Checked on the phone with a made-up tag 6 DNG: grid and viewer show it right, so no double turn there. The phone's only real DNG is landscape, so no real portrait DNG was checked. Open, not tested: a mirrored (2, 4) JPEG whose preview is at least a tile / 1.2 wide still shows as stored.
 - Decided 2026-11-04, then dropped (the user: HEIC is a strange one, keep it here for history): the `imir` check in `Thumb` and the known-failing HEIC tile. Not done.
-- Sharpness: the grid tile's bitmap short side must be at least tile px / 1.2. Done for JPEG and the rest: `Thumb` re-decodes when the thumb is smaller (not HEIC) and asks MediaStore for a tile-size thumb. Scroll speed and blank tiles are not measured yet (`make perf` on a release build, the user runs it). HEIC passes on the emulator; the phone's soft HEIC thumbs stay open above.
+- Sharpness: the grid tile's bitmap short side must be at least tile px / 1.2. Done for JPEG and the rest: `Thumb` re-decodes when the thumb is smaller (not HEIC) and asks MediaStore for a tile-size thumb. Scroll speed and blank tiles measured 2026-11-04 on release (`make perf`): 0% janky, 0% blank, so the re-decodes cost nothing visible. HEIC passes on the emulator; the phone's soft HEIC thumbs stay open above.
 
 ## No pets on another phone (Snapdragon 8 Gen 3)
 
@@ -146,17 +146,17 @@ Found while reading the code, not seen on the phone yet. No steps, just the risk
 
 Release build, baseline profile compiled, full library (~4400 photos), median of 3. Frame times only: how long data takes to show is not measured yet. Compare runs taken in the same state (a warm phone right after indexing reads 2-4x more janky frames). Earlier runs are in git history.
 
-| 2026-10-27, v0.3.0 (viewer: median of 2 runs) | frames | janky % | p90 ms | p99 ms |
+| 2026-11-04, v0.7.0 + photo-file fixes | frames | janky % | p90 ms | p99 ms |
 |---|---|---|---|---|
-| Cold start: first frame 116 ms, timeline 163 ms | | | | |
-| Photos, first scroll | 340 | 0.3 | 5 | 8 |
-| Photos, scroll | 315 | 0 | 6 | 8 |
-| Library, open + scroll | 148 | 0.7 | 7 | 19 |
-| People, open + scroll | 140 | 0.7 | 7 | 12 |
-| Viewer, open + 3 swipes | 216 | 1.6 | 6 | 14.5 |
-| Details, open | 82 | 1.2 | 5.5 | 13.5 |
+| Cold start: first frame 151 ms, timeline 201 ms | | | | |
+| Photos, first scroll | 436 | 0.2 | 6 | 7 |
+| Photos, scroll | 420 | 0 | 6 | 7 |
+| Library, open + scroll | 216 | 0.9 | 7 | 9 |
+| People, open + scroll | 190 | 0.5 | 6 | 12 |
+| Viewer, open + 3 swipes | 281 | 0.4 | 8 | 10 |
+| Details, open | 111 | 0 | 5 | 10 |
 
-Native heap after 8 flings 141 MB, no blank tiles on a cold fling. Taken before the 120 Hz request (the display ran at 90 Hz in the app).
+Native heap after 8 flings 87 MB, no blank tiles on a cold fling. The grid scroll with the tile re-decodes (2026-11-04) is clean: 0% janky, 0% blank. Cold start is up from v0.3.0's 116/163 ms (same phone, more library and DB work now).
 
 # Fixed
 
@@ -224,5 +224,5 @@ Native heap after 8 flings 141 MB, no blank tiles on a cold fling. Taken before 
 - 2026-11-03 Library cover rows showed another item's photo while a scan reordered them. `Thumb` keys its state by `tile.id` (`ThumbTest`).
 - 2026-11-03 Opening one Category or Place built every category or town from a full MediaStore scan. They read only their own photos now (`loadCategory`, `photosIn` + `photosByIds`).
 - 2026-11-03 The Details panel read every tagged face on each swipe-up. It reads the person names now; the full list loads only when a face is tapped, for Who is this?.
-- 2026-11-04 Grid tiles soft for JPEGs with a small camera preview, and mirrored previews (tags 2, 4) shown as stored. `Thumb` decodes the file when MediaStore's picture is under a tile / 1.2 (not HEIC) and asks for a tile-size thumb (`PhotoFileTest`). Release scroll speed not measured.
+- 2026-11-04 Grid tiles soft for JPEGs with a small camera preview, and mirrored previews (tags 2, 4) shown as stored. `Thumb` decodes the file when MediaStore's picture is under a tile / 1.2 (not HEIC) and asks for a tile-size thumb (`PhotoFileTest`). Release scroll checked 2026-11-04 (`make perf`): 0% janky, 0% blank tiles.
 - 2026-11-04 DNG photos with a turn tag showed sideways: Android decodes a DNG as stored. Grid, viewer, index and Help recognize turn by the TIFF tag (`dngTurn`, `turnedBy` in `Faces.kt`). Checked on the phone with a made-up tag 6 DNG.
