@@ -718,6 +718,30 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
       </div>
       <figcaption>Viewer, swiped up: the photo moves to the top as a full-width square, zoomed to fill it, and only the panel's rounded edge covers it. The details sit under it on the viewer's black, with rounded top corners that overlap the photo a little, and scroll inside the space left when they are longer. People &amp; pets (only if the photo has faces or a pet: people left to right, then pets; the head says "People" or "Pets" when only one kind is there), place (only if the photo has GPS: the nearest town, never coordinates), details. A named face or a face with no person opens Who is this?; "Add name" on an unnamed person's face opens Name this person (names the whole person). A pet works the same way: a named pet or a picture in no pet opens Who is this? for a pet, "Add name" on an unnamed pet opens Name this pet. A pet picture in no pet shows too, so a left-out picture can join its pet</figcaption>
     </figure>
+    <figure id="viewer-debug">
+      <div class="phone dark">
+        <div class="photo-top" data-shot>
+          <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+          <div class="vbar">
+            <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+            <div class="when">Sat, 11 Oct<span>14:32</span></div>
+            <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
+          </div>
+        </div>
+        <div class="info">
+          <div class="line"><svg class="i"><use href="#i-folder"/></svg><div><b>Camera</b><span>DCIM/Camera</span></div></div>
+
+          <div class="head"><h3>Debug</h3><span class="hint">Debug builds only</span></div>
+          <div class="line"><svg class="i"><use href="#i-photo"/></svg><div><b>image/jpeg · orientation 6</b><span>MediaStore id 48213</span></div></div>
+          <div class="line"><svg class="i"><use href="#i-person"/></svg><div><b>2 faces · quality 0.92, 0.81</b><span>People #3, #7</span></div></div>
+          <div class="line"><svg class="i"><use href="#i-search"/></svg><div><b>Tag vector: yes</b><span>beach 0.31 · sea 0.27 · sky 0.22</span></div></div>
+          <div class="line"><svg class="i"><use href="#i-paw"/></svg><div><b>1 person · 1 cat</b><span>Box scores 0.88, 0.74</span></div></div>
+          <div class="line"><svg class="i"><use href="#i-history"/></svg><div><b>Indexed · camera photo</b><span>Objects model v3</span></div></div>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Viewer, swiped up, scrolled to the end: the Debug section sits last, after Details, in debug builds only (a release build has no such section). Always the same five rows: file (type, EXIF orientation, MediaStore id), faces (count, quality, the people they are in), tags (vector and top three tags), objects (boxes and scores), index (the photo's kind and the objects model version). A photo that is not indexed yet, and any video, shows "Not indexed" and "–" in the last four rows. While it loads every row reads "…", so nothing moves when it fills in. Read from the phone's own database, never sent anywhere. The chip per model and the time per photo are not stored, so they are not here (they stay in the log file)</figcaption>
+    </figure>
   </div>
 </section>
 <section class="group" id="page-library">

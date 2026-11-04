@@ -373,6 +373,28 @@ fun DetailsView() = MemoriaTheme {
 }
 
 @PreviewTest
+@Preview(widthDp = 360, heightDp = 760)
+@Composable
+fun DetailsDebugView() = MemoriaTheme {
+    Surface(color = viewerBg) {
+        DetailsContent(
+            tile = Tile(1, android.net.Uri.parse("content://media/external/images/media/1"), 1_700_000_000_000L, null),
+            info = PhotoInfo("IMG_20261011_143201.jpg", "DCIM/Camera", 3_500_000, 4032, 3024, null, null, null),
+            faces = emptyList(),
+            names = emptyMap(),
+            debug = listOf(
+                "image/jpeg · orientation 6" to "MediaStore id 48213",
+                "2 faces · quality 0.92, 0.81" to "People #3, #7",
+                "Tag vector: yes" to "Sea 0.40 · Beach 0.31 · Sky 0.22",
+                "1 person · 1 cat" to "Box scores 0.88, 0.74",
+                "Indexed · camera photo" to "Objects model v3",
+            ),
+            zone = java.time.ZoneOffset.UTC,
+        )
+    }
+}
+
+@PreviewTest
 @Preview(widthDp = 360, heightDp = 1000)
 @Composable
 fun LibraryEmpty() = MemoriaTheme {

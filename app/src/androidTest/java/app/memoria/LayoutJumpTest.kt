@@ -1045,6 +1045,28 @@ class LayoutJumpTest {
         assertSame("date", dateBefore, rule.onNodeWithText(dateText).top())
     }
 
+    /** Details, debug builds: the five "…" rows hold the space, so the Debug head and the panel keep their place when the real rows come in. */
+    @Test fun details_debugRowsLoading_keepPanelHeight() {
+        val tile = Tile(1, Uri.parse("content://media/external/images/media/1"), 1_700_000_000_000L, null)
+        val info = PhotoInfo("a.jpg", "DCIM/Camera", 3_500_000, 4032, 3024, null, null, null, "image/jpeg", 6)
+        var debug by mutableStateOf(List(5) { "…" to "…" })
+        rule.setContent { MemoriaTheme { Surface { DetailsContent(tile, info, emptyList(), emptyMap(), modifier = Modifier.testTag("details"), debug = debug) } } }
+
+        val headBefore = rule.onNodeWithText("Debug").top()
+        val panelBefore = rule.onNodeWithTag("details").height()
+        rule.runOnIdle {
+            debug = listOf(
+                "image/jpeg · orientation 6" to "MediaStore id 48213",
+                "2 faces · quality 0.92, 0.81" to "People #3, #7",
+                "Tag vector: yes" to "Sea 0.40 · Beach 0.31 · Sky 0.22",
+                "1 person · 1 cat" to "Box scores 0.88, 0.74",
+                "Indexed · camera photo" to "Objects model v3",
+            )
+        }
+        assertSame("debug head", headBefore, rule.onNodeWithText("Debug").top())
+        assertSame("panel height", panelBefore, rule.onNodeWithTag("details").height())
+    }
+
     /** People: the bar keeps its height while the list loads, and the grid below must not shift. */
     @Test fun people_loadingToLoaded_topBarKeepsHeight() {
         var data by mutableStateOf<PeopleData?>(null)

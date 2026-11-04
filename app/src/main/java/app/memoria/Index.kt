@@ -199,6 +199,12 @@ interface IndexDao {
     fun doneCount(tagger: Boolean, model: Int, objects: Boolean, objectsModel: Int): Flow<Int>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertVector(row: PhotoVectorRow)
     @Query("DELETE FROM photo_vector WHERE photoId IN (:ids)") suspend fun deleteVectors(ids: List<Long>)
+    /** The four reads below are for the debug section of Details: one photo's own rows. */
+    @Query("SELECT * FROM photo WHERE id = :id") suspend fun photoRow(id: Long): PhotoRow?
+    /** Bytes of the tagger vector: null = none yet, 0 = the photo couldn't be read. */
+    @Query("SELECT length(vector) FROM photo_vector WHERE photoId = :id") suspend fun vectorBytes(id: Long): Int?
+    @Query("SELECT tags FROM photo_tag WHERE photoId = :id AND stamp = :stamp") suspend fun tagsOf(id: Long, stamp: Int): String?
+    @Query("SELECT * FROM object_box WHERE photoId = :id") suspend fun boxesOf(id: Long): List<ObjectBoxRow>
     @Query("SELECT id FROM photo WHERE objects = :model") suspend fun boxedIds(model: Int): List<Long>
     @Query("UPDATE photo SET objects = :model WHERE id = :id") suspend fun setBoxed(id: Long, model: Int)
     @Insert suspend fun insertBoxes(boxes: List<ObjectBoxRow>)
