@@ -286,9 +286,10 @@ fun SelectBar(
 private fun SelectAction(icon: Int, label: String, four: Boolean, onClick: () -> Unit, danger: Boolean = false) {
     val color = if (danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
     val button = Modifier.width(if (four) 76.dp else 104.dp).height(if (four) 52.dp else 40.dp).clip(CircleShape).clickable(onClick = onClick)
-    if (four) Column(button, verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+    // lineHeight set: the default 24 sp line pushes the icon and label up in the 52 dp button (mockup: gap 2px)
+    if (four) Column(button, verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically), horizontalAlignment = Alignment.CenterHorizontally) {
         Icon(painterResource(icon), null, Modifier.size(24.dp), tint = color)
-        Text(label, color = color, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+        Text(label, color = color, fontSize = 12.sp, lineHeight = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1)
     }
     else Row(button, horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
         Icon(painterResource(icon), null, Modifier.size(24.dp), tint = color)
