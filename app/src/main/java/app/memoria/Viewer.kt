@@ -467,7 +467,7 @@ internal fun viewerSample(w: Int, h: Int, screen: Int): Int {
  * Halving lets the JPEG decoder skip work; the old exact 2560 px decoded a 12 MP photo whole (250 ms).
  * ponytail: zoom past ~1.5x is a bit softer than before; decode a sharper copy on zoom if it shows.
  */
-private fun viewerPhoto(context: Context, tile: Tile): Bitmap =
+internal fun viewerPhoto(context: Context, tile: Tile): Bitmap =
     ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, tile.uri)) { decoder, info, _ ->
         val screen = context.resources.displayMetrics.let { minOf(it.widthPixels, it.heightPixels) }
         decoder.setTargetSampleSize(viewerSample(info.size.width, info.size.height, screen))
