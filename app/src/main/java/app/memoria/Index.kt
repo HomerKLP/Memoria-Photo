@@ -9,7 +9,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
-import android.graphics.ImageDecoder
 import android.media.ExifInterface
 import android.net.Uri
 import android.os.BatteryManager
@@ -486,18 +485,17 @@ fun kindOf(context: Context, photo: MediaPhoto, uri: Uri): PhotoKind =
     kindOf(photo, context.contentResolver.openInputStream(uri)!!.use { ExifInterface(it).getAttribute(ExifInterface.TAG_MAKE) } != null)
 
 /** A photo read ahead on the helper thread: its kind and the 640 px decode the models start from. A skipped photo has no decode. */
-private class Prepared(val kind: PhotoKind, val source: ImageDecoder.Source?, val small: Bitmap?, val width: Int, val height: Int)
+private class Prepared(val kind: PhotoKind, val uri: Uri?, val small: Bitmap?, val width: Int, val height: Int)
 
 /** The slow CPU part of one photo (HEIC decodes in ~130 ms), so the worker can do it for the next photo while the models run on this one. */
 private fun prepare(context: Context, photo: MediaPhoto): Prepared {
     val uri = ContentUris.withAppendedId(Media.EXTERNAL_CONTENT_URI, photo.id)
     val kind = kindOf(context, photo, uri)
     if (kind == PhotoKind.skip) return Prepared(kind, null, null, 0, 0)
-    val source = ImageDecoder.createSource(context.contentResolver, uri)
     var w = 0
     var h = 0
-    val small = loadPhoto(source, 640) { pw, ph -> w = pw; h = ph }
-    return Prepared(kind, source, small, w, h)
+    val small = loadPhoto(context.contentResolver, uri, 640) { pw, ph -> w = pw; h = ph }
+    return Prepared(kind, uri, small, w, h)
 }
 
 /** Finds faces in new photos and saves them. Photos already in the DB are skipped, so it can stop and resume. */
@@ -586,7 +584,7 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                             emptyList()
                         } else {
                             // Detect on a small decode, full decode only for photos with faces (~half). The tagger reads the same small decode.
-                            val source = prep.source!!
+                            val photoUri = prep.uri!!
                             val small = prep.small!!
                             val w = prep.width
                             val h = prep.height
@@ -609,7 +607,7 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                             }
                             times.lap(Step.Faces)
                             if (found.isEmpty()) found else {
-                                val image = loadPhoto(source)
+                                val image = loadPhoto(applicationContext.contentResolver, photoUri)
                                 times.lap(Step.FullDecode)
                                 val kx = image.width.toFloat() / small.width
                                 val ky = image.height.toFloat() / small.height
@@ -688,7 +686,7 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         var w = 0
         var h = 0
         val small = try {
-            loadPhoto(ImageDecoder.createSource(applicationContext.contentResolver, ContentUris.withAppendedId(Media.EXTERNAL_CONTENT_URI, id)), 640) { pw, ph -> w = pw; h = ph }
+            loadPhoto(applicationContext.contentResolver, ContentUris.withAppendedId(Media.EXTERNAL_CONTENT_URI, id), 640) { pw, ph -> w = pw; h = ph }
         } catch (e: Exception) {
             AppLog.w("catch up $id", e)
             null
@@ -745,7 +743,7 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
 
     /** A 640 decode for the tagger alone. An unreadable photo gets an empty vector, so it isn't tried again. */
     private fun tagAlone(tagger: Tagger, id: Long): FloatArray = try {
-        tagger.vector(tagger.input(loadPhoto(ImageDecoder.createSource(applicationContext.contentResolver, ContentUris.withAppendedId(Media.EXTERNAL_CONTENT_URI, id)), 640)))
+        tagger.vector(tagger.input(loadPhoto(applicationContext.contentResolver, ContentUris.withAppendedId(Media.EXTERNAL_CONTENT_URI, id), 640)))
     } catch (e: Exception) {
         AppLog.w("tag $id", e)
         FloatArray(0)

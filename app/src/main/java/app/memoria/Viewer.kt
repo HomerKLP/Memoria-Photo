@@ -471,7 +471,7 @@ internal fun viewerPhoto(context: Context, tile: Tile): Bitmap =
     ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, tile.uri)) { decoder, info, _ ->
         val screen = context.resources.displayMetrics.let { minOf(it.widthPixels, it.heightPixels) }
         decoder.setTargetSampleSize(viewerSample(info.size.width, info.size.height, screen))
-    }
+    }.turnedBy(dngTurn(context.contentResolver, tile.uri))
 
 /**
  * Pan that keeps the [focus] point (double tap, or the pinch's finger center) in place while zooming

@@ -1,9 +1,6 @@
 # Personal test photos and bench output, never commit
 testdata/
 
-# Downloaded photo fixtures (big, others' GPS inside): `uv run bench/fixtures.py fetch`
-app/src/androidTest/assets/fixtures/real/
-
 # Phone backups, never commit
 backup-*/
 

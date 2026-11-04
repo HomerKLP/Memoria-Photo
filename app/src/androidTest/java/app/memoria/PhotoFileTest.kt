@@ -3,7 +3,6 @@ package app.memoria
 import android.content.ContentUris
 import android.content.ContentValues
 import android.graphics.Bitmap
-import android.graphics.ImageDecoder
 import android.provider.MediaStore
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.Modifier
@@ -26,7 +25,7 @@ import kotlin.math.min
  * `assets/fixtures/` is put in MediaStore and shown through the app's real paths, the grid tile, the
  * viewer decode and the index decode. A made file is a picture with red, green, blue and yellow corners
  * (top-left, top-right, bottom-left, bottom-right), so the corner colours tell how it was turned.
- * Made by `bench/fixtures.py`; the real photo needs `uv run bench/fixtures.py fetch`. A new file is a new case.
+ * Made by `bench/fixtures.py`, the real ones come from `bench/fixtures.tsv`. A new file is a new case.
  * Runs on an emulator like `BehaviorTest`, never on the phone.
  */
 @RunWith(Parameterized::class)
@@ -34,7 +33,7 @@ class PhotoFileTest(private val name: String) {
 
     companion object {
         // Real photos (no known corners): the shape the photo must come out with.
-        private val real = mapOf("real/dng_pixel6pro.dng" to 4080f / 3072f)
+        private val real = mapOf("real/dng_canon60d.dng" to 960f / 540f)
 
         @JvmStatic @Parameterized.Parameters(name = "{0}")
         fun files(): List<String> =
@@ -62,9 +61,9 @@ class PhotoFileTest(private val name: String) {
     /** The fixture as the app sees any photo: a MediaStore row, with the tile built by the app's own query. */
     private fun tile(): Tile {
         val bytes = try {
-            InstrumentationRegistry.getInstrumentation().context.assets.open(if (name in real) name else "fixtures/$name").use { it.readBytes() }
+            InstrumentationRegistry.getInstrumentation().context.assets.open("fixtures/$name").use { it.readBytes() }
         } catch (e: IOException) {
-            fail("$name is missing: run `uv run bench/fixtures.py fetch` (real photos) or `uv run bench/fixtures.py`")
+            fail("$name is missing from assets/fixtures: run `uv run bench/fixtures.py`")
             throw e
         }
         val ext = name.substringAfterLast('.')
@@ -82,17 +81,19 @@ class PhotoFileTest(private val name: String) {
         return photosByIds(context, listOf(ContentUris.parseId(uri))).single().also { added = it }
     }
 
-    private fun corners(bitmap: Bitmap): String {
+    /** The picture's colour at the middle of each quarter: top-left, top-right, bottom-left, bottom-right. */
+    private fun pixels(bitmap: Bitmap): List<Int> {
         val b = if (bitmap.config == Bitmap.Config.HARDWARE) bitmap.copy(Bitmap.Config.ARGB_8888, false) else bitmap
-        return listOf(1 to 1, 3 to 1, 1 to 3, 3 to 3).map { (x, y) ->
-            val p = b.getPixel(b.width * x / 4, b.height * y / 4)
-            colors.minBy { (_, c) -> (c[0] - (p shr 16 and 255)).let { it * it } + (c[1] - (p shr 8 and 255)).let { it * it } + (c[2] - (p and 255)).let { it * it } }.key
-        }.joinToString("")
+        return listOf(1 to 1, 3 to 1, 1 to 3, 3 to 3).map { (x, y) -> b.getPixel(b.width * x / 4, b.height * y / 4) }
     }
+
+    private fun corners(bitmap: Bitmap): String = pixels(bitmap).map { p ->
+        colors.minBy { (_, c) -> (c[0] - (p shr 16 and 255)).let { it * it } + (c[1] - (p shr 8 and 255)).let { it * it } + (c[2] - (p and 255)).let { it * it } }.key
+    }.joinToString("")
 
     private fun assertUpright(where: String, bitmap: Bitmap) {
         val shape = real[name]
-        if (shape == null) assertEquals("$where of $name (${bitmap.width}x${bitmap.height})", expected, corners(bitmap))
+        if (shape == null) assertEquals("$where of $name (${bitmap.width}x${bitmap.height}, pixels ${pixels(bitmap).joinToString(" ") { "%06x".format(it and 0xffffff) }})", expected, corners(bitmap))
         else assertEquals("$where of $name (${bitmap.width}x${bitmap.height}), width / height", shape, bitmap.width.toFloat() / bitmap.height, shape * 0.05f)
     }
 
@@ -104,29 +105,21 @@ class PhotoFileTest(private val name: String) {
         return thumbs.get(tile.id)!!
     }
 
-    /** A case that fails for a reason we chose not to fix (bugs.md): it must keep failing, and says so when it starts to pass. */
-    private fun knownFailing(known: Boolean, check: () -> Unit) {
-        if (!known) return check()
-        assertTrue("$name now passes: take it off the known failing cases", runCatching(check).isFailure)
-    }
-
     @Test fun grid_showsThePhotoTurned() = assertUpright("grid tile", gridBitmap(tile()))
 
     @Test fun viewer_showsThePhotoTurned() = assertUpright("viewer", viewerPhoto(context, tile()))
 
     @Test fun index_seesThePhotoTurned() {
         val t = tile()
-        assertUpright("index 640 px decode", loadPhoto(ImageDecoder.createSource(resolver, t.uri), 640))
-        assertUpright("index full decode", loadPhoto(ImageDecoder.createSource(resolver, t.uri)))
+        assertUpright("index 640 px decode", loadPhoto(resolver, t.uri, 640))
+        assertUpright("index full decode", loadPhoto(resolver, t.uri))
     }
 
     // The tile is 1/3 of the screen minus the 1 dp gaps; a picture stretched more than 1.2x looks soft.
-    // HEIC stays soft (the user's call, bugs.md: no own HEIC thumbnails).
+    // The phone's soft HEIC thumbs do not show on the API 37 emulator (bugs.md), so HEIC passes here.
     @Test fun grid_isSharp() {
         val bitmap = gridBitmap(tile())
         val tilePx = (context.resources.displayMetrics.let { it.widthPixels - 2 * it.density } / 3).toInt()
-        knownFailing(name.startsWith("heic")) {
-            assertTrue("grid tile of $name is ${bitmap.width}x${bitmap.height}, a $tilePx px tile needs at least ${tilePx / 1.2f} on the short side", min(bitmap.width, bitmap.height) >= tilePx / 1.2f)
-        }
+        assertTrue("grid tile of $name is ${bitmap.width}x${bitmap.height}, a $tilePx px tile needs at least ${tilePx / 1.2f} on the short side", min(bitmap.width, bitmap.height) >= tilePx / 1.2f)
     }
 }
