@@ -89,11 +89,24 @@ def blank_grid(caps=16):
     return round(worst, 1)
 
 
+def parse_load(log):
+    """The first "library load: ..." line of the app's log as {step ms}, None if there is none. Check: python3 -m doctest bench/perf.py
+
+    >>> parse_load("11-05 I Memoria: library load: people 25, albums 30, total 171")
+    {'people ms': 25, 'albums ms': 30, 'total ms': 171}
+    >>> parse_load("nothing here")
+    """
+    m = re.search(r"library load: (.+)", log)
+    return {f"{k} ms": int(v) for k, v in re.findall(r"(\w+) (\d+)", m[1])} if m else None
+
+
 def library_load(caps=20):
     """Cold start, tap Library while screencaps run. Per open: ms from the tap to the first screencap that shows Library with no blank cover tile.
     First open has no cached data, the second has. A cap takes ~150-300 ms, so ~150 is the lowest number it can show: "already drawn".
-    The caps hold personal photos, so they stay in memory and are deleted from the phone."""
+    The caps hold personal photos, so they stay in memory and are deleted from the phone.
+    Also returns the app's own step times of the first Library load, from its log."""
     sh(f"am force-stop {PKG}")
+    sh("logcat -c")
     sh(f"am start -W -n {PKG}/.MainActivity")
     time.sleep(2.5)
     result = []
@@ -119,8 +132,9 @@ def library_load(caps=20):
         shown = [i for i in ms if i > late and ms[i] >= 0 and blank[i] >= floor - 1]
         result.append(round(ms[shown[0]]) if shown else None)
         if n == 0:
+            steps = parse_load(sh("logcat -d -s Memoria"))
             tap_text("Photos")
-    return result
+    return result, steps
 
 
 def see_all_xy(title):
@@ -191,8 +205,9 @@ def run(rows):
         measure("Details, open", lambda: sh(f"input swipe {W // 2} {H * 7 // 10} {W // 2} {H * 3 // 10} 250"))
     # frame times miss slow loading, so also count tiles still blank while the grid flies by
     rows.setdefault("Photos, blank on cold fling", []).append({"worst %": blank_grid()})
-    first, second = library_load()
+    (first, second), steps = library_load()
     rows.setdefault("Library, covers shown", []).append({"first open ms": first, "second open ms": second})
+    rows.setdefault("Library, load steps", []).append(steps or {"total ms": None})
 
 
 def main():
@@ -222,7 +237,7 @@ def main():
 
     print(f"\nmedian of {a.runs} runs")
     for name, runs in rows.items():
-        vals = {k: [r[k] for r in runs if r[k] is not None] for k in runs[0]}
+        vals = {k: [r[k] for r in runs if r.get(k) is not None] for k in runs[0]}
         print(f"{name:26}", "  ".join(f"{k} {statistics.median(v):g}" if v else f"{k} -" for k, v in vals.items()))
 
 

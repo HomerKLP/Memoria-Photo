@@ -106,24 +106,35 @@ fun LibraryScreen(
     val saved by peopleSaved.collectAsState()
     val data by cachedProduceState("library", saved, reload) {
         withContext(Dispatchers.IO) {
+            // each step's ms goes to the log, for bench/perf.py
+            val start = System.nanoTime()
+            val steps = mutableListOf<String>()
+            suspend fun <T> timed(name: String, block: suspend () -> T): T {
+                val t = System.nanoTime()
+                return block().also { steps += "$name ${(System.nanoTime() - t) / 1_000_000}" }
+            }
             // Faces without vectors: the row only shows covers. Merge with loads the vectors when it opens.
-            val faces = dao.taggedFaces()
-            val byId = faces.associateBy { it.id }
-            val byPerson = faces.groupBy { it.personId }
-            val people = dao.people().filter { !it.hidden }.mapNotNull { p -> byId[p.mainFaceId]?.let { m -> Person((byPerson[p.id] ?: listOf(m)).map { it.toVec() }, m.toVec(), p.id, p.name, false, p.coverFaceId, p.pos) } }
-                .sortedWith(compareBy({ it.name.isNullOrBlank() }, { it.pos ?: Int.MAX_VALUE }, { -it.photos })) // named first, moved ones in their order, then by photo count
-            val albums = albums(context)
+            val people = timed("people") {
+                val faces = dao.taggedFaces()
+                val byId = faces.associateBy { it.id }
+                val byPerson = faces.groupBy { it.personId }
+                dao.people().filter { !it.hidden }.mapNotNull { p -> byId[p.mainFaceId]?.let { m -> Person((byPerson[p.id] ?: listOf(m)).map { it.toVec() }, m.toVec(), p.id, p.name, false, p.coverFaceId, p.pos) } }
+                    .sortedWith(compareBy({ it.name.isNullOrBlank() }, { it.pos ?: Int.MAX_VALUE }, { -it.photos })) // named first, moved ones in their order, then by photo count
+            }
+            val albums = timed("albums") { albums(context) }
             val all = albums.flatMap { it.tiles }
-            LibraryData(
+            val result = LibraryData(
                 faces = people,
                 unsure = people.flatMap { p -> p.faces.filter { !it.sure } }.sortedBy { it.quality },
                 albums = albums,
                 favorites = all.count { it.favorite },
                 videos = all.count { it.duration != null },
-                trash = runCatching { trash(context).size }.getOrDefault(0),
-                places = places(dao.placed(), all),
-                categories = loadCategories(context, all),
+                trash = timed("trash") { runCatching { trash(context).size }.getOrDefault(0) },
+                places = timed("places") { places(dao.placed(), all) },
+                categories = timed("categories") { loadCategories(context, all) },
             )
+            AppLog.i("library load: ${steps.joinToString(", ")}, total ${(System.nanoTime() - start) / 1_000_000}")
+            result
         }
     }
     LibraryContent(

@@ -161,7 +161,7 @@ Release build, baseline profile compiled, full library (~4400 photos), median of
 | Viewer, open + 3 swipes | 266 | 1.1 | 6 | 17 |
 | Details, open | 110 | 0 | 5 | 6 |
 
-Library shows all its covers 151 ms after the tap on the first open (cold start) and 155 ms on a second open. That is the lowest the screencap method reads (one cap), so the real time is at or under it.
+Library shows all its covers 151 ms after the tap on the first open (cold start) and 155 ms on a second open. That is the lowest the screencap method reads (one cap), so the real time is at or under it. The app's own log (`library load:` line, one run) gives the first load's steps: albums 32 ms, categories 32, people 27, places 9, trash 8, total 110. The covers draw about 40 ms after that.
 
 Native heap after 8 flings 52 MB (87 MB on 2026-11-04, not explained), no blank tiles on a cold fling. Cold start is up from v0.3.0's 116/163 ms (same phone, more library and DB work now).
 
