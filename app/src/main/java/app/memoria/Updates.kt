@@ -8,7 +8,6 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.util.Log
 import androidx.core.content.FileProvider
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
@@ -94,7 +93,7 @@ object Updates {
                 edit.putString("notified", version)
             }
             edit.apply()
-        }.onFailure { Log.w("Memoria", "update check failed", it) }.isSuccess
+        }.onFailure { AppLog.w("update check failed", it) }.isSuccess
     }
 
     private fun notifyNew(context: Context, version: String) {

@@ -654,6 +654,8 @@ fun PhotosContent(
             // to about three screens below the top and scroll only the rest.
             val shown = grid.layoutInfo.visibleItemsInfo.size
             if (grid.firstVisibleItemIndex > shown * 3) grid.scrollToItem(shown * 3)
+            // A pinned month heading has no line, so the cache window can start at line -1 and the jump asks the grid for it; moving by 1 px resets the window.
+            grid.scrollToItem(grid.firstVisibleItemIndex, grid.firstVisibleItemScrollOffset + 1)
             // The exact pixel distance to the top, measured with a scroll there and back inside one
             // frame: the two scrolls happen before the next draw, so the jump is never shown.
             val back = grid.scrollBy(-1e9f)
@@ -876,16 +878,28 @@ fun Thumb(tile: Tile, modifier: Modifier) {
         if (fastScrolling) snapshotFlow { fastScrolling }.first { !it }
         val signal = CancellationSignal()
         launch(thumbLoads) {
-            val thumb = runCatching { context.contentResolver.loadThumbnail(tile.uri, Size(300, 300), signal) }.getOrNull()
-            // old camera photos: MediaStore hands back the 160 px EXIF preview, blurry in a tile, so decode the photo itself
-            val small = thumb != null && tile.duration == null && min(thumb.width, thumb.height) < 200
-            // some old cameras wrote a preview of another shape (a middle cut), which shows around the photo in the viewer
-            val wrongShape = thumb != null && tile.duration == null && !sameShape(thumb.width, thumb.height, tile.ratio)
-            // halving only, to about a third of the screen: an exact size makes Skia keep every n-th pixel, which looks pixelated
-            fun decode() = ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, tile.uri)) { decoder, info, _ ->
-                decoder.setTargetSampleSize(viewerSample(info.size.width, info.size.height, context.resources.displayMetrics.widthPixels / 3))
+            val resolver = context.contentResolver
+            // a tile is a third of the screen less the 1 dp gaps
+            val tilePx = context.resources.displayMetrics.let { (it.widthPixels - 2 * it.density) / 3 }
+            val thumb = runCatching { resolver.loadThumbnail(tile.uri, Size(tilePx.toInt(), tilePx.toInt()), signal) }.getOrNull()
+            var turn = 1
+            var own = false
+            if (thumb != null && tile.duration == null) {
+                val type = runCatching { resolver.getType(tile.uri) }.getOrNull()
+                turn = dngTurn(resolver, tile.uri, type)
+                val heif = type == "image/heic" || type == "image/heif"
+                // Decode the photo itself when MediaStore's picture is:
+                // - under 200 px (old cameras: the 160 px EXIF preview), or under a tile / 1.2 (a camera's 320x240 preview, soft in a tile; not HEIC, which is slow to decode, see bugs.md)
+                // - of another shape (some old cameras wrote a middle cut, which shows around the photo in the viewer)
+                // - a DNG with a turn tag (Android shows it as stored)
+                val short = min(thumb.width, thumb.height)
+                own = short < 200 || (!heif && short < tilePx / 1.2f) || !sameShape(thumb.width, thumb.height, tile.ratio) || turn != 1
             }
-            value = (if (small || wrongShape) runCatching { decode() }.getOrNull() ?: thumb else thumb)
+            // halving only, to about a third of the screen: an exact size makes Skia keep every n-th pixel, which looks pixelated
+            fun decode() = ImageDecoder.decodeBitmap(ImageDecoder.createSource(resolver, tile.uri)) { decoder, info, _ ->
+                decoder.setTargetSampleSize(viewerSample(info.size.width, info.size.height, context.resources.displayMetrics.widthPixels / 3))
+            }.turnedBy(turn)
+            value = (if (own) runCatching { decode() }.getOrNull() ?: thumb else thumb)
                 ?.also { thumbs.put(tile.id, it) }
         }
         // The tile left the screen: stop its load

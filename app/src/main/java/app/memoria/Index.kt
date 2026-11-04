@@ -9,12 +9,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
-import android.graphics.ImageDecoder
 import android.media.ExifInterface
 import android.net.Uri
 import android.os.BatteryManager
 import android.provider.MediaStore.Images.Media
-import android.util.Log
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Entity
@@ -43,6 +41,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.io.File
 import java.nio.ByteBuffer
+import java.util.concurrent.Callable
+import java.util.concurrent.Executors
+import java.util.concurrent.Future
 import kotlin.math.max
 import kotlin.math.min
 
@@ -438,7 +439,7 @@ suspend fun regroup(db: Db, pins: Map<Long, Long> = emptyMap()) {
         }
         people.size to taken.size
     }
-    Log.i("Memoria", "saved $saved people ($kept kept their id) in ${(System.nanoTime() - start) / 1_000_000} ms")
+    AppLog.i("saved $saved people ($kept kept their id) in ${(System.nanoTime() - start) / 1_000_000} ms")
 }
 
 /** Rough time left: elapsed per photo times the photos left. Null until at least one photo is done. */
@@ -483,6 +484,20 @@ internal fun kindOf(photo: MediaPhoto, hasCameraMake: Boolean): PhotoKind = when
 fun kindOf(context: Context, photo: MediaPhoto, uri: Uri): PhotoKind =
     kindOf(photo, context.contentResolver.openInputStream(uri)!!.use { ExifInterface(it).getAttribute(ExifInterface.TAG_MAKE) } != null)
 
+/** A photo read ahead on the helper thread: its kind and the 640 px decode the models start from. A skipped photo has no decode. */
+private class Prepared(val kind: PhotoKind, val uri: Uri?, val small: Bitmap?, val width: Int, val height: Int)
+
+/** The slow CPU part of one photo (HEIC decodes in ~130 ms), so the worker can do it for the next photo while the models run on this one. */
+private fun prepare(context: Context, photo: MediaPhoto): Prepared {
+    val uri = ContentUris.withAppendedId(Media.EXTERNAL_CONTENT_URI, photo.id)
+    val kind = kindOf(context, photo, uri)
+    if (kind == PhotoKind.skip) return Prepared(kind, null, null, 0, 0)
+    var w = 0
+    var h = 0
+    val small = loadPhoto(context.contentResolver, uri, 640) { pw, ph -> w = pw; h = ph }
+    return Prepared(kind, uri, small, w, h)
+}
+
 /** Finds faces in new photos and saves them. Photos already in the DB are skipped, so it can stop and resume. */
 class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
@@ -515,9 +530,10 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
             setForeground(ForegroundInfo(1, notice(base, total), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC))
             true
         } catch (e: IllegalStateException) {
-            Log.w("Memoria", "index runs as a plain job", e)
+            AppLog.w("index runs as a plain job", e)
             false
         }
+        AppLog.i("index run: ${todo.size} to scan, ${catchUp.size} to catch up, ${if (foreground) "foreground" else "plain job"}")
         val start = System.nanoTime()
         var count = 0
         var tagCount = 0
@@ -527,7 +543,7 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         val tagger = if (!taggerFile(applicationContext).exists()) null else try {
             Tagger(applicationContext)
         } catch (e: Exception) {
-            Log.w("Memoria", "tagger not loaded", e)
+            AppLog.w("tagger not loaded", e)
             null
         }
         // no object models, or they won't load: no gate and no pets, and the photos stay unboxed for a later run
@@ -537,61 +553,73 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                 detector = ObjectDetector(applicationContext)
                 detector to PetVectors(applicationContext)
             } catch (e: Exception) {
-                Log.w("Memoria", "object models not loaded", e)
+                AppLog.w("object models not loaded", e)
                 detector?.close()
                 null
             }
         }
+        val prefetch = Executors.newSingleThreadExecutor() // one thread is enough: HEIC decoding tops out at ~100 ms a photo even on 4 threads
+        val times = StepTimes()
         try {
             FacePipeline(applicationContext).use { pipeline ->
-                Log.i("Memoria", "models loaded in ${(System.nanoTime() - start) / 1_000_000} ms")
-                for (photo in todo) {
+                AppLog.i("models loaded in ${(System.nanoTime() - start) / 1_000_000} ms")
+                fun ahead(i: Int): Future<kotlin.Result<Prepared>>? = todo.getOrNull(i)?.let { p -> prefetch.submit(Callable { runCatching { prepare(applicationContext, p) } }) }
+                var next = ahead(0)
+                for ((i, photo) in todo.withIndex()) {
                     if (isStopped) break
-                    val uri = ContentUris.withAppendedId(Media.EXTERNAL_CONTENT_URI, photo.id)
+                    times.start()
+                    val ready = next!!.get() // decoded while the last photo ran
+                    next = ahead(i + 1)
                     val tag = tagger?.takeIf { photo.id !in tagged } // a Rescan keeps the vectors
                     var vector: FloatArray? = null
                     var boxes: List<ObjectBoxRow>? = null // null: not boxed, the object models are not here
                     var pets = emptyList<FaceRow>()
                     val (kind, faces) = try {
-                        val kind = kindOf(applicationContext, photo, uri)
+                        val prep = ready.getOrThrow() // a decode error lands in the catch below, like before
+                        val kind = prep.kind
+                        times.lap(Step.Wait)
                         kind to if (kind == PhotoKind.skip) {
                             if (tag != null) vector = tagAlone(tag, photo.id)
                             if (objects != null) boxes = emptyList()
                             emptyList()
                         } else {
                             // Detect on a small decode, full decode only for photos with faces (~half). The tagger reads the same small decode.
-                            val source = ImageDecoder.createSource(applicationContext.contentResolver, uri)
-                            var w = 0
-                            var h = 0
-                            val small = loadPhoto(source, 640) { pw, ph -> w = pw; h = ph }
+                            val photoUri = prep.uri!!
+                            val small = prep.small!!
+                            val w = prep.width
+                            val h = prep.height
                             if (tag != null) vector = try {
                                 tag.vector(tag.input(small))
                             } catch (e: Exception) {
-                                Log.w("Memoria", "tag ${photo.id}", e)
+                                AppLog.w("tag ${photo.id}", e)
                                 FloatArray(0)
                             }
+                            times.lap(Step.Tag)
                             val lb = Letterbox(small)
                             val found = if (objects == null) pipeline.detect(lb) else {
                                 val all = objects.first.detect(lb)
                                 boxes = all.map { boxRow(photo.id, it, small) }
                                 pets = all.filter { it.cls != PERSON && it.score >= 0.7f }.map { petFace(photo.id, it, small, objects.second, w, h) }
+                                times.lap(Step.Objects)
                                 // no person box, no face detection; then a face counts only inside a person box (docs/objects.md)
                                 val people = all.filter { it.cls == PERSON }.map { it.box }
                                 if (people.isEmpty()) emptyList() else pipeline.detect(lb).filter { inPerson(it.box, people) }
                             }
+                            times.lap(Step.Faces)
                             if (found.isEmpty()) found else {
-                                val image = loadPhoto(source)
+                                val image = loadPhoto(applicationContext.contentResolver, photoUri)
+                                times.lap(Step.FullDecode)
                                 val kx = image.width.toFloat() / small.width
                                 val ky = image.height.toFloat() / small.height
                                 found.onEach { f ->
                                     for (a in listOf(f.box, f.landmarks)) for (i in a.indices) a[i] *= if (i % 2 == 0) kx else ky
                                     pipeline.embed(image, f)
                                     f.thumb = faceThumb(image, f.box)
-                                }
+                                }.also { times.lap(Step.Embed) }
                             }
                         }
                     } catch (e: Exception) {
-                        Log.w("Memoria", "index ${photo.id}", e)
+                        AppLog.w("index ${photo.id}", e)
                         if (tag != null && vector == null) vector = FloatArray(0) // unreadable: not tried again
                         if (objects != null) boxes = emptyList()
                         PhotoKind.error to emptyList()
@@ -603,13 +631,17 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                         boxes?.let { dao.insertBoxes(it) }
                     }
                     vector?.let { dao.insertVector(PhotoVectorRow(photo.id, Tagger.VERSION, it)); tagCount++ }
+                    times.lap(Step.Database)
                     count++
+                    if (count % 100 == 0) AppLog.i("per photo ms (n=$count): ${times.perPhoto(count)}")
                     if (foreground && count % 10 == 0) notifications.notify(1, notice(base + count, total))
                     // people show up while indexing; saves stay 10x their own time apart, so they never take more than ~10% of the run
                     if (System.nanoTime() > nextSave) {
                         val t = System.nanoTime()
+                        times.start()
                         placePhotos()
                         savePeople()
+                        times.lap(Step.Save)
                         nextSave = System.nanoTime() + maxOf(30_000_000_000L, 10 * (System.nanoTime() - t))
                     }
                 }
@@ -628,6 +660,7 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                 catchUpCount++
             }
         } finally {
+            prefetch.shutdownNow()
             tagger?.close()
             objects?.first?.close()
             objects?.second?.close()
@@ -635,7 +668,8 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
             notifications.cancel(1)
             IndexProgress.finish(applicationContext)
             val stop = if (isStopped) ", stopped, reason $stopReason" else ""
-            Log.i("Memoria", "indexed $count photos, tagged $tagCount, caught up $catchUpCount in %.0f s$stop".format((System.nanoTime() - start) / 1e9))
+            AppLog.i("indexed $count photos, tagged $tagCount, caught up $catchUpCount in %.0f s$stop".format((System.nanoTime() - start) / 1e9))
+            if (count > 0) AppLog.i("per photo ms (n=$count): ${times.perPhoto(count)}")
         }
         if (isStopped) return Result.success()
         placePhotos()
@@ -652,16 +686,16 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         var w = 0
         var h = 0
         val small = try {
-            loadPhoto(ImageDecoder.createSource(applicationContext.contentResolver, ContentUris.withAppendedId(Media.EXTERNAL_CONTENT_URI, id)), 640) { pw, ph -> w = pw; h = ph }
+            loadPhoto(applicationContext.contentResolver, ContentUris.withAppendedId(Media.EXTERNAL_CONTENT_URI, id), 640) { pw, ph -> w = pw; h = ph }
         } catch (e: Exception) {
-            Log.w("Memoria", "catch up $id", e)
+            AppLog.w("catch up $id", e)
             null
         }
         if (tag != null) dao.insertVector(PhotoVectorRow(id, Tagger.VERSION, small?.let {
             try {
                 tag.vector(tag.input(it))
             } catch (e: Exception) {
-                Log.w("Memoria", "tag $id", e)
+                AppLog.w("tag $id", e)
                 null
             }
         } ?: FloatArray(0)))
@@ -676,7 +710,7 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
             val people = found.filter { it.cls == PERSON }.map { toFull(it.box, small, w, h) }
             drop = dao.photoFaces(id).filter { it.id !in kept && !inPerson(it.box, people) }.map { it.id }
         } catch (e: Exception) {
-            Log.w("Memoria", "box $id", e)
+            AppLog.w("box $id", e)
         }
         db.withTransaction {
             if (drop.isNotEmpty()) dao.deleteFaceIds(drop)
@@ -709,9 +743,9 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
 
     /** A 640 decode for the tagger alone. An unreadable photo gets an empty vector, so it isn't tried again. */
     private fun tagAlone(tagger: Tagger, id: Long): FloatArray = try {
-        tagger.vector(tagger.input(loadPhoto(ImageDecoder.createSource(applicationContext.contentResolver, ContentUris.withAppendedId(Media.EXTERNAL_CONTENT_URI, id)), 640)))
+        tagger.vector(tagger.input(loadPhoto(applicationContext.contentResolver, ContentUris.withAppendedId(Media.EXTERNAL_CONTENT_URI, id), 640)))
     } catch (e: Exception) {
-        Log.w("Memoria", "tag $id", e)
+        AppLog.w("tag $id", e)
         FloatArray(0)
     }
 
@@ -726,7 +760,7 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
             val t = gps?.let { towns.nearest(it.first, it.second) }
             dao.setPlace(id, gps?.first, gps?.second, t?.let { towns.id[it] } ?: 0, t?.let { towns.name[it] })
         }
-        Log.i("Memoria", "placed ${ids.size} photos in ${(System.nanoTime() - start) / 1_000_000} ms")
+        AppLog.i("placed ${ids.size} photos in ${(System.nanoTime() - start) / 1_000_000} ms")
     }
 
     /**

@@ -1,12 +1,15 @@
 package app.memoria
 
+import android.content.ContentResolver
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.ImageDecoder
+import android.graphics.Matrix
+import android.media.ExifInterface
+import android.net.Uri
 import android.os.Build
-import android.util.Log
 import com.google.ai.edge.litert.Accelerator
 import com.google.ai.edge.litert.BuiltinNpuAcceleratorProvider
 import com.google.ai.edge.litert.CompiledModel
@@ -28,12 +31,50 @@ class Face(val box: FloatArray, val score: Float, val landmarks: FloatArray) {
     var thumb: ByteArray? = null
 }
 
-/** Decodes with EXIF rotation, longest side capped at [side] (4096 like the bench). [size] gets the photo's own width and height. */
-fun loadPhoto(source: ImageDecoder.Source, side: Int = 4096, size: (Int, Int) -> Unit = { _, _ -> }): Bitmap = ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
-    size(info.size.width, info.size.height)
-    val s = side.toFloat() / max(info.size.width, info.size.height)
-    if (s < 1) decoder.setTargetSize((info.size.width * s).toInt(), (info.size.height * s).toInt())
-    decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE // getPixels needs a CPU bitmap
+/**
+ * Decodes with EXIF rotation, longest side capped at [side] (4096 like the bench). [size] gets the photo's own width and height, after [turn].
+ * [turn] is a DNG's TIFF tag from [dngTurn]: Android shows a DNG as stored, so the picture is turned here.
+ */
+fun loadPhoto(source: ImageDecoder.Source, side: Int = 4096, turn: Int = 1, size: (Int, Int) -> Unit = { _, _ -> }): Bitmap {
+    var w = 0
+    var h = 0
+    val bitmap = ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+        w = info.size.width
+        h = info.size.height
+        val s = side.toFloat() / max(w, h)
+        if (s < 1) decoder.setTargetSize((w * s).toInt(), (h * s).toInt())
+        decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE // getPixels needs a CPU bitmap
+    }
+    if (turn in 5..8) size(h, w) else size(w, h)
+    return bitmap.turnedBy(turn)
+}
+
+/** [loadPhoto] of a MediaStore photo, the way the index reads it: a DNG is turned by its TIFF tag. */
+fun loadPhoto(resolver: ContentResolver, uri: Uri, side: Int = 4096, size: (Int, Int) -> Unit = { _, _ -> }): Bitmap =
+    loadPhoto(ImageDecoder.createSource(resolver, uri), side, dngTurn(resolver, uri), size)
+
+/** A DNG's TIFF turn tag (1-8), and 1 for any other file. ImageDecoder and the thumbnailer show a DNG as stored whatever this says (`PhotoFileTest`), so each decode of a photo turns by it. */
+fun dngTurn(resolver: ContentResolver, uri: Uri, type: String? = runCatching { resolver.getType(uri) }.getOrNull()): Int =
+    if (type != "image/x-adobe-dng") 1
+    else runCatching { resolver.openInputStream(uri)!!.use { ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, 1) } }.getOrDefault(1)
+
+/** The picture turned by an EXIF-style [tag] (1-8). Anything else leaves it as it is. */
+fun Bitmap.turnedBy(tag: Int): Bitmap {
+    val m = Matrix()
+    when (tag) {
+        2 -> m.postScale(-1f, 1f)
+        3 -> m.postRotate(180f)
+        4 -> m.postScale(1f, -1f)
+        5 -> { m.postRotate(90f); m.postScale(-1f, 1f) }
+        6 -> m.postRotate(90f)
+        7 -> { m.postRotate(270f); m.postScale(-1f, 1f) }
+        8 -> m.postRotate(270f)
+        else -> return this
+    }
+    val hardware = config == Bitmap.Config.HARDWARE
+    val flat = if (hardware) copy(Bitmap.Config.ARGB_8888, false) else this
+    val turned = Bitmap.createBitmap(flat, 0, 0, flat.width, flat.height, m, true)
+    return if (hardware) turned.copy(Bitmap.Config.HARDWARE, false) else turned
 }
 
 /** [image] letterboxed to 640x640, gray 114 padding, RGB, 0..1: the input of YOLOv5m-face and YOLO26. A model's x is (x - padW) / scale in the image. */
@@ -90,10 +131,10 @@ private fun open(env: Environment, file: File, accelerators: List<Accelerator>):
         if (on == Accelerator.CPU) cpuOptions = CompiledModel.CpuOptions(numThreads = 4) // LiteRT's default is ~3x slower than ONNX Runtime was
     }
     return try {
-        CompiledModel.create(file.path, options, env).also { Log.i("Memoria", "${file.name} on $on") }
+        CompiledModel.create(file.path, options, env).also { AppLog.i("${file.name} on $on") }
     } catch (e: Exception) {
         if (accelerators.size == 1) throw e
-        Log.w("Memoria", "${file.name} failed on $on", e)
+        AppLog.w("${file.name} failed on $on", e)
         open(env, file, accelerators.drop(1))
     }
 }

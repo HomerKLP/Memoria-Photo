@@ -371,7 +371,7 @@ private fun FacePhoto(face: FaceVec) {
                     side = max(info.size.width, info.size.height)
                     val s = 1440f / side
                     if (s < 1) decoder.setTargetSize((info.size.width * s).toInt(), (info.size.height * s).toInt())
-                }
+                }.turnedBy(dngTurn(context.contentResolver, uri))
                 // boxes are in index pixels: the photo with its longest side capped at 4096 (loadPhoto)
                 bitmap.asImageBitmap() to max(bitmap.width, bitmap.height).toFloat() / min(side, 4096)
             }.getOrNull()

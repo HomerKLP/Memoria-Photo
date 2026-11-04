@@ -16,7 +16,22 @@ Fix ideas:
 - `Thumb` decodes the photo itself for every tile (halving, like the small-preview fix), plus a disk cache in the app's cache folder so only the first scroll pays. Check blank tiles with `make perf` before and after.
 - Only when EXIF DigitalZoomRatio > 1: cheap, but misses the 1x shots and the soft grid.
 
-Other apps: Immich calls `loadThumbnail` for anything up to 768 px (its `LocalImagesImpl.kt`), so it should get the same preview. The phone's own gallery shows no jump, so it likely makes its own thumbnails and keeps them on disk.
+Why (AOSP `ThumbnailUtils.createImageThumbnail`, checked 2026-11-04): a JPEG's EXIF preview is used at any size, with no size check, and turned only for EXIF 3, 6, 8. HEIC goes through `MediaMetadataRetriever`.
+- The `small` check in `Thumb` is 200 px, but a tile is ~360 px, so a 240x320 preview passes it and stays soft.
+- A mirrored EXIF (2, 4) keeps the preview's shape, so `sameShape` does not catch it.
+
+Measured 2026-11-04 on the second test phone (MediaTek, 1216 px wide, 1050 HEIC + 881 JPEG), 60 random photos of each type, tile ~405 px:
+- System thumbs are soft: HEIC 60 of 60 (all 240x320), JPEG 55 of 60 (mostly 144x192). The 200 px check in `Thumb` fixes only the JPEG ones, never HEIC.
+- Shape differs from the photo: HEIC 1 of 60, JPEG 7 of 60.
+- With today's checks (decode the file when the thumb is under 200 px or the wrong shape), same phone: HEIC 59 of 60 stay soft (240x320, 1.7x stretch). JPEG 49 of 60 are decoded from the file, the other 11 are fine or 1.1-1.2x. PNG (29 screenshots) comes back 292x633, 1.4x soft, no shape problem. So here only HEIC is clearly bad. On the Snapdragon 8 Elite phone the 240x320 previews (format not checked) pass the 200 px check, so JPEG there can be soft too.
+- Own decode with halving (`ImageDecoder`, 12 MP, one thread, not a clean cold read): JPEG median 35 ms (p90 52), HEIC median 238 ms (p90 264). 4 threads on a HEIC + JPEG mix gave only 14 photos/s, so HEIC does not scale with threads.
+- Scale to tile + WebP q80: +35 ms; ~32 KB (JPEG) / ~41 KB (HEIC) per thumb, so ~350 MB for 10k photos. Reading one back: ~4 ms.
+- Not measured: `loadThumbnail` time (`ThumbnailUtils` needs an app context), the Snapdragon 8 Elite phone, a clean cold read. The program was a throwaway `app_process` dex, not kept.
+
+Other apps:
+- Immich shows its server's thumbnails: 250 px, made from the full photo, all 8 EXIF turns. For photos only on the phone it calls `loadThumbnail` like we do (`LocalImagesImpl.kt`), so those can be soft too.
+- Glide galleries decode the file with halving, turn by all 8 EXIF values, and keep a disk cache.
+- The phone's own gallery shows no jump, so it likely does the same (not checked).
 
 ## Library opens slowly
 
@@ -54,9 +69,23 @@ Seen 2026-11-02 on another phone (MediaTek), release app: front-camera HEIC phot
 | 180 | 0 | 0 | 4 | 21 |
 | 0 | 0 | 1 | 2 | 3 |
 
-Cause: the files are fine, the decoder is not. With `imir` read as libheif and the current HEIF text do (0 = top and bottom swap, 1 = left and right swap) and `irot` applied first, all four rows match their EXIF tag; an earlier note read `imir` the other way and put every row 180° off. Android's HEIF reader likely passes only a rotation to Skia (not checked), so `ImageDecoder` (viewer, `Thumb` re-decode, `loadPhoto` in the index) applies `irot` and drops `imir`: row 3 (EXIF 4) shows upside down, rows 1, 2, 4 mirrored. If that phone shows row 1 upside down too, its decoder reads `imir` the old way. Either way faces in these photos are likely missed. The grid preview comes from `loadThumbnail`, and Android's thumbnailer turns only for EXIF 3, 6, 8, not the mirrored 2, 4, 5, 7: rows 1 and 2 stay sideways, row 3 upside down.
+Cause: the files are fine, the decoder is not. With `imir` read as libheif and the current HEIF text do (0 = top and bottom swap, 1 = left and right swap) and `irot` applied first, all four rows match their EXIF tag; an earlier note read `imir` the other way and put every row 180° off. Android's HEIF reader passes only a rotation to Skia (`SkHeifCodec.cpp`, checked 2026-11-04), so `ImageDecoder` (viewer, `Thumb` re-decode, `loadPhoto` in the index) applies `irot` and drops `imir`: row 3 (EXIF 4) shows upside down, rows 1, 2, 4 mirrored. If that phone shows row 1 upside down too, its decoder reads `imir` the old way. Either way faces in these photos are likely missed. The grid preview comes from `loadThumbnail`, and Android's thumbnailer turns only for EXIF 3, 6, 8, not the mirrored 2, 4, 5, 7: rows 1 and 2 stay sideways, row 3 upside down.
+
+Checked 2026-11-04 on one open photo (an iPhone selfie HEIC, `irot` 90 + `imir` 0, MediaStore orientation 90): macOS shows it upright, the viewer shows it flipped top to bottom, its system thumb is a sideways 320x240 (the photo is portrait), and the People cover circles of its faces are upside down. So `ImageDecoder` applies `irot` and drops `imir`. Same phone, all 1050 HEICs (first 64 KB each): 236 (22%) have an `imir` box: (`irot` 90, `imir` 0) 109, (0, 0) 103, (0, 1) 16, (90, 1) 8. The other 814 have `irot` only or nothing. Only the one photo was compared by eye; the other combos follow the same rule.
+
+Smaller fix idea: after the `ImageDecoder` decode, flip the bitmap by the file's `imir` axis (box type `imir`, size 9, in the first 64 KB), in the one place all three decodes share.
+
+That fixes the grid only half way. Checked 2026-11-04 on a landscape HEIC with `irot` 0 + `imir` 0: the system thumb is the stored picture upside down, the same shape as the photo, so `Thumb` keeps it and the tile stays upside down while the fixed viewer opens upright. The `imir` + rotate-90 HEICs (117 of the 236) have a sideways thumb, so `Thumb` already re-decodes them and the decode fix covers them. The `imir`-only ones (`irot` 0, 119 of the 236) need `Thumb` to re-decode them too: the shape test cannot see them, so check the `imir` box, or decode every HEIC (the own-thumb plan above).
 
 Fix idea: for a HEIC with a mirrored EXIF tag (2, 4, 5, 7), follow EXIF like the phone's gallery: decode the stored pixels with no turn (maybe `BitmapFactory`, check it skips `irot`) and apply the EXIF matrix, in one place all three decodes share; re-decode such tiles in `Thumb` like the wrong-shape ones. First check on the emulator with a made-up HEIC per row (arrow picture, `irot` + `imir`) what `ImageDecoder` and `BitmapFactory` apply, then on that phone.
+
+Tests needed (so no phone has to be checked by eye; ROADMAP Phase 9):
+- Files: a 4-colour picture (red, green, blue, yellow corners), 8 HEICs for EXIF 1-8 and the same 8 JPEGs with the EXIF orientation. Apple's ImageIO writes the HEICs with the phone's own box pairs (checked 2026-11-04: 2 = `irot` 0 + `imir` 1, 4 = 0 + 0, 5 = 90 + 0, 7 = 90 + 1, 3 / 6 / 8 `irot` only). Also AVIF 1-8 (Pillow; other box pairs, 7 = `irot` 270 + `imir` 0), PNG, WebP, junk tags 0 and 9, a big JPEG (halving), and JPEGs with a camera preview inside (also a 3:4 cut of a 4:3 photo). `bench/fixtures.py` makes them into `app/src/androidTest/assets/fixtures/` (43 files, 1.9 MB with the DNGs) and checks each against the EXIF table with macOS ImageIO, Pillow and LibRaw. DNG: four hand-written ones (turn tags 1, 3, 6, 8, 360 KB each) and one real Canon 60D frame from raw.pixls.us in `real/` (CC0, 0.47 MB, serial removed, source in `bench/fixtures.tsv`). Everything is in git, so no test depends on a download.
+- Test (androidTest, emulator): put each file in MediaStore, run the real paths (grid tile `Thumb`, viewer decode, index `loadPhoto`), compare the four corner colours with a hand-written table for EXIF 1-8 (from the spec, not from what Android returns).
+- The emulator is NOT enough for HEIC (found 2026-11-04, API 37 emulator): every HEIC case is green there, orientation 1-8 on grid, viewer and index, and the grid thumb is sharp. So Android 17 applies `imir` and gives a full-size HEIC thumb; the bug on the MediaTek phone needs an older emulator image (which Android version does that phone run?) or the phone. Once a fix flips by `imir` itself, the API 37 run must stay green (no double flip).
+- Red on the API 37 emulator before the fixes (2026-11-04), all 176 cases green after: JPEG with a camera preview (grid for tags 2 and 4, sharpness for 1, 2, 3, 4, 6, 8) and DNG tags 3, 6, 8 on grid, viewer and index (Android does not turn a DNG by its TIFF tag). Checked on the phone with a made-up tag 6 DNG: grid and viewer show it right, so no double turn there. The phone's only real DNG is landscape, so no real portrait DNG was checked. Open, not tested: a mirrored (2, 4) JPEG whose preview is at least a tile / 1.2 wide still shows as stored.
+- Decided 2026-11-04, then dropped (the user: HEIC is a strange one, keep it here for history): the `imir` check in `Thumb` and the known-failing HEIC tile. Not done.
+- Sharpness: the grid tile's bitmap short side must be at least tile px / 1.2. Done for JPEG and the rest: `Thumb` re-decodes when the thumb is smaller (not HEIC) and asks MediaStore for a tile-size thumb. Scroll speed and blank tiles measured 2026-11-04 on release (`make perf`): 0% janky, 0% blank, so the re-decodes cost nothing visible. HEIC passes on the emulator; the phone's soft HEIC thumbs stay open above.
 
 ## No pets on another phone (Snapdragon 8 Gen 3)
 
@@ -71,6 +100,30 @@ Steps to find out (the phone in hand):
 2. If the models load: install the debug build next to the release (own data, the release app is untouched), push a few cat photos to its `test/`, Dev tools Run on NPU, GPU and CPU, compare each `objects_<mode>.json` with `uv run bench/objects.py phone`.
 
 Fix ideas: wait for the phone (the user's call, no self-check at load). If one chip is wrong, skip it for that model, as `PetVectors` skips the NPU. If the pet model throws, keep the photo's faces and boxes and skip only the pet.
+
+## Index is slow on a Dimensity 9500 phone with HEIC photos
+
+Seen 2026-11-04, debug 0.7.0, fresh install: ~0.7-0.8 s per photo, so ~25 min for 2000 photos.
+
+Not the models. All six run on the GPU (this chip has no Qualcomm NPU, so `Net` in `Faces.kt` skips it) and nothing failed. The index does one step at a time, so the CPU decodes while the GPU waits and the other way round; ~75% of the CPU is idle.
+
+Per photo, ms, averaged over 80 photos: small decode 170, full decode 186 (only photos with faces), EXIF read in `kindOf` 31, tagger 88, objects 99, face detect 50, embed 68-290 (depends on the faces), database and people grouping ~40. Decoding is 35-50% of the total.
+
+HEIC is the slow part: the 640 px decode takes 100-166 ms, a JPEG 19-37 ms. Reading the file takes ~10 ms, and bytes, file path and content URI give the same time, so it is the codec, not file access. HEIC decodes whole, so a smaller target size does not help and the full decode costs about the same again (120-340 ms).
+
+Decode bench 2026-11-04 (12 HEIC, 6 JPEG, median ms per photo, index finished so nothing else ran):
+- HEIC: `ImageDecoder` 640 px 129, full 257. `BitmapFactory` full 130, sample 4 136: the size changes nothing, the floor is ~130 ms. `MediaMetadataRetriever` primary image 274, scaled frame returns nothing. `loadThumbnail` 9, but only 320x240.
+- JPEG: `ImageDecoder` 640 px 52, full 69. `BitmapFactory` sample 4 28, full 37.
+- avif-coder 3.0.1 (software HEVC): HEIC full 596, sampled to 640 px 430, fails on JPEG. 3-4x slower than the system decoder, so not an option.
+- Threads, `ImageDecoder` 640 px on HEIC: 143 ms per photo on 1 thread, 106 on 2, 100 on 4. The hardware decoder is shared, so one decode-ahead thread is enough.
+
+Steps: run the scan on a phone with many HEIC photos and time each step. Logcat shows no app lines on this phone (`log.ratelimit`), so debug builds also write `memoria.log` in the app's files folder (`AppLog`): the chip each model runs on, errors, and the time per step.
+
+Done 2026-11-04: the next photo's `kindOf` and 640 px decode run on a helper thread while the models work on this one (`prepare` in `Index.kt`). Same 196 photos indexed again: 128 s and 134 s without it, 101 s with it (~0.67 to ~0.52 s a photo). The loop waits 5-10 ms for a decode instead of ~170. The decode itself is unchanged, only the thread it runs on.
+
+Still open:
+- The full decode for photos with faces (~120-145 ms a photo on average) still runs in the loop, after the faces are found. The helper thread could do it early, at the price of decoding photos that turn out to have no faces.
+- A 2048 px full decode is cheaper but changes the face crops. Face quality comes first, so only with the user's OK.
 
 # Known issues and bad patterns
 
@@ -93,17 +146,17 @@ Found while reading the code, not seen on the phone yet. No steps, just the risk
 
 Release build, baseline profile compiled, full library (~4400 photos), median of 3. Frame times only: how long data takes to show is not measured yet. Compare runs taken in the same state (a warm phone right after indexing reads 2-4x more janky frames). Earlier runs are in git history.
 
-| 2026-10-27, v0.3.0 (viewer: median of 2 runs) | frames | janky % | p90 ms | p99 ms |
+| 2026-11-04, v0.7.0 + photo-file fixes | frames | janky % | p90 ms | p99 ms |
 |---|---|---|---|---|
-| Cold start: first frame 116 ms, timeline 163 ms | | | | |
-| Photos, first scroll | 340 | 0.3 | 5 | 8 |
-| Photos, scroll | 315 | 0 | 6 | 8 |
-| Library, open + scroll | 148 | 0.7 | 7 | 19 |
-| People, open + scroll | 140 | 0.7 | 7 | 12 |
-| Viewer, open + 3 swipes | 216 | 1.6 | 6 | 14.5 |
-| Details, open | 82 | 1.2 | 5.5 | 13.5 |
+| Cold start: first frame 151 ms, timeline 201 ms | | | | |
+| Photos, first scroll | 436 | 0.2 | 6 | 7 |
+| Photos, scroll | 420 | 0 | 6 | 7 |
+| Library, open + scroll | 216 | 0.9 | 7 | 9 |
+| People, open + scroll | 190 | 0.5 | 6 | 12 |
+| Viewer, open + 3 swipes | 281 | 0.4 | 8 | 10 |
+| Details, open | 111 | 0 | 5 | 10 |
 
-Native heap after 8 flings 141 MB, no blank tiles on a cold fling. Taken before the 120 Hz request (the display ran at 90 Hz in the app).
+Native heap after 8 flings 87 MB, no blank tiles on a cold fling. The grid scroll with the tile re-decodes (2026-11-04) is clean: 0% janky, 0% blank. Cold start is up from v0.3.0's 116/163 ms (same phone, more library and DB work now).
 
 # Fixed
 
@@ -171,3 +224,5 @@ Native heap after 8 flings 141 MB, no blank tiles on a cold fling. Taken before 
 - 2026-11-03 Library cover rows showed another item's photo while a scan reordered them. `Thumb` keys its state by `tile.id` (`ThumbTest`).
 - 2026-11-03 Opening one Category or Place built every category or town from a full MediaStore scan. They read only their own photos now (`loadCategory`, `photosIn` + `photosByIds`).
 - 2026-11-03 The Details panel read every tagged face on each swipe-up. It reads the person names now; the full list loads only when a face is tapped, for Who is this?.
+- 2026-11-04 Grid tiles soft for JPEGs with a small camera preview, and mirrored previews (tags 2, 4) shown as stored. `Thumb` decodes the file when MediaStore's picture is under a tile / 1.2 (not HEIC) and asks for a tile-size thumb (`PhotoFileTest`). Release scroll checked 2026-11-04 (`make perf`): 0% janky, 0% blank tiles.
+- 2026-11-04 DNG photos with a turn tag showed sideways: Android decodes a DNG as stored. Grid, viewer, index and Help recognize turn by the TIFF tag (`dngTurn`, `turnedBy` in `Faces.kt`). Checked on the phone with a made-up tag 6 DNG.
