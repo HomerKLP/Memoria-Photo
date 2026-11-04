@@ -44,6 +44,8 @@ Measured 2026-10-31 on the phone's 0.4.0 release (simpleperf, first Library open
 
 Done 2026-10-31: each photo's tags are stored (`photo_tag`, DB v15), so an open scores only new vectors. Debug build on the phone: categories ~100 ms (`tags.json` 40, missing-rows scan 11, `photo_tag` read 12, `categories()` 27); the first open after the migration scores all photos once (~390). Release not measured yet.
 
+Measured 2026-11-05 on the 0.7.1 release (`make perf`, screencaps): all covers are drawn 151 ms after the tap on the first open after a cold start, 155 ms on a later one. That is the lowest the method reads, so it may be fixed. Check by feel before closing.
+
 Steps:
 1. Start the app, tap Library. Compare the first open after launch with a later one.
 
@@ -144,19 +146,24 @@ Found while reading the code, not seen on the phone yet. No steps, just the risk
 
 ## Perf numbers (`make perf`)
 
-Release build, baseline profile compiled, full library (~4400 photos), median of 3. Frame times only: how long data takes to show is not measured yet. Compare runs taken in the same state (a warm phone right after indexing reads 2-4x more janky frames). Earlier runs are in git history.
+Release build, baseline profile compiled, full library (~4400 photos), median of 3. Frame times, plus how long Library takes to show its covers. Other screens' load times are not measured yet. Compare runs taken in the same state (a warm phone right after indexing reads 2-4x more janky frames). Earlier runs are in git history.
 
-| 2026-11-04, v0.7.0 + photo-file fixes | frames | janky % | p90 ms | p99 ms |
+| 2026-11-05, v0.7.1 | frames | janky % | p90 ms | p99 ms |
 |---|---|---|---|---|
-| Cold start: first frame 151 ms, timeline 201 ms | | | | |
-| Photos, first scroll | 436 | 0.2 | 6 | 7 |
-| Photos, scroll | 420 | 0 | 6 | 7 |
-| Library, open + scroll | 216 | 0.9 | 7 | 9 |
-| People, open + scroll | 190 | 0.5 | 6 | 12 |
-| Viewer, open + 3 swipes | 281 | 0.4 | 8 | 10 |
-| Details, open | 111 | 0 | 5 | 10 |
+| Cold start: first frame 135 ms, timeline 180 ms | | | | |
+| Photos, first scroll | 431 | 0.5 | 6 | 8 |
+| Photos, scroll | 418 | 0 | 5 | 7 |
+| Library, open + scroll | 190 | 0.5 | 6 | 16 |
+| Albums, open + scroll | 174 | 0.6 | 9 | 11 |
+| Places, open + scroll | 187 | 0.5 | 8 | 12 |
+| Categories, open + scroll | 55 | 0 | 7 | 11 |
+| People, open + scroll | 188 | 0.5 | 6 | 11 |
+| Viewer, open + 3 swipes | 266 | 1.1 | 6 | 17 |
+| Details, open | 110 | 0 | 5 | 6 |
 
-Native heap after 8 flings 87 MB, no blank tiles on a cold fling. The grid scroll with the tile re-decodes (2026-11-04) is clean: 0% janky, 0% blank. Cold start is up from v0.3.0's 116/163 ms (same phone, more library and DB work now).
+Library shows all its covers 151 ms after the tap on the first open (cold start) and 155 ms on a second open. That is the lowest the screencap method reads (one cap), so the real time is at or under it.
+
+Native heap after 8 flings 52 MB (87 MB on 2026-11-04, not explained), no blank tiles on a cold fling. Cold start is up from v0.3.0's 116/163 ms (same phone, more library and DB work now).
 
 # Fixed
 

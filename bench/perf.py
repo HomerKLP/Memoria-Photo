@@ -1,4 +1,4 @@
-"""Speed numbers from the phone: cold start, janky frames per screen, memory and blank grid tiles, on the installed release build.
+"""Speed numbers from the phone: cold start, janky frames per screen, memory, blank grid tiles and Library's time to show covers, on the installed release build.
 
 Only taps, swipes and dumpsys, nothing is installed or removed, so the app's data stays.
 Install the build first (`make release`). Usage: uv run bench/perf.py [--runs 3] [--serial ID]
@@ -89,6 +89,56 @@ def blank_grid(caps=16):
     return round(worst, 1)
 
 
+def library_load(caps=20):
+    """Cold start, tap Library while screencaps run. Per open: ms from the tap to the first screencap that shows Library with no blank cover tile.
+    First open has no cached data, the second has. A cap takes ~150-300 ms, so ~150 is the lowest number it can show: "already drawn".
+    The caps hold personal photos, so they stay in memory and are deleted from the phone."""
+    sh(f"am force-stop {PKG}")
+    sh(f"am start -W -n {PKG}/.MainActivity")
+    time.sleep(2.5)
+    result = []
+    for n in range(2):
+        m = re.search(r'text="Library"[^>]*?bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', screen())
+        if not m:
+            sys.exit('"Library" is not on the screen')
+        x1, y1, x2, y2 = map(int, m.groups())
+        out = sh(f"(input tap {(x1 + x2) // 2} {(y1 + y2) // 2}; echo tap $(date +%s%N)) & for i in $(seq {caps}); do echo cap $i $(date +%s%N); screencap /data/local/tmp/memoria_cap$i.raw; done; wait")
+        tap = int(re.search(r"tap (\d+)", out)[1])
+        ms = {int(i): (int(ns) - tap) / 1e6 for i, ns in re.findall(r"cap (\d+) (\d+)", out)}
+        blank = {}
+        for i in ms:
+            raw = subprocess.run([ADB, *DEV, "exec-out", "cat", f"/data/local/tmp/memoria_cap{i}.raw"], capture_output=True).stdout
+            top = len(raw) - W * H * 4  # header size differs between Android versions
+            area = raw[top + W * 4 * (H * 10 // 100):top + W * 4 * (H * 88 // 100)]  # under the status bar, above the tabs
+            blank[i] = area.count(b"\xf3\xea\xda\xff") * 4 * 100 / len(area)  # surfaceVariant, Theme.kt
+        sh("rm -f /data/local/tmp/memoria_cap*.raw")
+        # the last cap is the loaded Library; its search bar is surfaceVariant too, so "blank" means more than that
+        floor = blank[caps]
+        late = max((i for i in ms if ms[i] >= 0 and blank[i] > floor + 1), default=0)
+        # Photos, still on screen just after the tap, has less surfaceVariant than the loaded Library
+        shown = [i for i in ms if i > late and ms[i] >= 0 and blank[i] >= floor - 1]
+        result.append(round(ms[shown[0]]) if shown else None)
+        if n == 0:
+            tap_text("Photos")
+    return result
+
+
+def see_all_xy(title):
+    """Where the See all on a Library section's title line is: scroll down from the top until the title shows, above the tabs."""
+    fling(3, up=False)
+    for _ in range(5):
+        s = screen()
+        t = re.search(rf'text="{title}"[^>]*?bounds="\[\d+,(\d+)\]\[\d+,(\d+)\]"', s)
+        if t and H * 12 // 100 < (int(t[1]) + int(t[2])) // 2 < H * 80 // 100:
+            ty = (int(t[1]) + int(t[2])) // 2
+            for m in re.finditer(r'text="See all"[^>]*?bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', s):
+                x1, y1, x2, y2 = map(int, m.groups())
+                if abs((y1 + y2) // 2 - ty) < 60:
+                    return (x1 + x2) // 2, (y1 + y2) // 2
+        fling(1)
+    sys.exit(f'"See all" for {title} is not on the screen')
+
+
 def open_viewer():
     """Tap the first tile under the first day header (a day can have one photo); True once the viewer's Details button shows."""
     m = re.search(r'text="\w{3}, \d+ \w{3}[^"]*"[^>]*?bounds="\[\d+,\d+\]\[\d+,(\d+)\]"', screen())
@@ -117,6 +167,11 @@ def run(rows):
     measure("Photos, scroll", fling)
     rows.setdefault("Memory after 8 flings", []).append({"native heap MB": native_mb()})
     measure("Library, open + scroll", lambda: (tap_text("Library"), fling(2)))
+    for title in ("Albums", "Places", "Categories"):
+        x, y = see_all_xy(title)  # found before the reset, so the scrolling to it is not counted
+        measure(f"{title}, open + scroll", lambda: (sh(f"input tap {x} {y}"), time.sleep(1.5), fling(2)))
+        sh("input keyevent KEYCODE_BACK")
+        time.sleep(1)
     fling(3, up=False)  # back to the top, where the first See all is People's
     measure("People, open + scroll", lambda: (tap_text("See all"), fling(2)))
     sh("input keyevent KEYCODE_BACK")
@@ -136,6 +191,8 @@ def run(rows):
         measure("Details, open", lambda: sh(f"input swipe {W // 2} {H * 7 // 10} {W // 2} {H * 3 // 10} 250"))
     # frame times miss slow loading, so also count tiles still blank while the grid flies by
     rows.setdefault("Photos, blank on cold fling", []).append({"worst %": blank_grid()})
+    first, second = library_load()
+    rows.setdefault("Library, covers shown", []).append({"first open ms": first, "second open ms": second})
 
 
 def main():
