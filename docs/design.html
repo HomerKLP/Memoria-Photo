@@ -181,6 +181,10 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .chip { flex: none; height: 36px; padding: 0 14px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
 .chip svg.i { width: 18px; height: 18px; color: var(--accent); }
 
+/* Filter: an icon in the top bar, left of More. The dot says a filter is on */
+.icon-btn.dotted { position: relative; }
+.icon-btn .dot { position: absolute; top: 11px; right: 11px; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--bg); }
+
 /* Albums screen */
 /* Cover tile (albums and places): name and count on the photo, one line each, cut with … */
 .place b, .place span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -468,6 +472,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
   <symbol id="i-move" viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-6 12v-3h-4v-4h4V8l5 5-5 5z"/></symbol>
   <symbol id="i-history" viewBox="0 0 24 24"><path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></symbol>
   <symbol id="i-calendar" viewBox="0 0 24 24"><path d="M20 3h-1V1h-2v2H7V1H5v2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 18H4V8h16v13z"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z"/></symbol>
   <symbol id="i-select" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></symbol>
 </svg>
 
@@ -938,6 +943,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <div class="subbar">
           <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
           <div class="title"><b>Camera</b><span>1,412 photos · 61 videos</span></div>
+          <button class="icon-btn dotted" aria-label="Filter"><svg class="i"><use href="#i-filter"/></svg></button>
           <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
         </div>
         <div class="scroll vids" id="album-photos"></div>
@@ -947,7 +953,47 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Album, scrolled: newest first, by month like Place; the month stays pinned. Tap a photo for the viewer, long press to select. The month slider works like on the Photos tab: it fades in once you scroll, starts under the pinned month, and hides in select mode. A person's photos work the same way (see Person)</figcaption>
+      <figcaption>Album, scrolled: newest first, by month like Place; the month stays pinned. Tap a photo for the viewer, long press to select. The month slider works like on the Photos tab: it fades in once you scroll, starts under the pinned month, and hides in select mode. A person's photos work the same way (see Person). The filter icon (see Filter) is in the top bar, left of More. No dot: All</figcaption>
+    </figure>
+    <figure id="album-videos">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="title"><b>Camera</b><span>1,412 photos · 61 videos</span></div>
+          <button class="icon-btn dotted" aria-label="Filter, on"><svg class="i"><use href="#i-filter"/></svg><span class="dot"></span></button>
+          <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
+        </div>
+        <div class="scroll vids" id="album-videos-list"></div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Album, Videos: only the videos, newest first, by month. The title is the album's totals and does not change. Photos shows no videos. The dot on the icon says a filter is on. The month slider, tap and long press work as on All. A Place works the same way</figcaption>
+    </figure>
+    <figure id="album-videos-empty">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="title"><b>Screenshots</b><span>214 photos</span></div>
+          <button class="icon-btn dotted" aria-label="Filter, on"><svg class="i"><use href="#i-filter"/></svg><span class="dot"></span></button>
+          <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
+        </div>
+        <div class="scroll vids">
+          <div class="empty"><svg class="i"><use href="#i-video"/></svg><b>No videos here</b><p>This album has only photos. Pick All or Photos to see them</p></div>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Album, Videos, none: the icon stays, so the way back is always there. Photos says "No photos here" the same way. Place, Person and Pet say the same words</figcaption>
+    </figure>
+    <figure id="album-filter">
+      <div class="phone" id="album-filter-phone">
+        <div class="menu" role="menu" style="top:88px; right:56px; min-width:200px">
+          <button class="mi" role="menuitemradio" aria-checked="true"><svg class="i"><use href="#i-library"/></svg>All<svg class="i tick"><use href="#i-check"/></svg></button>
+          <button class="mi" role="menuitemradio" aria-checked="false"><svg class="i"><use href="#i-photo"/></svg>Photos</button>
+          <button class="mi" role="menuitemradio" aria-checked="false"><svg class="i"><use href="#i-video"/></svg>Videos</button>
+        </div>
+      </div>
+      <figcaption>Album, Filter: the icon opens a small menu under it. A pick closes it and the grid updates; the dot shows when the pick is not All. Place, Person and Pet use the same menu</figcaption>
     </figure>
     <figure id="album-more">
       <div class="phone" id="album-more-phone">
@@ -978,7 +1024,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="handle"></div>
         </div>
       </div>
-      <figcaption>Album, selecting: long press a photo, or More > Select. The top bar swaps in place; the Select bar pill floats in at the bottom over the grid, so nothing moves. Select all picks the whole album. Move opens the Move to album sheet; moved photos leave this album. Delete sends all to the phone's trash with one Android confirm. Favorite reads Unfavorite when all picked are favorites. Back or X leaves. Favorites, a Place, a person and Videos select the same way, without Move: only an album says which album its photos are in</figcaption>
+      <figcaption>Album, selecting: long press a photo, or More > Select. The top bar swaps in place; the Select bar pill floats in at the bottom over the grid, so nothing moves. Select all picks the whole album. Move opens the Move to album sheet; moved photos leave this album. Delete sends all to the phone's trash with one Android confirm. Favorite reads Unfavorite when all picked are favorites. Back or X leaves. Select all picks what the filter shows; the select bar has no filter icon, the filter stays on (see Filter). Favorites, a Place, a person and Videos select the same way, without Move: only an album says which album its photos are in</figcaption>
     </figure>
     <figure id="ignore">
       <div class="phone modal" id="ignore-phone">
@@ -1049,11 +1095,12 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <div class="subbar">
           <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
           <div class="title"><b>Riverton</b><span>619 photos · 23 videos</span></div>
+          <button class="icon-btn dotted" aria-label="Filter"><svg class="i"><use href="#i-filter"/></svg></button>
         </div>
         <div class="scroll vids" id="place-photos"></div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Place: every photo and video taken in that town, newest first, by month; the month stays pinned. Tap opens the viewer, long press selects. No map: map tiles need the internet</figcaption>
+      <figcaption>Place: every photo and video taken in that town, newest first, by month; the month stays pinned. Tap opens the viewer, long press selects. No map: map tiles need the internet. Has the same filter icon as Album</figcaption>
     </figure>
     <figure id="place-select">
       <div class="phone">
@@ -1073,7 +1120,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="handle"></div>
         </div>
       </div>
-      <figcaption>Place, selecting: same as an album, without Move</figcaption>
+      <figcaption>Place, selecting: same as an album, without Move. Select all picks what the filter shows</figcaption>
     </figure>
     <figure id="places-empty">
       <div class="phone">
@@ -1242,11 +1289,12 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <div class="subbar">
           <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
           <span id="person-avatar"></span>
-          <div class="title"><b>Dana</b><span>224 photos · 6 videos · 96 faces</span></div>
+          <div class="title"><b>Dana</b><span>224 photos · 6 videos</span></div>
+          <button class="icon-btn dotted" aria-label="Filter"><svg class="i"><use href="#i-filter"/></svg></button>
           <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
         </div>
         <div class="scroll vids">
-          <div class="head"><h3>Faces</h3><span class="hint">These faces match Dana</span></div>
+          <div class="head"><h3>Faces</h3><span class="hint">96 faces match Dana</span></div>
           <div class="row" id="person-faces"></div>
   
           <div class="review">
@@ -1260,7 +1308,22 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Person: opens from the People grid. Name, the faces that match, their photos by month, newest first. Tap the name to rename. Fixes (rename, merge, cover, hide) are in More. Long press a photo selects. Videos the person is in sit in the grid like photos; the title line adds "6 videos" only when there are some (1,204 photos · 38 videos · 512 faces still fits), the Photos hint counts both. Faces from videos never show: not in the row, the Unsure card or the faces count</figcaption>
+      <figcaption>Person: opens from the People grid. Name, the faces that match, their photos by month, newest first. Tap the name to rename. Fixes (rename, merge, cover, hide) are in More. Long press a photo selects. Videos the person is in sit in the grid like photos; the title line adds "6 videos" only when there are some (1,204 photos · 38 videos still fits), the Photos hint counts both. Faces from videos never show: not in the row, the Unsure card or the faces count. The filter icon (see Filter) is in the top bar like on Album and does not touch the faces. The title line has no faces count, since the icon takes its room; the count is in the Faces hint</figcaption>
+    </figure>
+    <figure id="person-videos">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <span id="person-videos-avatar"></span>
+          <div class="title"><b>Dana</b><span>224 photos · 6 videos</span></div>
+          <button class="icon-btn dotted" aria-label="Filter, on"><svg class="i"><use href="#i-filter"/></svg><span class="dot"></span></button>
+          <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
+        </div>
+        <div class="scroll vids" id="person-videos-list"></div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Person, Videos: only the videos in the grid, and the Photos hint counts them. The title line is the person's totals, so it never changes with the filter. The faces row and the Unsure card stay as they are. Photos does the same for photos. A pet is the same</figcaption>
     </figure>
     <figure id="person-more">
       <div class="phone" id="person-more-phone">
@@ -1286,6 +1349,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
           <span id="pet-avatar"></span>
           <div class="title"><b>Murka</b><span>81 photos · 3 videos</span></div>
+          <button class="icon-btn dotted" aria-label="Filter"><svg class="i"><use href="#i-filter"/></svg></button>
           <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
         </div>
         <div class="scroll vids">
@@ -1296,7 +1360,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Pet: opens from People &amp; pets like a person. The row shows the cat or dog pictures that match, the title line counts photos and videos, as for a person, no faces. Pictures from videos never show in the row. No Unsure faces card: pets have no Help recognize. Unnamed: "Add name", as for a person. More: Rename, Merge with, Change cover, Hide pet</figcaption>
+      <figcaption>Pet: opens from People &amp; pets like a person. The row shows the cat or dog pictures that match, the title line counts photos and videos, as for a person, no faces. Pictures from videos never show in the row. No Unsure faces card: pets have no Help recognize. Unnamed: "Add name", as for a person. More: Rename, Merge with, Change cover, Hide pet. Same filter icon as a person</figcaption>
     </figure>
     <figure id="pet-more">
       <div class="phone" id="pet-more-phone">
@@ -1330,7 +1394,8 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <div class="subbar">
           <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
           <span id="person-scrolled-avatar"></span>
-          <div class="title"><b>Dana</b><span>224 photos · 6 videos · 96 faces</span></div>
+          <div class="title"><b>Dana</b><span>224 photos · 6 videos</span></div>
+          <button class="icon-btn dotted" aria-label="Filter"><svg class="i"><use href="#i-filter"/></svg></button>
           <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
         </div>
         <div class="scroll vids" id="person-scrolled-list"></div>
@@ -1360,7 +1425,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="handle"></div>
         </div>
       </div>
-      <figcaption>Person, selecting: same as an album, without Move. Only the top bar swaps; the faces and card above the photos stay put</figcaption>
+      <figcaption>Person, selecting: same as an album, without Move. Only the top bar swaps; the faces and card above the photos stay put. Select all picks what the filter shows</figcaption>
     </figure>
     <figure>
       <div class="phone">
@@ -1740,16 +1805,30 @@ Photos: …/files/test</div>
     <div class="subbar">
       <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
       <div class="face" style="--s:40px;background:linear-gradient(160deg,#D9A27F,#B9876F)"></div>
-      <div class="title" style="margin-left:12px"><b>Dana</b><span>224 photos · 6 videos · 96 faces</span></div>
+      <div class="title" style="margin-left:12px"><b>Dana</b><span>224 photos · 6 videos</span></div>
       <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
     </div>
-    <p>One title, one subtitle line, one trailing button. The subtitle is always there, empty or not, so the bar keeps the same height in every mode. Take it away and everything under it jumps up. An optional leading slot sits between Back and the title (the person's picture on the Person screen). The title can be tappable: on Person it names the person.</p>
+    <p>One title, one subtitle line, one trailing button (Album, Place, Person and Pet have two: Filter, then More). The subtitle is always there, empty or not, so the bar keeps the same height in every mode. Take it away and everything under it jumps up. An optional leading slot sits between Back and the title (the person's picture on the Person screen). The title can be tappable: on Person it names the person.</p>
   </article>
 
   <article class="part">
     <h3>Note</h3>
     <div class="note"><svg class="i"><use href="#i-info"/></svg>Items are deleted for good after 30 days</div>
     <p>A quiet hint above a list. It stays in every mode of the screen, even when the mockup hides it, or the list below moves when the mode changes.</p>
+  </article>
+
+  <article class="part" id="filter-part">
+    <h3>Filter</h3>
+    <div style="display:flex; gap:12px; align-items:center">
+      <button class="icon-btn dotted" aria-label="Filter"><svg class="i"><use href="#i-filter"/></svg></button>
+      <button class="icon-btn dotted" aria-label="Filter, on"><svg class="i"><use href="#i-filter"/></svg><span class="dot"></span></button>
+      <div class="menu" role="menu" style="min-width:200px">
+        <button class="mi" role="menuitemradio" aria-checked="true"><svg class="i"><use href="#i-library"/></svg>All<svg class="i tick"><use href="#i-check"/></svg></button>
+        <button class="mi" role="menuitemradio" aria-checked="false"><svg class="i"><use href="#i-photo"/></svg>Photos</button>
+        <button class="mi" role="menuitemradio" aria-checked="false"><svg class="i"><use href="#i-video"/></svg>Videos</button>
+      </div>
+    </div>
+    <p>An icon in the top bar, left of More, on Album, Place, Person and Pet. It opens a small menu: All, Photos, Videos, with a check. A dot on the icon says a filter is on. It opens on All and keeps its pick until you leave the screen. It narrows the photo grid. The title line is the totals and does not follow it; the Photos hint on Person and Pet does. The select bar has no filter icon: the filter stays on while selecting, and Select all picks what it shows. Nothing matches: "No videos here", the icon stays. The icon takes room from the title, so Person's title line has photos and videos only (the faces count is in the Faces hint).</p>
   </article>
 
   <article class="part">
@@ -2156,7 +2235,7 @@ document.getElementById("person-more-phone").prepend(...[...document.querySelect
 const unnamed = document.getElementById("person-unnamed-phone");
 unnamed.prepend(...[...document.querySelector("#person .phone").children].map(n => n.cloneNode(true)));
 unnamed.querySelector(".subbar .title b").outerHTML = `<b class="add">Add name</b>`;
-unnamed.querySelector(".head .hint").textContent = "These faces match this person";
+unnamed.querySelector(".head .hint").textContent = "96 faces match this person";
 unnamed.querySelector(".review-text span").textContent = "12 to check";
 document.getElementById("hide-many-phone").prepend(...[...document.querySelector("#people-select-mixed .phone").children].map(n => n.cloneNode(true)));
 document.getElementById("hide-phone").prepend(...[...document.querySelector("#person .phone").children].map(n => n.cloneNode(true)));
@@ -2171,6 +2250,7 @@ document.getElementById("viewer-more-phone").prepend(...[...document.querySelect
 // The slider stays out of these two: the list is at the top, where it is hidden.
 const albumBehind = () => [...document.querySelector("#album .phone").children].filter(n => !n.classList.contains("slider")).map(n => n.cloneNode(true));
 document.getElementById("ignore-phone").prepend(...albumBehind());
+document.getElementById("album-filter-phone").prepend(...albumBehind());
 document.getElementById("album-more-phone").prepend(...albumBehind());
 const trashDays = [29, 27, 27, 18, 12, 5, 2];
 const trashBg = trashDays.map(() => photo());
@@ -2231,6 +2311,14 @@ fill("category-grid", categories.map(([n, c]) => cover(n, c)).join(""));
 document.getElementById("hit-category").style.background = photo();
 fill("category-photos", [["October 2026", 6], ["September 2026", 4], ["July 2026", 7]]
   .map(([m, n]) => `<section class="month-sec"><h3 class="month"><span>${m}</span></h3><div class="grid big">${tiles(n, [], [1])}</div></section>`).join(""));
+// Filter on Videos: Album and Person, only video tiles. Filled last so the photos above keep their colors.
+const onlyVideos = ms => ms.map(([m, n]) => `<section class="month-sec"><h3 class="month"><span>${m}</span></h3><div class="grid big">${tiles(n, [...Array(n).keys()], [1])}</div></section>`).join("");
+fill("album-videos-list", onlyVideos([["October 2026", 4], ["September 2026", 5]]));
+fill("person-videos-avatar", face(2, 40));
+fill("person-videos-list", document.querySelector("#person .scroll").innerHTML);
+const pv = document.getElementById("person-videos-list");
+pv.querySelectorAll(".head")[1].querySelector(".hint").textContent = "6 · by date";
+pv.querySelector("#person-photos").innerHTML = onlyVideos([["October 2026", 4], ["March 2026", 2]]);
 for (const id of ["album-photos", "person-scrolled-list", "videos", "favorites-grid"]) {
   const list = document.getElementById(id), secs = list.querySelectorAll(".month-sec");
   list.scrollTop = secs[1].offsetTop - list.offsetTop + 120; // one tile row gone: the next row starts right under the pinned month
