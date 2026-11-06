@@ -117,7 +117,7 @@ Against the Mac (`tags.py phone <memoria.db>` vs `siglip2_b16_app`, 3277 photos 
 - Emulator, face models already there: the tagger came in ~15 s, passed the hash, and the run started with it on.
 
 ## Tags file (2026-10-26)
-`uv run bench/tags.py export` writes `app/src/main/assets/tags.json` (110 KB, `model` = `Tagger.VERSION` 1): 14 tags, each with its app name, typing words, its vector (the mean of its English prompts) and a cutoff on the cosine score. The cutoff is the lowest score where the app's vectors (`siglip2_b16_app`) still put 90% right photos above it. Unlabeled photos count as wrong, so it errs on the safe side. For it, 3 rounds of `sheets --models siglip2_b16_app --depth 0` labeled ~660 more photos, down to 30 past each tag's known right ones.
+`uv run bench/tags.py export` writes `app/src/main/assets/tags.json` (118 KB, `model` = `Tagger.VERSION` 1): 14 tags, each with its app name, typing words, its vector (the mean of its English prompts) and a cutoff on the cosine score, plus a 15th entry, `nice` (cutoff -1), which is not a category: it only picks a Place cover (ROADMAP). The cutoff is the lowest score where the app's vectors (`siglip2_b16_app`) still put 90% right photos above it. Unlabeled photos count as wrong, so it errs on the safe side. For it, 3 rounds of `sheets --models siglip2_b16_app --depth 0` labeled ~660 more photos, down to 30 past each tag's known right ones.
 
 | tag | shows (of 3441) | right | found, of the known right |
 |---|---|---|---|

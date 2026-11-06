@@ -105,7 +105,7 @@ suspend fun libraryData(context: Context): LibraryData = withContext(Dispatchers
         favorites = all.count { it.favorite },
         videos = all.count { it.duration != null },
         trash = timed("trash") { runCatching { trash(context).size }.getOrDefault(0) },
-        places = timed("places") { places(dao.placed(), all) },
+        places = timed("places") { places(dao.placed(), all, niceScores(context)) },
         categories = timed("categories") { loadCategories(context, all) },
     )
     AppLog.i("library load: ${steps.joinToString(", ")}, total ${(System.nanoTime() - start) / 1_000_000}")

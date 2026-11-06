@@ -248,7 +248,8 @@ private fun fakeLibrary(people: List<Person>? = null, unsure: List<FaceVec>? = n
 )
 
 private val fakePlaces = listOf("Riverton" to 642, "Northport" to 118, "Harborview" to 87, "Eastfield" to 64, "Lakemoor" to 52).mapIndexed { i, (n, c) ->
-    Place(i, n, List(c) { Tile(i * 1000L + it, android.net.Uri.parse("content://media/external/images/media/$it"), 0L, null) })
+    val tiles = List(c) { Tile(i * 1000L + it, android.net.Uri.parse("content://media/external/images/media/$it"), 0L, null) }
+    Place(i, n, tiles, tiles.first())
 }
 
 @PreviewTest

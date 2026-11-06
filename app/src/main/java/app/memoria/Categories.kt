@@ -53,6 +53,9 @@ class Tag(val id: String, val name: String, val words: List<String>, val cutoff:
     }
 }
 
+/** The cover tag from `tags.json`: not a category, only the prompt that picks a Place cover. */
+const val COVER_TAG = "nice"
+
 /** A tag and its photos, newest first. [cover] is the photo the tagger is surest of. */
 class Category(val id: String, val name: String, val words: List<String>, val cover: Tile, val tiles: List<Tile>)
 
@@ -72,6 +75,7 @@ fun categories(tags: List<Tag>, rows: List<PhotoTagRow>, tiles: List<Tile>, pets
         if (r.tags.isNotEmpty()) for (hit in r.tags.split(';')) hit.split(' ').let { (id, score) -> tagged.getOrPut(id) { mutableListOf() } += tile to score.toFloat() }
     }
     return tags.mapNotNull { tag ->
+        if (tag.id == COVER_TAG) return@mapNotNull null // not a category: only the prompt that picks a Place cover
         val hits = if (tag.id == "pet" && pets != null) pets.mapNotNull { (id, score) -> byId[id]?.let { it to score } } else tagged[tag.id].orEmpty()
         if (hits.isEmpty()) null
         else Category(tag.id, tag.name, tag.words, hits.maxBy { it.second }.first, hits.map { it.first }.sortedByDescending { it.date })
@@ -88,14 +92,28 @@ private fun dot(a: FloatArray, b: FloatArray): Float {
  * Scores only the vectors with no tags yet (new photos; all of them after a new `tags.json`), then reads the stored tags.
  * Scoring all 4.4k vectors on each open took ~150 ms of Library's ~280 on the test phone's release build (`bugs.md`).
  */
-suspend fun loadCategories(context: Context, tiles: List<Tile>): List<Category> = withContext(Dispatchers.IO) {
+suspend fun scoredTags(context: Context): Pair<List<Tag>, List<PhotoTagRow>> = withContext(Dispatchers.IO) {
     val tags = Tag.load(context)
+    if (tags.isEmpty()) return@withContext tags to emptyList()
     val dao = Db.get(context).index()
-    if (tags.isEmpty()) return@withContext emptyList()
     val new = dao.untaggedVectors(Tagger.VERSION, Tag.stamp)
     if (new.isNotEmpty()) dao.insertTags(new.map { PhotoTagRow(it.photoId, Tag.stamp, photoTags(tags, it.vector)) })
-    categories(tags, dao.photoTags(Tag.stamp), tiles, if (objectsFiles(context).all { it.exists() }) dao.petPhotos() else null)
+    tags to dao.photoTags(Tag.stamp)
 }
+
+suspend fun loadCategories(context: Context, tiles: List<Tile>): List<Category> = withContext(Dispatchers.IO) {
+    val (tags, rows) = scoredTags(context)
+    if (tags.isEmpty()) emptyList()
+    else categories(tags, rows, tiles, if (objectsFiles(context).all { it.exists() }) Db.get(context).index().petPhotos() else null)
+}
+
+/** The [COVER_TAG] score per photo: how much the photo looks like a nice place (higher = nicer). */
+suspend fun niceScores(context: Context): Map<Long, Float> =
+    scoredTags(context).second.mapNotNull { r ->
+        r.tags.split(';').firstNotNullOfOrNull { hit ->
+            hit.split(' ').takeIf { it.size == 2 && it[0] == COVER_TAG }?.let { r.photoId to it[1].toFloat() }
+        }
+    }.toMap()
 
 private suspend fun loadCategories(context: Context) = withContext(Dispatchers.IO) { loadCategories(context, albums(context).flatMap { it.tiles }) }
 
