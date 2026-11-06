@@ -47,8 +47,8 @@ import java.util.concurrent.Future
 import kotlin.math.max
 import kotlin.math.min
 
-/** camera can start a person, other (downloads, messengers) only joins people. Room saves the name, so the names are the DB values. */
-enum class PhotoKind { camera, other, skip, error }
+/** camera can start a person, other (downloads, messengers) only joins people, video only joins too. Room saves the name, so the names are the DB values. */
+enum class PhotoKind { camera, other, skip, error, video }
 
 /**
  * townId: GeoNames id of the nearest town (see [Towns]), 0 = no GPS, null = GPS not read yet.

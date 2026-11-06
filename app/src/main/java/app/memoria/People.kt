@@ -136,14 +136,23 @@ class LightFace(
 }
 
 class Person(val faces: List<FaceVec>, val main: FaceVec, val id: Long = 0, val name: String? = null, val hidden: Boolean = false, val coverFaceId: Long? = null, val pos: Int? = null) {
+    /**
+     * The person's faces from photos: the faces row, the Unsure card, Help recognize, the cover and the face count.
+     * A video face only ever joins a person, it never shows (ROADMAP Phase 13).
+     */
+    val shownFaces = faces.filter { it.kind != PhotoKind.video }
+
     /** The unsure faces of this person that look like [face] (0.3 or closer): one Yes on [face] settles them too. Not under quality 0.3: the regroup doesn't trust that Yes. */
-    fun twinsOf(face: FaceVec) = if (face.quality < 0.3f) emptyList() else faces.filter { !it.sure && it.id != face.id && it.distanceTo(face) <= 0.3f }
+    fun twinsOf(face: FaceVec) = if (face.quality < 0.3f) emptyList() else shownFaces.filter { !it.sure && it.id != face.id && it.distanceTo(face) <= 0.3f }
 
-    /** Distinct photos the person appears in. Counted once: the faces never change while this snapshot lives. */
-    val photos = faces.map { it.photoId }.distinct().size
+    /** Distinct photos the person appears in; a video counts as a video, never a photo. Counted once: the faces never change while this snapshot lives. */
+    val photos = shownFaces.map { it.photoId }.distinct().size
 
-    /** The face shown for this person (People, Library, the top bar, the sheets): the user's pick, or the main face. */
-    val cover get() = faces.firstOrNull { it.id == coverFaceId } ?: main
+    /** Distinct videos the person appears in. */
+    val videos = faces.filter { it.kind == PhotoKind.video }.map { it.photoId }.distinct().size
+
+    /** The face shown for this person (People, Library, the top bar, the sheets): the user's pick, or the main face. Never a video face. */
+    val cover get() = shownFaces.firstOrNull { it.id == coverFaceId } ?: main
 
     /** A cat or dog: its faces are pet pictures (docs/objects.md). */
     val pet get() = main.pet
@@ -230,7 +239,9 @@ fun groupFaces(all: List<FaceVec>, answers: List<AnswerRow> = emptyList(), merge
     // A person needs faces from 6+ photos: fewer is often statues, posters or strangers seen once
     val auto = averageLinkage(seeds.map { it.vector }, cut).map { g -> g.map { seeds[it] } }.filter { it.distinctBy { f -> f.photoId }.size > 5 }
     // "Who is this?" > New person: a yes to the face's own id. That person grows only by the user's yes, never by distance.
-    val own = answers.filter { it.yes && it.faceId == it.personFace }.map { it.faceId }.toSet()
+    // A video face never starts one that way either: it is never shown, so no answer can point at it.
+    val selfYes = answers.filter { it.yes && it.faceId == it.personFace }.map { it.faceId }.toSet()
+    val own = others.filter { it.kind != PhotoKind.video && it.id in selfYes }.map { it.id }.toSet()
     // second: takes faces by distance. A New person merged into a grouped person does too.
     val parts = (auto.map { it to true } + others.filter { it.id in own }.map { listOf(it) to false }).toMutableList()
     for (m in merges) {
@@ -263,14 +274,16 @@ fun groupFaces(all: List<FaceVec>, answers: List<AnswerRow> = emptyList(), merge
         if (near != null) { joined[near.first].add(f); continue }
         val (i, dist) = groups.indices.filter { i -> parts[i].second && ruledOut.none { it in ids[i] } }
             .map { i -> i to 1.0 - dot(sums[i], f.vector) / groups[i].size }.minByOrNull { it.second } ?: continue
-        if (dist <= cut) joined[i].add(f)
+        // A video face joins like a face that can't start a person, on the same average rule, but a blurry track (under 0.4) needs 0.62, not 0.68
+        if (dist <= if (f.kind == PhotoKind.video && f.quality < 0.4f) 0.62f else cut) joined[i].add(f)
     }
     // A joined face the quality line leaves unsure is still sure when the person's sharp or Yes faces vouch for it: the closest one
     // (within 0.5) is this person's and no other person's is 0.1 closer, or a Yes face of this person is within 0.3.
     // Faces made sure here are never anchors, so this cannot chain.
     // ponytail: unsure faces × all anchors dot products, fine for a few thousand faces; index by person if it grows
     val anchors = groups.indices.flatMap { i ->
-        (groups[i] + joined[i]).filter { (it.quality >= 0.4f && !it.rejected) || (it.id in yes && it.quality >= 0.3f) }.map { i to it }
+        // a video face only joins, it never vouches for another face
+        (groups[i] + joined[i]).filter { it.kind != PhotoKind.video && ((it.quality >= 0.4f && !it.rejected) || (it.id in yes && it.quality >= 0.3f)) }.map { i to it }
     }
     val vouched = groups.indices.map { i ->
         joined[i].map { f ->
@@ -300,10 +313,13 @@ fun groupPets(all: List<FaceVec>, answers: List<AnswerRow> = emptyList(), merges
     // older, shorter vectors (DINOv2 alone) wait until the catch-up pass redoes their photo
     val size = all.maxOfOrNull { it.vector.size }
     val answered = answers.map { it.faceId }.toSet()
-    val (fixed, pets) = all.filter { it.vector.size == size }.partition { it.id in answered }
+    val (fixed, pictures) = all.filter { it.vector.size == size }.partition { it.id in answered }
+    // A video pet only joins a pet built from pictures: it stays out of the linkage, so it never starts a pet nor pulls two together
+    val (videoPets, pets) = pictures.partition { it.kind == PhotoKind.video }
     val yes = answers.filter { it.yes }.associate { it.faceId to it.personFace }
     // "Who is this?" > New pet: a yes to the picture's own id. A pet of its own however few photos, grown only by the user's yes.
-    val own = fixed.filter { yes[it.id] == it.id }.map { it.id }.toSet()
+    // A video pet never starts one that way either: it never shows, so no answer can point at it.
+    val own = fixed.filter { it.kind != PhotoKind.video && yes[it.id] == it.id }.map { it.id }.toSet()
     val groups = (averageLinkage(pets.map { it.vector }, 0.68f).map { g -> g.map { pets[it] } } + fixed.filter { it.id in own }.map { listOf(it) }).toMutableList()
     for (m in merges) {
         val a = groups.indexOfFirst { g -> g.any { it.id == m.personFace } }
@@ -327,9 +343,16 @@ fun groupPets(all: List<FaceVec>, answers: List<AnswerRow> = emptyList(), merges
         shown.removeAt(b)
     }
     // the main picture comes before the moved ones, so a pet keeps the main picture its answers point to
-    return (shown + made).map { g ->
-        Person(g + fixed.filter { f -> f.id !in own && g.any { it.id == yes[f.id] } }, g.maxBy { f -> f.quality })
-    }.sortedByDescending { it.faces.size }
+    val base = (shown + made).map { g -> g + fixed.filter { f -> f.id !in own && g.any { it.id == yes[f.id] } } }
+    // a video pet joins the closest pet whose average distance to its pictures is within 0.68
+    val n = base.firstOrNull()?.firstOrNull()?.vector?.size ?: 0
+    val sums = base.map { g -> FloatArray(n).also { m -> g.forEach { f -> for (k in f.vector.indices) m[k] += f.vector[k] } } }
+    val video = List(base.size) { mutableListOf<FaceVec>() }
+    for (v in videoPets) {
+        val best = base.indices.map { i -> i to 1f - dot(sums[i], v.vector) / base[i].size }.minByOrNull { it.second } ?: continue
+        if (best.second <= 0.68f) video[best.first].add(v)
+    }
+    return base.indices.map { i -> Person(base[i] + video[i], base[i].maxBy { f -> f.quality }) }.sortedByDescending { it.faces.size }
 }
 
 /** A person and a pet never merge (docs/design.html, Merge with). */
@@ -398,7 +421,7 @@ fun PeopleScreen(
                 .sortedWith(compareBy({ it.name.isNullOrBlank() }, { it.pos ?: Int.MAX_VALUE }, { -it.photos })) // named first, moved ones in their order, then by photo count
             // hidden people stay in the list, so one opened from Hidden people still shows
             val shown = people.filter { !it.hidden }
-            val unsure = shown.flatMap { p -> p.faces.filter { !it.sure } }.sortedBy { it.quality }
+            val unsure = shown.flatMap { p -> p.shownFaces.filter { !it.sure } }.sortedBy { it.quality }
             PeopleData(peopleAndPets(shown), people, unsure)
         }
     }
@@ -800,7 +823,7 @@ fun PersonDetail(
         val load = loadPhotos ?: { ids: List<Long> -> photosByIds(context, ids) }
         runCatching { withContext(Dispatchers.IO) { load(photoIds) } }.getOrDefault(emptyList())
     }
-    val (sure, unsure) = p.faces.partition { it.sure }
+    val (sure, unsure) = p.shownFaces.partition { it.sure }
     val name = p.name ?: "No name"
     // an unnamed person reads badly in a sentence ("11 may be No name"), so use "this person" there
     val who = p.name ?: if (p.pet) "this pet" else "this person"
@@ -831,7 +854,7 @@ fun PersonDetail(
                 else TopBar(
                     title = if (p.name.isNullOrBlank()) "Add name" else name,
                     // a pet's pictures are its photos' boxes, so photos only
-                    subtitle = "${p.photos} photo${if (p.photos == 1) "" else "s"}" + if (p.pet) "" else " · ${p.faces.size} face${if (p.faces.size == 1) "" else "s"}",
+                    subtitle = "${p.photos} photo${if (p.photos == 1) "" else "s"}" + if (p.pet) "" else " · ${p.shownFaces.size} face${if (p.shownFaces.size == 1) "" else "s"}",
                     onBack = onBack,
                     leading = { FaceImage(p.cover, Modifier.padding(end = 12.dp).size(40.dp).clip(CircleShape)) },
                     onTitle = onName,
@@ -1082,7 +1105,7 @@ fun ChangeCoverContent(person: Person, picked: Long?, onPick: (Long) -> Unit, on
     val cover = person.cover
     // the current cover first, then the person's sure faces, clearest first
     val faces = remember(person) {
-        val sure = person.faces.filter { it.sure }.sortedByDescending { it.quality }
+        val sure = person.shownFaces.filter { it.sure }.sortedByDescending { it.quality }
         listOf(cover) + sure.filter { it.id != cover.id }
     }
     Column(Modifier.padding(bottom = 28.dp)) {

@@ -100,7 +100,7 @@ suspend fun libraryData(context: Context): LibraryData = withContext(Dispatchers
     val all = albums.flatMap { it.tiles }
     val result = LibraryData(
         faces = people,
-        unsure = people.flatMap { p -> p.faces.filter { !it.sure } }.sortedBy { it.quality },
+        unsure = people.flatMap { p -> p.shownFaces.filter { !it.sure } }.sortedBy { it.quality },
         albums = albums,
         favorites = all.count { it.favorite },
         videos = all.count { it.duration != null },
