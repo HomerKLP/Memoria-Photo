@@ -1242,7 +1242,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <div class="subbar">
           <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
           <span id="person-avatar"></span>
-          <div class="title"><b>Dana</b><span>230 photos · 96 faces</span></div>
+          <div class="title"><b>Dana</b><span>224 photos · 6 videos · 96 faces</span></div>
           <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
         </div>
         <div class="scroll vids">
@@ -1260,7 +1260,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Person: opens from the People grid. Name, the faces that match, their photos by month, newest first. Tap the name to rename. Fixes (rename, merge, cover, hide) are in More. Long press a photo selects</figcaption>
+      <figcaption>Person: opens from the People grid. Name, the faces that match, their photos by month, newest first. Tap the name to rename. Fixes (rename, merge, cover, hide) are in More. Long press a photo selects. Videos the person is in sit in the grid like photos; the title line adds "6 videos" only when there are some (1,204 photos · 38 videos · 512 faces still fits), the Photos hint counts both. Faces from videos never show: not in the row, the Unsure card or the faces count</figcaption>
     </figure>
     <figure id="person-more">
       <div class="phone" id="person-more-phone">
@@ -1285,7 +1285,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <div class="subbar">
           <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
           <span id="pet-avatar"></span>
-          <div class="title"><b>Murka</b><span>84 photos</span></div>
+          <div class="title"><b>Murka</b><span>81 photos · 3 videos</span></div>
           <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
         </div>
         <div class="scroll vids">
@@ -1296,7 +1296,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Pet: opens from People &amp; pets like a person. The row shows the cat or dog pictures that match, the title line counts photos only. No Unsure faces card: pets have no Help recognize. Unnamed: "Add name", as for a person. More: Rename, Merge with, Change cover, Hide pet</figcaption>
+      <figcaption>Pet: opens from People &amp; pets like a person. The row shows the cat or dog pictures that match, the title line counts photos and videos, as for a person, no faces. Pictures from videos never show in the row. No Unsure faces card: pets have no Help recognize. Unnamed: "Add name", as for a person. More: Rename, Merge with, Change cover, Hide pet</figcaption>
     </figure>
     <figure id="pet-more">
       <div class="phone" id="pet-more-phone">
@@ -1330,7 +1330,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <div class="subbar">
           <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
           <span id="person-scrolled-avatar"></span>
-          <div class="title"><b>Dana</b><span>230 photos · 96 faces</span></div>
+          <div class="title"><b>Dana</b><span>224 photos · 6 videos · 96 faces</span></div>
           <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
         </div>
         <div class="scroll vids" id="person-scrolled-list"></div>
@@ -1740,7 +1740,7 @@ Photos: …/files/test</div>
     <div class="subbar">
       <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
       <div class="face" style="--s:40px;background:linear-gradient(160deg,#D9A27F,#B9876F)"></div>
-      <div class="title" style="margin-left:12px"><b>Dana</b><span>230 photos · 96 faces</span></div>
+      <div class="title" style="margin-left:12px"><b>Dana</b><span>224 photos · 6 videos · 96 faces</span></div>
       <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
     </div>
     <p>One title, one subtitle line, one trailing button. The subtitle is always there, empty or not, so the bar keeps the same height in every mode. Take it away and everything under it jumps up. An optional leading slot sits between Back and the title (the person's picture on the Person screen). The title can be tappable: on Person it names the person.</p>
