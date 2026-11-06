@@ -33,33 +33,6 @@ Other apps:
 - Glide galleries decode the file with halving, turn by all 8 EXIF values, and keep a disk cache.
 - The phone's own gallery shows no jump, so it likely does the same (not checked).
 
-## Library opens slowly
-
-Reported 2026-10-29 by the user: the Library tab feels slow to show.
-
-Measured 2026-10-31 on the phone's 0.4.0 release (simpleperf, first Library open after a cold start, ms from the tap). Compiled with the profile: data at ~280, covers at ~340. Uncompiled (as after an install or update, until Android compiles it in idle time): data at ~355, covers at ~445. One serial load, compiled run:
-- taggedFaces 25, albums (MediaStore scan) 30, trash 8, placed 8.
-- Categories ~170, 60% of the wait: `tags.json` parse 15, all photo vectors from SQL 85, scoring 67. Redone on every open, and the rows above wait for it.
-- Covers start only after the data: ~40 more.
-
-Done 2026-10-31: each photo's tags are stored (`photo_tag`, DB v15), so an open scores only new vectors. Debug build on the phone: categories ~100 ms (`tags.json` 40, missing-rows scan 11, `photo_tag` read 12, `categories()` 27); the first open after the migration scores all photos once (~390). Release not measured yet.
-
-Measured 2026-11-05 on the 0.7.1 release (`make perf`, screencaps): all covers are drawn 151 ms after the tap on the first open after a cold start, 155 ms on a later one. That is the lowest the method reads, so it may be fixed. Check by feel before closing.
-
-Steps:
-1. Start the app, tap Library. Compare the first open after launch with a later one.
-
-Suspects (from the code, `LibraryScreen` in `Library.kt`):
-- The cache lives in memory only, so the first open after launch shows grey tiles until the whole load ends.
-- One load for everything, step by step: people and albums wait for categories, which reads every photo vector (~13 MB, 100-280 ms on debug).
-- Every open scans all of MediaStore (`albums`) and runs a second query for trash, even with cached data on screen.
-- ~21 covers (12 faces, 9 tiles) start loading only after the data arrives.
-- During a scan, each people save reloads the whole tab.
-
-Fix ideas:
-- First, log each step's time and when the covers are drawn, on the first open and a later one; release numbers after `make release`.
-- Then: show people and albums before categories, start the load at app start (preload), or keep the cache on disk.
-
 ## Mirrored HEIC selfies show upside down in the viewer, sideways in the grid
 
 Seen 2026-11-02 on another phone (MediaTek), release app: front-camera HEIC photos show upside down in the viewer and turned 90° in the grid; the phone's own gallery shows them right. Sample of that phone's HEICs (first 64 KB read, nothing kept):
@@ -233,3 +206,4 @@ Native heap after 8 flings 52 MB (87 MB on 2026-11-04, not explained), no blank 
 - 2026-11-03 The Details panel read every tagged face on each swipe-up. It reads the person names now; the full list loads only when a face is tapped, for Who is this?.
 - 2026-11-04 Grid tiles soft for JPEGs with a small camera preview, and mirrored previews (tags 2, 4) shown as stored. `Thumb` decodes the file when MediaStore's picture is under a tile / 1.2 (not HEIC) and asks for a tile-size thumb (`PhotoFileTest`). Release scroll checked 2026-11-04 (`make perf`): 0% janky, 0% blank tiles.
 - 2026-11-04 DNG photos with a turn tag showed sideways: Android decodes a DNG as stored. Grid, viewer, index and Help recognize turn by the TIFF tag (`dngTurn`, `turnedBy` in `Faces.kt`). Checked on the phone with a made-up tag 6 DNG.
+- 2026-11-06 Library opened slowly on the first open after launch: the load ran inside `LibraryScreen`, so the tab waited for it and showed grey tiles. `libraryData` loads once now and `preloadLibrary` warms it at launch, so the first open starts from data.
