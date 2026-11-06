@@ -104,6 +104,16 @@ fun <T : Any> cachedProduceState(
     }
 
 /**
+ * Fills a screen's cache before it opens, so its first open shows data instead of placeholders.
+ * Does nothing when the screen already loaded it. A failed warm-up is dropped, not thrown: it runs
+ * at app start, where a missing permission would otherwise crash the launch.
+ */
+suspend fun <T : Any> preloadCached(key: String, load: suspend () -> T) {
+    if (cache.containsKey(key)) return
+    runCatching { load() }.getOrNull()?.let { cache[key] = it }
+}
+
+/**
  * Replaces one cached value in place. A screen that is off composition (Library while a person is open)
  * starts from this cache, so a small change like a new cover shows on its first frame instead of the
  * stale value. Does nothing when the key is not cached or holds another type.
