@@ -213,19 +213,21 @@ fun trash(context: Context): List<Trashed> {
     return out.sortedByDescending { it.daysLeft }
 }
 
-/** The given MediaStore ids as photos, newest first, with the same date rules as the timeline. Ids MediaStore no longer has are dropped. */
+/** The given MediaStore ids as tiles, photos and videos, newest first, with the same date rules as the timeline. Ids MediaStore no longer has are dropped. */
 fun photosByIds(context: Context, ids: List<Long>): List<Tile> {
     if (ids.isEmpty()) return emptyList()
     val zone = ZoneId.systemDefault()
     val out = mutableListOf<Tile>()
-    val cols = arrayOf(FileColumns._ID, FileColumns.DATE_TAKEN, FileColumns.DATE_ADDED, FileColumns.DURATION, FileColumns.DATE_MODIFIED, FileColumns.DISPLAY_NAME, FileColumns.IS_FAVORITE, FileColumns.WIDTH, FileColumns.HEIGHT, FileColumns.ORIENTATION)
-    val where = "${FileColumns._ID} IN (${ids.joinToString(",")}) AND ${FileColumns.MEDIA_TYPE} = ${FileColumns.MEDIA_TYPE_IMAGE}"
+    val cols = arrayOf(FileColumns._ID, FileColumns.DATE_TAKEN, FileColumns.DATE_ADDED, FileColumns.DURATION, FileColumns.DATE_MODIFIED, FileColumns.DISPLAY_NAME, FileColumns.IS_FAVORITE, FileColumns.WIDTH, FileColumns.HEIGHT, FileColumns.ORIENTATION, FileColumns.MEDIA_TYPE)
+    // videos too: a person, pet or place grid shows the videos they are in
+    val where = "${FileColumns._ID} IN (${ids.joinToString(",")}) AND ${FileColumns.MEDIA_TYPE} IN (${FileColumns.MEDIA_TYPE_IMAGE}, ${FileColumns.MEDIA_TYPE_VIDEO})"
     val args = Bundle().apply { putString(ContentResolver.QUERY_ARG_SQL_SELECTION, where) }
     context.contentResolver.query(MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL), cols, args, null)?.use { c ->
         while (c.moveToNext()) {
             val id = c.getLong(0)
+            val collection = if (c.getInt(10) == FileColumns.MEDIA_TYPE_VIDEO) MediaStore.Video.Media.EXTERNAL_CONTENT_URI else MediaStore.Images.Media.EXTERNAL_CONTENT_URI
             val date = if (c.isNull(1)) fallbackDate(c.getString(5), c.getLong(2), c.getLong(4), zone) else c.getLong(1)
-            out += Tile(id, ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id), date, if (c.isNull(3)) null else c.getLong(3), c.getInt(6) != 0, shownRatio(c.getInt(7), c.getInt(8), c.getInt(9)))
+            out += Tile(id, ContentUris.withAppendedId(collection, id), date, if (c.isNull(3)) null else c.getLong(3), c.getInt(6) != 0, shownRatio(c.getInt(7), c.getInt(8), c.getInt(9)))
         }
     }
     return out.sortedByDescending { it.date }

@@ -168,6 +168,9 @@ fun peopleAndPets(all: List<Person>): String {
     return "$people ${if (people == 1) "person" else "people"}" + if (pets == 0) "" else " · $pets pet${if (pets == 1) "" else "s"}"
 }
 
+/** "224 photos · 6 videos": a person's title line, the videos part only when there are some (docs/design.html, Person & Pet). */
+fun photosAndVideos(photos: Int, videos: Int) = count(photos, "photo") + if (videos == 0) "" else " · ${count(videos, "video")}"
+
 /** Everything the People screen shows, loaded in one pass. */
 data class PeopleData(val summary: String, val people: List<Person>, val unsure: List<FaceVec>)
 
@@ -853,8 +856,8 @@ fun PersonDetail(
                 }
                 else TopBar(
                     title = if (p.name.isNullOrBlank()) "Add name" else name,
-                    // a pet's pictures are its photos' boxes, so photos only
-                    subtitle = "${p.photos} photo${if (p.photos == 1) "" else "s"}" + if (p.pet) "" else " · ${p.shownFaces.size} face${if (p.shownFaces.size == 1) "" else "s"}",
+                    // videos the person is in count here and in the Photos hint, but never as a photo; a pet has no faces line
+                    subtitle = photosAndVideos(p.photos, p.videos) + if (p.pet) "" else " · ${count(p.shownFaces.size, "face")}",
                     onBack = onBack,
                     leading = { FaceImage(p.cover, Modifier.padding(end = 12.dp).size(40.dp).clip(CircleShape)) },
                     onTitle = onName,
@@ -885,7 +888,7 @@ fun PersonDetail(
                             // "may be this person" wraps next to the face stack
                             ReviewCard(unsure, onReview, title = "Unsure faces", note = if (p.name.isNullOrBlank()) "${unsure.size} to check" else "${unsure.size} may be ${p.name}")
                         }
-                        item(span = { GridItemSpan(maxLineSpan) }) { SectionHead("Photos", hint = "${p.photos} · by date") }
+                        item(span = { GridItemSpan(maxLineSpan) }) { SectionHead("Photos", hint = "${p.photos + p.videos} · by date") }
                         groups.forEach { (m, tiles) ->
                             stickyHeader(key = m, contentType = "month") { MonthHeading(m, m, grid, below = 10.dp) }
                             items(tiles, key = { it.id }) { t ->

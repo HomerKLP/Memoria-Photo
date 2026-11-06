@@ -216,6 +216,13 @@ class PeopleLogicTest {
         assertEquals("1 person · 1 pet", peopleAndPets(listOf(person, cat)))
         assertEquals("2 people", peopleAndPets(listOf(person, person)))
     }
+
+    @Test fun photosAndVideos_hidesTheVideosPartWhenThereAreNone() {
+        assertEquals("224 photos · 6 videos", photosAndVideos(224, 6))
+        assertEquals("1 photo · 1 video", photosAndVideos(1, 1))
+        assertEquals("81 photos", photosAndVideos(81, 0))
+        assertEquals("0 photos · 3 videos", photosAndVideos(0, 3))
+    }
 }
 
 // Small copies of a face with one flag flipped, so the tests read simply.
