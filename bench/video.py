@@ -2,13 +2,17 @@
 
 uv run bench/video.py frames [--limit N] [--every SEC] [--tagged] -> testdata/out/video/frames/, frames.json, frames.html
 uv run bench/video.py faces [--limit N]   -> faces/, faces.json, faces.npz, faces.html
+uv run bench/video.py pets [--limit N]    -> pets/, petboxes.json, petvecs.npz, pets.html
 uv run bench/video.py tracks [--cut 0.68] -> tracks.json, tracks.npz, tracks.html
 uv run bench/video.py score [--db testdata/out/db/memoria.db] -> score.json, score.html, covers/
+uv run bench/video.py petscore [--db ...] -> petscore.json, petscore.html, covers/
 
 Frames: one every max(3 s, length / 10) from the start, at most 10.
 Faces: the app's models (YOLOv5m 640, EDifFIQA T, AdaFace IR101) on every frame.
+Pets: the app's pet models (YOLO26-M on the frame at 640 px, cats and dogs 0.5+, noodle_s vector per box) on every frame.
 Tracks: inside one video, faces 40 px+ joined by vector (average linkage), best frame per track.
 Score: each track joins the phone's people like a non-seed face does (groupFaces in People.kt: yes faces within 0.5, else average distance within 0.68), checked against Google tags.
+Petscore: pet tracks (boxes 0.7+, cut 0.68) join the phone's pets like a photo joins a group (groupPets: average distance within 0.68), a sheet to check by eye.
 """
 
 import argparse
@@ -22,6 +26,7 @@ from pathlib import Path
 
 import cv2
 import numpy as np
+import onnxruntime as ort
 from scipy.cluster.hierarchy import fcluster, linkage
 from tqdm import tqdm
 from uniface import AdaFace, YOLOv5Face, face_alignment
@@ -29,6 +34,7 @@ from uniface.constants import AdaFaceWeights, EDifFIQAWeights, YOLOv5FaceWeights
 from uniface.quality import EDifFIQA
 
 from bench import CPU, CSS, google_people
+from objects import CAT, DOG, Yolo26, pet_vector
 
 EXTS = {'.mp4', '.mov', '.3gp', '.m4v'}
 
@@ -144,6 +150,62 @@ def faces(out, limit):
     all_faces = [f for fs in db.values() for f in fs]
     print(f'{len(db)} frames, {len(all_faces)} faces, {sum(size(f) >= 40 for f in all_faces)} from 40 px, '
           f'{np.median(ms) if ms else 0:.0f} ms/frame (this run), open {out / "faces.html"}')
+
+
+def pets(out, limit):
+    (out / 'pets').mkdir(exist_ok=True)
+    db_path, vec_path = out / 'petboxes.json', out / 'petvecs.npz'
+    db = json.loads(db_path.read_text()) if db_path.exists() else {}
+    vecs = dict(np.load(vec_path)) if vec_path.exists() else {}
+    videos = json.loads((out / 'frames.json').read_text())
+    todo = [f for e in list(videos.values())[:limit] for f in e['frames'] if f['file'] not in db]
+    if todo:
+        detector = Yolo26('yolo26_m')
+        dino = ort.InferenceSession(str(Path.home() / '.uniface/models/noodle_s.onnx'), providers=CPU)
+    ms = []
+    for n, frame in enumerate(tqdm(todo, desc='frames')):
+        t = time.perf_counter()
+        img = cv2.imread(str(out / 'frames' / frame['file']))
+        s = 640 / max(img.shape[:2])  # the app's 640 px decode
+        small = cv2.resize(img, (int(img.shape[1] * s), int(img.shape[0] * s)), interpolation=cv2.INTER_AREA) if s < 1 else img
+        found = []
+        for i, (cls, score, *box) in enumerate(b for b in detector.detect(small) if b[0] in (CAT, DOG) and b[1] >= 0.5):  # the app keeps 0.7+
+            name = f'{Path(frame["file"]).stem}_{i}.jpg'
+            x1, y1, x2, y2 = (int(v) for v in box)
+            cv2.imwrite(str(out / 'pets' / name), small[max(y1, 0):y2, max(x1, 0):x2], [cv2.IMWRITE_JPEG_QUALITY, 95])
+            vecs[name] = pet_vector(dino, small, box)
+            found.append({'cls': cls, 'score': score, 'box': [round(float(x), 1) for x in box], 'crop': name})
+        db[frame['file']] = found
+        ms.append((time.perf_counter() - t) * 1000)
+        if n % 50 == 49:
+            db_path.write_text(json.dumps(db))
+            np.savez(vec_path, **vecs)
+    db_path.write_text(json.dumps(db))
+    np.savez(vec_path, **vecs)
+
+    def size(b):
+        return min(b['box'][2] - b['box'][0], b['box'][3] - b['box'][1])
+
+    parts = [CSS, '<style>.pets img{height:110px;margin:1px;box-sizing:border-box}.pets img.s{border:3px dashed #999}.pets span{margin-right:14px}</style>',
+             '<h1>Video pets</h1><p>Cat and dog boxes 0.5+ by frame time. Dashed grey border: under 0.7, the app skips it. Hover for t, cat or dog, score, short side.</p>']
+    for rel, e in sorted(videos.items()):
+        imgs = ''
+        for fr in e['frames']:
+            crops = ''.join(
+                f'<img loading=lazy src="pets/{b["crop"]}" class="{"s" if b["score"] < 0.7 else ""}" '
+                f'title="{fr["t"]} s, {"cat" if b["cls"] == CAT else "dog"}, score {b["score"]}, {size(b):.0f} px">'
+                for b in db.get(fr['file'], [])
+            )
+            imgs += f'<span>{crops}</span>' if crops else ''
+        if imgs:
+            parts.append(f'<h4>{html.escape(rel)}, tags: {html.escape(", ".join(e["people"]) or "none")}</h4><div class=pets>{imgs}</div>')
+    (out / 'pets.html').write_text(''.join(parts))
+    boxes = [b for bs in db.values() for b in bs]
+    hit = [b for b in boxes if b['score'] >= 0.7]
+    in_video = {rel for rel, e in videos.items() if any(b['score'] >= 0.7 for fr in e['frames'] for b in db.get(fr['file'], []))}
+    print(f'{len(db)} frames, boxes 0.5+: {len(boxes)} ({sum(b["cls"] == CAT for b in boxes)} cats, {sum(b["cls"] == DOG for b in boxes)} dogs), '
+          f'0.7+: {len(hit)} ({sum(b["cls"] == CAT for b in hit)} cats, {sum(b["cls"] == DOG for b in hit)} dogs), '
+          f'{len(in_video)} videos with a 0.7+ box, {np.median(ms) if ms else 0:.0f} ms/frame (this run), open {out / "pets.html"}')
 
 
 def tracks(out, cut):
@@ -345,23 +407,127 @@ def score(out, db_path, videos_dir):
     print(f'\nopen {out / "score.html"}')
 
 
+def petscore(out, db_path):
+    videos = json.loads((out / 'frames.json').read_text())
+    boxes = json.loads((out / 'petboxes.json').read_text())
+    pv = np.load(out / 'petvecs.npz')
+    con = sqlite3.connect(db_path)
+
+    def unit(v):
+        return (v / np.linalg.norm(v)).astype(np.float32)
+
+    # Tracks: boxes 0.7+ (the app floor) joined inside one video, like tracks()
+    rows = []
+    for rel, e in videos.items():
+        found = [(fr['t'], b) for fr in e['frames'] for b in boxes.get(fr['file'], []) if b['score'] >= 0.7]
+        if not found:
+            continue
+        x = np.stack([pv[b['crop']] for _, b in found])
+        labels = fcluster(linkage(x, 'average', metric='cosine'), 0.68, 'distance') if len(found) > 1 else [1]
+        groups = {}
+        for label, tb in zip(labels, found):
+            groups.setdefault(label, []).append(tb)
+        for k, g in enumerate(sorted(groups.values(), key=lambda g: min(t for t, _ in g))):
+            g.sort(key=lambda tb: tb[0])
+            top = sorted(g, key=lambda tb: -tb[1]['score'])  # stable: a tie keeps the earlier frame
+            rows.append({'rel': rel, 'vid': e['id'], 'k': k, 'crops': [b['crop'] for _, b in g], 'crop': top[0][1]['crop'], 'best_score': top[0][1]['score'],
+                         'v': {'best': unit(pv[top[0][1]['crop']]), 'avg3': unit(sum(pv[b['crop']] for _, b in top[:3]))}})
+
+    # The phone's pets like groupPets: pictures of a pet, the answered ones left out
+    answered = {r[0] for r in con.execute('SELECT faceId FROM answer')}
+    sums, count, sizes = {}, Counter(), Counter()
+    for fid, pid, b in con.execute('SELECT id, personId, vector FROM face WHERE pet = 1 AND notFace = 0 AND personId IS NOT NULL'):
+        if fid in answered:
+            continue
+        v = np.frombuffer(b, '>f4')  # Room stores FloatArray as big-endian float32
+        sizes[len(v)] += 1
+        sums[pid] = sums.get(pid, 0) + unit(v)
+        count[pid] += 1
+    info = {r[0]: r for r in con.execute('SELECT p.id, p.name, p.hidden, COALESCE(p.coverFaceId, p.mainFaceId) FROM person p')}
+    pets_ = sorted(sums)
+    print(f'pet vector sizes {dict(sizes)}, pets {len(pets_)}, person rows missing: {[p for p in pets_ if p not in info]}')
+    assert set(sizes) == {512} and all(p in info for p in pets_)
+    S, n = np.stack([sums[p] for p in pets_]), np.array([count[p] for p in pets_])
+
+    for r in rows:
+        for key in ('best', 'avg3'):
+            d = 1 - S @ r['v'][key] / n  # average cosine distance to each pet's pictures
+            r[key] = {'pet': pets_[d.argmin()], 'd': float(d.min())}
+            r[key]['joined'] = r[key]['d'] <= 0.68
+    (out / 'petscore.json').write_text(json.dumps({rel: [
+        {'crops': r['crops'], 'best_crop': r['crop'], 'best_score': r['best_score'], 'best': r['best'], 'avg3': r['avg3']} for r in rows if r['rel'] == rel]
+        for rel in dict.fromkeys(r['rel'] for r in rows)}))
+
+    two = sum(len(r['crops']) > len({c.rsplit('_', 1)[0] for c in r['crops']}) for r in rows)
+    print(f'{len(rows)} tracks in {len({r["vid"] for r in rows})} videos, {two} with two boxes from one frame')
+    print('pet: pictures | best tracks / videos | avg3 tracks / videos (0.68)')
+    for p in pets_:
+        c = [[r for r in rows if r[key]['joined'] and r[key]['pet'] == p] for key in ('best', 'avg3')]
+        print(f'  pet {p}: {count[p]} | {len(c[0])} / {len({r["vid"] for r in c[0]})} | {len(c[1])} / {len({r["vid"] for r in c[1]})}')
+    for key in ('best', 'avg3'):
+        for cut in (0.68, 0.72, 0.76):
+            j = [r for r in rows if r[key]['d'] <= cut]
+            print(f'[{key}] cut {cut}: {len(j)} joined, {len({r["vid"] for r in j})} videos, {len({r[key]["pet"] for r in j})} pets')
+    both = [r for r in rows if r['best']['joined'] and r['avg3']['joined']]
+    off = [r for r in rows if r['best']['joined'] != r['avg3']['joined'] or (r['best']['joined'] and r['best']['pet'] != r['avg3']['pet'])]
+    print(f'best vs avg3: {sum(r["best"]["pet"] == r["avg3"]["pet"] for r in both)} same pet, {sum(r["best"]["pet"] != r["avg3"]["pet"] for r in both)} different pet, '
+          f'{sum(r["best"]["joined"] and not r["avg3"]["joined"] for r in rows)} only best joins, {sum(r["avg3"]["joined"] and not r["best"]["joined"] for r in rows)} only avg3 joins')
+
+    # Page: each pet with joined tracks (avg3 vector), then the disagreements and the near misses
+    (out / 'covers').mkdir(exist_ok=True)
+    for p in pets_:
+        (out / 'covers' / f'{p}.webp').write_bytes(con.execute('SELECT thumb FROM face WHERE id = ?', (info[p][3],)).fetchone()[0])
+
+    def fig(src, size, cap, style='', title=''):
+        return (f'<figure title="{html.escape(title)}"><img loading=lazy src="{src}" style="width:{size}px;height:{size}px;{style}">'
+                f'<figcaption>{cap}</figcaption></figure>')
+
+    def track(r, key):
+        imgs = ''.join(f'<img loading=lazy src="pets/{c}" style="{"border:4px solid #0a0" if c == r["crop"] else ""}">' for c in r['crops'])
+        return (f'<div class=t title="{html.escape(r["rel"])}\ntrack {r["k"]}">{imgs}'
+                f'<br><small>{key} d {r[key]["d"]:.2f}, best {r["best_score"]:.2f}, pet {r[key]["pet"]}</small></div>')
+
+    parts = [CSS, '<style>figure{display:inline-block;margin:2px;width:76px;vertical-align:top}.t{display:inline-block;margin:0 10px 6px 0;vertical-align:top}.t img{height:90px;margin:1px;box-sizing:border-box}'
+             'img{box-sizing:border-box;object-fit:cover}figcaption{font-size:9px;line-height:1.2}.r{border-bottom:1px solid #ddd;padding:6px 0}</style>',
+             '<h1>Video pet tracks joined to the phone pets</h1><p>Avg3 vector, joins at 0.68 like a photo joins a group. Each pet: its cover (dark border) and its 5 best other pictures, then its tracks. Green border: the best crop. Hover for the video and track.</p>']
+    for p in sorted({r['avg3']['pet'] for r in rows if r['avg3']['joined']}, key=lambda p: -sum(r['avg3']['joined'] and r['avg3']['pet'] == p for r in rows)):
+        rs = [r for r in rows if r['avg3']['joined'] and r['avg3']['pet'] == p]
+        others = con.execute('SELECT id, quality, thumb FROM face WHERE pet = 1 AND notFace = 0 AND personId = ? AND id != ? ORDER BY quality DESC LIMIT 5', (p, info[p][3])).fetchall()
+        for fid, _, b in others:
+            (out / 'covers' / f'pet_{fid}.webp').write_bytes(b)
+        pics = fig(f'covers/{p}.webp', 72, '', 'border:5px solid #333') + ''.join(fig(f'covers/pet_{fid}.webp', 72, f'q {q:.2f}') for fid, q, _ in others)
+        parts.append(f'<div class=r><b>pet {p}</b>, {count[p]} pictures, {len(rs)} tracks, {len({r["vid"] for r in rs})} videos<br>{pics}<br>{"".join(track(r, "avg3") for r in rs)}</div>')
+    near = sorted((r for r in rows if not r['avg3']['joined'] and r['avg3']['d'] <= 0.8), key=lambda r: r['avg3']['d'])
+    parts.append(f'<h2>Close but out ({len(near)}), avg3 vector, closest first</h2>' + ''.join(
+        f'<div class=r>{fig(f"covers/{r["avg3"]["pet"]}.webp", 72, "closest", "border:5px solid #333")}{track(r, "avg3")}</div>' for r in near))
+    parts.append(f'<h2>Best and avg3 disagree ({len(off)})</h2>' + ''.join(
+        f'<div class=r>{fig(f"covers/{r["best"]["pet"]}.webp", 72, f"best d {r["best"]["d"]:.2f}", "border:5px solid #333")}'
+        f'{fig(f"covers/{r["avg3"]["pet"]}.webp", 72, f"avg3 d {r["avg3"]["d"]:.2f}", "border:5px solid #333")}{track(r, "best")}</div>' for r in off))
+    (out / 'petscore.html').write_text(''.join(parts))
+    print(f'\nopen {out / "petscore.html"}')
+
+
 if __name__ == '__main__':
     root = Path(__file__).resolve().parent.parent
     ap = argparse.ArgumentParser()
-    ap.add_argument('cmd', choices=['frames', 'faces', 'tracks', 'score'])
+    ap.add_argument('cmd', choices=['frames', 'faces', 'pets', 'tracks', 'score', 'petscore'])
     ap.add_argument('--videos', type=Path, default=root / 'testdata/takeout')
     ap.add_argument('--out', type=Path, default=root / 'testdata/out/video')
     ap.add_argument('--limit', type=int, help='only this many videos')
     ap.add_argument('--every', type=float, help='frames: a fixed step in seconds, no 10 frame cap')
     ap.add_argument('--tagged', action='store_true', help='frames: only videos with Google people tags')
     ap.add_argument('--cut', type=float, default=0.68, help='tracks: cosine distance cut, the app\'s people cut')
-    ap.add_argument('--db', type=Path, default=root / 'testdata/out/db/memoria.db', help='score: copy of the phone DB')
+    ap.add_argument('--db', type=Path, default=root / 'testdata/out/db/memoria.db', help='score, petscore: copy of the phone DB')
     a = ap.parse_args()
     if a.cmd == 'frames':
         frames(a.videos.resolve(), a.out.resolve(), a.limit, a.every, a.tagged)
     elif a.cmd == 'faces':
         faces(a.out.resolve(), a.limit)
+    elif a.cmd == 'pets':
+        pets(a.out.resolve(), a.limit)
     elif a.cmd == 'tracks':
         tracks(a.out.resolve(), a.cut)
-    else:
+    elif a.cmd == 'score':
         score(a.out.resolve(), a.db.resolve(), a.videos.resolve())
+    else:
+        petscore(a.out.resolve(), a.db.resolve())
