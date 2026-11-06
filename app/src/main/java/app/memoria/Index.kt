@@ -195,9 +195,9 @@ interface IndexDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertTags(rows: List<PhotoTagRow>)
     @Query("SELECT * FROM photo_tag WHERE stamp = :stamp") suspend fun photoTags(stamp: Int): List<PhotoTagRow>
     @Query("DELETE FROM photo_tag WHERE photoId IN (:ids)") suspend fun deleteTags(ids: List<Long>)
-    /** Photos with every index step done: the face pass, a vector from tagger [model] while [tagger] is on the phone, boxes from [objectsModel] while [objects] is. Videos are out: they are never tagged or boxed. */
+    /** Items with every index step done: the face pass, a vector from tagger [model] while [tagger] is on the phone, boxes from [objectsModel] while [objects] is. A video is done as soon as it is indexed: it is never tagged or boxed. */
     @Query(
-        "SELECT COUNT(*) FROM photo WHERE kind <> 'video' AND (NOT :tagger OR id IN (SELECT photoId FROM photo_vector WHERE model = :model)) " +
+        "SELECT COUNT(*) FROM photo WHERE (kind = 'video' OR NOT :tagger OR id IN (SELECT photoId FROM photo_vector WHERE model = :model)) " +
             "AND (NOT :objects OR objects = :objectsModel)",
     )
     fun doneCount(tagger: Boolean, model: Int, objects: Boolean, objectsModel: Int): Flow<Int>
@@ -352,15 +352,15 @@ fun libraryVideos(context: Context): List<MediaPhoto> {
 }
 
 /**
- * How many photos [libraryPhotos] would return, without building the list: a row-count read only.
- * Library, People and the test screen only need the number for their progress totals.
+ * How many items [libraryPhotos] and [libraryVideos] would return together, without building the lists: row-count reads only.
+ * Settings shows it as the total of a run's progress, in the same units as [IndexDao.doneCount]. An unreadable collection counts 0.
  */
-fun libraryPhotoCount(context: Context): Int {
+fun libraryCount(context: Context): Int {
     val skipped = IndexProgress.skipped(context)
     val selection = if (skipped.isEmpty()) null else "${Media.BUCKET_ID} NOT IN (${skipped.joinToString(",")})"
-    return runCatching {
-        context.contentResolver.query(Media.EXTERNAL_CONTENT_URI, arrayOf(Media._ID), selection, null, null)?.use { it.count } ?: 0
-    }.getOrDefault(0)
+    return listOf(Media.EXTERNAL_CONTENT_URI, MediaStore.Video.Media.EXTERNAL_CONTENT_URI).sumOf { uri ->
+        runCatching { context.contentResolver.query(uri, arrayOf(Media._ID), selection, null, null)?.use { it.count } ?: 0 }.getOrDefault(0)
+    }
 }
 
 /** Total and start time of the current index run, so the UI can show a progress bar and time left. */
