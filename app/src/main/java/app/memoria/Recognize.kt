@@ -100,7 +100,7 @@ fun HelpRecognizeScreen(personId: Long?, onBack: () -> Unit) {
     val queue = remember(people) {
         people?.filter { if (personId == null) !it.hidden else it.id == personId }
             // one person at a time, so the faces to compare stay put; clearest faces first
-            ?.flatMap { p -> p.faces.filter { !it.sure }.sortedByDescending { it.quality }.map { it to p } }
+            ?.flatMap { p -> p.shownFaces.filter { !it.sure }.sortedByDescending { it.quality }.map { it to p } }
     }
     var pos by remember { mutableIntStateOf(0) }
     var skipped by remember { mutableIntStateOf(0) }
@@ -187,7 +187,7 @@ fun HelpRecognizeContent(
                 fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
             Row(Modifier.padding(start = 16.dp, top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                person.faces.filter { it.sure }.sortedByDescending { it.quality }.take(5).forEach { FaceImage(it, Modifier.size(40.dp).clip(CircleShape)) }
+                person.shownFaces.filter { it.sure }.sortedByDescending { it.quality }.take(5).forEach { FaceImage(it, Modifier.size(40.dp).clip(CircleShape)) }
             }
             ActionBar(
                 "No", R.drawable.ic_close, { onNo(face, person) },

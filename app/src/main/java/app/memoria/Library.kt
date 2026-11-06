@@ -1,5 +1,6 @@
 package app.memoria
 
+import android.content.Context
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
@@ -78,6 +79,42 @@ data class LibraryData(
 fun LibraryData.withCover(personId: Long, faceId: Long?) =
     copy(faces = faces.map { if (it.id == personId) it.withCover(faceId) else it })
 
+/** Everything Library shows, loaded in one pass. Each step's ms goes to the log, for `bench/perf.py`. */
+suspend fun libraryData(context: Context): LibraryData = withContext(Dispatchers.IO) {
+    val dao = Db.get(context).index()
+    val start = System.nanoTime()
+    val steps = mutableListOf<String>()
+    suspend fun <T> timed(name: String, block: suspend () -> T): T {
+        val t = System.nanoTime()
+        return block().also { steps += "$name ${(System.nanoTime() - t) / 1_000_000}" }
+    }
+    // Faces without vectors: the row only shows covers. Merge with loads the vectors when it opens.
+    val people = timed("people") {
+        val faces = dao.taggedFaces()
+        val byId = faces.associateBy { it.id }
+        val byPerson = faces.groupBy { it.personId }
+        dao.people().filter { !it.hidden }.mapNotNull { p -> byId[p.mainFaceId]?.let { m -> Person((byPerson[p.id] ?: listOf(m)).map { it.toVec() }, m.toVec(), p.id, p.name, false, p.coverFaceId, p.pos) } }
+            .sortedWith(compareBy({ it.name.isNullOrBlank() }, { it.pos ?: Int.MAX_VALUE }, { -it.photos })) // named first, moved ones in their order, then by photo count
+    }
+    val albums = timed("albums") { albums(context) }
+    val all = albums.flatMap { it.tiles }
+    val result = LibraryData(
+        faces = people,
+        unsure = people.flatMap { p -> p.shownFaces.filter { !it.sure } }.sortedBy { it.quality },
+        albums = albums,
+        favorites = all.count { it.favorite },
+        videos = all.count { it.duration != null },
+        trash = timed("trash") { runCatching { trash(context).size }.getOrDefault(0) },
+        places = timed("places") { places(dao.placed(), all, niceScores(context)) },
+        categories = timed("categories") { loadCategories(context, all) },
+    )
+    AppLog.i("library load: ${steps.joinToString(", ")}, total ${(System.nanoTime() - start) / 1_000_000}")
+    result
+}
+
+/** Loads Library once at app start: its first open has an empty cache, so it would show grey skeletons. */
+suspend fun preloadLibrary(context: Context) = preloadCached("library") { libraryData(context) }
+
 /** Shown at once when the tab opens again, then replaced by a fresh load. */
 @Composable
 fun LibraryScreen(
@@ -98,34 +135,12 @@ fun LibraryScreen(
     reload: Int = 0,
 ) {
     val context = LocalContext.current
-    val dao = remember { Db.get(context).index() }
     val work by remember { WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow("index") }.collectAsState(emptyList())
     val running = work.any { it.state == WorkInfo.State.RUNNING }
     // cached, not null: an empty first frame is shorter and the tab's restored scroll clamps to it.
     // Keyed on [saved]: the run saves people every so often, so they show up while indexing. [reload]: back from a screen opened over it.
     val saved by peopleSaved.collectAsState()
-    val data by cachedProduceState("library", saved, reload) {
-        withContext(Dispatchers.IO) {
-            // Faces without vectors: the row only shows covers. Merge with loads the vectors when it opens.
-            val faces = dao.taggedFaces()
-            val byId = faces.associateBy { it.id }
-            val byPerson = faces.groupBy { it.personId }
-            val people = dao.people().filter { !it.hidden }.mapNotNull { p -> byId[p.mainFaceId]?.let { m -> Person((byPerson[p.id] ?: listOf(m)).map { it.toVec() }, m.toVec(), p.id, p.name, false, p.coverFaceId, p.pos) } }
-                .sortedWith(compareBy({ it.name.isNullOrBlank() }, { it.pos ?: Int.MAX_VALUE }, { -it.photos })) // named first, moved ones in their order, then by photo count
-            val albums = albums(context)
-            val all = albums.flatMap { it.tiles }
-            LibraryData(
-                faces = people,
-                unsure = people.flatMap { p -> p.faces.filter { !it.sure } }.sortedBy { it.quality },
-                albums = albums,
-                favorites = all.count { it.favorite },
-                videos = all.count { it.duration != null },
-                trash = runCatching { trash(context).size }.getOrDefault(0),
-                places = places(dao.placed(), all),
-                categories = loadCategories(context, all),
-            )
-        }
-    }
+    val data by cachedProduceState("library", saved, reload) { libraryData(context) }
     LibraryContent(
         data = data,
         indexing = running,

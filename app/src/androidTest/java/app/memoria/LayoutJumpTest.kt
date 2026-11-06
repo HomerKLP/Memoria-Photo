@@ -69,6 +69,8 @@ class LayoutJumpTest {
 
     private fun tile(id: Long) = Tile(id, Uri.parse("content://media/external/images/media/$id"), 0L, null)
 
+    private fun videoFace(id: Long) = FaceVec(id, id, floatArrayOf(0f, 0f, 50f, 50f), FloatArray(512), 0.9f, PhotoKind.video, null)
+
     /** [named] false: every person has no name, the case that used to shrink the row. [people] overrides the row (empty = the "No people yet" case). */
     private fun library(
         named: Boolean = true,
@@ -775,6 +777,23 @@ class LayoutJumpTest {
         rule.onNodeWithText("Photos").assertDoesNotExist()
     }
 
+    /**
+     * Person: the title line gains "3 videos" when the videos land. The subtitle is one ellipsized
+     * line, so the grid under it must not move.
+     */
+    @Test fun personDetail_titleGainsVideos_keepsGridPut() {
+        val photos = (1L..6L).map { tile(it) }
+        var person by mutableStateOf(Person((1L..6L).map { face(it) }, face(1), 1, "Dana"))
+        rule.setContent {
+            MemoriaTheme { Surface { PersonDetail(person, onBack = {}, onName = {}, onOpen = { _, _ -> }, loadPhotos = { photos }) } }
+        }
+        val gridBefore = rule.onNodeWithTag("personPhotos").top()
+        val titleBefore = rule.onNodeWithText("6 photos · 6 faces").top()
+        rule.runOnIdle { person = Person(person.faces + (11L..13L).map { videoFace(it) }, person.main, 1, "Dana") }
+        assertSame("Photos grid", gridBefore, rule.onNodeWithTag("personPhotos").top())
+        assertSame("title line", titleBefore, rule.onNodeWithText("6 photos · 3 videos · 6 faces").top())
+    }
+
     private fun albumTiles(id: Long, count: Int) = (1L..count).map { tile(id * 1000 + it) }
     private fun album(id: Long, name: String, count: Int) = Album(id, name, albumTiles(id, count))
 
@@ -1043,6 +1062,28 @@ class LayoutJumpTest {
             info = full
         }
         assertSame("date", dateBefore, rule.onNodeWithText(dateText).top())
+    }
+
+    /** Details, debug builds: the five "…" rows hold the space, so the Debug head and the panel keep their place when the real rows come in. */
+    @Test fun details_debugRowsLoading_keepPanelHeight() {
+        val tile = Tile(1, Uri.parse("content://media/external/images/media/1"), 1_700_000_000_000L, null)
+        val info = PhotoInfo("a.jpg", "DCIM/Camera", 3_500_000, 4032, 3024, null, null, null, "image/jpeg", 6)
+        var debug by mutableStateOf(List(5) { "…" to "…" })
+        rule.setContent { MemoriaTheme { Surface { DetailsContent(tile, info, emptyList(), emptyMap(), modifier = Modifier.testTag("details"), debug = debug) } } }
+
+        val headBefore = rule.onNodeWithText("Debug").top()
+        val panelBefore = rule.onNodeWithTag("details").height()
+        rule.runOnIdle {
+            debug = listOf(
+                "image/jpeg · orientation 6" to "MediaStore id 48213",
+                "2 faces · quality 0.92, 0.81" to "People #3, #7",
+                "Tag vector: yes" to "Sea 0.40 · Beach 0.31 · Sky 0.22",
+                "1 person · 1 cat" to "Box scores 0.88, 0.74",
+                "Indexed · camera photo" to "Objects model v3",
+            )
+        }
+        assertSame("debug head", headBefore, rule.onNodeWithText("Debug").top())
+        assertSame("panel height", panelBefore, rule.onNodeWithTag("details").height())
     }
 
     /** People: the bar keeps its height while the list loads, and the grid below must not shift. */

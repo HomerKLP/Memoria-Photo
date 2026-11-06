@@ -10,8 +10,10 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
 import android.media.ExifInterface
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.BatteryManager
+import android.provider.MediaStore
 import android.provider.MediaStore.Images.Media
 import androidx.room.Dao
 import androidx.room.Database
@@ -46,9 +48,11 @@ import java.util.concurrent.Executors
 import java.util.concurrent.Future
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
+import kotlin.math.sqrt
 
-/** camera can start a person, other (downloads, messengers) only joins people. Room saves the name, so the names are the DB values. */
-enum class PhotoKind { camera, other, skip, error }
+/** camera can start a person, other (downloads, messengers) only joins people, video only joins too. Room saves the name, so the names are the DB values. */
+enum class PhotoKind { camera, other, skip, error, video }
 
 /**
  * townId: GeoNames id of the nearest town (see [Towns]), 0 = no GPS, null = GPS not read yet.
@@ -179,7 +183,9 @@ interface IndexDao {
     @Query("DELETE FROM person WHERE id = :id") suspend fun deletePerson(id: Long)
     @Query("UPDATE person SET hidden = :hidden WHERE id = :id") suspend fun setHidden(id: Long, hidden: Boolean)
     @Query("UPDATE person SET coverFaceId = :face WHERE id = :id") suspend fun setCover(id: Long, face: Long?)
-    @Query("SELECT id FROM photo WHERE townId IS NULL") suspend fun unplaced(): List<Long>
+    /** Photos whose GPS was not read yet. Videos have their own query: their GPS is a location string in the file, not EXIF. */
+    @Query("SELECT id FROM photo WHERE townId IS NULL AND kind <> 'video'") suspend fun unplaced(): List<Long>
+    @Query("SELECT id FROM photo WHERE townId IS NULL AND kind = 'video'") suspend fun unplacedVideos(): List<Long>
     @Query("SELECT * FROM photo WHERE townId > 0") suspend fun placed(): List<PhotoRow>
     @Query("SELECT * FROM photo WHERE townId = :town") suspend fun photosIn(town: Int): List<PhotoRow>
     @Query("UPDATE photo SET lat = :lat, lon = :lon, townId = :townId, town = :town WHERE id = :id")
@@ -191,14 +197,20 @@ interface IndexDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertTags(rows: List<PhotoTagRow>)
     @Query("SELECT * FROM photo_tag WHERE stamp = :stamp") suspend fun photoTags(stamp: Int): List<PhotoTagRow>
     @Query("DELETE FROM photo_tag WHERE photoId IN (:ids)") suspend fun deleteTags(ids: List<Long>)
-    /** Photos with every index step done: the face pass, a vector from tagger [model] while [tagger] is on the phone, boxes from [objectsModel] while [objects] is. */
+    /** Items with every index step done: the face pass, a vector from tagger [model] while [tagger] is on the phone, boxes from [objectsModel] while [objects] is. A video is done as soon as it is indexed: it is never tagged or boxed. */
     @Query(
-        "SELECT COUNT(*) FROM photo WHERE (NOT :tagger OR id IN (SELECT photoId FROM photo_vector WHERE model = :model)) " +
+        "SELECT COUNT(*) FROM photo WHERE (kind = 'video' OR NOT :tagger OR id IN (SELECT photoId FROM photo_vector WHERE model = :model)) " +
             "AND (NOT :objects OR objects = :objectsModel)",
     )
     fun doneCount(tagger: Boolean, model: Int, objects: Boolean, objectsModel: Int): Flow<Int>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertVector(row: PhotoVectorRow)
     @Query("DELETE FROM photo_vector WHERE photoId IN (:ids)") suspend fun deleteVectors(ids: List<Long>)
+    /** The four reads below are for the debug section of Details: one photo's own rows. */
+    @Query("SELECT * FROM photo WHERE id = :id") suspend fun photoRow(id: Long): PhotoRow?
+    /** Bytes of the tagger vector: null = none yet, 0 = the photo couldn't be read. */
+    @Query("SELECT length(vector) FROM photo_vector WHERE photoId = :id") suspend fun vectorBytes(id: Long): Int?
+    @Query("SELECT tags FROM photo_tag WHERE photoId = :id AND stamp = :stamp") suspend fun tagsOf(id: Long, stamp: Int): String?
+    @Query("SELECT * FROM object_box WHERE photoId = :id") suspend fun boxesOf(id: Long): List<ObjectBoxRow>
     @Query("SELECT id FROM photo WHERE objects = :model") suspend fun boxedIds(model: Int): List<Long>
     @Query("UPDATE photo SET objects = :model WHERE id = :id") suspend fun setBoxed(id: Long, model: Int)
     @Insert suspend fun insertBoxes(boxes: List<ObjectBoxRow>)
@@ -297,7 +309,7 @@ abstract class Db : RoomDatabase() {
     }
 }
 
-class MediaPhoto(val id: Long, val path: String, val mime: String, val width: Int, val height: Int)
+class MediaPhoto(val id: Long, val path: String, val mime: String, val width: Int, val height: Int, val video: Boolean = false)
 
 // ponytail: test folder only, drop the filter to index the whole library
 fun testPhotos(context: Context): List<MediaPhoto> {
@@ -312,7 +324,7 @@ fun testPhotos(context: Context): List<MediaPhoto> {
 /**
  * Every image MediaStore knows about, like Immich's import paths: include all, minus the albums
  * the user skips (Album, More > Don't index). A run forgets the faces of photos that drop out.
- * Videos stay out for now. kindOf sorts camera / other / skip.
+ * Videos have their own pass ([libraryVideos]). kindOf sorts camera / other / skip.
  */
 fun libraryPhotos(context: Context): List<MediaPhoto> {
     val skipped = IndexProgress.skipped(context)
@@ -327,16 +339,30 @@ fun libraryPhotos(context: Context): List<MediaPhoto> {
     return photos
 }
 
+/** Every video MediaStore knows about, minus the albums the user skips: faces and pets in it join the people and pets built from photos. */
+fun libraryVideos(context: Context): List<MediaPhoto> {
+    val skipped = IndexProgress.skipped(context)
+    val videos = mutableListOf<MediaPhoto>()
+    val cols = arrayOf(Media._ID, Media.RELATIVE_PATH, Media.DISPLAY_NAME, Media.MIME_TYPE, Media.WIDTH, Media.HEIGHT, Media.BUCKET_ID)
+    context.contentResolver.query(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, cols, null, null, null)?.use { c ->
+        while (c.moveToNext()) {
+            val path = c.getString(1) + c.getString(2)
+            if (c.getLong(6) !in skipped) videos += MediaPhoto(c.getLong(0), path, c.getString(3), c.getInt(4), c.getInt(5), video = true)
+        }
+    }
+    return videos
+}
+
 /**
- * How many photos [libraryPhotos] would return, without building the list: a row-count read only.
- * Library, People and the test screen only need the number for their progress totals.
+ * How many items [libraryPhotos] and [libraryVideos] would return together, without building the lists: row-count reads only.
+ * Settings shows it as the total of a run's progress, in the same units as [IndexDao.doneCount]. An unreadable collection counts 0.
  */
-fun libraryPhotoCount(context: Context): Int {
+fun libraryCount(context: Context): Int {
     val skipped = IndexProgress.skipped(context)
     val selection = if (skipped.isEmpty()) null else "${Media.BUCKET_ID} NOT IN (${skipped.joinToString(",")})"
-    return runCatching {
-        context.contentResolver.query(Media.EXTERNAL_CONTENT_URI, arrayOf(Media._ID), selection, null, null)?.use { it.count } ?: 0
-    }.getOrDefault(0)
+    return listOf(Media.EXTERNAL_CONTENT_URI, MediaStore.Video.Media.EXTERNAL_CONTENT_URI).sumOf { uri ->
+        runCatching { context.contentResolver.query(uri, arrayOf(Media._ID), selection, null, null)?.use { it.count } ?: 0 }.getOrDefault(0)
+    }
 }
 
 /** Total and start time of the current index run, so the UI can show a progress bar and time left. */
@@ -466,7 +492,8 @@ fun indexPlan(phone: List<MediaPhoto>, done: Set<Long>, tagged: Set<Long>, boxed
     return IndexPlan(
         gone = done + tagged - ids,
         todo = phone.filter { it.id !in done },
-        catchUp = phone.filter { it.id in done && ((tagging && it.id !in tagged) || (boxing && it.id !in boxed)) },
+        // a video is never tagged or boxed again: it has no vector and no per-photo boxes
+        catchUp = phone.filter { !it.video && it.id in done && ((tagging && it.id !in tagged) || (boxing && it.id !in boxed)) },
     )
 }
 
@@ -498,12 +525,31 @@ private fun prepare(context: Context, photo: MediaPhoto): Prepared {
     return Prepared(kind, uri, small, w, h)
 }
 
+/** A face or a pet found in one video frame: it joins a track by its [vector] and keeps the best frame's [box], score, [quality] and thumb. */
+private class Tracked(val t: Long, val box: FloatArray, val score: Float, val quality: Float, val vector: FloatArray, val thumb: ByteArray)
+
+/** A frame size for `getScaledFrameAtTime`: the long side 640, the other side scaled to match. */
+private fun frameSize(w: Int, h: Int): Pair<Int, Int> = when {
+    w <= 0 || h <= 0 -> 640 to 640
+    w >= h -> 640 to max(1, (640f * h / w).roundToInt())
+    else -> max(1, (640f * w / h).roundToInt()) to 640
+}
+
+/** The mean of [vs], normalized: the top-3 track vector (bench/video.py `tracks`). */
+private fun averageVector(vs: List<FloatArray>): FloatArray {
+    val s = FloatArray(vs[0].size)
+    for (v in vs) for (i in v.indices) s[i] += v[i]
+    val len = sqrt(s.sumOf { (it * it).toDouble() }).toFloat()
+    return if (len == 0f) s else FloatArray(s.size) { s[it] / len }
+}
+
 /** Finds faces in new photos and saves them. Photos already in the DB are skipped, so it can stop and resume. */
 class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
         val dao = Db.get(applicationContext).index()
         val testOnly = inputData.getBoolean("testOnly", false)
-        val all = if (testOnly) testPhotos(applicationContext) else libraryPhotos(applicationContext)
+        // a video is indexed like a photo from the start (kind video), but with no tagger and no catch-up pass; the test folder has no videos
+        val all = if (testOnly) testPhotos(applicationContext) else libraryPhotos(applicationContext) + libraryVideos(applicationContext)
         val total = all.size
         val done = dao.photoIds().toHashSet()
         val tagged = dao.taggedIds(Tagger.VERSION).toHashSet()
@@ -515,6 +561,8 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         if (!testOnly) plan.gone.chunked(500).forEach { dao.deleteFaces(it); dao.deletePhotos(it); dao.deleteVectors(it); dao.deleteTags(it); dao.deleteBoxes(it) }
         if (isStopped) return Result.success()
         val todo = plan.todo
+        val newPhotos = todo.filter { !it.video }
+        val newVideos = todo.filter { it.video }
         val catchUp = plan.catchUp // photos indexed before the tagger or the object models, or by older ones
         if (todo.isEmpty() && catchUp.isEmpty()) {
             IndexProgress.finish(applicationContext)
@@ -563,9 +611,9 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         try {
             FacePipeline(applicationContext).use { pipeline ->
                 AppLog.i("models loaded in ${(System.nanoTime() - start) / 1_000_000} ms")
-                fun ahead(i: Int): Future<kotlin.Result<Prepared>>? = todo.getOrNull(i)?.let { p -> prefetch.submit(Callable { runCatching { prepare(applicationContext, p) } }) }
+                fun ahead(i: Int): Future<kotlin.Result<Prepared>>? = newPhotos.getOrNull(i)?.let { p -> prefetch.submit(Callable { runCatching { prepare(applicationContext, p) } }) }
                 var next = ahead(0)
-                for ((i, photo) in todo.withIndex()) {
+                for ((i, photo) in newPhotos.withIndex()) {
                     if (isStopped) break
                     times.start()
                     val ready = next!!.get() // decoded while the last photo ran
@@ -636,6 +684,34 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                     if (count % 100 == 0) AppLog.i("per photo ms (n=$count): ${times.perPhoto(count)}")
                     if (foreground && count % 10 == 0) notifications.notify(1, notice(base + count, total))
                     // people show up while indexing; saves stay 10x their own time apart, so they never take more than ~10% of the run
+                    if (System.nanoTime() > nextSave) {
+                        val t = System.nanoTime()
+                        times.start()
+                        placePhotos()
+                        savePeople()
+                        times.lap(Step.Save)
+                        nextSave = System.nanoTime() + maxOf(30_000_000_000L, 10 * (System.nanoTime() - t))
+                    }
+                }
+                // videos, after the photos: no tagger, one row per face or pet track (ROADMAP Phase 13)
+                for (video in newVideos) {
+                    if (isStopped) break
+                    times.start()
+                    val rows = try {
+                        val r = videoTracks(video, pipeline, objects)
+                        times.lap(Step.Video)
+                        r
+                    } catch (e: Exception) {
+                        AppLog.w("index video ${video.id}", e)
+                        emptyList()
+                    }
+                    Db.get(applicationContext).withTransaction {
+                        // no boxes: a video is no single pixel grid; objects marked so the run never boxes it again. No town yet: [placePhotos] reads its GPS
+                        dao.insert(PhotoRow(video.id, video.path, PhotoKind.video, objects = ObjectDetector.VERSION), rows)
+                    }
+                    times.lap(Step.Database)
+                    count++
+                    if (foreground && count % 10 == 0) notifications.notify(1, notice(base + count, total, "Scanning videos"))
                     if (System.nanoTime() > nextSave) {
                         val t = System.nanoTime()
                         times.start()
@@ -727,6 +803,61 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
     private fun boxRow(photoId: Long, b: ObjectBox, small: Bitmap) =
         ObjectBoxRow(photoId = photoId, cls = b.cls, score = b.score, box = FloatArray(4) { i -> b.box[i] / if (i % 2 == 0) small.width else small.height })
 
+    /**
+     * One video's faces and pets as one row per track (ROADMAP Phase 13): frames every max(3 s, length / 10), at most 10,
+     * faces 40 px+ and pets from boxes 0.7+ joined inside the video by vector at 0.68. A row keeps the top-3 vector and the best frame's box, quality and thumb.
+     * Boxes come back in the video's own pixels, so the 40 px floor means the same as on a photo (a uniform scale; a rotated video still keeps the sizes right).
+     */
+    private fun videoTracks(video: MediaPhoto, pipeline: FacePipeline, objects: Pair<ObjectDetector, PetVectors>?): List<FaceRow> {
+        val uri = ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, video.id)
+        val faces = mutableListOf<Tracked>()
+        val pets = mutableListOf<Tracked>()
+        var k = 1f
+        MediaMetadataRetriever().use { mmr ->
+            mmr.setDataSource(applicationContext, uri)
+            val length = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+            val vw = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: video.width
+            val vh = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull() ?: video.height
+            val rot = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)?.toIntOrNull() ?: 0
+            val (dstW, dstH) = frameSize(if (rot % 180 == 0) vw else vh, if (rot % 180 == 0) vh else vw)
+            val step = max(3000L, length / 10) // a 30 s video: every 3 s; a 2 min one: every 12 s
+            val times = if (length <= 0) listOf(0L) else (0 until 10).map { it * step }.filter { it < length }
+            for (t in times) {
+                // a keyframe, like the bench's --every fallback: seeking to the exact frame is slower and can fail near the end
+                val frame = mmr.getScaledFrameAtTime(t * 1000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, dstW, dstH) ?: continue
+                k = if (max(vw, vh) > 0) max(vw, vh).toFloat() / max(frame.width, frame.height) else 1f
+                val lb = Letterbox(frame)
+                val boxes = objects?.first?.detect(lb).orEmpty()
+                val people = boxes.filter { it.cls == PERSON }.map { it.box }
+                if (objects != null) pets += boxes.filter { it.cls != PERSON && it.score >= 0.7f }
+                    .map { b -> Tracked(t, b.box, b.score, b.score, objects.second.vector(frame, b.box), faceThumb(frame, b.box)) }
+                // docs/objects.md: no person box, no face; a face counts only inside a person box
+                if (objects == null || people.isNotEmpty()) for (f in pipeline.detect(lb)) {
+                    if (objects != null && !inPerson(f.box, people)) continue
+                    if (min(f.box[2] - f.box[0], f.box[3] - f.box[1]) * k < 40f) continue
+                    pipeline.embed(frame, f)
+                    faces += Tracked(t, f.box, f.score, f.quality!!, f.vector!!, faceThumb(frame, f.box))
+                }
+                frame.recycle()
+            }
+        }
+        return tracksOf(video.id, faces, false, k) + tracksOf(video.id, pets, true, k)
+    }
+
+    /** One row per track: the best frame by [Tracked.quality] (a tie keeps the earlier one) for the box, score, quality and thumb, and the top-3 vector. [k] scales a frame box to the video's own pixels. */
+    private fun tracksOf(photoId: Long, items: List<Tracked>, pet: Boolean, k: Float): List<FaceRow> {
+        if (items.isEmpty()) return emptyList()
+        val order = items.sortedBy { it.t }
+        return averageLinkage(order.map { it.vector }, 0.68f).map { g ->
+            val top = g.map { order[it] }.sortedByDescending { it.quality } // stable: a tie keeps the earlier frame
+            val best = top.first()
+            FaceRow(
+                photoId = photoId, box = FloatArray(4) { best.box[it] * k }, score = best.score, landmarks = FloatArray(0),
+                vector = averageVector(top.take(3).map { it.vector }), quality = best.quality, thumb = best.thumb, pet = pet,
+            )
+        }
+    }
+
     /** A cat or dog box with score 0.7+ (surer boxes, fewer strays among the pets) as a pet face: the DINOv2 vector, a picture cut from [small], the box in face pixels. */
     private fun petFace(photoId: Long, b: ObjectBox, small: Bitmap, pets: PetVectors, w: Int, h: Int) = FaceRow(
         photoId = photoId, box = toFull(b.box, small, w, h), score = b.score, landmarks = FloatArray(0),
@@ -749,7 +880,7 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         FloatArray(0)
     }
 
-    /** Reads GPS and finds the nearest town for photos saved without one: new photos, and photos indexed before DB v9. */
+    /** Reads GPS and finds the nearest town for photos and videos saved without one: new ones, ones indexed before DB v9, and videos before video towns. */
     private suspend fun placePhotos() {
         val start = System.nanoTime()
         val dao = Db.get(applicationContext).index()
@@ -760,8 +891,26 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
             val t = gps?.let { towns.nearest(it.first, it.second) }
             dao.setPlace(id, gps?.first, gps?.second, t?.let { towns.id[it] } ?: 0, t?.let { towns.name[it] })
         }
-        AppLog.i("placed ${ids.size} photos in ${(System.nanoTime() - start) / 1_000_000} ms")
+        // videos: the GPS is a location string in the file (ISO 6709), which is how the viewer reads it too
+        val videos = dao.unplacedVideos()
+        for (id in videos) {
+            if (isStopped) break
+            val gps = videoGps(id)
+            val t = gps?.let { towns.nearest(it.first, it.second) }
+            dao.setPlace(id, gps?.first, gps?.second, t?.let { towns.id[it] } ?: 0, t?.let { towns.name[it] })
+        }
+        AppLog.i("placed ${ids.size} photos and ${videos.size} videos in ${(System.nanoTime() - start) / 1_000_000} ms")
     }
+
+    /** A video's GPS from its metadata: [iso6709], and null for 0,0 (some files carry an empty location). */
+    private fun videoGps(id: Long): Pair<Double, Double>? = runCatching {
+        // the original file: Android redacts the location on the ordinary URI without ACCESS_MEDIA_LOCATION
+        val uri = MediaStore.setRequireOriginal(ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, id))
+        MediaMetadataRetriever().use { r ->
+            r.setDataSource(applicationContext, uri)
+            iso6709(r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_LOCATION))?.takeIf { it.first != 0.0 || it.second != 0.0 }
+        }
+    }.getOrNull()
 
     /**
      * Groups all faces again and replaces the saved people. A new group keeps the id, name and hidden flag of the old person it

@@ -33,31 +33,6 @@ Other apps:
 - Glide galleries decode the file with halving, turn by all 8 EXIF values, and keep a disk cache.
 - The phone's own gallery shows no jump, so it likely does the same (not checked).
 
-## Library opens slowly
-
-Reported 2026-10-29 by the user: the Library tab feels slow to show.
-
-Measured 2026-10-31 on the phone's 0.4.0 release (simpleperf, first Library open after a cold start, ms from the tap). Compiled with the profile: data at ~280, covers at ~340. Uncompiled (as after an install or update, until Android compiles it in idle time): data at ~355, covers at ~445. One serial load, compiled run:
-- taggedFaces 25, albums (MediaStore scan) 30, trash 8, placed 8.
-- Categories ~170, 60% of the wait: `tags.json` parse 15, all photo vectors from SQL 85, scoring 67. Redone on every open, and the rows above wait for it.
-- Covers start only after the data: ~40 more.
-
-Done 2026-10-31: each photo's tags are stored (`photo_tag`, DB v15), so an open scores only new vectors. Debug build on the phone: categories ~100 ms (`tags.json` 40, missing-rows scan 11, `photo_tag` read 12, `categories()` 27); the first open after the migration scores all photos once (~390). Release not measured yet.
-
-Steps:
-1. Start the app, tap Library. Compare the first open after launch with a later one.
-
-Suspects (from the code, `LibraryScreen` in `Library.kt`):
-- The cache lives in memory only, so the first open after launch shows grey tiles until the whole load ends.
-- One load for everything, step by step: people and albums wait for categories, which reads every photo vector (~13 MB, 100-280 ms on debug).
-- Every open scans all of MediaStore (`albums`) and runs a second query for trash, even with cached data on screen.
-- ~21 covers (12 faces, 9 tiles) start loading only after the data arrives.
-- During a scan, each people save reloads the whole tab.
-
-Fix ideas:
-- First, log each step's time and when the covers are drawn, on the first open and a later one; release numbers after `make release`.
-- Then: show people and albums before categories, start the load at app start (preload), or keep the cache on disk.
-
 ## Mirrored HEIC selfies show upside down in the viewer, sideways in the grid
 
 Seen 2026-11-02 on another phone (MediaTek), release app: front-camera HEIC photos show upside down in the viewer and turned 90° in the grid; the phone's own gallery shows them right. Sample of that phone's HEICs (first 64 KB read, nothing kept):
@@ -144,19 +119,24 @@ Found while reading the code, not seen on the phone yet. No steps, just the risk
 
 ## Perf numbers (`make perf`)
 
-Release build, baseline profile compiled, full library (~4400 photos), median of 3. Frame times only: how long data takes to show is not measured yet. Compare runs taken in the same state (a warm phone right after indexing reads 2-4x more janky frames). Earlier runs are in git history.
+Release build, baseline profile compiled, full library (~4400 photos), median of 3. Frame times, plus how long Library takes to show its covers. Other screens' load times are not measured yet. Compare runs taken in the same state (a warm phone right after indexing reads 2-4x more janky frames). Earlier runs are in git history.
 
-| 2026-11-04, v0.7.0 + photo-file fixes | frames | janky % | p90 ms | p99 ms |
+| 2026-11-05, v0.7.1 | frames | janky % | p90 ms | p99 ms |
 |---|---|---|---|---|
-| Cold start: first frame 151 ms, timeline 201 ms | | | | |
-| Photos, first scroll | 436 | 0.2 | 6 | 7 |
-| Photos, scroll | 420 | 0 | 6 | 7 |
-| Library, open + scroll | 216 | 0.9 | 7 | 9 |
-| People, open + scroll | 190 | 0.5 | 6 | 12 |
-| Viewer, open + 3 swipes | 281 | 0.4 | 8 | 10 |
-| Details, open | 111 | 0 | 5 | 10 |
+| Cold start: first frame 135 ms, timeline 180 ms | | | | |
+| Photos, first scroll | 431 | 0.5 | 6 | 8 |
+| Photos, scroll | 418 | 0 | 5 | 7 |
+| Library, open + scroll | 190 | 0.5 | 6 | 16 |
+| Albums, open + scroll | 174 | 0.6 | 9 | 11 |
+| Places, open + scroll | 187 | 0.5 | 8 | 12 |
+| Categories, open + scroll | 55 | 0 | 7 | 11 |
+| People, open + scroll | 188 | 0.5 | 6 | 11 |
+| Viewer, open + 3 swipes | 266 | 1.1 | 6 | 17 |
+| Details, open | 110 | 0 | 5 | 6 |
 
-Native heap after 8 flings 87 MB, no blank tiles on a cold fling. The grid scroll with the tile re-decodes (2026-11-04) is clean: 0% janky, 0% blank. Cold start is up from v0.3.0's 116/163 ms (same phone, more library and DB work now).
+Library shows all its covers 151 ms after the tap on the first open (cold start) and 155 ms on a second open. That is the lowest the screencap method reads (one cap), so the real time is at or under it. The app's own log (`library load:` line, one run) gives the first load's steps: albums 32 ms, categories 32, people 27, places 9, trash 8, total 110. The covers draw about 40 ms after that.
+
+Native heap after 8 flings 52 MB (87 MB on 2026-11-04, not explained), no blank tiles on a cold fling. Cold start is up from v0.3.0's 116/163 ms (same phone, more library and DB work now).
 
 # Fixed
 
@@ -226,3 +206,5 @@ Native heap after 8 flings 87 MB, no blank tiles on a cold fling. The grid scrol
 - 2026-11-03 The Details panel read every tagged face on each swipe-up. It reads the person names now; the full list loads only when a face is tapped, for Who is this?.
 - 2026-11-04 Grid tiles soft for JPEGs with a small camera preview, and mirrored previews (tags 2, 4) shown as stored. `Thumb` decodes the file when MediaStore's picture is under a tile / 1.2 (not HEIC) and asks for a tile-size thumb (`PhotoFileTest`). Release scroll checked 2026-11-04 (`make perf`): 0% janky, 0% blank tiles.
 - 2026-11-04 DNG photos with a turn tag showed sideways: Android decodes a DNG as stored. Grid, viewer, index and Help recognize turn by the TIFF tag (`dngTurn`, `turnedBy` in `Faces.kt`). Checked on the phone with a made-up tag 6 DNG.
+- 2026-11-06 Library opened slowly on the first open after launch: the load ran inside `LibraryScreen`, so the tab waited for it and showed grey tiles. `libraryData` loads once now and `preloadLibrary` warms it at launch, so the first open starts from data.
+- 2026-11-06 Video GPS read as "no GPS" for every video. Android hides the location behind the plain video URI; `MediaStore.setRequireOriginal` in `videoGps()`, as `Details.kt` already does.

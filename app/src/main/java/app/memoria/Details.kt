@@ -1,6 +1,7 @@
 package app.memoria
 
 import android.content.Context
+import android.content.pm.ApplicationInfo
 import android.media.ExifInterface
 import android.media.MediaMetadataRetriever
 import android.provider.MediaStore
@@ -61,6 +62,8 @@ class PhotoInfo(
     val place: String?,
     val camera: String?,
     val settings: String?,
+    val mime: String = "",
+    val orientation: Int = 0, // EXIF, 0 = none
 )
 
 /** Reads MediaStore columns and the camera EXIF. Blocking: call from IO. */
@@ -70,12 +73,14 @@ fun loadInfo(context: Context, tile: Tile): PhotoInfo {
     var size = 0L
     var width = 0
     var height = 0
+    var mime = ""
     var lat: Double? = null
     var lon: Double? = null
     val base = if (tile.duration == null) MediaStore.Images.Media.EXTERNAL_CONTENT_URI else MediaStore.Video.Media.EXTERNAL_CONTENT_URI
     val cols = arrayOf(
         MediaStore.MediaColumns.DISPLAY_NAME, MediaStore.MediaColumns.RELATIVE_PATH,
         MediaStore.MediaColumns.SIZE, MediaStore.MediaColumns.WIDTH, MediaStore.MediaColumns.HEIGHT,
+        MediaStore.MediaColumns.MIME_TYPE,
     )
     context.contentResolver.query(base, cols, "${MediaStore.MediaColumns._ID} = ?", arrayOf(tile.id.toString()), null)?.use { c ->
         if (c.moveToNext()) {
@@ -84,6 +89,7 @@ fun loadInfo(context: Context, tile: Tile): PhotoInfo {
             size = c.getLong(2)
             width = c.getInt(3)
             height = c.getInt(4)
+            mime = c.getString(5).orEmpty()
         }
     }
     // MediaStore's latitude/longitude are always null since Android 10; GPS is only in the original file
@@ -117,7 +123,37 @@ fun loadInfo(context: Context, tile: Tile): PhotoInfo {
     return PhotoInfo(
         name, folder, size, width, height, place,
         exif?.getAttribute(ExifInterface.TAG_MODEL)?.trim()?.takeIf { it.isNotEmpty() }, settings,
+        mime, exif?.getAttributeInt(ExifInterface.TAG_ORIENTATION, 0) ?: 0,
     )
+}
+
+/**
+ * The five rows (title, subtitle) of the debug section, per docs/design.html "viewer-debug": file, faces, tags, objects, index.
+ * [photo] null = not indexed (videos too). [tags]: "id score;id score" from [photoTags]; [tagNames] maps a tag id to its name.
+ */
+internal fun debugRows(
+    id: Long, info: PhotoInfo?, photo: PhotoRow?, faces: List<FaceVec>,
+    vectorBytes: Int?, tags: String?, tagNames: Map<String, String>, boxes: List<ObjectBoxRow>,
+): List<Pair<String, String>> {
+    val file = "${info?.mime?.takeIf { it.isNotEmpty() } ?: "–"} · orientation ${info?.orientation?.takeIf { it > 0 } ?: "–"}" to "MediaStore id $id"
+    if (photo == null) return listOf(file) + List(4) { "Not indexed" to "–" }
+    val people = faces.filter { !it.pet }
+    val ids = people.mapNotNull { it.personId }.distinct()
+    val faceRow = (if (people.isEmpty()) "No faces" else "${people.size} ${if (people.size == 1) "face" else "faces"} · quality " + people.joinToString(", ") { "%.2f".format(it.quality) }) to
+        if (ids.isEmpty()) "No person yet" else "People " + ids.joinToString(", ") { "#$it" }
+    val tagRow = when (vectorBytes) {
+        null -> "Tag vector: none yet" to "–"
+        0 -> "Tag vector: empty" to "The photo could not be read"
+        else -> "Tag vector: yes" to (tags.orEmpty().split(';').filter { it.isNotEmpty() }.map { it.split(' ') }
+            .sortedByDescending { it[1].toFloat() }.take(3)
+            .joinToString(" · ") { "${tagNames[it[0]] ?: it[0]} %.2f".format(it[1].toFloat()) }.ifEmpty { "No tags yet" })
+    }
+    val objectRow = if (photo.objects == null) "Not boxed yet" to "–" else
+        listOf(PERSON to "person", CAT to "cat", DOG to "dog").mapNotNull { (cls, name) -> boxes.count { it.cls == cls }.takeIf { it > 0 }?.let { "$it $name" } }
+            .joinToString(" · ").ifEmpty { "No boxes" } to
+            (boxes.sortedByDescending { it.score }.joinToString(", ") { "%.2f".format(it.score) }.takeIf { it.isNotEmpty() }?.let { "Box scores $it" } ?: "–")
+    val indexRow = "Indexed · ${photo.kind} photo" to (photo.objects?.let { "Objects model v$it" } ?: "Objects not run")
+    return listOf(file, faceRow, tagRow, objectRow, indexRow)
 }
 
 /** Video GPS, ISO 6709 like "+37.4219-122.0840/" (an altitude may follow). */
@@ -153,6 +189,8 @@ fun DetailsPanel(tile: Tile, modifier: Modifier = Modifier) {
     var names by remember(tile.id) { mutableStateOf(emptyMap<Long, String?>()) }
     var fixing by remember(tile.id) { mutableStateOf<FaceVec?>(null) }
     var reload by remember { mutableIntStateOf(0) }
+    val debuggable = remember { context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0 }
+    var debug by remember(tile.id) { mutableStateOf<List<Pair<String, String>>?>(null) }
     LaunchedEffect(tile.id, reload) {
         withContext(Dispatchers.IO) {
             val dao = db.index()
@@ -163,6 +201,14 @@ fun DetailsPanel(tile: Tile, modifier: Modifier = Modifier) {
             val names = if (photoFaces.isEmpty()) emptyMap() else dao.people().associate { it.id to it.name }
             Triple(info, photoFaces, names)
         }.let { (i, f, n) -> info = i; faces = f; names = n }
+        if (debuggable) debug = withContext(Dispatchers.IO) {
+            val dao = db.index()
+            val tags = Tag.load(context)
+            debugRows(
+                tile.id, info, dao.photoRow(tile.id), faces, dao.vectorBytes(tile.id), dao.tagsOf(tile.id, Tag.stamp),
+                tags.associate { it.id to it.name }, dao.boxesOf(tile.id),
+            )
+        }
     }
     // every saved person with their faces, read only when a face is tapped: the fix sheets list them
     var people by remember(tile.id, fixing) { mutableStateOf<List<Person>?>(null) }
@@ -194,7 +240,8 @@ fun DetailsPanel(tile: Tile, modifier: Modifier = Modifier) {
             onRemove = p?.let { { fix { removeTag(db, f, it) } } },
         ) { name -> fix { newPerson(db, f, p, name) } }
     }
-    DetailsContent(tile, info, faces, names, onFixFace = { fixing = it }, modifier)
+    // "…" rows hold the space while the debug rows load, so nothing moves when they fill in
+    DetailsContent(tile, info, faces, names, onFixFace = { fixing = it }, modifier, debug = if (debuggable) debug ?: List(5) { "…" to "…" } else null)
 }
 
 /** The panel's body, split from the load so previews and layout tests can render it. Light text for the viewer's black. */
@@ -206,6 +253,7 @@ fun DetailsContent(
     names: Map<Long, String?>,
     onFixFace: (FaceVec) -> Unit = {},
     modifier: Modifier = Modifier,
+    debug: List<Pair<String, String>>? = null, // debug builds only, five rows from [debugRows]; null = no section
     zone: ZoneId = ZoneId.systemDefault(),
 ) {
     val time = Instant.ofEpochMilli(tile.date).atZone(zone)
@@ -255,6 +303,11 @@ fun DetailsContent(
                 Line(R.drawable.ic_photo, i.name, facts.joinToString(" · "))
             }
             if (i.folder.isNotEmpty()) Line(R.drawable.ic_folder, i.folder.substringAfterLast('/'), i.folder)
+        }
+        debug?.let { rows ->
+            Section("Debug", "Debug builds only")
+            listOf(R.drawable.ic_photo, R.drawable.ic_person, R.drawable.ic_search, R.drawable.ic_paw, R.drawable.ic_history)
+                .zip(rows).forEach { (icon, row) -> Line(icon, row.first, row.second) }
         }
     } }
 }

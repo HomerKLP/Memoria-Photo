@@ -63,6 +63,17 @@ class IndexLogicTest {
         assertEquals(emptyList<Long>(), bare.catchUp.map { it.id })
     }
 
+    @Test fun indexPlanKeepsVideosOutOfTheCatchUp() {
+        fun photo(id: Long) = MediaPhoto(id, "DCIM/Camera/$id.jpg", "image/jpeg", 4000, 3000)
+        fun video(id: Long) = MediaPhoto(id, "DCIM/Camera/$id.mp4", "video/mp4", 1920, 1080, video = true)
+        // a video has no vector: without the video flag it would be caught up on every run
+        val phone = listOf(photo(1), video(2), video(3))
+        val plan = indexPlan(phone, done = setOf(1, 2), tagged = setOf(1), boxed = setOf(1), tagging = true, boxing = true)
+        assertEquals(emptyList<Long>(), plan.catchUp.map { it.id })
+        assertEquals(listOf(3L), plan.todo.map { it.id })
+        assertEquals(emptySet<Long>(), plan.gone)
+    }
+
     @Test fun formatEta() {
         assertEquals("1s left", formatEta(0L))       // never "0s left"
         assertEquals("3s left", formatEta(3_000L))

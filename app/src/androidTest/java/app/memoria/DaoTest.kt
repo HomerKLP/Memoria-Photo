@@ -137,6 +137,17 @@ class DaoTest {
         assertEquals(setOf(1L, 3L), dao.placed().map { it.id }.toSet())
     }
 
+    @Test fun places_videosWaitInTheirOwnUnplacedList() = runBlocking {
+        dao.insert(PhotoRow(1, "DCIM/Camera/a.jpg", PhotoKind.camera), emptyList())
+        dao.insert(PhotoRow(2, "DCIM/Camera/b.mp4", PhotoKind.video), emptyList())
+        // a photo's GPS is EXIF, a video's is a location string in the file: [placePhotos] reads them apart
+        assertEquals(listOf(1L), dao.unplaced())
+        assertEquals(listOf(2L), dao.unplacedVideos())
+        dao.setPlace(2, 1.0, 2.0, 5, "Town")
+        assertTrue(dao.unplacedVideos().isEmpty())
+        assertEquals(listOf(2L), dao.placed().map { it.id })
+    }
+
     @Test fun untaggedVectors_thisModel_noEmpty_noTagsFromThisStamp() = runBlocking {
         dao.insertVector(PhotoVectorRow(1, 1, floatArrayOf(0.6f, 0.8f)))
         dao.insertVector(PhotoVectorRow(2, 1, FloatArray(0))) // couldn't be read
@@ -147,6 +158,22 @@ class DaoTest {
         assertEquals(listOf(1L), rows.map { it.photoId })
         assertEquals(listOf(0.6f, 0.8f), rows.single().vector.toList())
         assertEquals(listOf(4L), dao.photoTags(7).map { it.photoId })
+    }
+
+    @Test fun debugReads_onlyThatPhoto_nullWhenMissing() = runBlocking {
+        dao.insert(PhotoRow(1, "DCIM/Camera/a.jpg", PhotoKind.camera, objects = 3), emptyList())
+        dao.insertVector(PhotoVectorRow(1, 1, floatArrayOf(0.6f, 0.8f)))
+        dao.insertVector(PhotoVectorRow(2, 1, FloatArray(0)))
+        dao.insertTags(listOf(PhotoTagRow(1, 7, "a 0.9"), PhotoTagRow(2, 7, "b 0.5")))
+        dao.insertBoxes(listOf(ObjectBoxRow(photoId = 1, cls = CAT, score = 0.7f, box = FloatArray(4)), ObjectBoxRow(photoId = 2, cls = DOG, score = 0.6f, box = FloatArray(4))))
+        assertEquals(PhotoKind.camera, dao.photoRow(1)?.kind)
+        assertEquals(null, dao.photoRow(9))
+        assertEquals(8, dao.vectorBytes(1))
+        assertEquals(0, dao.vectorBytes(2))
+        assertEquals(null, dao.vectorBytes(9))
+        assertEquals("a 0.9", dao.tagsOf(1, 7))
+        assertEquals(null, dao.tagsOf(1, 6)) // an older tags file
+        assertEquals(listOf(CAT), dao.boxesOf(1).map { it.cls })
     }
 
     @Test fun answer_sameFaceAndPersonReplaced_dropYesKeepsNo() = runBlocking {

@@ -116,7 +116,7 @@ fun SearchScreen(onBack: () -> Unit, onOpen: (Hit) -> Unit, onSeeAllPeople: () -
             SearchData(
                 people = people,
                 hits = people.map { Hit(HitKind.person, "${it.id}", it.name!!, count(it.photos, "photo"), face = it.cover) } +
-                    places(dao.placed(), all).map { Hit(HitKind.place, "${it.id}", it.name, count(it.tiles.size, "photo"), cover = it.tiles.firstOrNull()) } +
+                    places(dao.placed(), all, niceScores(context)).map { Hit(HitKind.place, "${it.id}", it.name, count(it.tiles.size, "photo"), cover = it.cover) } +
                     albums.map { Hit(HitKind.album, "${it.id}", it.name, count(it.tiles.size, "item"), cover = it.tiles.firstOrNull()) } +
                     categories.map { Hit(HitKind.category, it.id, it.name, count(it.tiles.size, "photo"), cover = it.cover, words = it.words) } +
                     dates,

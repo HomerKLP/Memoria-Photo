@@ -1,7 +1,7 @@
 package app.memoria
 
 /** The steps of one photo in the index loop. [Wait] is the loop waiting for the helper thread's decode. */
-enum class Step { Wait, Tag, Objects, Faces, FullDecode, Embed, Database, Save }
+enum class Step { Wait, Tag, Objects, Faces, FullDecode, Embed, Video, Database, Save }
 
 /** Time spent in each step of the index loop, so the log says which step is slow on a phone. */
 class StepTimes {

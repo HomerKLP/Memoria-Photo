@@ -104,6 +104,16 @@ fun <T : Any> cachedProduceState(
     }
 
 /**
+ * Fills a screen's cache before it opens, so its first open shows data instead of placeholders.
+ * Does nothing when the screen already loaded it. A failed warm-up is dropped, not thrown: it runs
+ * at app start, where a missing permission would otherwise crash the launch.
+ */
+suspend fun <T : Any> preloadCached(key: String, load: suspend () -> T) {
+    if (cache.containsKey(key)) return
+    runCatching { load() }.getOrNull()?.let { cache[key] = it }
+}
+
+/**
  * Replaces one cached value in place. A screen that is off composition (Library while a person is open)
  * starts from this cache, so a small change like a new cover shows on its first frame instead of the
  * stale value. Does nothing when the key is not cached or holds another type.
@@ -286,9 +296,10 @@ fun SelectBar(
 private fun SelectAction(icon: Int, label: String, four: Boolean, onClick: () -> Unit, danger: Boolean = false) {
     val color = if (danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
     val button = Modifier.width(if (four) 76.dp else 104.dp).height(if (four) 52.dp else 40.dp).clip(CircleShape).clickable(onClick = onClick)
-    if (four) Column(button, verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+    // lineHeight set: the default 24 sp line pushes the icon and label up in the 52 dp button (mockup: gap 2px)
+    if (four) Column(button, verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically), horizontalAlignment = Alignment.CenterHorizontally) {
         Icon(painterResource(icon), null, Modifier.size(24.dp), tint = color)
-        Text(label, color = color, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+        Text(label, color = color, fontSize = 12.sp, lineHeight = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1)
     }
     else Row(button, horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
         Icon(painterResource(icon), null, Modifier.size(24.dp), tint = color)

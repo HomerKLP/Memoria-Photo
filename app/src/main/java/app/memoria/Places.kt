@@ -86,19 +86,22 @@ fun photoGps(context: Context, uri: Uri): Pair<Double, Double>? {
     return ll[0].toDouble() to ll[1].toDouble()
 }
 
-/** A town and its photos, newest first. */
-class Place(val id: Int, val name: String, val tiles: List<Tile>)
+/** A town and its photos, newest first. [cover] is the photo the tagger finds most like a nice place, else the newest. */
+class Place(val id: Int, val name: String, val tiles: List<Tile>, val cover: Tile? = null)
 
 /** Towns of the indexed photos, most photos first. Photos only: videos have no town yet. [tiles] drops photos gone from the phone. */
-fun places(rows: List<PhotoRow>, tiles: List<Tile>): List<Place> {
+fun places(rows: List<PhotoRow>, tiles: List<Tile>, scores: Map<Long, Float> = emptyMap()): List<Place> {
     val byId = tiles.associateBy { it.id }
     return rows.groupBy { it.townId!! }
-        .mapNotNull { (id, r) -> r.mapNotNull { byId[it.id] }.takeIf { it.isNotEmpty() }?.let { t -> Place(id, r[0].town!!, t.sortedByDescending { it.date }) } }
+        .mapNotNull { (id, r) -> r.mapNotNull { byId[it.id] }.takeIf { it.isNotEmpty() }?.let { t ->
+            val sorted = t.sortedByDescending { it.date }
+            Place(id, r[0].town!!, sorted, sorted.maxByOrNull { scores[it.id] ?: Float.NEGATIVE_INFINITY })
+        } }
         .sortedByDescending { it.tiles.size }
 }
 
 private suspend fun loadPlaces(context: Context) =
-    withContext(Dispatchers.IO) { places(Db.get(context).index().placed(), albums(context).flatMap { it.tiles }) }
+    withContext(Dispatchers.IO) { places(Db.get(context).index().placed(), albums(context).flatMap { it.tiles }, niceScores(context)) }
 
 /** Library's Places row: the 3 biggest towns. null (loading) or no places yet: grey tiles hold the space. */
 @Composable
@@ -107,7 +110,7 @@ fun PlaceRow(places: List<Place>?, onOpen: (Int) -> Unit) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         shown.forEach { p ->
             if (p == null) CoverTile(null, "", "", Modifier.weight(1f))
-            else CoverTile(p.tiles.first(), p.name, "${p.tiles.size}", Modifier.weight(1f).clickable { onOpen(p.id) })
+            else CoverTile(p.cover, p.name, "${p.tiles.size}", Modifier.weight(1f).clickable { onOpen(p.id) })
         }
         repeat(3 - shown.size) { Spacer(Modifier.weight(1f)) }
     }
@@ -129,7 +132,7 @@ fun PlacesContent(places: List<Place>?, onBack: () -> Unit = {}, onOpenPlace: (I
             GridCells.Fixed(3), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            items(places.orEmpty(), key = { it.id }) { CoverTile(it.tiles.first(), it.name, "${it.tiles.size}", Modifier.animateItem(fadeInSpec = null).clickable { onOpenPlace(it.id) }) }
+            items(places.orEmpty(), key = { it.id }) { CoverTile(it.cover, it.name, "${it.tiles.size}", Modifier.animateItem(fadeInSpec = null).clickable { onOpenPlace(it.id) }) }
         }
     }
 }
@@ -141,7 +144,7 @@ fun PlaceScreen(id: Int, onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit)
     val pick = rememberPick()
     val place by cachedProduceState("place$id", pick.changes, isEmpty = { it.tiles.isEmpty() }) {
         // this town's photos only, no MediaStore scan of the whole library
-        withContext(Dispatchers.IO) { Db.get(context).index().photosIn(id).let { rows -> places(rows, photosByIds(context, rows.map { it.id })) } }.firstOrNull() ?: Place(id, "", emptyList())
+        withContext(Dispatchers.IO) { Db.get(context).index().photosIn(id).let { rows -> places(rows, photosByIds(context, rows.map { it.id }), niceScores(context)) } }.firstOrNull() ?: Place(id, "", emptyList())
     }
     // the last photo of the place was deleted: the town is gone, so close instead of a blank page
     CloseWhenEmpty(place, place?.tiles?.isEmpty() == true, onBack)
@@ -172,7 +175,7 @@ fun PlaceContent(place: Place?, onBack: () -> Unit = {}, onOpen: (List<Tile>, Ti
                 if (p != null && sel.orEmpty().size < p.tiles.size) TextButton({ pick.set(p.tiles.map { it.id }.toSet()) }) { Text("Select all") }
             }
             // " " while loading: an empty title may measure to nothing and the grid would jump
-            else TopBar(p?.name?.ifEmpty { " " } ?: " ", p?.let { count(it.tiles.size, "photo") }, onBack = onBack)
+            else TopBar(p?.name?.ifEmpty { " " } ?: " ", p?.let { val v = it.tiles.count { t -> t.duration != null }; photosAndVideos(it.tiles.size - v, v) }, onBack = onBack)
         }
         val grid = rememberLazyGridState()
         val allTiles = p?.tiles.orEmpty()

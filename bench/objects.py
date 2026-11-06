@@ -272,6 +272,19 @@ def pets(photos_dir, out, det, cut):
     print(f'open {out / "pets.html"}')
 
 
+def pet_vector(dino, small, box):
+    """The app's pet vector (PetVectors): the box cut from the 640 px photo, each side halved while 448+, squashed to 224x224, noodle_s.onnx, normalized (512)."""
+    x1, y1, x2, y2 = (int(v) for v in box)
+    c = small[max(y1, 0):y2, max(x1, 0):x2, ::-1]
+    while max(c.shape[:2]) >= 448:
+        h, w = c.shape[:2]
+        c = cv2.resize(c, (w // 2 if w >= 448 else w, h // 2 if h >= 448 else h), interpolation=cv2.INTER_AREA)
+    c = cv2.resize(c, (224, 224), interpolation=cv2.INTER_LINEAR)
+    x = ((c / 255 - [0.485, 0.456, 0.406]) / [0.229, 0.224, 0.225]).transpose(2, 0, 1)[None]
+    v = dino.run(None, {'input': x.astype(np.float32)})[0][0]
+    return (v / np.linalg.norm(v)).astype(np.float32)
+
+
 def phone(photos_dir, path):
     """Same input as the app: the photo at 640 px, YOLO26-M boxes, cat and dog boxes 0.5+ cut from it for the pet vectors (noodle_s.onnx, see bench/pets.py)."""
     det = Yolo26('yolo26_m')
@@ -295,17 +308,8 @@ def phone(photos_dir, path):
                 same, new = same + bool(m), new + (not m)
         lost += sum(b[1] >= 0.25 and not any(a[0] == b[0] and iou(a[2:], b[2:]) > 0.7 for a in app) for b in mac)
         for b in e['boxes']:
-            if 'vec' not in b:
-                continue
-            x1, y1, x2, y2 = (int(v) for v in b['box'])
-            c = small[max(y1, 0):y2, max(x1, 0):x2, ::-1]
-            while max(c.shape[:2]) >= 448:  # like PetVectors: each side halved under 448, then squashed to 224x224
-                h, w = c.shape[:2]
-                c = cv2.resize(c, (w // 2 if w >= 448 else w, h // 2 if h >= 448 else h), interpolation=cv2.INTER_AREA)
-            c = cv2.resize(c, (224, 224), interpolation=cv2.INTER_LINEAR)
-            x = ((c / 255 - [0.485, 0.456, 0.406]) / [0.229, 0.224, 0.225]).transpose(2, 0, 1)[None]
-            v = dino.run(None, {'input': x.astype(np.float32)})[0][0]
-            sims.append(float(v @ b['vec'] / np.linalg.norm(v)))
+            if 'vec' in b:
+                sims.append(float(pet_vector(dino, small, b['box']) @ b['vec']))
     print(f'{len(data)} photos, boxes 0.25+: {same} same, {lost} lost, {new} new; the gate (a person 0.05+) differs on {gate} photos')
     print(f'matched boxes: score diff median {np.median(score_diff):.4f} max {max(score_diff):.4f}, box diff median {np.median(box_diff):.2f} max {max(box_diff):.2f} px of 640')
     if sims:

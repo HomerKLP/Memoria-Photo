@@ -7,6 +7,7 @@ import android.database.ContentObserver
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import android.provider.MediaStore
 import android.provider.MediaStore.Images.Media
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
@@ -23,7 +24,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
- * Foreground auto-index: when new photos land in MediaStore while the app is open, start an index
+ * Foreground auto-index: when new photos or videos land in MediaStore while the app is open, start an index
  * run on its own. The worker already skips photos it has seen, so a run only does the new ones.
  *
  * No background start (that needs the battery exemption), so the watcher lives only while the App
@@ -55,14 +56,14 @@ object AutoIndex {
 
     /**
      * Should a settled change start a run? No when the user cannot see photos, the models are not on
-     * the phone, a run is going or queued, the user paused, or no photo was added or deleted (a run would do nothing).
+     * the phone, a run is going or queued, the user paused, or nothing was added or deleted (a run would do nothing).
      */
     fun shouldStart(hasPermission: Boolean, modelsReady: Boolean, indexBusy: Boolean, paused: Boolean, changedPhotos: Int): Boolean =
         hasPermission && modelsReady && !indexBusy && !paused && changedPhotos > 0
 }
 
 /**
- * Watches MediaStore for new photos and starts an index run when a change settles and the app is
+ * Watches MediaStore for new photos and videos and starts an index run when a change settles and the app is
  * open. Close it to stop watching (the App composable does, on dispose).
  */
 fun watchNewPhotos(context: Context, lifecycle: Lifecycle): Closeable {
@@ -77,6 +78,8 @@ fun watchNewPhotos(context: Context, lifecycle: Lifecycle): Closeable {
         // only while the app is open, so nothing wakes the phone in the background
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             context.contentResolver.registerContentObserver(Media.EXTERNAL_CONTENT_URI, true, observer)
+            // videos too: a fresh recording starts its own run
+            context.contentResolver.registerContentObserver(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, true, observer)
             try {
                 // photos taken while the app was closed or away fire no change here, so each open counts as one
                 burst.change(System.currentTimeMillis())
@@ -119,12 +122,12 @@ private fun indexBusy(context: Context): Boolean = runCatching {
         .any { it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.BLOCKED }
 }.getOrDefault(true)
 
-/** The work a run would do ([indexPlan], like the worker), plus photos with no GPS read yet. */
+/** The work a run would do ([indexPlan], like the worker), plus photos and videos with no GPS read yet. Videos count too, so a new video starts its own run. */
 private suspend fun changedPhotos(context: Context): Int {
     val dao = Db.get(context).index()
     val plan = indexPlan(
-        libraryPhotos(context), dao.photoIds().toHashSet(), dao.taggedIds(Tagger.VERSION).toHashSet(), dao.boxedIds(ObjectDetector.VERSION).toHashSet(),
+        libraryPhotos(context) + libraryVideos(context), dao.photoIds().toHashSet(), dao.taggedIds(Tagger.VERSION).toHashSet(), dao.boxedIds(ObjectDetector.VERSION).toHashSet(),
         tagging = taggerFile(context).exists(), boxing = objectsFiles(context).all { it.exists() },
     )
-    return plan.gone.size + plan.todo.size + plan.catchUp.size + dao.unplaced().size
+    return plan.gone.size + plan.todo.size + plan.catchUp.size + dao.unplaced().size + dao.unplacedVideos().size
 }

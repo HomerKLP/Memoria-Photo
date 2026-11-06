@@ -24,6 +24,7 @@ uv run bench/tags.py label SHEET ANSWER [SHEET ANSWER ...]
 uv run bench/tags.py score     -> P@20 and R-precision per tag and model, testdata/out/tags.html
 uv run bench/tags.py onnx      -> the picked model's vision side to ~/.uniface/models/siglip2_b16.onnx, for bench/tflite.py
 uv run bench/tags.py phone testdata/out/tags_npu.json   -> the app's vectors (Dev tools run, or the DB from make pull-db) against the bench's, by file name
+uv run bench/tags.py cover     -> prompt vectors to try for a Place cover, for bench/places.py picks
 uv run bench/tags.py export    -> app/src/main/assets/tags.json: the shipped tags, their vectors and cutoffs (label with sheets --models siglip2_b16_app --depth 0 first)
 """
 
@@ -83,6 +84,10 @@ TAGS = {
     'child': (['a photo of a baby', 'a photo of a little child', 'a photo of kids'], 'ребёнок'),  # a baby or child under ~10 is a main subject
     'flowers': (['a photo of flowers', 'a bouquet of flowers'], 'цветы'),  # flowers are the subject
 }
+# The Place cover prompt (ROADMAP), picked on the Mac with `bench/places.py picks`. Not a tag: no cutoff on which photos
+# it keeps, no category; the place's best-scoring photo wins. COVER_TRIES is the set the picks sheets compare.
+COVER = ['a photo of a beautiful place']
+COVER_TRIES = ['a beautiful travel photo', 'a scenic landscape photo', 'a photo of a beautiful place']
 DEV = 'mps' if torch.backends.mps.is_available() else 'cpu'
 
 
@@ -349,26 +354,43 @@ def export(target):
         print(f'{tag:10}{cut:6}{right[cut - 1]:6}{known:6}{right[cut - 1] / known:6.0%}  {depth:10}  {sum(tail)}/{len(tail)} right')
         out.append({'id': tag, 'name': SHIP[tag][0], 'words': SHIP[tag][1], 'cutoff': round(float(scores[order[cut], k] + scores[order[cut - 1], k]) / 2, 5),
                     'vector': [round(float(x), 6) for x in vecs[k]]})
+    cv = text_vectors('siglip2_b16_app', COVER).mean(axis=0)
+    out.append({'id': 'nice', 'name': 'Beautiful places', 'words': [], 'cutoff': -1.0,  # not a category: the prompt that picks a Place cover
+                'vector': [round(float(x), 6) for x in cv / np.linalg.norm(cv)]})
     dst = ROOT / 'app/src/main/assets/tags.json'
     dst.write_text(json.dumps({'model': 1, 'tags': out}))  # model: Tagger.VERSION these cutoffs were set for
     print(f'{dst}: {dst.stat().st_size >> 10} KB')
 
 
-def tag_vectors(name, lang):
-    """One vector per tag: the mean of its prompts. Cached by prompt text, so edited prompts are encoded again."""
+def cover(name='siglip2_b16_app'):
+    """Prompt vectors to try for a Place cover, for `bench/places.py picks`."""
+    v = text_vectors(name, COVER_TRIES)
+    (OUT / 'cover.json').write_text(json.dumps({'prompts': COVER_TRIES, 'vectors': v.tolist()}))
+    print(f'{len(COVER_TRIES)} cover prompts -> {OUT / "cover.json"}')
+
+
+def text_vectors(name, prompts):
+    """Prompt vectors from the shared text cache, encoded on first sight."""
     path = OUT / f'text_{name}.json'
     cache = json.loads(path.read_text()) if path.exists() else {}
-    prompts = [p for en, ru in TAGS.values() for p in (en if lang == 'en' else [ru])]
     if any(p not in cache for p in prompts):
         m, _ = model(name)
         tok = open_clip.get_tokenizer(MODELS[name][0])
         with torch.no_grad():
             cache.update(zip(prompts, m.encode_text(tok(prompts), normalize=True).float().numpy().tolist()))
         path.write_text(json.dumps(cache))
-    vecs = []
-    for en, ru in TAGS.values():
-        v = np.mean([cache[p] for p in (en if lang == 'en' else [ru])], axis=0)
-        vecs.append(v / np.linalg.norm(v))
+    return np.array([cache[p] for p in prompts])
+
+
+def tag_vectors(name, lang):
+    """One vector per tag: the mean of its prompts."""
+    groups = [en if lang == 'en' else [ru] for en, ru in TAGS.values()]
+    v = text_vectors(name, [p for g in groups for p in g])
+    i, vecs = 0, []
+    for g in groups:
+        m = v[i:i + len(g)].mean(axis=0)
+        i += len(g)
+        vecs.append(m / np.linalg.norm(m))
     return np.array(vecs)
 
 
@@ -510,7 +532,7 @@ def score(photos_dir, depth):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('cmd', choices=['embed', 'info', 'sheets', 'label', 'score', 'onnx', 'phone', 'export'])
+    ap.add_argument('cmd', choices=['embed', 'info', 'sheets', 'label', 'score', 'onnx', 'phone', 'export', 'cover'])
     ap.add_argument('args', nargs='*', help='label: SHEET ANSWER pairs; phone: the JSON')
     ap.add_argument('--photos', type=Path, default=ROOT / 'testdata/takeout')
     ap.add_argument('--models', nargs='+', default=list(MODELS), choices=list(MODELS))
@@ -533,6 +555,8 @@ def main():
         export(a.target)
     elif a.cmd == 'phone':
         phone(a.args[0])
+    elif a.cmd == 'cover':
+        cover()
     else:
         score(a.photos, a.depth)
 

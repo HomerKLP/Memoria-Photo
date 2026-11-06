@@ -2,12 +2,15 @@
 
 uv run bench/places.py  -> testdata/out/places.html
 uv run bench/places.py towns  -> app/src/main/assets/towns.tsv, the app's town list (id, name, lat, lon; 1000+ people)
+uv run bench/places.py picks  -> testdata/out/picks_<prompt>.jpg, top cover picks per town (run tags.py cover first)
 Reads GPS from the phone's JPEGs (first 64 KB only, nothing saved but coordinates) into testdata/out/gps.tsv,
 downloads GeoNames cities500 into testdata/geonames/. Delete gps.tsv to read the phone again.
 """
 
 import base64
+import hashlib
 import html
+import json
 import struct
 import subprocess
 import sys
@@ -17,7 +20,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 from bench import CSS
 
@@ -130,9 +133,75 @@ def write_towns():
     print(f"wrote {keep.sum()} towns to {out}", file=sys.stderr)
 
 
+def takeout_gps():
+    """(rel path, lat, lon) of the takeout photos with GPS, cached in testdata/out/gps_takeout.tsv."""
+    cache = OUT / "gps_takeout.tsv"
+    if not cache.exists():
+        root = Path("testdata/takeout")
+        rows = [(str(p.relative_to(root)), *ll) for p in sorted(root.rglob("*"))
+                if p.suffix.lower() in (".jpg", ".jpeg", ".png", ".webp", ".heic")
+                and (ll := gps_from_jpeg_head(p.read_bytes()[:66000]))]
+        cache.write_text("".join(f"{a}\t{b:.6f}\t{c:.6f}\n" for a, b, c in rows))
+        print(f"{len(rows)} takeout photos with GPS", file=sys.stderr)
+    return [(a, float(b), float(c)) for a, b, c in (l.split("\t") for l in cache.read_text().splitlines())]
+
+
+def app_towns():
+    """The app's shipped town list: id, name, lat, lon."""
+    rows = [l.split("\t") for l in Path("app/src/main/assets/towns.tsv").read_text().splitlines()]
+    return (np.array([int(r[0]) for r in rows]), np.array([r[1] for r in rows]),
+            np.array([float(r[2]) for r in rows]), np.array([float(r[3]) for r in rows]))
+
+
+def pick_thumb(rel, side):
+    path = OUT / "picks" / f"{hashlib.sha1(rel.encode()).hexdigest()[:12]}_{side}.jpg"
+    if not path.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        img = Image.open(Path("testdata/takeout") / rel)
+        img.draft("RGB", (side * 2, side * 2))
+        img = ImageOps.exif_transpose(img).convert("RGB")
+        img.thumbnail((side, side))
+        img.save(path, quality=85)
+    return path
+
+
+def pick_sheets():
+    """Top cover picks per town on the Mac: takeout GPS, the app's vectors and the cover prompts (tags.py cover)."""
+    cov = json.loads((OUT / "tags/cover.json").read_text())
+    z = np.load(OUT / "tags/emb_siglip2_b16_app.npz")
+    vec = dict(zip(z["rels"], z["vecs"]))
+    tid, tname, tlat, tlon = app_towns()
+    photos = [(r, la, lo) for r, la, lo in takeout_gps() if r in vec]
+    town = np.array([tid[km(la, lo, tlat, tlon).argmin()] for _, la, lo in photos])
+    big = [t for t, n in Counter(town).most_common(8)]
+    print(", ".join(f"{tname[np.where(tid == t)[0][0]]} ({n})" for t, n in Counter(town).most_common(8)), file=sys.stderr)
+    tile, cols = 240, 5
+    for k, (prompt, pv) in enumerate(zip(cov["prompts"], cov["vectors"])):
+        pv = np.asarray(pv, np.float32)
+        img = Image.new("RGB", (cols * tile, 26 + len(big) * tile), "#222")
+        d = ImageDraw.Draw(img)
+        d.text((6, 5), prompt, fill="white", font=ImageFont.load_default(size=18))
+        for r, t in enumerate(big):
+            idx = np.where(town == t)[0]
+            top = sorted(((float(vec[photos[i][0]] @ pv), i) for i in idx), reverse=True)[:cols]
+            for c, (s, i) in enumerate(top):
+                x, y = c * tile, 26 + r * tile
+                thumb = Image.open(pick_thumb(photos[i][0], tile - 6))
+                img.paste(thumb, (x + (tile - thumb.width) // 2, y + (tile - thumb.height) // 2))
+                d.rectangle([x + 1, y + 1, x + 58, y + 20], fill="black")
+                d.text((x + 4, y + 2), f"{s:.2f}", fill="yellow", font=ImageFont.load_default(size=16))
+            name = tname[np.where(tid == t)[0][0]]
+            d.rectangle([tile * cols - 210, 26 + r * tile + 1, tile * cols - 1, 26 + r * tile + 20], fill="black")
+            d.text((tile * cols - 205, 26 + r * tile + 2), name, fill="white", font=ImageFont.load_default(size=16))
+        img.save(OUT / f"picks_{k}.jpg", quality=85)
+        print(f"wrote {OUT / f'picks_{k}.jpg'}", file=sys.stderr)
+
+
 def main():
     if sys.argv[1:] == ["towns"]:
         return write_towns()
+    if sys.argv[1:] == ["picks"]:
+        return pick_sheets()
     OUT.mkdir(parents=True, exist_ok=True)
     if not (OUT / "gps.tsv").exists():
         read_phone()

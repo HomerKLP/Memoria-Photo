@@ -248,7 +248,8 @@ private fun fakeLibrary(people: List<Person>? = null, unsure: List<FaceVec>? = n
 )
 
 private val fakePlaces = listOf("Riverton" to 642, "Northport" to 118, "Harborview" to 87, "Eastfield" to 64, "Lakemoor" to 52).mapIndexed { i, (n, c) ->
-    Place(i, n, List(c) { Tile(i * 1000L + it, android.net.Uri.parse("content://media/external/images/media/$it"), 0L, null) })
+    val tiles = List(c) { Tile(i * 1000L + it, android.net.Uri.parse("content://media/external/images/media/$it"), 0L, null) }
+    Place(i, n, tiles, tiles.first())
 }
 
 @PreviewTest
@@ -368,6 +369,28 @@ fun DetailsView() = MemoriaTheme {
             ),
             names = mapOf(1L to "Dana", 3L to "Murka"),
             zone = java.time.ZoneOffset.UTC, // the recording machine's zone would leak into the baseline
+        )
+    }
+}
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 760)
+@Composable
+fun DetailsDebugView() = MemoriaTheme {
+    Surface(color = viewerBg) {
+        DetailsContent(
+            tile = Tile(1, android.net.Uri.parse("content://media/external/images/media/1"), 1_700_000_000_000L, null),
+            info = PhotoInfo("IMG_20261011_143201.jpg", "DCIM/Camera", 3_500_000, 4032, 3024, null, null, null),
+            faces = emptyList(),
+            names = emptyMap(),
+            debug = listOf(
+                "image/jpeg · orientation 6" to "MediaStore id 48213",
+                "2 faces · quality 0.92, 0.81" to "People #3, #7",
+                "Tag vector: yes" to "Sea 0.40 · Beach 0.31 · Sky 0.22",
+                "1 person · 1 cat" to "Box scores 0.88, 0.74",
+                "Indexed · camera photo" to "Objects model v3",
+            ),
+            zone = java.time.ZoneOffset.UTC,
         )
     }
 }

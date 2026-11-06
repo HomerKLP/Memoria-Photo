@@ -1137,6 +1137,40 @@ class BehaviorTest {
         assertEquals((101L..106L).toSet(), ids)
     }
 
+    // --- Title lines (videos) -----------------------------------------------------------------
+
+    private fun videoFace(id: Long) = FaceVec(id, id, floatArrayOf(0f, 0f, 50f, 50f), FloatArray(512), 0.9f, PhotoKind.video, null)
+
+    /** Person: the title reads "N photos · M videos · K faces" and the Photos hint counts photos and videos. */
+    @Test fun personTitle_countsVideos_andTheHintToo() {
+        val p = Person((1L..6L).map { face(it) } + (11L..13L).map { videoFace(it) }, face(1), 1, "Dana")
+        rule.setContent {
+            MemoriaTheme { Surface { PersonDetail(p, onBack = {}, onName = {}, onOpen = { _, _ -> }, loadPhotos = { emptyList() }) } }
+        }
+        rule.onNodeWithText("6 photos · 3 videos · 6 faces").assertIsDisplayed()
+        rule.onNodeWithText("9 · by date").performScrollTo().assertIsDisplayed()
+    }
+
+    /** Without videos the videos part is hidden, as the mockup asks. */
+    @Test fun personTitle_noVideos_hidesTheVideosPart() {
+        rule.setContent {
+            MemoriaTheme { Surface { PersonDetail(person(1, "Dana"), onBack = {}, onName = {}, onOpen = { _, _ -> }, loadPhotos = { emptyList() }) } }
+        }
+        rule.onNodeWithText("8 photos · 8 faces").assertIsDisplayed()
+        rule.onNodeWithText("8 · by date").performScrollTo().assertIsDisplayed()
+    }
+
+    /** Pet: the title counts photos and videos and has no faces part. */
+    @Test fun petTitle_countsVideos_andNoFaces() {
+        val box = floatArrayOf(0f, 0f, 50f, 50f)
+        val pics = (1L..6L).map { FaceVec(it, it, box, FloatArray(384), 0.8f, PhotoKind.camera, 1, pet = true) } +
+            (11L..13L).map { FaceVec(it, it, box, FloatArray(384), 0.8f, PhotoKind.video, 1, pet = true) }
+        rule.setContent {
+            MemoriaTheme { Surface { PersonDetail(Person(pics, pics.first(), 1, "Murka"), onBack = {}, onName = {}, onOpen = { _, _ -> }, loadPhotos = { emptyList() }) } }
+        }
+        rule.onNodeWithText("6 photos · 3 videos").assertIsDisplayed()
+    }
+
     @Test fun hiddenPeople_openAndBack_fire() {
         var opened: Long? = null
         var back = false
