@@ -69,6 +69,8 @@ class LayoutJumpTest {
 
     private fun tile(id: Long) = Tile(id, Uri.parse("content://media/external/images/media/$id"), 0L, null)
 
+    private fun videoFace(id: Long) = FaceVec(id, id, floatArrayOf(0f, 0f, 50f, 50f), FloatArray(512), 0.9f, PhotoKind.video, null)
+
     /** [named] false: every person has no name, the case that used to shrink the row. [people] overrides the row (empty = the "No people yet" case). */
     private fun library(
         named: Boolean = true,
@@ -773,6 +775,23 @@ class LayoutJumpTest {
         rule.runOnIdle { viewing = true }  // the viewer takes over the tree
         rule.runOnIdle { viewing = false } // back to the person
         rule.onNodeWithText("Photos").assertDoesNotExist()
+    }
+
+    /**
+     * Person: the title line gains "3 videos" when the videos land. The subtitle is one ellipsized
+     * line, so the grid under it must not move.
+     */
+    @Test fun personDetail_titleGainsVideos_keepsGridPut() {
+        val photos = (1L..6L).map { tile(it) }
+        var person by mutableStateOf(Person((1L..6L).map { face(it) }, face(1), 1, "Dana"))
+        rule.setContent {
+            MemoriaTheme { Surface { PersonDetail(person, onBack = {}, onName = {}, onOpen = { _, _ -> }, loadPhotos = { photos }) } }
+        }
+        val gridBefore = rule.onNodeWithTag("personPhotos").top()
+        val titleBefore = rule.onNodeWithText("6 photos · 6 faces").top()
+        rule.runOnIdle { person = Person(person.faces + (11L..13L).map { videoFace(it) }, person.main, 1, "Dana") }
+        assertSame("Photos grid", gridBefore, rule.onNodeWithTag("personPhotos").top())
+        assertSame("title line", titleBefore, rule.onNodeWithText("6 photos · 3 videos · 6 faces").top())
     }
 
     private fun albumTiles(id: Long, count: Int) = (1L..count).map { tile(id * 1000 + it) }
