@@ -183,7 +183,9 @@ interface IndexDao {
     @Query("DELETE FROM person WHERE id = :id") suspend fun deletePerson(id: Long)
     @Query("UPDATE person SET hidden = :hidden WHERE id = :id") suspend fun setHidden(id: Long, hidden: Boolean)
     @Query("UPDATE person SET coverFaceId = :face WHERE id = :id") suspend fun setCover(id: Long, face: Long?)
-    @Query("SELECT id FROM photo WHERE townId IS NULL") suspend fun unplaced(): List<Long>
+    /** Photos whose GPS was not read yet. Videos have their own query: their GPS is a location string in the file, not EXIF. */
+    @Query("SELECT id FROM photo WHERE townId IS NULL AND kind <> 'video'") suspend fun unplaced(): List<Long>
+    @Query("SELECT id FROM photo WHERE townId IS NULL AND kind = 'video'") suspend fun unplacedVideos(): List<Long>
     @Query("SELECT * FROM photo WHERE townId > 0") suspend fun placed(): List<PhotoRow>
     @Query("SELECT * FROM photo WHERE townId = :town") suspend fun photosIn(town: Int): List<PhotoRow>
     @Query("UPDATE photo SET lat = :lat, lon = :lon, townId = :townId, town = :town WHERE id = :id")
@@ -704,8 +706,8 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                         emptyList()
                     }
                     Db.get(applicationContext).withTransaction {
-                        // no boxes: a video is no single pixel grid; objects marked so the run never boxes it again
-                        dao.insert(PhotoRow(video.id, video.path, PhotoKind.video, townId = 0, objects = ObjectDetector.VERSION), rows)
+                        // no boxes: a video is no single pixel grid; objects marked so the run never boxes it again. No town yet: [placePhotos] reads its GPS
+                        dao.insert(PhotoRow(video.id, video.path, PhotoKind.video, objects = ObjectDetector.VERSION), rows)
                     }
                     times.lap(Step.Database)
                     count++
@@ -878,7 +880,7 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         FloatArray(0)
     }
 
-    /** Reads GPS and finds the nearest town for photos saved without one: new photos, and photos indexed before DB v9. */
+    /** Reads GPS and finds the nearest town for photos and videos saved without one: new ones, ones indexed before DB v9, and videos before video towns. */
     private suspend fun placePhotos() {
         val start = System.nanoTime()
         val dao = Db.get(applicationContext).index()
@@ -889,8 +891,26 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
             val t = gps?.let { towns.nearest(it.first, it.second) }
             dao.setPlace(id, gps?.first, gps?.second, t?.let { towns.id[it] } ?: 0, t?.let { towns.name[it] })
         }
-        AppLog.i("placed ${ids.size} photos in ${(System.nanoTime() - start) / 1_000_000} ms")
+        // videos: the GPS is a location string in the file (ISO 6709), which is how the viewer reads it too
+        val videos = dao.unplacedVideos()
+        for (id in videos) {
+            if (isStopped) break
+            val gps = videoGps(id)
+            val t = gps?.let { towns.nearest(it.first, it.second) }
+            dao.setPlace(id, gps?.first, gps?.second, t?.let { towns.id[it] } ?: 0, t?.let { towns.name[it] })
+        }
+        AppLog.i("placed ${ids.size} photos and ${videos.size} videos in ${(System.nanoTime() - start) / 1_000_000} ms")
     }
+
+    /** A video's GPS from its metadata: [iso6709], and null for 0,0 (some files carry an empty location). */
+    private fun videoGps(id: Long): Pair<Double, Double>? = runCatching {
+        // the original file: Android redacts the location on the ordinary URI without ACCESS_MEDIA_LOCATION
+        val uri = MediaStore.setRequireOriginal(ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, id))
+        MediaMetadataRetriever().use { r ->
+            r.setDataSource(applicationContext, uri)
+            iso6709(r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_LOCATION))?.takeIf { it.first != 0.0 || it.second != 0.0 }
+        }
+    }.getOrNull()
 
     /**
      * Groups all faces again and replaces the saved people. A new group keeps the id, name and hidden flag of the old person it

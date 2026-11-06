@@ -122,12 +122,12 @@ private fun indexBusy(context: Context): Boolean = runCatching {
         .any { it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.BLOCKED }
 }.getOrDefault(true)
 
-/** The work a run would do ([indexPlan], like the worker), plus photos with no GPS read yet. Videos count too, so a new video starts its own run. */
+/** The work a run would do ([indexPlan], like the worker), plus photos and videos with no GPS read yet. Videos count too, so a new video starts its own run. */
 private suspend fun changedPhotos(context: Context): Int {
     val dao = Db.get(context).index()
     val plan = indexPlan(
         libraryPhotos(context) + libraryVideos(context), dao.photoIds().toHashSet(), dao.taggedIds(Tagger.VERSION).toHashSet(), dao.boxedIds(ObjectDetector.VERSION).toHashSet(),
         tagging = taggerFile(context).exists(), boxing = objectsFiles(context).all { it.exists() },
     )
-    return plan.gone.size + plan.todo.size + plan.catchUp.size + dao.unplaced().size
+    return plan.gone.size + plan.todo.size + plan.catchUp.size + dao.unplaced().size + dao.unplacedVideos().size
 }

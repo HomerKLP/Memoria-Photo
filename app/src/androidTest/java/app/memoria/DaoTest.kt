@@ -137,6 +137,17 @@ class DaoTest {
         assertEquals(setOf(1L, 3L), dao.placed().map { it.id }.toSet())
     }
 
+    @Test fun places_videosWaitInTheirOwnUnplacedList() = runBlocking {
+        dao.insert(PhotoRow(1, "DCIM/Camera/a.jpg", PhotoKind.camera), emptyList())
+        dao.insert(PhotoRow(2, "DCIM/Camera/b.mp4", PhotoKind.video), emptyList())
+        // a photo's GPS is EXIF, a video's is a location string in the file: [placePhotos] reads them apart
+        assertEquals(listOf(1L), dao.unplaced())
+        assertEquals(listOf(2L), dao.unplacedVideos())
+        dao.setPlace(2, 1.0, 2.0, 5, "Town")
+        assertTrue(dao.unplacedVideos().isEmpty())
+        assertEquals(listOf(2L), dao.placed().map { it.id })
+    }
+
     @Test fun untaggedVectors_thisModel_noEmpty_noTagsFromThisStamp() = runBlocking {
         dao.insertVector(PhotoVectorRow(1, 1, floatArrayOf(0.6f, 0.8f)))
         dao.insertVector(PhotoVectorRow(2, 1, FloatArray(0))) // couldn't be read
