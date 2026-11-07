@@ -74,6 +74,7 @@ class BehaviorTest {
         FaceVec(id, id, floatArrayOf(0f, 0f, 50f, 50f), FloatArray(512), quality, PhotoKind.camera, null)
 
     private fun tile(id: Long) = Tile(id, Uri.parse("content://media/external/images/media/$id"), 0L, null)
+    private fun videoTile(id: Long) = Tile(id, Uri.parse("content://media/external/video/media/$id"), 0L, 42_000L)
 
     private fun person(id: Long, name: String? = null) =
         face(id).let { Person((1L..8L).map { i -> face(id * 100 + i) }, it, id, name) }
@@ -493,6 +494,82 @@ class BehaviorTest {
         rule.onNodeWithText("Don't index this album").performClick()
         rule.onNodeWithText("Don't index Camera?").assertDoesNotExist()
         assertEquals(false, ignored)
+    }
+
+    // --- Filter (All / Photos / Videos, mockup "Filter") ------------------------------------------
+
+    private val mixed = Album(1, "Camera", listOf(tile(1), videoTile(2), tile(3), videoTile(4)))
+
+    /** Videos narrows the grid; the title keeps the album's totals, as the mockup asks. */
+    @Test fun album_filterVideos_showsOnlyTheVideos() {
+        var filter by mutableStateOf(Filter.All)
+        rule.setContent { MemoriaTheme { Surface { AlbumContent(mixed, filter = filter, onFilter = { filter = it }) } } }
+
+        rule.onNodeWithTag("tile-1").assertExists()
+        rule.onNodeWithContentDescription("Filter").performClick()
+        rule.onNodeWithText("Videos").performClick()
+        assertEquals(Filter.Videos, filter)
+        rule.onNodeWithTag("tile-2").assertExists()
+        rule.onNodeWithTag("tile-1").assertDoesNotExist()
+        rule.onNodeWithText("2 photos · 2 videos").assertIsDisplayed()
+    }
+
+    /** Nothing matches: the empty state takes the grid's place, the icon stays so the way back is there. */
+    @Test fun album_filterNoMatch_showsTheEmptyState() {
+        var filter by mutableStateOf(Filter.All)
+        rule.setContent { MemoriaTheme { Surface { AlbumContent(album, filter = filter, onFilter = { filter = it }) } } }
+
+        rule.onNodeWithContentDescription("Filter").performClick()
+        rule.onNodeWithText("Videos").performClick()
+        rule.onNodeWithText("No videos here").assertIsDisplayed()
+        rule.onNodeWithText("This album has only photos. Pick All or Photos to see them").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Filter").assertIsDisplayed() // the way back
+        rule.onNodeWithTag("tile-1").assertDoesNotExist()
+    }
+
+    /** Place and Person use the same lines with their own noun. */
+    @Test fun place_filterNoMatch_saysThisPlace() {
+        var filter by mutableStateOf(Filter.All)
+        rule.setContent {
+            MemoriaTheme { Surface { PlaceContent(Place(1, "Riverton", listOf(tile(1), tile(2))), filter = filter, onFilter = { filter = it }) } }
+        }
+
+        rule.onNodeWithContentDescription("Filter").performClick()
+        rule.onNodeWithText("Videos").performClick()
+        rule.onNodeWithText("This place has only photos. Pick All or Photos to see them").assertIsDisplayed()
+    }
+
+    /** The filter holds while selecting, so Select all picks only what it shows. */
+    @Test fun album_filter_selectAllPicksWhatItShows() {
+        var picked by mutableStateOf<Set<Long>?>(null)
+        rule.setContent {
+            MemoriaTheme { Surface { AlbumContent(mixed, selected = picked, onSelect = { picked = it }, filter = Filter.Videos) } }
+        }
+
+        rule.onNodeWithTag("tile-2").performTouchInput { longClick() }
+        rule.onNodeWithText("Select all").performClick()
+        assertEquals(setOf(2L, 4L), picked)
+    }
+
+    /** Person: the filter narrows the photo grid only; the title, the faces and their count stay. */
+    @Test fun person_filterVideos_keepsTheFaces() {
+        val p = Person((1L..6L).map { face(it) } + (11L..13L).map { videoFace(it) }, face(1), 1, "Dana")
+        val photos = listOf(tile(1), videoTile(2), tile(3))
+        var filter by mutableStateOf(Filter.All)
+        rule.setContent {
+            MemoriaTheme { Surface {
+                PersonDetail(p, onBack = {}, onName = {}, onOpen = { _, _ -> }, loadPhotos = { photos }, filter = filter, onFilter = { filter = it })
+            } }
+        }
+
+        rule.onNodeWithText("9 · by date").performScrollTo().assertIsDisplayed() // the person's own counts
+        rule.onNodeWithContentDescription("Filter").performClick()
+        rule.onNodeWithText("Videos").performClick()
+        assertEquals(Filter.Videos, filter)
+        rule.onNodeWithText("1 · by date").performScrollTo().assertIsDisplayed() // now only what the filter shows
+        rule.onNodeWithText("6 photos · 3 videos").assertIsDisplayed() // the totals, not the filter
+        rule.onNodeWithText("6 faces match Dana").assertIsDisplayed() // the faces stay
+        rule.onNodeWithTag("tile-2").assertExists()
     }
 
     @Test fun skip_checkAsksFirst_uncheckDoesNot() {
@@ -1141,13 +1218,13 @@ class BehaviorTest {
 
     private fun videoFace(id: Long) = FaceVec(id, id, floatArrayOf(0f, 0f, 50f, 50f), FloatArray(512), 0.9f, PhotoKind.video, null)
 
-    /** Person: the title reads "N photos · M videos · K faces" and the Photos hint counts photos and videos. */
+    /** Person: the title reads "N photos · M videos" and the Photos hint counts photos and videos. */
     @Test fun personTitle_countsVideos_andTheHintToo() {
         val p = Person((1L..6L).map { face(it) } + (11L..13L).map { videoFace(it) }, face(1), 1, "Dana")
         rule.setContent {
             MemoriaTheme { Surface { PersonDetail(p, onBack = {}, onName = {}, onOpen = { _, _ -> }, loadPhotos = { emptyList() }) } }
         }
-        rule.onNodeWithText("6 photos · 3 videos · 6 faces").assertIsDisplayed()
+        rule.onNodeWithText("6 photos · 3 videos").assertIsDisplayed()
         rule.onNodeWithText("9 · by date").performScrollTo().assertIsDisplayed()
     }
 
@@ -1156,8 +1233,16 @@ class BehaviorTest {
         rule.setContent {
             MemoriaTheme { Surface { PersonDetail(person(1, "Dana"), onBack = {}, onName = {}, onOpen = { _, _ -> }, loadPhotos = { emptyList() }) } }
         }
-        rule.onNodeWithText("8 photos · 8 faces").assertIsDisplayed()
+        rule.onNodeWithText("8 photos").assertIsDisplayed()
         rule.onNodeWithText("8 · by date").performScrollTo().assertIsDisplayed()
+    }
+
+    /** The faces count moved off the title line (the Filter icon takes its room) into the Faces hint. */
+    @Test fun personTitle_facesCount_livesInTheHint() {
+        rule.setContent {
+            MemoriaTheme { Surface { PersonDetail(person(1, "Dana"), onBack = {}, onName = {}, onOpen = { _, _ -> }, loadPhotos = { emptyList() }) } }
+        }
+        rule.onNodeWithText("8 faces match Dana").assertIsDisplayed()
     }
 
     /** Pet: the title counts photos and videos and has no faces part. */

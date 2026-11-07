@@ -294,6 +294,41 @@ fun AlbumGrid() = MemoriaTheme { Surface { AlbumContent(fakeAlbum(1, "Camera", 9
 @Composable
 fun AlbumSelect() = MemoriaTheme { Surface { AlbumContent(fakeAlbum(1, "Camera", 9), selected = setOf(1000L, 1001L, 1004L), pickedSize = 9_600_000) } }
 
+private fun videoTile(id: Long) =
+    Tile(id, android.net.Uri.parse("content://media/external/video/media/$id"), 1_700_000_000_000L, 42_000L)
+
+private fun fakeAlbumMixed(id: Long, name: String, photos: Int, videos: Int) =
+    Album(id, name, fakeAlbum(id, name, photos).tiles + List(videos) { videoTile(id * 1000 + 900 + it) })
+
+/** Album, Filter (mockup): the icon opens the All / Photos / Videos menu under it. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 760)
+@Composable
+fun AlbumFilter() = MemoriaTheme {
+    Surface {
+        Box(Modifier.fillMaxSize()) {
+            AlbumContent(fakeAlbumMixed(1, "Camera", 6, 3), filter = Filter.All)
+            Menu(true, onDismiss = {}, items = filterItems(Filter.All) {}, end = 56.dp)
+        }
+    }
+}
+
+/** Album, Videos (mockup): only the videos in the grid; the title keeps the totals, the dot says a filter is on. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 760)
+@Composable
+fun AlbumVideosFilter() = MemoriaTheme {
+    Surface { AlbumContent(fakeAlbumMixed(1, "Camera", 6, 3), filter = Filter.Videos) }
+}
+
+/** Album, Videos, none (mockup): the empty state takes the grid's place and the icon stays. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 760)
+@Composable
+fun AlbumVideosEmpty() = MemoriaTheme {
+    Surface { AlbumContent(fakeAlbum(1, "Screenshots", 6), filter = Filter.Videos) }
+}
+
 /** Album, More (mockup): Select, then Don't index with its check on. */
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 760)

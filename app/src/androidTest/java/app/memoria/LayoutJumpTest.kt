@@ -68,6 +68,7 @@ class LayoutJumpTest {
         FaceVec(id, id, floatArrayOf(0f, 0f, 50f, 50f), FloatArray(512), quality, PhotoKind.camera, null)
 
     private fun tile(id: Long) = Tile(id, Uri.parse("content://media/external/images/media/$id"), 0L, null)
+    private fun videoTile(id: Long) = Tile(id, Uri.parse("content://media/external/video/media/$id"), 0L, 42_000L)
 
     private fun videoFace(id: Long) = FaceVec(id, id, floatArrayOf(0f, 0f, 50f, 50f), FloatArray(512), 0.9f, PhotoKind.video, null)
 
@@ -788,10 +789,10 @@ class LayoutJumpTest {
             MemoriaTheme { Surface { PersonDetail(person, onBack = {}, onName = {}, onOpen = { _, _ -> }, loadPhotos = { photos }) } }
         }
         val gridBefore = rule.onNodeWithTag("personPhotos").top()
-        val titleBefore = rule.onNodeWithText("6 photos · 6 faces").top()
+        val titleBefore = rule.onNodeWithText("6 photos").top()
         rule.runOnIdle { person = Person(person.faces + (11L..13L).map { videoFace(it) }, person.main, 1, "Dana") }
         assertSame("Photos grid", gridBefore, rule.onNodeWithTag("personPhotos").top())
-        assertSame("title line", titleBefore, rule.onNodeWithText("6 photos · 3 videos · 6 faces").top())
+        assertSame("title line", titleBefore, rule.onNodeWithText("6 photos · 3 videos").top())
     }
 
     private fun albumTiles(id: Long, count: Int) = (1L..count).map { tile(id * 1000 + it) }
@@ -849,6 +850,24 @@ class LayoutJumpTest {
         assertSame("grid top", gridBefore, rule.onNodeWithTag("albumGrid").top())
         rule.runOnIdle { selected = (1001L..1009L).toSet() } // Select all hides itself
         assertSame("top bar height, all picked", barBefore, rule.onNodeWithTag("topBar").height())
+    }
+
+    /** The Filter icon sits in the top bar and its menu drops over the screen: opening it and picking must move nothing. */
+    @Test fun album_filter_menuAndPick_keepTopBarAndGridPut() {
+        var filter by mutableStateOf(Filter.All)
+        val tiles = albumTiles(1, 9) + videoTile(50)
+        rule.setContent {
+            MemoriaTheme { Surface { AlbumContent(Album(1, "Camera", tiles), filter = filter, onFilter = { filter = it }) } }
+        }
+
+        val barBefore = rule.onNodeWithTag("topBar").height()
+        val gridBefore = rule.onNodeWithTag("albumGrid").top()
+        rule.onNodeWithContentDescription("Filter").performClick()
+        assertSame("top bar height, menu open", barBefore, rule.onNodeWithTag("topBar").height())
+        assertSame("grid top, menu open", gridBefore, rule.onNodeWithTag("albumGrid").top())
+        rule.onNodeWithText("Videos").performClick()
+        assertSame("top bar height", barBefore, rule.onNodeWithTag("topBar").height())
+        assertSame("grid top", gridBefore, rule.onNodeWithTag("albumGrid").top())
     }
 
     /** Videos: the month header is pinned; loading must not move the screen's bar. */
