@@ -779,7 +779,7 @@ fun NewAlbumPickPreview() = MemoriaTheme {
     Surface {
         PhotosContent(
             items, selection = selection, pickedSize = 18_400_000,
-            forceSelecting = true, titleWhileSelecting = "Add to Holidays", scrollWhileSelecting = true,
+            forceSelecting = true, titleWhileSelecting = "Add to Holidays",
             footer = { ActionBar("Cancel", null, {}, "Move here", R.drawable.ic_move, {}, danger = false) },
         )
     }

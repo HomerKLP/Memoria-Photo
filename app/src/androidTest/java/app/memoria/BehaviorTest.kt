@@ -122,6 +122,33 @@ class BehaviorTest {
         assertEquals(setOf(1L), selection.ids)
     }
 
+    /** The timeline can still be scrolled in select mode: a plain drag is the grid's, not the selection's. */
+    @Test fun photos_selecting_plainDrag_scrollsTheGrid() {
+        val grid = LazyGridState()
+        val selection = PhotoSelection()
+        rule.setContent { MemoriaTheme { Surface { PhotosContent(longTimeline, grid = grid, selection = selection) } } }
+
+        rule.runOnIdle { selection.start(tile(1)) }
+        rule.onNodeWithTag("photosGrid").performTouchInput { swipeUp() }
+        rule.waitForIdle()
+        assertTrue("scrolled down while selecting", rule.runOnIdle { grid.firstVisibleItemIndex } > 0)
+        assertEquals(setOf(1L), selection.ids) // the drag passed tiles and picked none
+    }
+
+    /** Drag-select is a long press then a drag: the gesture that starts on a tile keeps adding the tiles it passes. */
+    @Test fun photos_selecting_longPressDrag_picksTheTilesItPasses() {
+        val selection = PhotoSelection()
+        rule.setContent { MemoriaTheme { Surface { PhotosContent(timeline, selection = selection) } } }
+
+        rule.onNodeWithTag("tile-2").performTouchInput {
+            down(center)
+            advanceEventTime(viewConfiguration.longPressTimeoutMillis + 100)
+            moveBy(Offset(0f, height.toFloat()), 100) // one tile down: the tile under the finger in the next row
+            up()
+        }
+        assertEquals(setOf(2L, 5L), selection.ids)
+    }
+
     private val longTimeline: List<TimelineItem> = listOf(
         Header("m1", "October 2026", true),
         Header("d1", "Sat, 11 Oct", false),
