@@ -170,6 +170,7 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
     var loop by remember { mutableStateOf(false) }
     var holding by remember { mutableStateOf(false) } // 2x while a finger is down
     var videoAspect by remember { mutableStateOf(0f) } // the video's own width / height: a TextureView stretches without it
+    var ready by remember { mutableStateOf(false) } // the player holds this page's video, so its frames are its own
     var pill by remember { mutableStateOf(0) } // +5 s / −5 s, on the half that was tapped
     DisposableEffect(player) {
         val listener = object : Player.Listener {
@@ -269,8 +270,11 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
         playAt = 0
         videoAspect = 0f
         videoLength = tile.duration ?: 0L
+        ready = false
     }
     // The page in view is what plays. A photo stops the player, so its sound never runs on behind it.
+    // The surface waits for this (see below): attached a frame earlier, the page showed the video the player
+    // still had — the previous clip's frame and length for one frame as you swiped (seen 2026-11-12).
     LaunchedEffect(tile.id, atRest) {
         if (!atRest) return@LaunchedEffect
         if (tile.duration == null) {
@@ -280,6 +284,7 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
             player.setMediaItem(MediaItem.fromUri(tile.uri))
             player.prepare()
             player.play()
+            ready = true
         }
     }
     // Swipe down to close: track the drag, dismiss only past a threshold
@@ -403,7 +408,7 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
                 ),
         ) {
             HorizontalPager(pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1, userScrollEnabled = !zoomed && !details, key = { list[it].id }) { i ->
-                val current = i == pager.currentPage && atRest
+                val current = i == pager.currentPage && atRest && ready
                 ViewerPage(
                     list[i], { zoomed = it }, onTap = { if (details) settle(false) else barsVisible = !barsVisible },
                     shown = if (current) ({ shown.value }) else ({ 1f }),
