@@ -63,6 +63,11 @@ svg.i { width: 24px; height: 24px; fill: currentColor; flex: none; }
 .top, .group { max-width: 1400px; margin: 0 auto 48px; }
 h1 { font: 700 28px/1.1 var(--display); margin: 0; text-wrap: balance; }
 .lede { margin: 6px 0 0; color: var(--muted); }
+/* What changed last, in the header: a design change is seen the moment the file opens */
+.latest { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 6px; margin: 12px 0 0; padding: 8px 14px; border-radius: 12px; background: var(--accent-soft); font-size: 13px; }
+.latest b { font-weight: 700; margin-right: 2px; }
+.latest a { color: var(--accent); font-weight: 500; }
+.group > .lede { margin: 0 0 20px; }
 /* The table of contents lives in the fixed .rail on the left. */
 .group > h2 { font: 700 24px/1.2 var(--display); margin: 0 0 16px; }
 .group > h3 { font: 700 18px/1.2 var(--display); margin: 40px 0 16px; }
@@ -247,6 +252,30 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .line b { font-weight: 500; overflow-wrap: anywhere; }
 .line span { color: var(--muted); font-size: 13px; }
 
+/* Viewer, video: the player line is the whole control set — play / pause, one seek bar, the time.
+   The photo viewer's actions row stays under it, so the two bars look like one */
+.phone.viewer.video > .actions { margin-top: 0; }
+.pbar { display: flex; align-items: center; gap: 4px; margin-top: auto; padding: 0 8px; }
+.ptime { flex: none; padding: 0 8px 0 4px; font-weight: 500; font-size: 12px; font-variant-numeric: tabular-nums; }
+.ptime i { font-style: normal; opacity: .65; }
+.pscrub { flex: 1; display: flex; align-items: center; height: 24px; }
+.pscrub .track { position: relative; background: rgba(244, 236, 225, .3); }
+.pscrub .track > div { background: var(--on-viewer); }
+.pscrub .knob { position: absolute; top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; background: var(--on-viewer); box-shadow: 0 1px 4px rgba(0, 0, 0, .45); }
+/* Gesture feedback: one small pill, on the half that was tapped, over the video */
+.phone.viewer > .pbadge { position: absolute; top: 50%; left: 50%; z-index: 3; transform: translate(-50%, -50%); padding: 10px 16px; border-radius: 999px; background: rgba(18, 14, 10, .6); font: 700 18px/1 var(--display); white-space: nowrap; }
+.phone.viewer > .pbadge.right { left: 74%; }
+.phone.viewer > .pbadge.left { left: 26%; }
+.phone.viewer > .pbadge.speed { top: 66px; }
+/* The failed video: the frame stays behind a scrim, so the card reads on any photo */
+.phone.viewer > .viewer-dim { position: absolute; inset: 0; z-index: 1; background: rgba(18, 14, 10, .55); }
+/* Playing with the bars hidden: only the progress line stays, at the bottom edge */
+.phone.viewer > .pprogress { position: absolute; left: 0; bottom: 0; z-index: 3; height: 2px; width: 44%; border-radius: 0 2px 2px 0; background: var(--accent); }
+/* A video the player cannot open keeps the phone's own player as the way out */
+.viewer .empty { margin: auto 0; color: rgba(244, 236, 225, .68); }
+.viewer .empty b { color: var(--on-viewer); }
+.viewer .empty svg.i { color: rgba(244, 236, 225, .3); }
+
 /* Help recognize */
 .subbar { display: flex; align-items: center; gap: 4px; min-height: 60px; padding: 4px 8px 4px 4px; }
 .subbar .title { flex: 1; min-width: 0; display: grid; }
@@ -383,6 +412,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .mi:hover { background: var(--surface); }
 .mi svg.i { color: var(--muted); }
 .mi svg.i.tick { margin-left: auto; color: var(--accent); }
+.mi.off { opacity: .38; }
 .menu hr { width: 100%; margin: 8px 0; border: 0; border-top: 1px solid var(--line); }
 /* Shared parts: check these before building a screen. One place to fix, same look everywhere. */
 .parts { max-width: 816px; margin: 64px auto 0; display: grid; gap: 24px; }
@@ -437,6 +467,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
   <symbol id="i-photo" viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></symbol>
   <symbol id="i-library" viewBox="0 0 24 24"><path d="M22 16V4c0-1.1-.9-2-2-2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2zm-11-4 2.03 2.71L16 11l4 5H8l3-4zM2 6v14c0 1.1.9 2 2 2h14v-2H4V6H2z"/></symbol>
   <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></symbol>
   <symbol id="i-chevron" viewBox="0 0 24 24"><path d="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></symbol>
   <symbol id="i-person" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></symbol>
   <symbol id="i-paw" viewBox="0 0 24 24"><circle cx="4.5" cy="9.5" r="2.5"/><circle cx="9" cy="5.5" r="2.5"/><circle cx="15" cy="5.5" r="2.5"/><circle cx="19.5" cy="9.5" r="2.5"/><path d="M17.34 14.86c-.87-1.02-1.6-1.89-2.48-2.91-.46-.54-1.05-1.08-1.75-1.32-.11-.04-.22-.07-.33-.09-.25-.04-.52-.04-.78-.04s-.53 0-.79.05c-.11.02-.22.05-.33.09-.7.24-1.28.78-1.75 1.32-.87 1.02-1.6 1.89-2.48 2.91-1.31 1.31-2.92 2.76-2.62 4.79.29 1.02 1.02 2.03 2.33 2.32.73.15 3.06-.44 5.54-.44h.18c2.48 0 4.81.58 5.54.44 1.31-.29 2.04-1.31 2.33-2.32.31-2.04-1.3-3.49-2.61-4.8z"/></symbol>
@@ -479,6 +510,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 <header class="top">
   <h1>Memoria Photo</h1>
   <p class="lede">Light theme, Honey palette. Photos and faces are placeholders, names and places are made up.</p>
+  <p class="latest"><b>Latest, 12 Nov:</b> <a href="#page-player">Player</a> — video plays in the viewer, one control line, double tap ±5 s, hold 2x, a five-item More. Six new figures. Nothing built yet.</p>
 </header>
 
 <aside class="rail" aria-label="Contents">
@@ -486,6 +518,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
   <a href="#page-photos">Photos</a>
   <a href="#page-search">Search</a>
   <a href="#page-viewer">Viewer</a>
+  <a href="#page-player">Player</a>
   <a href="#page-library">Library</a>
   <div class="sub">
     <a href="#favorites">Favorites</a>
@@ -746,6 +779,92 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <div class="gesture"><div class="handle"></div></div>
       </div>
       <figcaption>Viewer, swiped up, scrolled to the end: the Debug section sits last, after Details, in debug builds only (a release build has no such section). Always the same five rows: file (type, EXIF orientation, MediaStore id), faces (count, quality, the people they are in), tags (vector and top three tags), objects (boxes and scores), index (the photo's kind and the objects model version). A photo that is not indexed yet, and any video, shows "Not indexed" and "–" in the last four rows. While it loads every row reads "…", so nothing moves when it fills in. Read from the phone's own database, never sent anywhere. The chip per model and the time per photo are not stored, so they are not here (they stay in the log file)</figcaption>
+    </figure>
+  </div>
+</section>
+<section class="group" id="page-player">
+  <h2>Player</h2>
+  <p class="lede">Video plays in the viewer, where the photo is, never in another app. One control line, swipe for the next photo or video, double tap ±5 s, hold for 2x. Nothing here is built yet.</p>
+  <div class="phones">
+    <figure id="player">
+      <div class="phone dark viewer video">
+        <div class="viewer-full" data-shot></div>
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="vbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="when">Sat, 11 Oct<span>14:32</span></div>
+          <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
+        </div>
+        <div class="pbar">
+          <button class="icon-btn" aria-label="Pause"><svg class="i"><use href="#i-pause"/></svg></button>
+          <div class="pscrub"><div class="track"><div style="width:44%"></div><b class="knob" style="left:44%"></b></div></div>
+          <span class="ptime">1:24 <i>/ 3:10</i></span>
+        </div>
+        <div class="actions">
+          <button class="icon-btn" aria-label="Share"><svg class="i"><use href="#i-share"/></svg></button>
+          <button class="icon-btn" aria-label="Favorite"><svg class="i"><use href="#i-heart-line"/></svg></button>
+          <button class="icon-btn" aria-label="Info"><svg class="i"><use href="#i-info"/></svg></button>
+          <button class="icon-btn" aria-label="Delete"><svg class="i"><use href="#i-trash-line"/></svg></button>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Video, playing: the video plays in the viewer, where the photo is — no other app, no second screen, so Back, swipe, More and the details stay the same. It runs on the phone's own hardware decoder through Media3, the one the system player uses, on the player's own surface (no frame copied into the UI per frame), so it starts fast, stays cool, and plays the popular codecs: H.264, HEVC, VP9, AV1, 10-bit and HDR, in MP4, MKV, WebM, 3GP and MOV. The player line is the whole control set: play / pause, one seek bar, time played and length. Drag the bar to seek, nowhere else. The controls fade out 2 s after the last touch while it plays and stay while it is paused; a tap brings them back. The photo viewer's actions row stays under them. Volume is the phone's own buttons. A video starts from the beginning each time: no resume point</figcaption>
+    </figure>
+    <figure id="player-clean">
+      <div class="phone dark viewer">
+        <div class="viewer-full" data-shot></div>
+        <span class="pprogress"></span>
+      </div>
+      <figcaption>Video, playing, tapped: the player line, the actions row, the top bar and the system bars all hide, so the video runs edge to edge, with only a 2 px progress line at the bottom edge. A tap brings the controls back; a sideways swipe still changes photo or video and a swipe up still opens the details</figcaption>
+    </figure>
+    <figure id="player-tap">
+      <div class="phone dark viewer">
+        <div class="viewer-full" data-shot></div>
+        <span class="pbadge right">+5 s</span>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Video, double tap: +5 s on the right half, −5 s on the left half, with the pill on that side for about half a second. Seeking by dragging the frame is left out on purpose: a sideways swipe is the next photo, never a seek</figcaption>
+    </figure>
+    <figure id="player-hold">
+      <div class="phone dark viewer">
+        <div class="viewer-full" data-shot></div>
+        <span class="pbadge speed">2x</span>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Video, held: holding the frame plays at 2x while the finger stays down, with a 2x pill at the top; letting go goes back to normal speed and the sound keeps its pitch. A long press on the video never starts anything else, so the two gestures do not fight</figcaption>
+    </figure>
+    <figure id="player-error">
+      <div class="phone dark viewer">
+        <div class="viewer-full" data-shot></div>
+        <div class="viewer-dim"></div>
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="vbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="when">Sat, 11 Oct<span>14:32</span></div>
+          <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
+        </div>
+        <div class="empty">
+          <svg class="i"><use href="#i-video"/></svg>
+          <b>This video can't play here</b>
+          <p>1:24 · MP4 · 48 MB<br>The phone's own player may still open it</p>
+          <button class="pill-btn">Open in the phone's player</button>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Video, cannot play: the one fallback, which is what the app does today. Media3 uses the same hardware decoders as the system player, so this should be rare: a container or codec the phone itself has no decoder for. The card names the file and the button hands it to the phone's player. The top bar and More still work, so Share, Move to album, Favorite and Delete do too</figcaption>
+    </figure>
+    <figure id="player-more">
+      <div class="phone dark viewer video" id="player-more-phone">
+        <div class="menu" role="menu">
+          <button class="mi" role="menuitem"><svg class="i"><use href="#i-refresh"/></svg>Loop</button>
+          <button class="mi" role="menuitem"><svg class="i"><use href="#i-play"/></svg>Open in the phone's player</button>
+          <button class="mi" role="menuitem"><svg class="i"><use href="#i-folder"/></svg>Show in album</button>
+          <hr>
+          <button class="mi" role="menuitem"><svg class="i"><use href="#i-move"/></svg>Move to album</button>
+          <button class="mi off" role="menuitem" aria-disabled="true"><svg class="i"><use href="#i-video"/></svg>Compress video</button>
+        </div>
+      </div>
+      <figcaption>Video, More: the photo menu minus Edit in… and Use as…, which need a still photo, plus the video's own. Loop plays it again and again until it is turned off. Open in the phone's player is the manual form of the fallback. Compress video is Phase 5 and stays off until then, like the other unbuilt rows. Five items, no more: a speed picker, subtitles, audio tracks and picture-in-picture were left out to keep the player small. Tap outside or Back closes it</figcaption>
     </figure>
   </div>
 </section>
@@ -2247,6 +2366,7 @@ fill("pet-photos", keepSeed(() => [["October 2026", 4, [], [0]], ["September 202
 document.getElementById("pet-more-phone").prepend(...[...document.querySelector("#pet .phone").children].map(n => n.cloneNode(true)));
 document.getElementById("hide-pet-phone").prepend(...[...document.querySelector("#pet .phone").children].map(n => n.cloneNode(true)));
 document.getElementById("viewer-more-phone").prepend(...[...document.querySelector("#viewer .phone").children].map(n => n.cloneNode(true)));
+document.getElementById("player-more-phone").prepend(...[...document.querySelector("#player .phone").children].map(n => n.cloneNode(true)));
 // The slider stays out of these two: the list is at the top, where it is hidden.
 const albumBehind = () => [...document.querySelector("#album .phone").children].filter(n => !n.classList.contains("slider")).map(n => n.cloneNode(true));
 document.getElementById("ignore-phone").prepend(...albumBehind());
