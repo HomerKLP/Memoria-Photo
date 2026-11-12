@@ -140,6 +140,11 @@ Native heap after 8 flings 52 MB (87 MB on 2026-11-04, not explained), no blank 
 
 # Fixed
 
+- 2026-11-12 Player: the video stayed full screen over the grid while the viewer opened or closed, and over the details panel. A `TextureView` is a real view and ignores the page's motion; the poster does the motion now, and the texture is attached only once the page is in place.
+- 2026-11-12 Player: the lift that ends a 2x hold also counted as a tap, so the bars slid open after every hold.
+- 2026-11-12 Player: the page was sized by the tile's MediaStore ratio (0 for some files) until the player reported, so the box jumped as the video started. The poster's own shape is the fallback now.
+- 2026-11-12 Player: the screen could sleep under a playing video. `keepScreenOn` while it plays.
+- 2026-11-12 Viewer: the bars took their padding from the visible system bars, so hiding them on a tap moved the icons by the status bar height while they faded, and so did the grid under them. The height now comes from the bars even while hidden (`*IgnoringVisibility`).
 - 2026-10-15 Viewer: screen-sized photos did not fill the screen. The photo fills it, bars float on top.
 - 2026-10-15 Viewer: zoomed photo drawn over the next one. Pager pages don't clip: `clipToBounds`, pan clamped to the fitted photo.
 - 2026-10-15 Viewer: panning while zoomed crawled. `pointerInput` must come before `graphicsLayer`, or deltas arrive divided by the zoom.

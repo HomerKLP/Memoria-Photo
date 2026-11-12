@@ -35,6 +35,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,8 +47,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.WindowInsets as Insets
+import androidx.compose.foundation.layout.navigationBarsIgnoringVisibility
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -101,6 +104,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.setProgress
@@ -158,6 +162,7 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
             true,
         ).build()
     }
+    val surface = remember { VideoSurface() } // which page's view the player draws to
     var playing by remember { mutableStateOf(false) }
     var videoFailed by remember { mutableStateOf(false) }
     var playAt by remember { mutableLongStateOf(0L) } // where the video is, for the bar and the line
@@ -179,6 +184,10 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
     }
     LaunchedEffect(loop) { player.repeatMode = if (loop) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF }
     LaunchedEffect(holding) { player.setPlaybackSpeed(if (holding) 2f else 1f) }
+    // A playing video keeps the screen awake, like the phone's own player; otherwise the display sleeps mid-clip
+    val rootView = LocalView.current
+    LaunchedEffect(playing) { rootView.keepScreenOn = playing }
+    DisposableEffect(Unit) { onDispose { rootView.keepScreenOn = false } }
     // Leaving the app with a video playing must not leave its sound running behind the home screen
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -395,8 +404,9 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
                     details = if (current) ({ if (openUp() > 0f) (up.value / openUp()).coerceIn(0f, 1f) else 0f }) else ({ 0f }),
                     fly = fly,
                     player = player,
+                    surface = surface,
                     current = current,
-                    aspect = if (videoAspect > 0f) videoAspect else tile.ratio,
+                    aspect = videoAspect,
                     pill = if (current) pill else 0,
                     holding = current && holding,
                     onSkip = { skip(it) },
@@ -498,6 +508,7 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
  * hide the photo. [visible] false is the tapped state: the bars fade out and only the photo is left.
  * Purely visual, so the layout tests and previews can render it without MediaStore.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ViewerChrome(
     visible: Boolean,
@@ -526,7 +537,9 @@ fun ViewerChrome(
                 .graphicsLayer { alpha = top.value }
                 .fillMaxWidth()
                 .background(Brush.verticalGradient(listOf(viewerBg.copy(alpha = 0.62f), Color.Transparent)))
-                .statusBarsPadding().padding(bottom = 16.dp),
+                // The system bar height even while it is hidden: a tap hides the bars, and a bar that loses
+                // its padding first jumps 40 dp up under the fading icons
+                .windowInsetsPadding(Insets.statusBarsIgnoringVisibility).padding(bottom = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onBack) { Icon(painterResource(R.drawable.ic_back), "Back", tint = onViewer) }
@@ -545,7 +558,7 @@ fun ViewerChrome(
                 .graphicsLayer { alpha = low.value }
                 .fillMaxWidth()
                 .background(Brush.verticalGradient(listOf(Color.Transparent, viewerBg.copy(alpha = 0.62f))))
-                .navigationBarsPadding().padding(top = 16.dp, bottom = 6.dp),
+                .windowInsetsPadding(Insets.navigationBarsIgnoringVisibility).padding(top = 16.dp, bottom = 6.dp),
         ) {
             playerBar?.invoke()
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
@@ -665,6 +678,18 @@ private fun SeekBar(at: Float, onScrub: (Float) -> Unit, onSeek: (Float) -> Unit
     )
 }
 
+/**
+ * The one page whose view the player draws to. A page that stops being current clears the surface on its
+ * way out; without knowing the owner that clear can land after the next page attached its own view, and
+ * the video plays with sound and no picture.
+ */
+class VideoSurface {
+    var owner: Long? = null // the tile id of the page the player draws for
+}
+
+/** May [id]'s page clear the player's surface? Yes when it owns it, or when this is a plain page (a test). */
+internal fun ownsTexture(surface: VideoSurface?, id: Long) = surface == null || surface.owner == id
+
 /** A file the decoder refuses (mockup "Video, cannot play"): a scrim over the frame, and the phone's player as the way out. */
 @Composable
 fun PlayerFailed(tile: Tile, onOpen: () -> Unit) {
@@ -692,6 +717,13 @@ internal fun fitSize(imageWidth: Int, imageHeight: Int, boxWidth: Int, boxHeight
     return Size(imageWidth * s, imageHeight * s)
 }
 
+/** The biggest box of [aspect] (width / height) that fits [box], centered: where a video sits on screen. Same size as [VideoBox] lays out. */
+internal fun fitOf(aspect: Float, box: IntSize): Size {
+    if (aspect <= 0f || box.width <= 0 || box.height <= 0) return Size(0f, 0f)
+    val h = minOf(box.height.toFloat(), box.width / aspect)
+    return Size(h * aspect, h)
+}
+
 private fun fitSize(bitmap: Bitmap?, box: IntSize): Size =
     if (bitmap == null) Size(0f, 0f) else fitSize(bitmap.width, bitmap.height, box.width, box.height)
 
@@ -712,6 +744,14 @@ internal fun viewerPhoto(context: Context, tile: Tile): Bitmap =
         val screen = context.resources.displayMetrics.let { minOf(it.widthPixels, it.heightPixels) }
         decoder.setTargetSampleSize(viewerSample(info.size.width, info.size.height, screen))
     }.turnedBy(dngTurn(context.contentResolver, tile.uri))
+
+/** A sharp frame of the video for the viewer: the poster the player starts over, and the still the open and close motion moves. */
+internal fun videoPoster(context: Context, tile: Tile): Bitmap? = runCatching {
+    MediaMetadataRetriever().use {
+        it.setDataSource(context, tile.uri)
+        it.getScaledFrameAtTime(-1, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 1440, 1440)
+    }
+}.getOrNull()
 
 /**
  * Pan that keeps the [focus] point (double tap, or the pinch's finger center) in place while zooming
@@ -760,8 +800,9 @@ fun ViewerPage(
     details: () -> Float = { 0f },
     fly: Boolean = false,
     player: ExoPlayer? = null,
+    surface: VideoSurface? = null, // the page that owns the player's view, so a leaving page cannot clear it
     current: Boolean = false,
-    aspect: Float = 0f, // the video's width / height, so it fits the screen instead of stretching
+    aspect: Float = 0f, // the video's width / height as the player reports it, 0 until it knows
     pill: Int = 0, // +5 s / −5 s, shown on the half that was tapped
     holding: Boolean = false, // 2x while a finger is down
     onSkip: (Int) -> Unit = {},
@@ -774,13 +815,8 @@ fun ViewerPage(
     val thumb = remember(tile.id) { thumbs.get(tile.id) }
     val image by produceState(thumb, tile.id) {
         val full = withContext(viewerLoads) {
-            runCatching {
-                // MediaStore keeps only a small video thumbnail, so take a sharp frame from the file
-                if (tile.duration != null) MediaMetadataRetriever().use {
-                    it.setDataSource(context, tile.uri)
-                    it.getScaledFrameAtTime(-1, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 1440, 1440)
-                } else viewerPhoto(context, tile)
-            }.getOrNull()
+            // MediaStore keeps only a small video thumbnail, so take a sharp frame from the file
+            if (tile.duration != null) videoPoster(context, tile) else runCatching { viewerPhoto(context, tile) }.getOrNull()
         }
         if (full != null) value = full
     }
@@ -792,8 +828,20 @@ fun ViewerPage(
     val scope = rememberCoroutineScope()
     var zoomJob by remember { mutableStateOf<Job?>(null) }
     val box = remember { mutableStateOf(IntSize.Zero) }
+    // The page's shape: a video's own width / height, from the player once it knows it, else the poster's
+    // own shape (MediaStore has no ratio for some files), so the box never changes size once it shows.
+    val posterAspect = image?.let { it.width.toFloat() / it.height }
+    val boxAspect = when {
+        !isVideo -> 0f
+        aspect > 0f -> aspect
+        posterAspect != null -> posterAspect
+        else -> 16f / 9f
+    }
+    fun pageFit(box: IntSize) = if (isVideo) fitOf(boxAspect, box) else fitSize(image, box)
     val fit = remember { mutableStateOf(Size.Zero) }
-    LaunchedEffect(image, box.value) { fit.value = fitSize(image, box.value) }
+    LaunchedEffect(image, box.value, boxAspect) { fit.value = pageFit(box.value) }
+    // In place, nothing moving: only then may the video texture show (see the content below)
+    val settled by remember { derivedStateOf { shown() == 1f && dragY() == 0f && details() == 0f } }
     // snapshotFlow, not LaunchedEffect(zoom): reporting must not recompose the viewer on every pinch event
     LaunchedEffect(Unit) { snapshotFlow { zoom.floatValue > 1f }.distinctUntilChanged().collect(onZoomed) }
     // The details square shows the photo at 1x: opening them drops a zoom, and pinching waits until they close
@@ -849,12 +897,12 @@ fun ViewerPage(
         Modifier.fillMaxSize()
             .onPlaced { page = it }
             .drawWithContent {
-                val fit = fitSize(image, IntSize(size.width.toInt(), size.height.toInt()))
+                val fit = pageFit(IntSize(size.width.toInt(), size.height.toInt()))
                 val clip = if (fit.width == 0f) null else motion(fit, size).second
                 if (clip == null) drawContent() else clipRect(clip.left, clip.top, clip.right, clip.bottom) { this@drawWithContent.drawContent() }
             }
             .graphicsLayer {
-                val fit = fitSize(image, IntSize(size.width.toInt(), size.height.toInt()))
+                val fit = pageFit(IntSize(size.width.toInt(), size.height.toInt()))
                 if (fit.width == 0f) { alpha = shown(); return@graphicsLayer }
                 val (rect, clip) = motion(fit, size)
                 // a clip means the photo flies from its tile, unless the details made it (then it fades on close)
@@ -907,7 +955,9 @@ fun ViewerPage(
                         val releasedInTime = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) { waitForUpOrCancellation() }
                         if (releasedInTime == null) {
                             onHold(true)
-                            waitForUpOrCancellation()
+                            // Consume the release: the tap detector above waits for it and would fire a single
+                            // tap on the lift, so the bars slid open every time a 2x hold ended
+                            waitForUpOrCancellation()?.consume()
                             onHold(false)
                         }
                     }
@@ -921,18 +971,31 @@ fun ViewerPage(
                 },
         ) {
             // the sharp decode fades in over the thumbnail, which stays opaque so the grid never shows through mid-zoom
-            thumb?.let { Image(it.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit) }
-            if (image !== thumb) image?.let {
-                Image(it.asImageBitmap(), null, Modifier.fillMaxSize().graphicsLayer { alpha = sharp.value }, contentScale = ContentScale.Fit)
+            val poster = @Composable {
+                thumb?.let { Image(it.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit) }
+                if (image !== thumb) image?.let {
+                    Image(it.asImageBitmap(), null, Modifier.fillMaxSize().graphicsLayer { alpha = sharp.value }, contentScale = ContentScale.Fit)
+                }
             }
-            // The current video plays on the phone's decoder, over the poster frame. A neighbour page keeps
-            // the poster: one texture at a time, so the player never shows two videos at once.
-            if (isVideo && current && player != null) VideoBox(aspect) {
-                AndroidView(
+            if (!isVideo) poster() else VideoBox(boxAspect) {
+                poster()
+                // The current video plays on the phone's decoder over the poster frame; a neighbour page keeps
+                // the poster, so one texture is attached at a time. Only once the page settled: a TextureView is
+                // a real view and ignores the page's motion, so it stayed full screen over the grid while the
+                // rest opened or shrank back into its tile (seen on the phone 2026-11-12). The poster moves.
+                if (current && player != null && settled) AndroidView(
                     factory = { TextureView(it) },
-                    modifier = Modifier.fillMaxSize(),
-                    onRelease = { runCatching { player.clearVideoSurface() } },
-                ) { view -> player.setVideoTextureView(view) }
+                    modifier = Modifier.fillMaxSize().testTag("videoTexture"),
+                    // The page that stops being current is released too, and its clear could land after the
+                    // next page attached its own view: the video then played with sound and no picture as you
+                    // swiped (on the phone 2026-11-12). Only the owning page may clear the surface.
+                    onRelease = {
+                        if (ownsTexture(surface, tile.id)) {
+                            runCatching { player.clearVideoSurface() }
+                            surface?.owner = null
+                        }
+                    },
+                ) { view -> surface?.owner = tile.id; player.setVideoTextureView(view) }
             }
         }
         if (pill != 0) GesturePill(

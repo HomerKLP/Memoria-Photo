@@ -10,11 +10,14 @@ import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBarsIgnoringVisibility
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -230,10 +233,13 @@ fun ActionBar(
  * The floating pill under [Tabs] and [SelectBar] (mockup "Tabs"): no bar behind it, so photos show on
  * both sides. It keeps clear of the gesture bar itself; the list under it ends with room to clear it.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun FloatingBar(modifier: Modifier, content: @Composable RowScope.() -> Unit) {
     Row(
-        modifier.navigationBarsPadding().padding(bottom = 8.dp)
+        // The bar height even while the system bars are hidden: the viewer hides them on a tap, and the pill
+        // must not slide down for it (it shows in the grid behind a closing viewer)
+        modifier.windowInsetsPadding(WindowInsets.navigationBarsIgnoringVisibility).padding(bottom = 8.dp)
             .shadow(6.dp, CircleShape, spotColor = Color(0x73462D14))
             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.94f), CircleShape)
             // a tap between the buttons must not reach the photo under the pill

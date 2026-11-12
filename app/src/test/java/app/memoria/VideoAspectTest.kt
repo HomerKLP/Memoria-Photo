@@ -1,5 +1,6 @@
 package app.memoria
 
+import androidx.compose.ui.unit.IntSize
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -23,5 +24,22 @@ class VideoAspectTest {
         assertEquals(0f, videoAspectOf(0, 0), 0f)
         assertEquals(0f, videoAspectOf(320, 0), 0f)
         assertEquals(0f, videoAspectOf(-1, 180), 0f)
+    }
+
+    /** The box the playing video sits in, and the poster's own fit, are the same rect: the page never resizes when the player reports. */
+    @Test
+    fun fitOf_isTheBoxTheVideoIsDrawnIn() {
+        val tall = fitOf(9f / 16f, IntSize(360, 480))
+        assertEquals(270f, tall.width, 0.01f)
+        assertEquals(480f, tall.height, 0.01f)
+        val wide = fitOf(16f / 9f, IntSize(360, 480))
+        assertEquals(360f, wide.width, 0.01f)
+        assertEquals(202.5f, wide.height, 0.01f)
+    }
+
+    @Test
+    fun fitOf_nothingKnown_isZero() {
+        assertEquals(0f, fitOf(0f, IntSize(360, 480)).width, 0f)
+        assertEquals(0f, fitOf(16f / 9f, IntSize.Zero).width, 0f)
     }
 }

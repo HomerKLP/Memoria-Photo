@@ -519,6 +519,19 @@ class BehaviorTest {
         assertEquals(listOf(true, false), held)
     }
 
+    /** The lift that ends a 2x hold must not also count as a tap: the bars slid open after every hold. */
+    @Test fun videoPage_hold_doesNotToggleTheBars() {
+        var taps = 0
+        rule.setContent {
+            MemoriaTheme { Surface { Box(Modifier.fillMaxSize().testTag("page")) {
+                ViewerPage(videoTile(1), onZoomed = {}, onTap = { taps++ }, player = null, current = true)
+            } } }
+        }
+        rule.onNodeWithTag("page").performTouchInput { down(center); advanceEventTime(800); up() }
+        rule.mainClock.advanceTimeBy(1_000) // the tap detector waits out its double-tap window first
+        assertEquals(0, taps)
+    }
+
     // --- Album ---------------------------------------------------------------------------------
 
     private val album = Album(1, "Camera", (1L..6L).map { tile(it) })

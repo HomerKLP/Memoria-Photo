@@ -5,12 +5,15 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBarsIgnoringVisibility
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -162,6 +165,7 @@ fun LibraryScreen(
 }
 
 /** Library tab: people, review, albums, places, categories, shortcuts. Layout per docs/design.html; the index run shows in Settings. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun LibraryContent(
     data: LibraryData?,
@@ -183,7 +187,7 @@ fun LibraryContent(
 ) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         // the list scrolls under the status bar, like Photos
-        Spacer(Modifier.statusBarsPadding())
+        Spacer(Modifier.windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility))
         Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("Library", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
             IconButton(onOpenSettings) { Icon(painterResource(R.drawable.ic_settings), "Settings") }
@@ -204,7 +208,7 @@ fun LibraryContent(
 
         Shortcuts(onOpenFavorites, onOpenVideos, onOpenTrash, data?.favorites ?: 0, data?.videos ?: 0, data?.trash ?: 0)
         // room for the floating tabs, so the last row can scroll above them
-        Spacer(Modifier.navigationBarsPadding().height(72.dp))
+        Spacer(Modifier.windowInsetsPadding(WindowInsets.navigationBarsIgnoringVisibility).height(72.dp))
     }
 }
 

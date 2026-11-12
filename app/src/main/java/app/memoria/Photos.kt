@@ -37,6 +37,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -53,6 +54,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
+import androidx.compose.foundation.layout.navigationBarsIgnoringVisibility
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridState
@@ -618,6 +621,7 @@ fun FavoritesContent(
 }
 
 /** Photos layout per docs/design.html: the timeline, the months slider and the select mode. No MediaStore, so previews and tests render it. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun PhotosContent(
     items: List<TimelineItem>?,
@@ -684,9 +688,10 @@ fun PhotosContent(
     val barH = maxOf(48.dp, 36.dp + with(density) { MaterialTheme.typography.titleLarge.lineHeight.toDp() })
     // The grid runs under the status bar and, on the tab, to the bottom edge behind the floating tabs
     // (mockup "Photos, scrolled"). The picker's grid starts under its title bar and ends at its footer.
-    val status = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    // Ignoring visibility: the viewer hides the system bars on a tap, and the grid must not move for it
+    val status = WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding()
     val gridTop = status + if (picker) barH else 0.dp
-    val navBottom = if (picker) 0.dp else WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val navBottom = if (picker) 0.dp else WindowInsets.navigationBarsIgnoringVisibility.asPaddingValues().calculateBottomPadding()
     // The wordmark is the grid's first item, so it scrolls away with the list and comes back only at the
     // very top. When a scroll stops halfway it settles to the nearest end.
     val barPx = with(density) { barH.toPx() }
