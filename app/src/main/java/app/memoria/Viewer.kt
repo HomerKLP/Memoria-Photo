@@ -258,14 +258,21 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
     val pager = rememberPagerState(tiles.indexOfFirst { it.id == start }.coerceAtLeast(0)) { list.size }
     // coerce: after trashing the last photo the pager is one frame behind the shorter list
     val tile = list[pager.currentPage.coerceAtMost(list.lastIndex)]
+    // A video is only mounted and started once the pages stand still: a TextureView ignores the pager's motion,
+    // so starting it mid-swipe showed the old frame in the wrong place for a frame (seen on the phone 2026-11-12).
+    val atRest = !pager.isScrollInProgress
     LaunchedEffect(tile.id) { viewerTile = tile.id }
-    // The page in view is what plays. A photo stops the player, so its sound never runs on behind it.
+    // The new page's shape and clock reset at once; its poster is sized right while the pages slide.
     LaunchedEffect(tile.id) {
         videoFailed = false
         pill = 0
         playAt = 0
         videoAspect = 0f
         videoLength = tile.duration ?: 0L
+    }
+    // The page in view is what plays. A photo stops the player, so its sound never runs on behind it.
+    LaunchedEffect(tile.id, atRest) {
+        if (!atRest) return@LaunchedEffect
         if (tile.duration == null) {
             player.pause()
             player.clearMediaItems()
@@ -396,7 +403,7 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
                 ),
         ) {
             HorizontalPager(pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1, userScrollEnabled = !zoomed && !details, key = { list[it].id }) { i ->
-                val current = i == pager.currentPage
+                val current = i == pager.currentPage && atRest
                 ViewerPage(
                     list[i], { zoomed = it }, onTap = { if (details) settle(false) else barsVisible = !barsVisible },
                     shown = if (current) ({ shown.value }) else ({ 1f }),
