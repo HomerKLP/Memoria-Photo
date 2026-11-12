@@ -40,6 +40,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentHeight
@@ -119,6 +120,7 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.VideoSize
 import androidx.media3.exoplayer.ExoPlayer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -162,11 +164,15 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
     var videoLength by remember { mutableLongStateOf(0L) }
     var loop by remember { mutableStateOf(false) }
     var holding by remember { mutableStateOf(false) } // 2x while a finger is down
+    var videoAspect by remember { mutableStateOf(0f) } // the video's own width / height: a TextureView stretches without it
     var pill by remember { mutableStateOf(0) } // +5 s / −5 s, on the half that was tapped
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) { playing = isPlaying }
             override fun onPlayerError(error: PlaybackException) { videoFailed = true }
+            override fun onVideoSizeChanged(size: VideoSize) {
+                videoAspect = videoAspectOf(size.width, size.height, size.pixelWidthHeightRatio)
+            }
         }
         player.addListener(listener)
         onDispose { player.removeListener(listener); player.release() }
@@ -249,6 +255,7 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
         videoFailed = false
         pill = 0
         playAt = 0
+        videoAspect = 0f
         videoLength = tile.duration ?: 0L
         if (tile.duration == null) {
             player.pause()
@@ -389,6 +396,7 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
                     fly = fly,
                     player = player,
                     current = current,
+                    aspect = if (videoAspect > 0f) videoAspect else tile.ratio,
                     pill = if (current) pill else 0,
                     holding = current && holding,
                     onSkip = { skip(it) },
@@ -753,6 +761,7 @@ fun ViewerPage(
     fly: Boolean = false,
     player: ExoPlayer? = null,
     current: Boolean = false,
+    aspect: Float = 0f, // the video's width / height, so it fits the screen instead of stretching
     pill: Int = 0, // +5 s / −5 s, shown on the half that was tapped
     holding: Boolean = false, // 2x while a finger is down
     onSkip: (Int) -> Unit = {},
@@ -918,7 +927,7 @@ fun ViewerPage(
             }
             // The current video plays on the phone's decoder, over the poster frame. A neighbour page keeps
             // the poster: one texture at a time, so the player never shows two videos at once.
-            if (isVideo && current && player != null) {
+            if (isVideo && current && player != null) VideoBox(aspect) {
                 AndroidView(
                     factory = { TextureView(it) },
                     modifier = Modifier.fillMaxSize(),
@@ -933,6 +942,21 @@ fun ViewerPage(
         if (holding) GesturePill("2x", Modifier.align(Alignment.TopCenter).padding(top = 40.dp))
     }
 }
+
+/**
+ * The video at its own shape in the middle of the screen, black around it: a TextureView stretches its
+ * frames to its bounds, so the box takes the video's width / height and never distorts it.
+ */
+@Composable
+fun VideoBox(aspect: Float, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Box(Modifier.aspectRatio(if (aspect > 0f) aspect else 16f / 9f)) { content() }
+    }
+}
+
+/** A video's width / height as the player shows it, its pixel ratio applied. 0: nothing known yet. */
+internal fun videoAspectOf(width: Int, height: Int, pixelRatio: Float = 1f): Float =
+    if (width <= 0 || height <= 0) 0f else width * pixelRatio / height
 
 /** The short feedback of a video gesture: +5 s / −5 s on the tapped half, 2x at the top while held (mockup "Player"). */
 @Composable

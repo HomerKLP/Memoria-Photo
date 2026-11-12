@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.gestures.scrollBy
 import kotlinx.coroutines.runBlocking
@@ -1187,5 +1188,35 @@ class LayoutJumpTest {
         rule.runOnIdle { video = true }
         assertSame("Share after the player line", top, rule.onNodeWithContentDescription("Share").top())
         assertSame("Share width", width, rule.onNodeWithContentDescription("Share").width())
+    }
+
+    /** A video keeps its own shape on screen: letterboxed, never stretched (the 2026-11-12 bug). */
+    @Test fun viewer_video_keepsItsShape() {
+        var aspect by mutableStateOf(9f / 16f)
+        rule.setContent {
+            // a box of no video's shape, so letterboxing shows in both
+            MemoriaTheme { Surface { Box(Modifier.size(360.dp, 480.dp).testTag("screen")) {
+                VideoBox(aspect) { Box(Modifier.fillMaxSize().testTag("texture")) }
+            } } }
+        }
+
+        val screen = rule.onNodeWithTag("screen").getUnclippedBoundsInRoot()
+        fun texture() = rule.onNodeWithTag("texture").getUnclippedBoundsInRoot()
+        val portrait = texture()
+        assertEquals(
+            "portrait keeps 9:16", 9f / 16f,
+            (portrait.right - portrait.left).value / (portrait.bottom - portrait.top).value, 0.01f,
+        )
+        assertEquals("portrait fills the height", 480f, (portrait.bottom - portrait.top).value, 1f)
+        assertTrue("portrait letterboxes the sides", (portrait.right - portrait.left).value < (screen.right - screen.left).value - 1f)
+
+        rule.runOnIdle { aspect = 16f / 9f }
+        val land = texture()
+        assertEquals(
+            "landscape keeps 16:9", 16f / 9f,
+            (land.right - land.left).value / (land.bottom - land.top).value, 0.01f,
+        )
+        assertEquals("landscape fills the width", 360f, (land.right - land.left).value, 1f)
+        assertTrue("landscape letterboxes top and bottom", (land.bottom - land.top).value < (screen.bottom - screen.top).value - 1f)
     }
 }
