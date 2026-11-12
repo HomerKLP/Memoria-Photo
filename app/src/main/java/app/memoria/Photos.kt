@@ -460,7 +460,7 @@ fun PhotosScreen(
     }
     LaunchedEffect(Unit) { if (!perms.all(::has)) ask.launch(perms) }
     val pick = rememberPick() // Favorites only, the timeline has its own select mode
-    // New photos while the tab is open: reload once the burst of changes has been quiet for a second.
+    // New photos while the tab is open: reload once the burst of changes has been quiet.
     // In the background only note it, and reload once on return.
     var mediaChanges by remember { mutableIntStateOf(0) }
     var missed by remember { mutableStateOf(false) }
@@ -471,7 +471,8 @@ fun PhotosScreen(
         val observer = object : ContentObserver(handler) {
             override fun onChange(selfChange: Boolean) {
                 handler.removeCallbacks(bump)
-                handler.postDelayed(bump, 1000)
+                // 300 ms: enough to swallow a burst, short enough that a single new photo shows at once
+                handler.postDelayed(bump, 300)
             }
         }
         context.contentResolver.registerContentObserver(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, true, observer)

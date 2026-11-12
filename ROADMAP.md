@@ -94,7 +94,7 @@ Current since 2026-11-03. The basics are done; the open items are what is left.
 - [x] Honey theme (`Theme.kt`, Bricolage Grotesque font in the APK) and two bottom tabs. Test screen moved to Library > Dev tools.
 - [x] Photos tab: timeline from MediaStore, month and day headers, 3-column grid, video length. Thumbnails from MediaStore `loadThumbnail`.
 - [ ] Photos tab: pinch to resize the grid. Levels: days (never fewer than 3 photos a row), pinch out to months, then to years (the top level), with an animation between levels. Month and year views are not in the mockup yet: design first.
-- [x] Photos tab: refresh when new photos arrive. A MediaStore observer reloads the timeline 1 s after the last change; tiles and day headers use `animateItem`, so new photos fade in and the rest slide. Scrolled down, nothing moves. Checked on the emulator; the phone's release build is not checked yet.
+- [x] Photos tab: refresh when new photos arrive. A MediaStore observer reloads the timeline after the last change settles; tiles and day headers use `animateItem`, so new photos fade in and the rest slide. Scrolled down, nothing moves. Checked on the emulator; the phone's release build is not checked yet.
 - [ ] Photos tab: place name in the day header (mockup "Photos": `Sun, 28 Sep` + the town, muted). Offline geocoding is already done (`photo.town`), so this only reads it into the header. Photos only; a video has a town since 2026-11-07, so it could come later.
 - [x] Viewer: swipe between photos, date on top, share. Videos show a sharp frame and open in the phone's own player.
 - [x] Viewer: zoom (pinch 1-6x, double tap), pan while zoomed, favorite. Swipe down and pager are off while zoomed.
