@@ -223,6 +223,11 @@ class PeopleLogicTest {
         assertEquals("81 photos", photosAndVideos(81, 0))
         assertEquals("0 photos · 3 videos", photosAndVideos(0, 3))
     }
+
+    @Test fun facesMatch_readsRightForOneAndMany() {
+        assertEquals("96 faces match Dana", facesMatch(96, "Dana"))
+        assertEquals("1 face matches Dana", facesMatch(1, "Dana"))
+    }
 }
 
 // Small copies of a face with one flag flipped, so the tests read simply.

@@ -171,6 +171,9 @@ fun peopleAndPets(all: List<Person>): String {
 /** "224 photos · 6 videos": a person's title line, the videos part only when there are some (docs/design.html, Person & Pet). */
 fun photosAndVideos(photos: Int, videos: Int) = count(photos, "photo") + if (videos == 0) "" else " · ${count(videos, "video")}"
 
+/** "96 faces match Dana": the count moved off the title line, which the Filter icon needs (mockup "Filter"). */
+fun facesMatch(n: Int, who: String) = "${count(n, "face")} ${if (n == 1) "matches" else "match"} $who"
+
 /** Everything the People screen shows, loaded in one pass. */
 data class PeopleData(val summary: String, val people: List<Person>, val unsure: List<FaceVec>)
 
@@ -624,11 +627,14 @@ fun PeopleContent(
     }, label = "person") { id ->
         val open = data?.people?.firstOrNull { it.id == id }
         if (id != null) {
+            // All until you leave the screen
+            var filter by remember(id) { mutableStateOf(Filter.All) }
             // the person screen pads itself, so its More menu can cover the whole screen, like Album's
             if (open != null) PersonDetail(
                 open, onBack = onClosePerson, onName = { onName(open) }, onOpen = onOpen, onReview = { onHelpRecognize(open.id) },
                 onMerge = { onMerge(open) }, onCover = { onCover(open) }, onHide = { onHide(open) }, pick = pick,
                 onUnmerge = if (mergedParts(open, merges).isEmpty()) null else { { onUnmerge(open) } },
+                filter = filter, onFilter = { filter = it },
             )
             // a zero size would clip the slide
             else Box(Modifier.fillMaxSize())
@@ -814,6 +820,8 @@ fun PersonDetail(
     loadPhotos: (suspend (List<Long>) -> List<Tile>)? = null, // tests inject a fake; null loads from MediaStore
     pick: Pick = Pick(null),
     onUnmerge: (() -> Unit)? = null, // null: nothing merged in, no Unmerge in More
+    filter: Filter = Filter.All,
+    onFilter: (Filter) -> Unit = {},
 ) {
     val context = LocalContext.current
     val sel = pick.ids
@@ -830,7 +838,8 @@ fun PersonDetail(
     val name = p.name ?: "No name"
     // an unnamed person reads badly in a sentence ("11 may be No name"), so use "this person" there
     val who = p.name ?: if (p.pet) "this pet" else "this person"
-    val shownPhotos = photos.orEmpty()
+    // the filter narrows the photo grid only: the faces row and the Unsure card stay as they are
+    val shownPhotos = remember(photos, filter) { photos.orEmpty().filter { filter.keeps(it) } }
     val month = DateTimeFormatter.ofPattern("LLLL yyyy")
     val zone = ZoneId.systemDefault()
     val groups = remember(shownPhotos) {
@@ -844,6 +853,7 @@ fun PersonDetail(
         groups.map { (m, tiles) -> (i to m).also { i += 1 + tiles.size } }
     }
     var more by remember { mutableStateOf(false) }
+    var filtering by remember { mutableStateOf(false) }
     Box(Modifier.fillMaxSize()) {
         // own Column: the Select bar goes under the grid
         Column(Modifier.fillMaxSize().safeDrawingPadding()) {
@@ -856,13 +866,17 @@ fun PersonDetail(
                 }
                 else TopBar(
                     title = if (p.name.isNullOrBlank()) "Add name" else name,
-                    // videos the person is in count here and in the Photos hint, but never as a photo; a pet has no faces line
-                    subtitle = photosAndVideos(p.photos, p.videos) + if (p.pet) "" else " · ${count(p.shownFaces.size, "face")}",
+                    // videos the person is in count here and in the Photos hint, but never as a photo; the
+                    // Filter icon takes the room the faces count had, so that count moved to the Faces hint
+                    subtitle = photosAndVideos(p.photos, p.videos),
                     onBack = onBack,
                     leading = { FaceImage(p.cover, Modifier.padding(end = 12.dp).size(40.dp).clip(CircleShape)) },
                     onTitle = onName,
                     titleColor = if (p.name.isNullOrBlank()) MaterialTheme.colorScheme.primary else Color.Unspecified,
-                    trailing = { IconButton({ more = true }) { Icon(painterResource(R.drawable.ic_more), "More") } },
+                    trailing = {
+                        FilterButton(filter) { filtering = true }
+                        IconButton({ more = true }) { Icon(painterResource(R.drawable.ic_more), "More") }
+                    },
                 )
             }
             val grid = rememberLazyGridState()
@@ -875,7 +889,7 @@ fun PersonDetail(
                         contentPadding = PaddingValues(bottom = if (sel != null) 72.dp else 24.dp),
                         horizontalArrangement = Arrangement.spacedBy(1.dp), verticalArrangement = Arrangement.spacedBy(1.dp),
                     ) {
-                        item(span = { GridItemSpan(maxLineSpan) }) { SectionHead(if (p.pet) "Pictures" else "Faces", hint = if (p.pet) "These match $who" else "These faces match $who") }
+                        item(span = { GridItemSpan(maxLineSpan) }) { SectionHead(if (p.pet) "Pictures" else "Faces", hint = if (p.pet) "These match $who" else facesMatch(p.shownFaces.size, who)) }
                         item(span = { GridItemSpan(maxLineSpan) }) {
                             Row(
                                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 2.dp),
@@ -888,7 +902,14 @@ fun PersonDetail(
                             // "may be this person" wraps next to the face stack
                             ReviewCard(unsure, onReview, title = "Unsure faces", note = if (p.name.isNullOrBlank()) "${unsure.size} to check" else "${unsure.size} may be ${p.name}")
                         }
-                        item(span = { GridItemSpan(maxLineSpan) }) { SectionHead("Photos", hint = "${p.photos + p.videos} · by date") }
+                        // the hint follows the filter, unlike the title line (mockup "Person, Videos");
+                        // on All it is the person's own counts, which are there before the tiles load
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            SectionHead("Photos", hint = "${if (filter == Filter.All) p.photos + p.videos else shownPhotos.size} · by date")
+                        }
+                        if (filter != Filter.All && shownPhotos.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
+                            FilterEmpty(filter, if (p.name.isNullOrBlank()) if (p.pet) "This pet" else "This person" else p.name)
+                        }
                         groups.forEach { (m, tiles) ->
                             stickyHeader(key = m, contentType = "month") { MonthHeading(m, m, grid, below = 10.dp) }
                             items(tiles, key = { it.id }) { t ->
@@ -911,6 +932,7 @@ fun PersonDetail(
                 }
             }
         }
+        Menu(filtering, onDismiss = { filtering = false }, items = filterItems(filter) { filtering = false; onFilter(it) }, end = 56.dp)
         Menu(
             more, onDismiss = { more = false },
             items = listOfNotNull(

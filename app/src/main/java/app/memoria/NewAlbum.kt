@@ -158,7 +158,6 @@ fun NewAlbumScreen(name: String, onBack: () -> Unit, onCancel: () -> Unit, onMov
             pickedSize = pickedSize,
             forceSelecting = true,
             titleWhileSelecting = "Add to $name",
-            scrollWhileSelecting = true,
             onSelectBack = onBack,
             footer = {
                 ActionBar(

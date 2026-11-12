@@ -34,9 +34,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.animateScrollBy
-import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -332,8 +331,9 @@ val thumbs = object : LruCache<Long, Bitmap>((Runtime.getRuntime().maxMemory() /
 
 /**
  * The Photos tab's select mode (mockup "Photos, selecting"): the picked tiles, live so the app can swap
- * the bottom bar and act on the whole set. Long press starts it, a tap toggles, a drag adds the tiles it
- * passes, a day's circle picks the whole day, Back or the X leaves. Purely state, so it is unit-testable.
+ * the bottom bar and act on the whole set. Long press starts it, a tap toggles, a long press then drag
+ * adds the tiles it passes (a plain drag scrolls the list), a day's circle picks the whole day, Back or
+ * the X leaves. Purely state, so it is unit-testable.
  */
 @Stable
 class PhotoSelection {
@@ -460,7 +460,7 @@ fun PhotosScreen(
     }
     LaunchedEffect(Unit) { if (!perms.all(::has)) ask.launch(perms) }
     val pick = rememberPick() // Favorites only, the timeline has its own select mode
-    // New photos while the tab is open: reload once the burst of changes has been quiet for a second.
+    // New photos while the tab is open: reload once the burst of changes has been quiet.
     // In the background only note it, and reload once on return.
     var mediaChanges by remember { mutableIntStateOf(0) }
     var missed by remember { mutableStateOf(false) }
@@ -471,7 +471,8 @@ fun PhotosScreen(
         val observer = object : ContentObserver(handler) {
             override fun onChange(selfChange: Boolean) {
                 handler.removeCallbacks(bump)
-                handler.postDelayed(bump, 1000)
+                // 300 ms: enough to swallow a burst, short enough that a single new photo shows at once
+                handler.postDelayed(bump, 300)
             }
         }
         context.contentResolver.registerContentObserver(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, true, observer)
@@ -630,7 +631,6 @@ fun PhotosContent(
     // The New album picker opens already in select mode (empty pick), under its own title and bar:
     forceSelecting: Boolean? = null,
     titleWhileSelecting: String? = null,
-    scrollWhileSelecting: Boolean = false,
     onSelectBack: (() -> Unit)? = null,
     footer: (@Composable () -> Unit)? = null,
     scrollToTop: Int = 0,
@@ -730,10 +730,9 @@ fun PhotosContent(
                 FollowViewer(grid, photos, onTop)
                 LazyVerticalGrid(
                     GridCells.Fixed(3), state = grid,
-                    modifier = (if (tabs) Modifier.selectDrag(grid, tilesById, selection!!) else Modifier).testTag("photosGrid"),
+                    modifier = Modifier.testTag("photosGrid"),
                     contentPadding = PaddingValues(top = gridTop, bottom = if (picker) 0.dp else navBottom + 72.dp),
                     horizontalArrangement = Arrangement.spacedBy(1.dp), verticalArrangement = Arrangement.spacedBy(1.dp),
-                    userScrollEnabled = !selecting || scrollWhileSelecting,
                 ) {
                     if (!picker) item(key = "wordmark", span = { GridItemSpan(maxLineSpan) }, contentType = "wordmark") { wordmark() }
                     for (x in list) when (x) {
@@ -753,10 +752,13 @@ fun PhotosContent(
                         is Tile -> item(key = x.id, contentType = "tile") {
                             TileImage(
                                 x,
+                                // The long press starts select mode (and swallows the tap on lift, or it would
+                                // toggle the tile straight off again); the drag detector adds the tiles it passes.
                                 (if (tabs) Modifier.combinedClickable(
-                                    onClick = { if (selecting) selection?.toggle(x) else onOpen(photos, x) },
-                                    onLongClick = { selection?.start(x) },
-                                ) else Modifier.clickable { onOpen(photos, x) }).testTag("tile-${x.id}").animateItem(),
+                                    onClick = { if (selecting) selection.toggle(x) else onOpen(photos, x) },
+                                    onLongClick = { selection.start(x) },
+                                ).selectDrag(grid, x, tilesById, selection) else Modifier.clickable { onOpen(photos, x) })
+                                    .testTag("tile-${x.id}").animateItem(),
                                 selecting = selecting,
                                 selected = x.id in selectedIds,
                             )
@@ -804,33 +806,29 @@ private fun DayCircle(on: Boolean, modifier: Modifier = Modifier, onClick: () ->
 }
 
 /**
- * Drag-select for the timeline (mockup "Photos, selecting": drag adds the ones you pass). It reads the
- * live grid layout to find the tile under the finger, and never consumes while no selection is active,
- * so normal scrolling is untouched. The grid's own scroll is off while selecting (see PhotosContent).
+ * Drag-select for the timeline (mockup "Photos, selecting"): a long press starts it and the drag adds
+ * the tiles it passes. It sits on the tile, not on the grid: the tile is deeper than the grid's
+ * scrollable, so the drag it consumes never reaches the scroll, while a plain drag is left alone and
+ * scrolls the list. Only the tab has it (the other grids have no selection holder).
  */
-private fun Modifier.selectDrag(grid: LazyGridState, tilesById: Map<Long, Tile>, selection: PhotoSelection): Modifier =
-    pointerInput(tilesById) {
-        awaitEachGesture {
-            val down = awaitFirstDown(requireUnconsumed = false)
-            var own = false
-            while (true) {
-                val change = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: break
-                if (!change.pressed) break
-                if (!selection.active) continue
-                if (!own) {
-                    if ((change.position - down.position).getDistance() < viewConfiguration.touchSlop) continue
-                    own = true
-                }
-                change.consume()
-                // item offsets start after the grid's top padding (the status bar)
-                val y = change.position.y - grid.layoutInfo.beforeContentPadding
-                val item = grid.layoutInfo.visibleItemsInfo.firstOrNull { info ->
-                    change.position.x >= info.offset.x && change.position.x < info.offset.x + info.size.width &&
-                        y >= info.offset.y && y < info.offset.y + info.size.height
+private fun Modifier.selectDrag(grid: LazyGridState, self: Tile, tilesById: Map<Long, Tile>, selection: PhotoSelection): Modifier =
+    pointerInput(self.id, tilesById) {
+        detectDragGesturesAfterLongPress(
+            onDragStart = { selection.start(self) },
+            onDrag = { change, _ ->
+                // the finger is in this tile's space: move it into the grid's content, where the item offsets are
+                val me = grid.layoutInfo.visibleItemsInfo.firstOrNull { it.key == self.id }
+                val item = me?.let {
+                    val x = change.position.x + it.offset.x
+                    val y = change.position.y + it.offset.y - grid.layoutInfo.beforeContentPadding
+                    grid.layoutInfo.visibleItemsInfo.firstOrNull { info ->
+                        x >= info.offset.x && x < info.offset.x + info.size.width &&
+                            y >= info.offset.y && y < info.offset.y + info.size.height
+                    }
                 }
                 (item?.key as? Long)?.let { id -> tilesById[id]?.let { selection.add(it) } }
-            }
-        }
+            },
+        )
     }
 
 @Composable

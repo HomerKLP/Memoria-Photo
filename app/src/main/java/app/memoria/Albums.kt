@@ -210,13 +210,17 @@ fun AlbumContent(
     onFavorite: () -> Unit = {},
     onMove: () -> Unit = {},
     onDelete: () -> Unit = {},
+    filter: Filter = Filter.All,
+    onFilter: (Filter) -> Unit = {},
 ) {
     val a = album
     val videos = a?.tiles?.count { it.duration != null } ?: 0
     val month = DateTimeFormatter.ofPattern("LLLL yyyy")
     val zone = ZoneId.systemDefault()
-    val groups = remember(a?.tiles) {
-        a?.tiles.orEmpty().groupBy { month.format(Instant.ofEpochMilli(it.date).atZone(zone)) }.entries.toList()
+    // the filter narrows the grid only; the title keeps the album's totals
+    val shown = remember(a?.tiles, filter) { a?.tiles.orEmpty().filter { filter.keeps(it) } }
+    val groups = remember(shown) {
+        shown.groupBy { month.format(Instant.ofEpochMilli(it.date).atZone(zone)) }.entries.toList()
     }
     // one (grid item index, month name) per month heading, so the slider can jump to it
     val months = remember(groups) {
@@ -224,6 +228,7 @@ fun AlbumContent(
         groups.map { (m, tiles) -> (i to m).also { i += 1 + tiles.size } }
     }
     var more by remember { mutableStateOf(false) }
+    var filtering by remember { mutableStateOf(false) }
     var asking by remember { mutableStateOf(false) }
     if (selected != null) BackHandler { onSelect(null) }
     Box(Modifier.fillMaxSize()) {
@@ -233,18 +238,21 @@ fun AlbumContent(
                     "${selected.orEmpty().size} selected", a?.let { "${it.name} · ${formatBytes(pickedSize)}" },
                     onBack = { onSelect(null) }, backIcon = R.drawable.ic_close, backLabel = "Cancel",
                 ) {
-                    if (a != null && selected.orEmpty().size < a.tiles.size) TextButton({ onSelect(a.tiles.map { it.id }.toSet()) }) { Text("Select all") }
+                    if (a != null && selected.orEmpty().size < shown.size) TextButton({ onSelect(shown.map { it.id }.toSet()) }) { Text("Select all") }
                 }
                 // " " while loading: an empty title may measure to nothing and the grid would jump
                 else TopBar(a?.name ?: " ", a?.let { "${it.tiles.size - videos} photos" + if (videos > 0) " · $videos videos" else "" }, onBack = onBack) {
+                    FilterButton(filter) { filtering = true }
                     IconButton({ more = true }) { Icon(painterResource(R.drawable.ic_more), "More") }
                 }
             }
             val grid = rememberLazyGridState()
-            FollowViewer(grid, a?.tiles.orEmpty())
+            FollowViewer(grid, shown)
             // the Select bar floats over the grid, so nothing moves when it comes in
             Box(Modifier.weight(1f)) {
-                MonthSliderBox(grid = grid, months = months, enabled = selected == null, top = monthHeadingHeight(below = 10.dp), modifier = Modifier.fillMaxSize()) {
+                // nothing matches the filter: the empty state takes the grid's place, the icon stays
+                if (filter != Filter.All && shown.isEmpty()) FilterEmpty(filter, "This album")
+                else MonthSliderBox(grid = grid, months = months, enabled = selected == null, top = monthHeadingHeight(below = 10.dp), modifier = Modifier.fillMaxSize()) {
                     LazyVerticalGrid(
                         GridCells.Fixed(3), Modifier.testTag("albumGrid"), state = grid,
                         contentPadding = PaddingValues(bottom = if (selected != null) 72.dp else 0.dp),
@@ -257,7 +265,7 @@ fun AlbumContent(
                                 TileImage(
                                     t,
                                     Modifier.combinedClickable(
-                                        onClick = { if (selected == null) onOpen(a!!.tiles, t) else onSelect(if (on) selected - t.id else selected + t.id) },
+                                        onClick = { if (selected == null) onOpen(shown, t) else onSelect(if (on) selected - t.id else selected + t.id) },
                                         onLongClick = { onSelect(selected.orEmpty() + t.id) },
                                     ).testTag("tile-${t.id}").animateItem(fadeInSpec = null), // no fade in: a first load shows at once
                                     selecting = selected != null, selected = on,
@@ -267,11 +275,14 @@ fun AlbumContent(
                     }
                 }
                 if (selected != null) {
-                    val picked = a?.tiles.orEmpty().filter { it.id in selected }
+                    val picked = shown.filter { it.id in selected }
                     SelectBar(picked.isNotEmpty() && picked.all { it.favorite }, onShare, onFavorite, onDelete, onMove = onMove, modifier = Modifier.align(Alignment.BottomCenter))
                 }
             }
         }
+        Menu(
+            filtering, onDismiss = { filtering = false }, items = filterItems(filter) { filtering = false; onFilter(it) }, end = 56.dp,
+        )
         Menu(
             more, onDismiss = { more = false },
             items = listOf(
@@ -314,9 +325,13 @@ fun AlbumScreen(id: Long, onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit
     val picked = a?.tiles.orEmpty().filter { it.id in pick.ids.orEmpty() }
     var ignored by remember { mutableStateOf(id in IndexProgress.skipped(context)) }
     var moving by remember { mutableStateOf(false) }
+    // All until you leave the screen
+    var filter by remember { mutableStateOf(Filter.All) }
     AlbumContent(
         a, onBack, onOpen, pick.ids, pick.size, ignored,
         onSelect = pick.set,
+        filter = filter,
+        onFilter = { filter = it },
         // the next index run drops (or searches again) this album's photos
         onIgnore = { IndexProgress.setSkipped(context, id, it); ignored = it },
         onShare = { pick.share(picked) },

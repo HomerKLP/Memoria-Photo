@@ -563,10 +563,11 @@ class MenuItem(val icon: Int, val label: String, val dividerBefore: Boolean = fa
  * The shared Menu part (mockup "Menu"): drops under a top bar's More, over the screen, no dim. One
  * line per item with an icon; [dividerBefore] splits groups. Tap outside or Back closes it, so
  * [modifier] should fill the screen (the dismiss layer is the whole screen). The menu is part of the
- * composition, not a Popup, so the layout tests and previews can render it.
+ * composition, not a Popup, so the layout tests and previews can render it. [end] is the distance from
+ * the right edge: 8 dp under More, 56 dp under the Filter icon (one 48 dp button further in).
  */
 @Composable
-fun Menu(expanded: Boolean, onDismiss: () -> Unit, items: List<MenuItem>, modifier: Modifier = Modifier) {
+fun Menu(expanded: Boolean, onDismiss: () -> Unit, items: List<MenuItem>, modifier: Modifier = Modifier, end: Dp = 8.dp) {
     if (!expanded) return
     // a preview has no back dispatcher; guard so a plain render does not crash
     if (LocalOnBackPressedDispatcherOwner.current != null) BackHandler(onBack = onDismiss)
@@ -576,7 +577,7 @@ fun Menu(expanded: Boolean, onDismiss: () -> Unit, items: List<MenuItem>, modifi
         ),
     ) {
         Column(
-            Modifier.align(Alignment.TopEnd).padding(top = 88.dp, end = 8.dp)
+            Modifier.align(Alignment.TopEnd).padding(top = 88.dp, end = end)
                 .widthIn(min = 248.dp).width(IntrinsicSize.Max) // a long label stays on one line
                 .shadow(12.dp, RoundedCornerShape(16.dp), spotColor = Color.Black.copy(alpha = 0.5f))
                 .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(16.dp))
@@ -598,4 +599,55 @@ fun Menu(expanded: Boolean, onDismiss: () -> Unit, items: List<MenuItem>, modifi
             }
         }
     }
+}
+
+/** What a grid shows inside an album, a place, a person or a pet (mockup "Filter"). */
+enum class Filter(val label: String) { All("All"), Photos("Photos"), Videos("Videos") }
+
+/** Does [t] pass this filter? A video is a tile with a length, as everywhere in the app. */
+fun Filter.keeps(t: Tile) = when (this) {
+    Filter.All -> true
+    Filter.Photos -> t.duration == null
+    Filter.Videos -> t.duration != null
+}
+
+/** The Filter icon for a top bar, left of More, with the dot that says a pick other than All is on. */
+@Composable
+fun FilterButton(filter: Filter, onClick: () -> Unit) {
+    IconButton(onClick) {
+        Box(Modifier.size(24.dp)) {
+            Icon(painterResource(R.drawable.ic_filter), "Filter")
+            if (filter != Filter.All) Box(
+                // the dot with its ring, top right of the icon, like the mockup
+                Modifier.align(Alignment.TopEnd).offset(x = 5.dp, y = (-3).dp).size(13.dp)
+                    .background(MaterialTheme.colorScheme.background, CircleShape),
+            ) {
+                Box(Modifier.align(Alignment.Center).size(9.dp).background(MaterialTheme.colorScheme.primary, CircleShape))
+            }
+        }
+    }
+}
+
+/** The Filter menu's three lines, the pick checked. Feed it to [Menu] with `end = 56.dp`. */
+fun filterItems(filter: Filter, onPick: (Filter) -> Unit) = Filter.entries.map { f ->
+    MenuItem(
+        when (f) {
+            Filter.All -> R.drawable.ic_library
+            Filter.Photos -> R.drawable.ic_photo
+            Filter.Videos -> R.drawable.ic_video
+        },
+        f.label, checked = f == filter,
+    ) { onPick(f) }
+}
+
+/** Nothing matches the filter: the mockup's two lines, with the screen's own noun ("This album"). */
+@Composable
+fun FilterEmpty(filter: Filter, noun: String, modifier: Modifier = Modifier) {
+    val videos = filter == Filter.Videos
+    EmptyState(
+        if (videos) R.drawable.ic_video else R.drawable.ic_photo,
+        if (videos) "No videos here" else "No photos here",
+        "$noun has only ${if (videos) "photos" else "videos"}. Pick All or ${if (videos) "Photos" else "Videos"} to see them",
+        modifier,
+    )
 }
