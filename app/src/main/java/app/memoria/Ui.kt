@@ -556,8 +556,8 @@ private fun Modifier.monthSliderDrag(months: Int, top: Dp, bottom: Dp, onDraggin
         }
     }
 
-/** One line in a [Menu]: an icon, a label, an action. [dividerBefore] draws a line above it (groups). [checked] shows the accent check. */
-class MenuItem(val icon: Int, val label: String, val dividerBefore: Boolean = false, val checked: Boolean = false, val onClick: () -> Unit)
+/** One line in a [Menu]: an icon, a label, an action. [dividerBefore] draws a line above it (groups). [checked] shows the accent check. [enabled] false greys the line out and takes no taps (a screen not built yet). */
+class MenuItem(val icon: Int, val label: String, val dividerBefore: Boolean = false, val checked: Boolean = false, val enabled: Boolean = true, val onClick: () -> Unit)
 
 /**
  * The shared Menu part (mockup "Menu"): drops under a top bar's More, over the screen, no dim. One
@@ -588,7 +588,10 @@ fun Menu(expanded: Boolean, onDismiss: () -> Unit, items: List<MenuItem>, modifi
             items.forEachIndexed { i, item ->
                 if (item.dividerBefore && i > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 Row(
-                    Modifier.fillMaxWidth().height(48.dp).clickable(onClick = item.onClick).padding(horizontal = 16.dp),
+                    Modifier.fillMaxWidth().height(48.dp)
+                        .clickable(enabled = item.enabled, onClick = item.onClick)
+                        .alpha(if (item.enabled) 1f else 0.38f)
+                        .padding(horizontal = 16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                 ) {

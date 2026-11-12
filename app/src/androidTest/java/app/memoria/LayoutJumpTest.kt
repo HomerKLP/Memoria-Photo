@@ -1167,4 +1167,25 @@ class LayoutJumpTest {
         rule.runOnIdle { text = "" }
         assertSame("field after clearing", top, rule.onNodeWithTag("searchField").top())
     }
+
+    /** A video adds the player line above the action row: the row (Share, Favorite, Details, Delete) must not move for it. */
+    @Test fun viewer_playerBar_keepsTheActionRowPut() {
+        var video by mutableStateOf(false)
+        rule.setContent {
+            MemoriaTheme { Surface { Box(Modifier.fillMaxSize()) {
+                ViewerChrome(
+                    visible = true, title = "Sat, 11 Oct", subtitle = "14:32", favorite = false,
+                    onBack = {}, onShare = {}, onFavorite = {}, onInfo = {}, onDelete = {},
+                    playerBar = if (video) ({ PlayerBar(true, 84_000, 190_000, {}, {}) }) else null,
+                )
+            } } }
+        }
+
+        val share = rule.onNodeWithContentDescription("Share")
+        val top = share.top()
+        val width = share.width()
+        rule.runOnIdle { video = true }
+        assertSame("Share after the player line", top, rule.onNodeWithContentDescription("Share").top())
+        assertSame("Share width", width, rule.onNodeWithContentDescription("Share").width())
+    }
 }

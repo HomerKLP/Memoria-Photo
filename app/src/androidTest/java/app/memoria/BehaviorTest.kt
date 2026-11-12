@@ -32,7 +32,9 @@ import androidx.compose.ui.test.click
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -45,6 +47,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
@@ -460,6 +463,30 @@ class BehaviorTest {
         }
         assertEquals(0, backs)
         assertEquals(1, photoTaps)
+    }
+
+    // --- Player --------------------------------------------------------------------------------
+
+    @Test fun player_pauseTap_callsOnToggle() {
+        var toggles = 0
+        rule.setContent {
+            MemoriaTheme { Surface { PlayerBar(playing = true, position = 84_000, length = 190_000, onToggle = { toggles++ }, onSeek = {}) } }
+        }
+
+        rule.onNodeWithContentDescription("Pause").performClick()
+        assertEquals(1, toggles)
+    }
+
+    @Test fun player_timeReads_andTheBarSeeks() {
+        var seek: Long? = null
+        rule.setContent {
+            MemoriaTheme { Surface { PlayerBar(playing = false, position = 84_000, length = 190_000, onToggle = {}, onSeek = { seek = it }) } }
+        }
+
+        rule.onNodeWithText("1:24", substring = true).assertIsDisplayed()
+        rule.onNodeWithText("3:10", substring = true).assertIsDisplayed()
+        rule.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.SetProgress)).performSemanticsAction(SemanticsActions.SetProgress) { it(0.5f) }
+        assertTrue(seek != null && kotlin.math.abs(seek!! - 95_000L) < 2_000L)
     }
 
     // --- Album ---------------------------------------------------------------------------------
