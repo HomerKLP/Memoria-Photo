@@ -55,8 +55,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -82,6 +80,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
@@ -101,6 +100,10 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.setProgress
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -606,15 +609,10 @@ fun PlayerBar(
         IconButton(onToggle) {
             Icon(painterResource(if (playing) R.drawable.ic_pause else R.drawable.ic_play), if (playing) "Pause" else "Play", tint = onViewer)
         }
-        Slider(
-            value = at,
-            onValueChange = { drag = it },
-            onValueChangeFinished = { drag?.let { onSeek((it * span).toLong()) }; drag = null },
-            colors = SliderDefaults.colors(
-                thumbColor = onViewer,
-                activeTrackColor = onViewer,
-                inactiveTrackColor = onViewer.copy(alpha = 0.3f),
-            ),
+        SeekBar(
+            at = at,
+            onScrub = { drag = it },
+            onSeek = { drag = null; onSeek((it * span).toLong()) },
             modifier = Modifier.weight(1f),
         )
         // Fixed width and tabular digits: the total arrives once the file is read, and the slider must not jump then
@@ -624,6 +622,39 @@ fun PlayerBar(
             Text(" / ${clock(length)}", color = onViewer.copy(alpha = 0.65f), style = time)
         }
     }
+}
+
+/** A 3 dp line with a 12 dp knob, not Material's fat slider (mockup "Video, playing"). Tap or drag it to seek. */
+@Composable
+private fun SeekBar(at: Float, onScrub: (Float) -> Unit, onSeek: (Float) -> Unit, modifier: Modifier = Modifier) {
+    Box(
+        modifier
+            .height(28.dp)
+            .semantics {
+                progressBarRangeInfo = ProgressBarRangeInfo(at, 0f..1f)
+                setProgress { onScrub(it); onSeek(it); true }
+            }
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    val down = awaitFirstDown()
+                    val w = size.width.coerceAtLeast(1)
+                    onScrub((down.position.x / w).coerceIn(0f, 1f))
+                    var x = down.position.x
+                    do {
+                        val event = awaitPointerEvent()
+                        event.changes.forEach { x = it.position.x; onScrub((x / w).coerceIn(0f, 1f)); it.consume() }
+                    } while (event.changes.any { it.pressed })
+                    onSeek((x / w).coerceIn(0f, 1f))
+                }
+            }
+            .drawBehind {
+                val y = size.height / 2f
+                val line = 1.5.dp.toPx()
+                drawLine(onViewer.copy(alpha = 0.3f), Offset(0f, y), Offset(size.width, y), line, StrokeCap.Round)
+                drawLine(onViewer, Offset(0f, y), Offset(size.width * at, y), line, StrokeCap.Round)
+                drawCircle(onViewer, 6.dp.toPx(), Offset(size.width * at, y))
+            },
+    )
 }
 
 /** A file the decoder refuses (mockup "Video, cannot play"): a scrim over the frame, and the phone's player as the way out. */

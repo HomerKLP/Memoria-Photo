@@ -29,6 +29,8 @@ import androidx.compose.ui.test.assertIsNotFocused
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.down
+import androidx.compose.ui.test.doubleClick
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
@@ -487,6 +489,34 @@ class BehaviorTest {
         rule.onNodeWithText("3:10", substring = true).assertIsDisplayed()
         rule.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.SetProgress)).performSemanticsAction(SemanticsActions.SetProgress) { it(0.5f) }
         assertTrue(seek != null && kotlin.math.abs(seek!! - 95_000L) < 2_000L)
+    }
+
+    /** The video page's fingers: double tap the right half = +5 s, the left half = −5 s, hold = 2x (mockup "Player"). */
+    private fun videoPage(onSkip: (Int) -> Unit = {}, onHold: (Boolean) -> Unit = {}) = rule.setContent {
+        MemoriaTheme { Surface { Box(Modifier.fillMaxSize().testTag("page")) {
+            ViewerPage(videoTile(1), onZoomed = {}, player = null, current = true, onSkip = onSkip, onHold = onHold)
+        } } }
+    }
+
+    @Test fun videoPage_doubleTapRight_seeksForward() {
+        var skipped = 0
+        videoPage(onSkip = { skipped = it })
+        rule.onNodeWithTag("page").performTouchInput { doubleClick(Offset(width * 0.8f, height / 2f)) }
+        assertEquals(1, skipped)
+    }
+
+    @Test fun videoPage_doubleTapLeft_seeksBack() {
+        var skipped = 0
+        videoPage(onSkip = { skipped = it })
+        rule.onNodeWithTag("page").performTouchInput { doubleClick(Offset(width * 0.2f, height / 2f)) }
+        assertEquals(-1, skipped)
+    }
+
+    @Test fun videoPage_hold_runs2xUntilRelease() {
+        val held = mutableListOf<Boolean>()
+        videoPage(onHold = { held += it })
+        rule.onNodeWithTag("page").performTouchInput { down(center); advanceEventTime(800); up() }
+        assertEquals(listOf(true, false), held)
     }
 
     // --- Album ---------------------------------------------------------------------------------
