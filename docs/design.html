@@ -508,7 +508,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 <header class="top">
   <h1>Memoria Photo</h1>
   <p class="lede">Light theme, Honey palette. Photos and faces are placeholders, names and places are made up.</p>
-  <p class="latest"><b>Latest, 13 Nov:</b> <a href="#player-clean">Player, tapped</a> — no progress line at the bottom any more, only the video; and <a href="#player">Player</a>: dragging the bar seeks as you drag, the frame follows the finger.</p>
+  <p class="latest"><b>Latest, 14 Nov:</b> <a href="#devtools">Dev tools</a> — new Check media files row: opens every test photo and video like the gallery and shows how many failed.</p>
 </header>
 
 <aside class="rail" aria-label="Contents">
@@ -1891,6 +1891,11 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <div class="set"><svg class="i"><use href="#i-bolt"/></svg><div><b>Run on NPU</b><span>Same photos, on the NPU</span></div></div>
           <div class="head"><h3>Index</h3></div>
           <div class="set"><svg class="i"><use href="#i-folder"/></svg><div><b>Index test folder</b><span>Pictures/MemoriaTest only</span></div></div>
+          <div class="head"><h3>Media</h3></div>
+          <div class="set"><svg class="i"><use href="#i-check"/></svg><div><b>Check media files</b><span>Open the test photos and videos</span></div></div>
+          <div class="log">Last    58 of 62 fine · 4 failed · 1:40
+Failed  heic_grid.heic, video_ac3.mkv, +2
+Report  …/files/media_check.json</div>
           <div class="head"><h3>Numbers</h3></div>
           <div class="log">Photos  camera 1402 · other 180 · skip 124
 Faces   sure 2870 · unsure 685
@@ -1902,7 +1907,7 @@ Photos: …/files/test</div>
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Dev tools: opens from Settings > Developer, debug builds only. Only what no other screen does: the model speed test and indexing the test folder. Clear index, Index all photos, Pause / Resume and People are gone (Settings, auto-index and Library have them). Numbers are read-only text, always four lines (… while loading), so nothing moves when they fill in. The Run rows grey out while a run is going. The log and, after a run, the test photo with face boxes sit last, so they never move what is above</figcaption>
+      <figcaption>Dev tools: opens from Settings > Developer, debug builds only. Only what no other screen does: the model speed test, indexing the test folder and the media check. Check media files opens each made-up file in <code>files/media/</code> the way the gallery does (tile, viewer, a few seconds of video, a seek), never the user's photos, and writes the report for the Mac. Its three lines are always there (Not run yet, Checking 23 of 62…, the result), so nothing moves. Clear index, Index all photos, Pause / Resume and People are gone (Settings, auto-index and Library have them). Numbers are read-only text, always four lines (… while loading), so nothing moves when they fill in. The Run rows grey out while a run is going. The log and, after a run, the test photo with face boxes sit last, so they never move what is above</figcaption>
     </figure>
   </div>
 </section>

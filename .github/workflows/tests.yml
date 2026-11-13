@@ -24,13 +24,14 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v5
 
       # make check, plus the unit coverage report
       - name: Unit and screenshot tests
         run: ./gradlew --continue :app:createDebugUnitTestCoverageReport :app:validateDebugScreenshotTest
 
       # The emulator needs KVM; the Pixel 6 screen is 1080 px wide, 360 dp at density 480 like the mockup.
+      # Booted here, not by make layout, so a failed boot stops in 10 minutes and prints the emulator's log.
       - name: Emulator
         if: ${{ !cancelled() }}
         run: |
@@ -39,6 +40,13 @@ jobs:
           sudo udevadm trigger --name-match=kvm
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager emulator platform-tools "$IMAGE" > /dev/null
           echo no | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd -n ci -k "$IMAGE" -d pixel_6
+          $ANDROID_HOME/emulator/emulator -accel-check
+          $ANDROID_HOME/emulator/emulator -avd ci -no-window -no-snapshot-save -no-audio -no-boot-anim -gpu swiftshader_indirect -memory 4096 -cores 4 > emulator.log 2>&1 &
+          pid=$!
+          booted() { [ "$($ANDROID_HOME/platform-tools/adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ]; }
+          for i in $(seq 120); do booted || ! kill -0 $pid 2>/dev/null && break; sleep 5; done
+          booted || { echo "Emulator did not boot:"; tail -100 emulator.log; exit 1; }
+          echo "Booted in about $((i * 5)) s"
 
       - name: Device tests
         if: ${{ !cancelled() }}
@@ -56,5 +64,9 @@ jobs:
         if: ${{ !cancelled() }}
         with:
           name: reports
-          path: app/build/reports/
+          path: |
+            app/build/reports/
+            app/build/test-results/
+            app/build/outputs/screenshotTest-results/
+            emulator.log
           retention-days: 14
