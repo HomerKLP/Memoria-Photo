@@ -361,6 +361,7 @@ fun App(dir: File, openSettings: Int = 0, atUpdates: Boolean = false) {
                             Screen.Videos -> VideosScreen(onBack = back, onOpen = open)
                             Screen.Search -> SearchScreen(
                                 onBack = back,
+                                reload = returns,
                                 onOpen = { h ->
                                     when (h.kind) {
                                         HitKind.person -> push(Screen.People(h.key.toLong(), direct = true))

@@ -101,6 +101,8 @@ suspend fun libraryData(context: Context): LibraryData = withContext(Dispatchers
     }
     val albums = timed("albums") { albums(context) }
     val all = albums.flatMap { it.tiles }
+    // one tag pass for both rows below: each scored the same vectors again before
+    val scored = timed("tags") { scoredTags(context) }
     val result = LibraryData(
         faces = people,
         unsure = people.flatMap { p -> p.shownFaces.filter { !it.sure } }.sortedBy { it.quality },
@@ -108,15 +110,22 @@ suspend fun libraryData(context: Context): LibraryData = withContext(Dispatchers
         favorites = all.count { it.favorite },
         videos = all.count { it.duration != null },
         trash = timed("trash") { runCatching { trash(context).size }.getOrDefault(0) },
-        places = timed("places") { places(dao.placed(), all, niceScores(context)) },
-        categories = timed("categories") { loadCategories(context, all) },
+        places = timed("places") { places(dao.placed(), all, niceScores(scored)) },
+        categories = timed("categories") { loadCategories(context, all, scored) },
     )
     AppLog.i("library load: ${steps.joinToString(", ")}, total ${(System.nanoTime() - start) / 1_000_000}")
     result
 }
 
+/**
+ * [libraryData] for its keys, shared: Search shows the same snapshot instead of scanning MediaStore and
+ * scoring tags again on every open. The keys are Library's own, so Search is never older than the tab.
+ */
+suspend fun sharedLibrary(context: Context, saved: Int, reload: Int): LibraryData =
+    sharedValue("library", listOf(saved, reload)) { libraryData(context) }
+
 /** Loads Library once at app start: its first open has an empty cache, so it would show grey skeletons. */
-suspend fun preloadLibrary(context: Context) = preloadCached("library") { libraryData(context) }
+suspend fun preloadLibrary(context: Context) = preloadCached("library") { sharedLibrary(context, peopleSaved.value, 0) }
 
 /** Shown at once when the tab opens again, then replaced by a fresh load. */
 @Composable
@@ -143,7 +152,7 @@ fun LibraryScreen(
     // cached, not null: an empty first frame is shorter and the tab's restored scroll clamps to it.
     // Keyed on [saved]: the run saves people every so often, so they show up while indexing. [reload]: back from a screen opened over it.
     val saved by peopleSaved.collectAsState()
-    val data by cachedProduceState("library", saved, reload) { libraryData(context) }
+    val data by cachedProduceState("library", saved, reload) { sharedLibrary(context, saved, reload) }
     LibraryContent(
         data = data,
         indexing = running,

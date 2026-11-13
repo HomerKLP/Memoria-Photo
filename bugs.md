@@ -2,6 +2,14 @@
 
 Style: one-line description, steps to reproduce, fix ideas. Code paths only when they help. Open bugs in full; a fixed bug becomes one line under Fixed at the bottom (the full write-up stays in git history).
 
+## Search tab taking too long to load, why?
+
+Search built its own copy of everything on every open: a full MediaStore scan (`albums(context)`), every tagged face, places, categories and the tag scoring — the same work Library had just done — and the tag scoring ran twice (once for categories, once for `niceScores`).
+
+Fixed 2026-11-13: Search now derives its rows from Library's snapshot (`searchData(lib)`), which is shared by both screens under Library's own keys (`peopleSaved`, the reload counter), so Search is never older than the tab. `libraryData` scores the tags once and hands the result to both rows.
+
+Checked on the phone (debug, the real library): `library load: people 721, albums 85, tags 61, trash 10, places 78, categories 27, total 997` (ms) — one `tags` step now, was two. Opening Search adds no second `library load` line, so it reuses the snapshot, and its rows (People, Types, Recent, and months for "ma") are on screen ~400 ms after the tap, most of that the 250 ms slide. Emulator: the 12 Search cases of `BehaviorTest`, `LayoutJumpTest` and `NavigationTest` are green.
+
 ## Grid thumbnails are the camera's EXIF preview
 
 MediaStore's thumbnail is the photo's embedded EXIF preview, which causes two problems:
@@ -118,7 +126,7 @@ Found while reading the code, not seen on the phone yet. No steps, just the risk
 - **Dead `photo.path` column.** `PhotoRow.path` (`Index.kt`) is written on insert but no query reads it. Remove it when the schema is next touched (needs a migration).
 - **`FaceImage` loads one face per query.** Every face on screen runs its own `thumb(id)` query and WebP decode (`People.kt`). People draws ~50 covers (one per person, not per face), so ~50 queries where one `WHERE id IN (...)` would do. Not a wall (people grow slowly), but the wrong shape: batch the ids a screen is about to show, or coalesce the requests in the cache so no screen has to remember to prefetch.
 - **AutoIndex scans the whole library on every app open.** `changedPhotos` (`AutoIndex.kt`) builds `libraryPhotos` (~4.4k `MediaPhoto`s) plus `photoIds` / `taggedIds` / `boxedIds` sets and `unplaced().size` each time the app comes to the front (3 s after the change burst), even when nothing is new. ~50-100 ms of background work per open, linear in the library. Compare a cheap count first.
-- **Each screen scans MediaStore again.** `timeline`, `albums` and `trash` are three separate scans of the same table; Library runs two per open, and Search, Categories, Category, Place, Videos and Folders to skip each call `albums(context)` for the same rows (`Photos.kt`, `Albums.kt`). One shared, in-memory scan is in `ROADMAP.md` Phase 11 (from the 2026-11-02 perf review).
+- **Each screen scans MediaStore again.** `timeline`, `albums` and `trash` are three separate scans of the same table; Library runs two per open, and Categories, Category, Place, Videos and Folders to skip each call `albums(context)` for the same rows (`Photos.kt`, `Albums.kt`). Search no longer scans (it reads Library's shared snapshot, 2026-11-13). One shared, in-memory scan is in `ROADMAP.md` Phase 11 (from the 2026-11-02 perf review).
 - **The face and thumb caches are never trimmed.** `thumbs` (`maxMemory / 2`) and `faceBitmaps` (`maxMemory / 8`) have no `onTrimMemory` (`Photos.kt`, `People.kt`), so 5/8 of the heap is held across a background/foreground switch.
 
 ## Perf numbers (`make perf`)
