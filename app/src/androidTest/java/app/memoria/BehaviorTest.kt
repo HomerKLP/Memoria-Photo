@@ -1781,12 +1781,14 @@ class BehaviorTest {
         var gpu = false
         var npu = false
         var folder = false
+        var media = false
         var back = false
         rule.setContent {
             MemoriaTheme { Surface {
                 DevToolsContent(
                     busy = false, numbers = null, log = "Index SUCCEEDED",
                     onBack = { back = true }, onRunCpu = { cpu = true }, onRunGpu = { gpu = true }, onRunNpu = { npu = true }, onIndexTest = { folder = true },
+                    onCheckMedia = { media = true },
                 )
             } }
         }
@@ -1799,6 +1801,8 @@ class BehaviorTest {
         assertTrue(npu)
         rule.onNodeWithText("Index test folder").performClick()
         assertTrue(folder)
+        rule.onNodeWithText("Check media files").performClick()
+        assertTrue(media)
         rule.onNodeWithContentDescription("Back").performClick()
         assertTrue(back)
     }
@@ -1808,11 +1812,13 @@ class BehaviorTest {
         var gpu = false
         var npu = false
         var folder = false
+        var media = false
         rule.setContent {
             MemoriaTheme { Surface {
                 DevToolsContent(
                     busy = true, numbers = null, log = "",
                     onRunCpu = { cpu = true }, onRunGpu = { gpu = true }, onRunNpu = { npu = true }, onIndexTest = { folder = true },
+                    onCheckMedia = { media = true },
                 )
             } }
         }
@@ -1820,9 +1826,11 @@ class BehaviorTest {
         rule.onNodeWithText("Run on CPU").performClick()
         rule.onNodeWithText("Run on GPU").performClick()
         rule.onNodeWithText("Run on NPU").performClick()
+        rule.onNodeWithText("Check media files").performClick()
         assertFalse(cpu)
         assertFalse(gpu)
         assertFalse(npu)
+        assertFalse(media)
         rule.onNodeWithText("Index test folder").performClick()
         assertTrue(folder)
     }

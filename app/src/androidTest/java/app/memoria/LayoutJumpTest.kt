@@ -225,6 +225,18 @@ class LayoutJumpTest {
         assertSame("Run on CPU", cpuBefore, rule.onNodeWithText("Run on CPU").top())
     }
 
+    /** The media block's three lines are always there, so Numbers and Log never move as it runs and ends. */
+    @Test fun devTools_mediaCheck_linesKeepTheirPlace() {
+        var media by mutableStateOf<MediaCheckState?>(null)
+        rule.setContent { MemoriaTheme { Surface { DevToolsContent(busy = false, numbers = null, log = "", media = media) } } }
+
+        val numbersBefore = rule.onNodeWithText("Numbers").top()
+        rule.runOnIdle { media = MediaCheckState(23, 55) }
+        assertSame("Numbers head while checking", numbersBefore, rule.onNodeWithText("Numbers").top())
+        rule.runOnIdle { media = MediaCheckState(55, 55, MediaCheckReport(listOf(MediaCheckResult("a.mp4", "fail")), emptyList(), 61_000)) }
+        assertSame("Numbers head after the result", numbersBefore, rule.onNodeWithText("Numbers").top())
+    }
+
     @Test fun library_emptyToPeople_peopleRowStaysSameHeight() {
         var data by mutableStateOf(library(people = emptyList()))
         rule.setContent { MemoriaTheme { Surface { LibraryContent(data) } } }

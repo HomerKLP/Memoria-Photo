@@ -900,11 +900,7 @@ fun Thumb(tile: Tile, modifier: Modifier) {
                 val short = min(thumb.width, thumb.height)
                 own = short < 200 || (!heif && short < tilePx / 1.2f) || !sameShape(thumb.width, thumb.height, tile.ratio) || turn != 1
             }
-            // halving only, to about a third of the screen: an exact size makes Skia keep every n-th pixel, which looks pixelated
-            fun decode() = ImageDecoder.decodeBitmap(ImageDecoder.createSource(resolver, tile.uri)) { decoder, info, _ ->
-                decoder.setTargetSampleSize(viewerSample(info.size.width, info.size.height, context.resources.displayMetrics.widthPixels / 3))
-            }.turnedBy(turn)
-            value = (if (own) runCatching { decode() }.getOrNull() ?: thumb else thumb)
+            value = (if (own) runCatching { tileBitmap(context, tile, turn) }.getOrNull() ?: thumb else thumb)
                 ?.also { thumbs.put(tile.id, it) }
         }
         // The tile left the screen: stop its load
@@ -922,3 +918,12 @@ fun Thumb(tile: Tile, modifier: Modifier) {
         }
     }
 }
+
+/**
+ * The grid tile's own decode, when MediaStore's picture is too small or wrongly shaped: about a third of
+ * the screen, halving only (an exact size makes Skia keep every n-th pixel, which looks pixelated).
+ */
+internal fun tileBitmap(context: Context, tile: Tile, turn: Int = dngTurn(context.contentResolver, tile.uri)): Bitmap =
+    ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, tile.uri)) { decoder, info, _ ->
+        decoder.setTargetSampleSize(viewerSample(info.size.width, info.size.height, context.resources.displayMetrics.widthPixels / 3))
+    }.turnedBy(turn)

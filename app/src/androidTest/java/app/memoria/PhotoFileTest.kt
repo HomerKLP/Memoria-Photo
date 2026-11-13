@@ -56,11 +56,8 @@ class PhotoFileTest(private val name: String, private val row: Map<String, Strin
 
     // From the EXIF spec, not from what Android returns: what the viewer must show for each orientation
     // (corners as top-left top-right bottom-left bottom-right) of a picture stored as R G / B Y.
-    private val upright = mapOf(1 to "RGBY", 2 to "GRYB", 3 to "YBGR", 4 to "BYRG", 5 to "RBGY", 6 to "BRYG", 7 to "YGBR", 8 to "GYRB")
-    private val colors = mapOf('R' to intArrayOf(230, 30, 30), 'G' to intArrayOf(30, 200, 30), 'B' to intArrayOf(30, 30, 230), 'Y' to intArrayOf(240, 220, 30))
-
     // junk tags (0, 9), no tag, and PNG / WebP show as stored
-    private val expected = upright[row["orientation"]!!.toIntOrNull()] ?: "RGBY"
+    private val expected = uprightCorners[row["orientation"]!!.toIntOrNull()] ?: "RGBY"
     private val shape: Float? = row["shape"]!!.split(':').takeIf { it.size == 2 }?.let { it[0].toFloat() / it[1].toFloat() }
 
     @After fun removeTestPhoto() {
@@ -96,12 +93,8 @@ class PhotoFileTest(private val name: String, private val row: Map<String, Strin
         return listOf(1 to 1, 3 to 1, 1 to 3, 3 to 3).map { (x, y) -> b.getPixel(b.width * x / 4, b.height * y / 4) }
     }
 
-    private fun corners(bitmap: Bitmap): String = pixels(bitmap).map { p ->
-        colors.minBy { (_, c) -> (c[0] - (p shr 16 and 255)).let { it * it } + (c[1] - (p shr 8 and 255)).let { it * it } + (c[2] - (p and 255)).let { it * it } }.key
-    }.joinToString("")
-
     private fun assertUpright(where: String, bitmap: Bitmap) {
-        if (row["expect"] == "upright") assertEquals("$where of $name (${bitmap.width}x${bitmap.height}, pixels ${pixels(bitmap).joinToString(" ") { "%06x".format(it and 0xffffff) }})", expected, corners(bitmap))
+        if (row["expect"] == "upright") assertEquals("$where of $name (${bitmap.width}x${bitmap.height}, pixels ${pixels(bitmap).joinToString(" ") { "%06x".format(it and 0xffffff) }})", expected, cornerString(bitmap))
         else assertEquals("$where of $name (${bitmap.width}x${bitmap.height}), width / height", shape!!, bitmap.width.toFloat() / bitmap.height, shape * 0.05f)
     }
 

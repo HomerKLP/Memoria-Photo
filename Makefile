@@ -18,7 +18,7 @@ KEY_SHA256 := bc1c500550d9e3bd73e27f44132877189329f88875ace0bd6049a828e792b240
 VERSION := $(shell sed -n 's/.*versionName = "\(.*\)"/\1/p' app/build.gradle.kts)
 APK := app/build/outputs/apk/release/memoria-$(VERSION).apk
 
-.PHONY: help install apk release pull-db push-models test screenshots shot-check emulator layout behavior perf check
+.PHONY: help install apk release pull-db push-models push-media test screenshots shot-check emulator layout behavior perf check
 
 help:
 	@echo "make install     build debug (app.memoria.debug, next to release), install on the phone over USB, open it (stops if the build fails)"
@@ -26,6 +26,7 @@ help:
 	@echo "make release     make apk, then install on the phone, compile with the profile, open (for speed checks, keeps the data)"
 	@echo "make pull-db     copy the debug app's DB (+ -wal, -shm) to testdata/out/db/; the last copy moves to db/prev-<time>/"
 	@echo "make push-models models/*.tflite to the debug app under the names it reads, rw-rw-rw-, dates kept (no download needed)"
+	@echo "make push-media  media.tsv and the test photos and videos to the debug app's files/media/ (Dev tools > Check media files)"
 	@echo "make test        unit tests (pure logic, no device); one class: make test T=DetailsGpsTest"
 	@echo "make screenshots refresh screenshot baselines (no device)"
 	@echo "make shot-check  validate screenshots against the baselines (no device)"
@@ -114,3 +115,13 @@ push-models:
 		$(ADB) -d push -a models/$${m%%:*}.tflite /sdcard/Android/data/app.memoria.debug/files/models/$${m##*:}.tflite || exit 1; \
 		$(ADB) -d shell chmod 666 /sdcard/Android/data/app.memoria.debug/files/models/$${m##*:}.tflite || exit 1; \
 	done
+
+# The table and every test photo and video, for Dev tools > Check media files (files/media/).
+MEDIA := /sdcard/Android/data/app.memoria.debug/files/media
+ASSETS := app/src/androidTest/assets
+push-media:
+	$(ADB) -d shell mkdir -p $(MEDIA)/fixtures $(MEDIA)/videos
+	$(ADB) -d push -a $(ASSETS)/media.tsv $(MEDIA)/media.tsv
+	$(ADB) -d push -a $(ASSETS)/fixtures/. $(MEDIA)/fixtures
+	$(ADB) -d push -a $(ASSETS)/videos/. $(MEDIA)/videos
+	$(ADB) -d shell chmod -R ugo+rwX $(MEDIA)

@@ -1,6 +1,5 @@
 package app.memoria
 
-import android.media.MediaCodecList
 import android.net.Uri
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
@@ -114,12 +113,6 @@ private fun play(rule: ComposeContentTestRule, asset: String): Played {
     return Played(videoAspectOf(probe.width, probe.height), probe.error, probe.sound)
 }
 
-/** True when this device has any decoder for [mime]: the emulator has none for some codecs. */
-private fun hasDecoder(mime: String): Boolean =
-    MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos.any { info ->
-        !info.isEncoder && info.supportedTypes.any { it.equals(mime, ignoreCase = true) }
-    }
-
 /** Every video row of `media.tsv` plays in the real viewer page the way its row says. A new row is a new case. */
 @RunWith(Parameterized::class)
 class VideoPlayTest(private val name: String, private val row: Map<String, String>) {
@@ -131,10 +124,8 @@ class VideoPlayTest(private val name: String, private val row: Map<String, Strin
 
     @get:Rule val rule = createComposeRule()
 
-    private val mimes = mapOf("H.264" to "video/avc", "HEVC" to "video/hevc", "VP9" to "video/x-vnd.on2.vp9", "AV1" to "video/av01", "H.263" to "video/3gpp")
-
     @Test fun plays_asItsRowSays() {
-        mimes[row["codec"]]?.let { assumeTrue("no ${row["codec"]} decoder on this device", hasDecoder(it)) }
+        videoMimes[row["codec"]]?.let { assumeTrue("no ${row["codec"]} decoder on this device", hasDecoder(it)) }
         val played = play(rule, name)
         val error = played.error
         when (row["expect"]) {
