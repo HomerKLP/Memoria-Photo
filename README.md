@@ -73,7 +73,7 @@ The models were picked on real family photos, not only on paper: 3 face finders 
 
 ## Supported formats
 
-Memoria plays and shows files with the phone's own decoders, so a codec works where your phone has one. These are tested on every pull request ([`media.tsv`](app/src/androidTest/assets/media.tsv)):
+Memoria plays and shows files with the phone's own decoders, so a codec works where your phone has one. These are tested on an emulator and on a real phone ([`media.tsv`](app/src/androidTest/assets/media.tsv)):
 
 - **Photos:** JPEG, HEIC, AVIF, PNG, WebP, DNG (raw), always the right way up.
 - **Videos:** MP4, MOV, MKV, WebM, 3GP with H.264, HEVC (8 and 10-bit), VP9, AV1, H.263; sound in AAC and Opus.
@@ -145,7 +145,7 @@ make check    # unit and screenshot tests, no device, about a minute
 make layout   # every emulator test: taps, layout jumps, real photo and video files, about 10 minutes
 ```
 
-Every push to `dev` runs the quick tests on GitHub. A pull request to `master` also runs every emulator test on 4 emulators at once and shows how much code the tests cover. The test photos and videos, and what the app must do with each, are listed in [`media.tsv`](app/src/androidTest/assets/media.tsv).
+Every push to `dev` runs the quick tests on GitHub. The emulator tests run on demand (Actions > tests > Run workflow), 4 emulators at once, and show how much code the tests cover. The test photos and videos, and what the app must do with each, are listed in [`media.tsv`](app/src/androidTest/assets/media.tsv).
 
 The models are made from the original ONNX files by [`bench/tflite.py`](bench/tflite.py) (needs [uv](https://docs.astral.sh/uv/)). Three ONNX files are made first: the tagger by `bench/tags.py onnx`, the pet model by `bench/pets.py onnx noodle_s`, YOLO26-M by Ultralytics' export (command in [`bench/objects.py`](bench/objects.py)).
 
