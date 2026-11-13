@@ -171,6 +171,7 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
     var holding by remember { mutableStateOf(false) } // 2x while a finger is down
     var videoAspect by remember { mutableStateOf(0f) } // the video's own width / height: a TextureView stretches without it
     var ready by remember { mutableStateOf(false) } // the player holds this page's video, so its frames are its own
+    var prepared by remember { mutableStateOf<Long?>(null) } // the video the player holds: a nudged page must not restart it
     var pill by remember { mutableStateOf(0) } // +5 s / −5 s, on the half that was tapped
     DisposableEffect(player) {
         val listener = object : Player.Listener {
@@ -280,10 +281,12 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
         if (tile.duration == null) {
             player.pause()
             player.clearMediaItems()
-        } else {
+            prepared = null
+        } else if (prepared != tile.id) {
             player.setMediaItem(MediaItem.fromUri(tile.uri))
             player.prepare()
             player.play()
+            prepared = tile.id
             ready = true
         }
     }
@@ -408,7 +411,7 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
                 ),
         ) {
             HorizontalPager(pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1, userScrollEnabled = !zoomed && !details, key = { list[it].id }) { i ->
-                val current = i == pager.currentPage && atRest && ready
+                val current = pageIsCurrent(i, pager.currentPage, atRest, list[i].duration != null, ready)
                 ViewerPage(
                     list[i], { zoomed = it }, onTap = { if (details) settle(false) else barsVisible = !barsVisible },
                     shown = if (current) ({ shown.value }) else ({ 1f }),
@@ -701,6 +704,13 @@ class VideoSurface {
 
 /** May [id]'s page clear the player's surface? Yes when it owns it, or when this is a plain page (a test). */
 internal fun ownsTexture(surface: VideoSurface?, id: Long) = surface == null || surface.owner == id
+
+/**
+ * True for the page in view: it takes the open and close motion, the drag and the details.
+ * A photo is current without the player; a video only once the player holds its own file.
+ */
+internal fun pageIsCurrent(page: Int, currentPage: Int, atRest: Boolean, isVideo: Boolean, ready: Boolean) =
+    page == currentPage && atRest && (!isVideo || ready)
 
 /** A file the decoder refuses (mockup "Video, cannot play"): a scrim over the frame, and the phone's player as the way out. */
 @Composable

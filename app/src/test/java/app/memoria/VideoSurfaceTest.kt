@@ -19,4 +19,20 @@ class VideoSurfaceTest {
     fun plainPage_clearsIt() {
         assertTrue(ownsTexture(null, 1L))
     }
+
+    /** Seen on the phone 2026-11-13: the first photo opened instantly, no fly-in, because every page waited for the player's ready flag. */
+    @Test
+    fun aPhotoPageIsCurrentWithoutThePlayer() {
+        assertTrue(pageIsCurrent(page = 1, currentPage = 1, atRest = true, isVideo = false, ready = false))
+        assertTrue(pageIsCurrent(page = 2, currentPage = 2, atRest = true, isVideo = false, ready = true))
+    }
+
+    @Test
+    fun aVideoPageWaitsForItsOwnFile() {
+        assertFalse(pageIsCurrent(page = 1, currentPage = 1, atRest = true, isVideo = true, ready = false))
+        assertTrue(pageIsCurrent(page = 1, currentPage = 1, atRest = true, isVideo = true, ready = true))
+        // a neighbour page or a moving pager never owns the motion
+        assertFalse(pageIsCurrent(page = 0, currentPage = 1, atRest = true, isVideo = true, ready = true))
+        assertFalse(pageIsCurrent(page = 1, currentPage = 1, atRest = false, isVideo = false, ready = true))
+    }
 }
