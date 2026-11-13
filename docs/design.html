@@ -269,8 +269,6 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .phone.viewer > .pbadge.speed { top: 66px; }
 /* The failed video: the frame stays behind a scrim, so the card reads on any photo */
 .phone.viewer > .viewer-dim { position: absolute; inset: 0; z-index: 1; background: rgba(18, 14, 10, .55); }
-/* Playing with the bars hidden: only the progress line stays, at the bottom edge */
-.phone.viewer > .pprogress { position: absolute; left: 0; bottom: 0; z-index: 3; height: 2px; width: 44%; border-radius: 0 2px 2px 0; background: var(--accent); }
 /* A video the player cannot open keeps the phone's own player as the way out */
 .viewer .empty { margin: auto 0; color: rgba(244, 236, 225, .68); }
 .viewer .empty b { color: var(--on-viewer); }
@@ -510,7 +508,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 <header class="top">
   <h1>Memoria Photo</h1>
   <p class="lede">Light theme, Honey palette. Photos and faces are placeholders, names and places are made up.</p>
-  <p class="latest"><b>Latest, 13 Nov:</b> <a href="#player-error">Player, cannot play</a> — the actions row stays under the card, over the scrim, so Share, Favorite and Delete still work. The Player section is built.</p>
+  <p class="latest"><b>Latest, 13 Nov:</b> <a href="#player-clean">Player, tapped</a> — no progress line at the bottom any more, only the video; and <a href="#player">Player</a>: dragging the bar seeks as you drag, the frame follows the finger.</p>
 </header>
 
 <aside class="rail" aria-label="Contents">
@@ -808,14 +806,13 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Video, playing: the video plays in the viewer, where the photo is — no other app, no second screen, so Back, swipe, More and the details stay the same. It runs on the phone's own hardware decoder through Media3, the one the system player uses, so it starts fast and plays the popular codecs: H.264, HEVC, VP9, AV1 and 10-bit, in MP4, MKV, WebM, 3GP and MOV. The frames are drawn in the page itself (a TextureView), so the video grows from its tile, shrinks back, slides and follows a pull like a photo; HDR clips play, their colours are a phone check. The player line is the whole control set: play / pause, one seek bar, time played and length. Drag the bar to seek, nowhere else. The controls fade out 2 s after the last touch while it plays and stay while it is paused; a tap brings them back. The photo viewer's actions row stays under them. Volume is the phone's own buttons. A video starts from the beginning each time: no resume point</figcaption>
+      <figcaption>Video, playing: the video plays in the viewer, where the photo is — no other app, no second screen, so Back, swipe, More and the details stay the same. It runs on the phone's own hardware decoder through Media3, the one the system player uses, so it starts fast and plays the popular codecs: H.264, HEVC, VP9, AV1 and 10-bit, in MP4, MKV, WebM, 3GP and MOV. The frames are drawn in the page itself (a TextureView), so the video grows from its tile, shrinks back, slides and follows a pull like a photo; HDR clips play, their colours are a phone check. The player line is the whole control set: play / pause, one seek bar, time played and length. Drag the bar to seek, nowhere else: the frame follows the finger while it drags, and playback goes on from there on the lift. The controls fade out 2 s after the last touch while it plays and stay while it is paused; a tap brings them back. The photo viewer's actions row stays under them. Volume is the phone's own buttons. A video starts from the beginning each time: no resume point</figcaption>
     </figure>
     <figure id="player-clean">
       <div class="phone dark viewer">
         <div class="viewer-full" data-shot></div>
-        <span class="pprogress"></span>
       </div>
-      <figcaption>Video, playing, tapped: the player line, the actions row, the top bar and the system bars all hide, so the video runs edge to edge, with only a 2 px progress line at the bottom edge. A tap brings the controls back; a sideways swipe still changes photo or video and a swipe up still opens the details</figcaption>
+      <figcaption>Video, playing, tapped: the player line, the actions row, the top bar and the system bars all hide, so the video runs edge to edge with nothing over it. A tap brings the controls back; a sideways swipe still changes photo or video and a swipe up still opens the details</figcaption>
     </figure>
     <figure id="player-tap">
       <div class="phone dark viewer">

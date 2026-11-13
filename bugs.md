@@ -100,16 +100,16 @@ Still open:
 - The full decode for photos with faces (~120-145 ms a photo on average) still runs in the loop, after the faces are found. The helper thread could do it early, at the price of decoding photos that turn out to have no faces.
 - A 2048 px full decode is cheaper but changes the face crops. Face quality comes first, so only with the user's OK.
 
+## HDR videos may look dull in the player
+
+The player draws on a `TextureView`, so the video can move with the page; a `TextureView` has no HDR output, the phone's own player (a `SurfaceView`) has. Steps: open an HDR or Dolby Vision camera clip in Memoria, then in the phone's player (More > Open in the phone's player), compare the colours. Not checked yet. Fix ideas if it shows: a `SurfaceView` while the page stands still, the `TextureView` only while it moves.
+
 # Known issues and bad patterns
 
 Found while reading the code, not seen on the phone yet. No steps, just the risk.
 
 - **Stopped index leaves new faces out.** `IndexWorker` skips the last `savePeople()` when stopped, so faces added since the last regroup keep `personId = null` and are hidden in People until the next run.
 - **Fixing a person's main face moves faces answered against it.** Answers point at the person's main face. If the user moves or removes that main face, after a regroup the faces with a yes for that person follow it. Fix: answer against a few starting faces, or move the answers to the new main face.
-## HDR videos may look dull in the player
-
-The player draws on a `TextureView`, so the video can move with the page; a `TextureView` has no HDR output, the phone's own player (a `SurfaceView`) has. Steps: open an HDR or Dolby Vision camera clip in Memoria, then in the phone's player (More > Open in the phone's player), compare the colours. Not checked yet. Fix ideas if it shows: a `SurfaceView` while the page stands still, the `TextureView` only while it moves.
-
 - **Small faces drop out.** Faces under 40 px never join a person and are also missing from the People screen (`People.kt` `groupFaces`). Intended, but they are silently gone, not "unsure".
 - **Global mutable state.** `lastTimeline` and `thumbs` are top-level (`Photos.kt`); the Photos tab and the viewer both depend on them silently.
 - **Bitmap churn.** `detect` makes new full-size bitmaps per photo and never recycles (`Faces.kt`). Adds to load cost and heat.
@@ -144,6 +144,8 @@ Native heap after 8 flings 52 MB (87 MB on 2026-11-04, not explained), no blank 
 
 # Fixed
 
+- 2026-11-13 Viewer: a tap hid the bars at once, but the status bar stayed for over a second. The app left the system bars on Android's default behavior, which fades them out over 1.5 s; the immersive behavior (`BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE`) slides them out in 340 ms.
+- 2026-11-13 Player: a drag on the seek bar moved only the knob; the video jumped on the lift. It seeks as the finger moves now, in Media3's scrubbing mode.
 - 2026-11-13 Player: a swipe dragged past the middle and back left the video as a still with its sound running (the `ready` flag stayed off). The video now shows on the page whose file the player holds (`prepared`), and moves with it.
 - 2026-11-13 Player: every video page got the playing video's shape, so a portrait clip next to a landscape one slid in small, then jumped. A neighbour keeps its own poster's shape.
 - 2026-11-13 Player: closing a video, the picture swapped to another frame at the start and again on landing (the tile shows MediaStore's middle frame). The live frame shrinks now (paused), and the tile's picture fades in over the second half of the way.

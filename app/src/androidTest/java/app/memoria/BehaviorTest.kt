@@ -494,6 +494,23 @@ class BehaviorTest {
         assertTrue(seek != null && kotlin.math.abs(seek!! - 95_000L) < 2_000L)
     }
 
+    /** Dragging the bar seeks while the finger moves, so the frame follows it; the player's scrubbing mode spans the drag. */
+    @Test fun player_drag_seeksAsItMoves() {
+        val seeks = mutableListOf<Long>()
+        val scrubbing = mutableListOf<Boolean>()
+        rule.setContent {
+            MemoriaTheme { Surface {
+                PlayerBar(playing = true, position = 0, length = 100_000, onToggle = {}, onSeek = { seeks += it }, onScrubbing = { scrubbing += it })
+            } }
+        }
+        val bar = rule.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.SetProgress))
+        bar.performTouchInput { down(Offset(width * 0.2f, centerY)); moveTo(Offset(width * 0.6f, centerY)) }
+        assertTrue("seeks before the lift: $seeks", seeks.isNotEmpty() && kotlin.math.abs(seeks.last() - 60_000L) < 3_000L)
+        assertEquals(listOf(true), scrubbing)
+        bar.performTouchInput { up() }
+        assertEquals(listOf(true, false), scrubbing)
+    }
+
     /** The video page's fingers: double tap the right half = +5 s, the left half = −5 s, hold = 2x (mockup "Player"). */
     private fun videoPage(onSkip: (Int) -> Unit = {}, onHold: (Boolean) -> Unit = {}) = rule.setContent {
         MemoriaTheme { Surface { Box(Modifier.fillMaxSize().testTag("page")) {

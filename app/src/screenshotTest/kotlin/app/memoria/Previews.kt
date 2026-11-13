@@ -873,19 +873,6 @@ fun ViewerVideo() = MemoriaTheme {
     }
 }
 
-/** Video, playing, tapped (mockup "player-clean"): the bars are gone, only the 2 px progress line stays at the bottom edge. */
-@PreviewTest
-@Preview(widthDp = 360, heightDp = 800)
-@Composable
-fun ViewerVideoTapped() = MemoriaTheme {
-    Surface {
-        Box(Modifier.fillMaxSize()) {
-            Box(Modifier.fillMaxSize().background(viewerPhoto))
-            ViewerChrome(false, "Sat, 11 Oct", "14:32", favorite = false, {}, {}, {}, {}, {}, progress = { 0.44f })
-        }
-    }
-}
-
 /** Video, cannot play (mockup "player-error"): the card on a scrim, the bars stay bright over it. */
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 800)

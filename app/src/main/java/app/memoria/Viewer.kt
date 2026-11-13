@@ -13,6 +13,8 @@ import android.view.WindowInsets
 import android.webkit.MimeTypeMap
 import android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
 import android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+import android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+import androidx.media3.common.util.UnstableApi
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
@@ -153,6 +155,7 @@ private const val zoomMillis = 250
 private const val barsFadeMillis = 120
 
 /** Full-screen photos, swipe sideways for the next one. Opens on the tile with id start. */
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class]) // the player's scrubbing mode
 @Composable
 fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Boolean = true, onShowInAlbum: (Tile) -> Unit = {}) {
     val context = LocalContext.current
@@ -238,6 +241,9 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
     val coast = rememberSplineBasedDecay<Float>()
     LaunchedEffect(details, barsVisible, dark, closing) {
         val controller = window.insetsController ?: return@LaunchedEffect
+        // Immersive: the bars slide out in 340 ms. The default behavior fades them over 1.5 s, so the status
+        // bar stayed long after the viewer's own bars were gone (Android's InsetsController durations)
+        controller.systemBarsBehavior = BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         controller.setSystemBarsAppearance(if (!dark) barIcons else 0, barIcons)
         // the details keep the top bar, so the system bars show too
         if (details || barsVisible || closing) controller.show(WindowInsets.Type.systemBars())
@@ -512,12 +518,9 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
                         },
                         // the knob stays where it was let go, not where the clock last read
                         onSeek = { if (prepared == tile.id) { player.seekTo(it); playAt = it } },
+                        // Media3's mode for many quick seeks: the frame follows the finger, playback waits for the lift
+                        onScrubbing = { if (prepared == tile.id) player.isScrubbingModeEnabled = it },
                     )
-                }) else null,
-                // Bars hidden by a tap or the fade: only the thin progress line stays (mockup "Video, playing, tapped").
-                // Not while the page moves: it would ride over the grid as the video shrinks into its tile.
-                progress = if (video && videoLength > 0L && still && !barsVisible && !details) ({
-                    (playAt.toFloat() / videoLength).coerceIn(0f, 1f)
                 }) else null,
             )
             // the panel is as tall as its open spot and slides up from under the bottom edge
@@ -561,8 +564,6 @@ fun ViewerChrome(
     menuItems: List<MenuItem> = emptyList(),
     bottom: Boolean = true, // false: the details panel is up and covers the bottom bar
     playerBar: (@Composable () -> Unit)? = null, // a video's controls, above the action row
-    // 0..1 while a video plays with the bars hidden: the thin line at the bottom edge. Read when drawn, so its clock redraws only the line
-    progress: (() -> Float)? = null,
     onMenu: (Boolean) -> Unit = {}, // the menu opened or closed: a video's controls stay while it is open
 ) {
     var menu by remember { mutableStateOf(false) }
@@ -615,12 +616,6 @@ fun ViewerChrome(
                 IconButton(onDelete) { Icon(painterResource(R.drawable.ic_trash_line), "Delete", tint = onViewer) }
             }
         }
-        // Playing with the bars hidden: the thin progress line at the bottom edge keeps the hang on it
-        if (!visible) progress?.let { at ->
-            Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(2.dp).drawBehind {
-                drawRect(Color(0xFFE9A23B), size = size.copy(width = size.width * at().coerceIn(0f, 1f)))
-            })
-        }
         Menu(menu, onDismiss = { menu = false }, items = menuItems)
     }
 }
@@ -665,8 +660,9 @@ fun PlayerBar(
     onToggle: () -> Unit,
     onSeek: (Long) -> Unit,
     modifier: Modifier = Modifier,
+    onScrubbing: (Boolean) -> Unit = {}, // a drag on the bar starts and ends: the player gets ready for many seeks
 ) {
-    var drag by remember { mutableStateOf<Float?>(null) } // the thumb under the finger, before the seek lands
+    var drag by remember { mutableStateOf<Float?>(null) } // the thumb under the finger
     val span = length.coerceAtLeast(1L).toFloat()
     val at = drag ?: (position / span).coerceIn(0f, 1f)
     Row(modifier.fillMaxWidth().padding(start = 4.dp, end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -675,8 +671,9 @@ fun PlayerBar(
         }
         SeekBar(
             at = at,
-            onScrub = { drag = it },
-            onSeek = { drag = null; onSeek((it * span).toLong()) },
+            // the video seeks as the finger moves, so the frame shows where the drag is
+            onScrub = { if (drag == null) onScrubbing(true); drag = it; onSeek((it * span).toLong()) },
+            onSeek = { drag = null; onSeek((it * span).toLong()); onScrubbing(false) },
             modifier = Modifier.weight(1f),
         )
         // Fixed width and tabular digits: the total arrives once the file is read, and the slider must not jump then
@@ -688,7 +685,7 @@ fun PlayerBar(
     }
 }
 
-/** A 4 dp line with a 12 dp knob, not Material's fat slider (mockup "Video, playing"). Tap or drag it to seek. */
+/** A 4 dp line with a 12 dp knob, not Material's fat slider (mockup "Video, playing"). Tap or drag it: [onScrub] on each move, [onSeek] on the lift. */
 @Composable
 private fun SeekBar(at: Float, onScrub: (Float) -> Unit, onSeek: (Float) -> Unit, modifier: Modifier = Modifier) {
     Box(

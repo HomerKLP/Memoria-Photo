@@ -249,6 +249,7 @@ Goal: a video shows up under every person and pet seen in it. The index reads on
 - Dark theme: a dark Honey palette that follows the system setting. Replaces the light-only call (2026-10-15). Not in the mockup yet: design first.
 - Locked folder behind PIN or fingerprint (Library card in the mockup, no screen yet).
 - Simple edit: crop, rotate. Other edits open in another app (Viewer, More > Edit in…).
+- Turn with the phone: the viewer goes landscape for photos and videos (a landscape video fills the screen sideways), the grids stay portrait. Today the whole app is locked to portrait (`screenOrientation="portrait"` in the manifest). Design first: the viewer's bars and the player line in landscape.
 - Rename an album.
 - "On this day" memories.
 - Duplicates finder: exact copies, burst shots, very similar shots. Keep the best one (sharpest, open eyes, best faces); deleting the rest needs the user's OK.
