@@ -70,6 +70,16 @@ The models were picked on real family photos, not only on paper: 3 face finders 
 - **Search:** people, places, months, categories.
 - **Folders to skip:** keep some folders out of the index (faces, pets, search, places).
 
+## Supported formats
+
+Memoria plays and shows files with the phone's own decoders, so a codec works where your phone has one. These are tested on every pull request ([`media.tsv`](app/src/androidTest/assets/media.tsv)):
+
+- **Photos:** JPEG, HEIC, AVIF, PNG, WebP, DNG (raw), always the right way up.
+- **Videos:** MP4, MOV, MKV, WebM, 3GP with H.264, HEVC (8 and 10-bit), VP9, AV1, H.263; sound in AAC and Opus.
+- **A video the phone can't play** shows a card with a button to open it in another player.
+
+Known gap: sound in AC-3, E-AC-3 or DTS (some `.mkv` and camcorder files) plays silent on most phones, with no warning yet.
+
 ## Privacy
 
 - All AI runs on the phone. No photo is ever uploaded or analyzed elsewhere.
