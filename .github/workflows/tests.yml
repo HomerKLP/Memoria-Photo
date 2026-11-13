@@ -1,12 +1,10 @@
 name: tests
 
-# Every push to dev: the quick checks (unit, screenshots). A PR to master and the Run button on GitHub
-# add the emulator tests, split over 4 emulators at once.
+# Every push to dev: the quick checks (unit, screenshots). The emulator tests run only from the Run
+# button (Actions > tests > Run workflow), split over 4 emulators at once; a PR runs no device tests.
 on:
   push:
     branches: [dev]
-  pull_request:
-    branches: [master]
   workflow_dispatch:
 
 # A newer push stops the older run; a Run button press does not stop a push run.
