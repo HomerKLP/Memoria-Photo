@@ -28,6 +28,9 @@ android {
         debug {
             applicationIdSuffix = ".debug"
             manifestPlaceholders["appName"] = "Memoria Debug"
+            // CI only (-Pcoverage): it slows the debug app, so phone builds stay without it
+            enableUnitTestCoverage = providers.gradleProperty("coverage").isPresent
+            enableAndroidTestCoverage = providers.gradleProperty("coverage").isPresent
         }
     }
     buildFeatures {

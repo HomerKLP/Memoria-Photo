@@ -10,6 +10,8 @@ EMULATOR := $(HOME)/Library/Android/sdk/emulator/emulator
 AVD ?= Medium_Phone_API_37.0
 SERIAL ?= emulator-5554
 DENSITY ?= 480
+# CI swaps in the coverage report task, which runs the same tests first
+TASK ?= :app:connectedDebugAndroidTest
 KEYSTORE ?= $(HOME)/keys/memoria-release.jks
 # The release key's SHA-256; an APK signed with any other key (the debug key above all) is deleted.
 KEY_SHA256 := bc1c500550d9e3bd73e27f44132877189329f88875ace0bd6049a828e792b240
@@ -93,7 +95,7 @@ layout:
 	$(ADB) -s $(SERIAL) wait-for-device; \
 	until [ "$$($(ADB) -s $(SERIAL) shell getprop sys.boot_completed | tr -d '\r')" = "1" ]; do sleep 2; done; \
 	$(ADB) -s $(SERIAL) shell wm density $(DENSITY); \
-	ANDROID_SERIAL=$(SERIAL) ./gradlew :app:connectedDebugAndroidTest $(UI_FILTER) $(if $(T),'-Pandroid.testInstrumentationRunnerArguments.tests_regex=.*($(T)).*')
+	ANDROID_SERIAL=$(SERIAL) ./gradlew $(TASK) $(UI_FILTER) $(if $(T),'-Pandroid.testInstrumentationRunnerArguments.tests_regex=.*($(T)).*')
 
 # Just BehaviorTest, on the same emulator as `make layout`. `make layout` runs both.
 behavior: UI_FILTER = -Pandroid.testInstrumentationRunnerArguments.class=app.memoria.BehaviorTest
