@@ -62,6 +62,7 @@ The models were picked on real family photos, not only on paper: 3 face finders 
 
 - **Photos:** timeline by day and month, month slider, select many with a drag.
 - **Viewer:** zoom, swipe, details (date, time zone, place, camera, people and pets).
+- **Video:** plays in the viewer, with a seek bar, double tap ±5 s, and hold for 2x speed.
 - **Albums:** phone folders, new albums, move photos.
 - **Places:** photos by town, names found offline.
 - **Pets:** cats and dogs, found and grouped like people, with names.
