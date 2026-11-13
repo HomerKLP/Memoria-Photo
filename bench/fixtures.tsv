@@ -1,2 +1,0 @@
-name	url	licence	sha256	note
-real/dng_canon60d.dng	https://raw.pixls.us/data/Canon/EOS%2060D/M14-1451_000085_cDNG_compressed.dng	CC0 (raw.pixls.us)	0852585b9c567f2ba50aedfeb4d4f4ae54e207e9c737b65c041233c8c7908ca5	camera serial removed with exiftool; the hash is of this copy

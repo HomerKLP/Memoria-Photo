@@ -101,19 +101,21 @@ suspend fun scoredTags(context: Context): Pair<List<Tag>, List<PhotoTagRow>> = w
     tags to dao.photoTags(Tag.stamp)
 }
 
-suspend fun loadCategories(context: Context, tiles: List<Tile>): List<Category> = withContext(Dispatchers.IO) {
-    val (tags, rows) = scoredTags(context)
+suspend fun loadCategories(context: Context, tiles: List<Tile>, scored: Pair<List<Tag>, List<PhotoTagRow>>? = null): List<Category> = withContext(Dispatchers.IO) {
+    val (tags, rows) = scored ?: scoredTags(context)
     if (tags.isEmpty()) emptyList()
     else categories(tags, rows, tiles, if (objectsFiles(context).all { it.exists() }) Db.get(context).index().petPhotos() else null)
 }
 
 /** The [COVER_TAG] score per photo: how much the photo looks like a nice place (higher = nicer). */
-suspend fun niceScores(context: Context): Map<Long, Float> =
-    scoredTags(context).second.mapNotNull { r ->
+fun niceScores(scored: Pair<List<Tag>, List<PhotoTagRow>>): Map<Long, Float> =
+    scored.second.mapNotNull { r ->
         r.tags.split(';').firstNotNullOfOrNull { hit ->
             hit.split(' ').takeIf { it.size == 2 && it[0] == COVER_TAG }?.let { r.photoId to it[1].toFloat() }
         }
     }.toMap()
+
+suspend fun niceScores(context: Context): Map<Long, Float> = niceScores(scoredTags(context))
 
 private suspend fun loadCategories(context: Context) = withContext(Dispatchers.IO) { loadCategories(context, albums(context).flatMap { it.tiles }) }
 

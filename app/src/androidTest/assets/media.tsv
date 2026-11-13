@@ -1,0 +1,56 @@
+file	expect	shape	orientation	codec	sound	about	source
+fixtures/avif_o1.avif	upright	-	1	-	-	AVIF with EXIF orientation 1	bench/fixtures.py
+fixtures/avif_o2.avif	upright	-	2	-	-	AVIF with EXIF orientation 2	bench/fixtures.py
+fixtures/avif_o3.avif	upright	-	3	-	-	AVIF with EXIF orientation 3	bench/fixtures.py
+fixtures/avif_o4.avif	upright	-	4	-	-	AVIF with EXIF orientation 4	bench/fixtures.py
+fixtures/avif_o5.avif	upright	-	5	-	-	AVIF with EXIF orientation 5	bench/fixtures.py
+fixtures/avif_o6.avif	upright	-	6	-	-	AVIF with EXIF orientation 6	bench/fixtures.py
+fixtures/avif_o7.avif	upright	-	7	-	-	AVIF with EXIF orientation 7	bench/fixtures.py
+fixtures/avif_o8.avif	upright	-	8	-	-	AVIF with EXIF orientation 8	bench/fixtures.py
+fixtures/dng_o1.dng	upright	-	1	-	-	DNG raw photo with orientation 1	bench/fixtures.py
+fixtures/dng_o3.dng	upright	-	3	-	-	DNG raw photo with orientation 3	bench/fixtures.py
+fixtures/dng_o6.dng	upright	-	6	-	-	DNG raw photo with orientation 6	bench/fixtures.py
+fixtures/dng_o8.dng	upright	-	8	-	-	DNG raw photo with orientation 8	bench/fixtures.py
+fixtures/heic_o1.heic	upright	-	1	-	-	HEIC as a phone writes it, orientation 1 in its irot / imir boxes	bench/fixtures.py
+fixtures/heic_o2.heic	upright	-	2	-	-	HEIC as a phone writes it, orientation 2 in its irot / imir boxes	bench/fixtures.py
+fixtures/heic_o3.heic	upright	-	3	-	-	HEIC as a phone writes it, orientation 3 in its irot / imir boxes	bench/fixtures.py
+fixtures/heic_o4.heic	upright	-	4	-	-	HEIC as a phone writes it, orientation 4 in its irot / imir boxes	bench/fixtures.py
+fixtures/heic_o5.heic	upright	-	5	-	-	HEIC as a phone writes it, orientation 5 in its irot / imir boxes	bench/fixtures.py
+fixtures/heic_o6.heic	upright	-	6	-	-	HEIC as a phone writes it, orientation 6 in its irot / imir boxes	bench/fixtures.py
+fixtures/heic_o7.heic	upright	-	7	-	-	HEIC as a phone writes it, orientation 7 in its irot / imir boxes	bench/fixtures.py
+fixtures/heic_o8.heic	upright	-	8	-	-	HEIC as a phone writes it, orientation 8 in its irot / imir boxes	bench/fixtures.py
+fixtures/jpg_none.jpg	upright	-	-	-	-	JPEG with no EXIF	bench/fixtures.py
+fixtures/jpg_o0.jpg	upright	-	0	-	-	JPEG with a junk orientation (0): shows as stored	bench/fixtures.py
+fixtures/jpg_o1.jpg	upright	-	1	-	-	JPEG with EXIF orientation 1	bench/fixtures.py
+fixtures/jpg_o1_prev.jpg	upright	-	1	-	-	JPEG with EXIF orientation 1 and a camera preview inside	bench/fixtures.py
+fixtures/jpg_o1_prevcut.jpg	upright	-	1	-	-	JPEG whose preview is a 3:4 cut of the 4:3 photo, like a zoomed shot	bench/fixtures.py
+fixtures/jpg_o2.jpg	upright	-	2	-	-	JPEG with EXIF orientation 2	bench/fixtures.py
+fixtures/jpg_o2_prev.jpg	upright	-	2	-	-	JPEG with EXIF orientation 2 and a camera preview inside	bench/fixtures.py
+fixtures/jpg_o3.jpg	upright	-	3	-	-	JPEG with EXIF orientation 3	bench/fixtures.py
+fixtures/jpg_o3_prev.jpg	upright	-	3	-	-	JPEG with EXIF orientation 3 and a camera preview inside	bench/fixtures.py
+fixtures/jpg_o4.jpg	upright	-	4	-	-	JPEG with EXIF orientation 4	bench/fixtures.py
+fixtures/jpg_o4_prev.jpg	upright	-	4	-	-	JPEG with EXIF orientation 4 and a camera preview inside	bench/fixtures.py
+fixtures/jpg_o5.jpg	upright	-	5	-	-	JPEG with EXIF orientation 5	bench/fixtures.py
+fixtures/jpg_o5_prev.jpg	upright	-	5	-	-	JPEG with EXIF orientation 5 and a camera preview inside	bench/fixtures.py
+fixtures/jpg_o6.jpg	upright	-	6	-	-	JPEG with EXIF orientation 6	bench/fixtures.py
+fixtures/jpg_o6_big.jpg	upright	-	6	-	-	JPEG 4000x3000 with EXIF orientation 6: the viewer decodes it by halving	bench/fixtures.py
+fixtures/jpg_o6_prev.jpg	upright	-	6	-	-	JPEG with EXIF orientation 6 and a camera preview inside	bench/fixtures.py
+fixtures/jpg_o7.jpg	upright	-	7	-	-	JPEG with EXIF orientation 7	bench/fixtures.py
+fixtures/jpg_o7_prev.jpg	upright	-	7	-	-	JPEG with EXIF orientation 7 and a camera preview inside	bench/fixtures.py
+fixtures/jpg_o8.jpg	upright	-	8	-	-	JPEG with EXIF orientation 8	bench/fixtures.py
+fixtures/jpg_o8_prev.jpg	upright	-	8	-	-	JPEG with EXIF orientation 8 and a camera preview inside	bench/fixtures.py
+fixtures/jpg_o9.jpg	upright	-	9	-	-	JPEG with a junk orientation (9): shows as stored	bench/fixtures.py
+fixtures/png_o1.png	upright	-	-	-	-	PNG, no EXIF	bench/fixtures.py
+fixtures/real/dng_canon60d.dng	opens	16:9	-	-	-	a real camera's compressed DNG (Canon EOS 60D)	https://raw.pixls.us/data/Canon/EOS%2060D/M14-1451_000085_cDNG_compressed.dng (CC0, camera serial removed with exiftool)
+fixtures/webp_o1.webp	upright	-	-	-	-	WebP, no EXIF	bench/fixtures.py
+videos/video_3gp.3gp	plays	176:144	-	H.263	yes	3GP from an old phone, H.263 with AAC sound, 176x144	bench/videofix.py
+videos/video_av1.mp4	plays	16:9	-	AV1	no	MP4, AV1	bench/videofix.py
+videos/video_broken.mp4	card	-	-	-	-	19 bytes of text, not a video	bench/videofix.py
+videos/video_hevc.mp4	plays	16:9	-	HEVC	no	MP4, HEVC as a phone camera records it	bench/videofix.py
+videos/video_hevc10.mp4	plays or card	16:9	-	HEVC	no	MP4, 10-bit HEVC like an HDR recording; the emulator's decoder may refuse it	bench/videofix.py
+videos/video_land.mp4	plays	16:9	-	H.264	yes	MP4, H.264 with AAC sound, landscape, 5 s	bench/videofix.py
+videos/video_mkv.mkv	plays	16:9	-	HEVC	no	MKV like a download, HEVC	bench/videofix.py
+videos/video_mov.mov	plays	16:9	-	H.264	yes	QuickTime .mov like an iPhone's, H.264 with AAC sound	bench/videofix.py
+videos/video_port.mp4	plays	9:16	-	H.264	no	MP4, H.264, portrait	bench/videofix.py
+videos/video_rot90.mp4	plays	9:16	-	H.264	no	MP4 stored landscape and turned 90° by the file, like a phone's portrait video	bench/videofix.py
+videos/video_vp9.webm	plays	16:9	-	VP9	yes	WebM, VP9 with Opus sound	bench/videofix.py

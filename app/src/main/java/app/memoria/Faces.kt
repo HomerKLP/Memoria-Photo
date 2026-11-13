@@ -54,9 +54,18 @@ fun loadPhoto(resolver: ContentResolver, uri: Uri, side: Int = 4096, size: (Int,
     loadPhoto(ImageDecoder.createSource(resolver, uri), side, dngTurn(resolver, uri), size)
 
 /** A DNG's TIFF turn tag (1-8), and 1 for any other file. ImageDecoder and the thumbnailer show a DNG as stored whatever this says (`PhotoFileTest`), so each decode of a photo turns by it. */
-fun dngTurn(resolver: ContentResolver, uri: Uri, type: String? = runCatching { resolver.getType(uri) }.getOrNull()): Int =
+fun dngTurn(resolver: ContentResolver, uri: Uri, type: String? = runCatching { resolver.getType(uri) }.getOrNull() ?: fileType(uri)): Int =
     if (type != "image/x-adobe-dng") 1
     else runCatching { resolver.openInputStream(uri)!!.use { ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, 1) } }.getOrDefault(1)
+
+/** The type of a `file://` URI, which the resolver has no header for (Dev tools' media check). */
+private fun fileType(uri: Uri): String? = when (uri.scheme) {
+    "file" -> when (uri.lastPathSegment?.substringAfterLast('.', "")?.lowercase()) {
+        "dng" -> "image/x-adobe-dng"
+        else -> null
+    }
+    else -> null
+}
 
 /** The picture turned by an EXIF-style [tag] (1-8). Anything else leaves it as it is. */
 fun Bitmap.turnedBy(tag: Int): Bitmap {

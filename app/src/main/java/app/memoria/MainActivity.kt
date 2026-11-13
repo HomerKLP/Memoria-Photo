@@ -361,6 +361,7 @@ fun App(dir: File, openSettings: Int = 0, atUpdates: Boolean = false) {
                             Screen.Videos -> VideosScreen(onBack = back, onOpen = open)
                             Screen.Search -> SearchScreen(
                                 onBack = back,
+                                reload = returns,
                                 onOpen = { h ->
                                     when (h.kind) {
                                         HitKind.person -> push(Screen.People(h.key.toLong(), direct = true))
@@ -454,6 +455,7 @@ fun TestScreen(dir: File, onBack: () -> Unit) {
     var log by remember { mutableStateOf("Photos: ${dir.path}") }
     var preview by remember { mutableStateOf<Pair<Bitmap, List<Face>>?>(null) }
     var busy by remember { mutableStateOf(false) }
+    var media by remember { mutableStateOf<MediaCheckState?>(null) }
     val context = LocalContext.current
     val dao = remember { Db.get(context).index() }
     val work by remember { WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow("index") }.collectAsState(emptyList())
@@ -480,11 +482,30 @@ fun TestScreen(dir: File, onBack: () -> Unit) {
         numbers = numbers,
         log = "Index ${work.firstOrNull()?.state ?: "-"}\n$log",
         preview = preview,
+        media = media,
         onBack = onBack,
         onRunCpu = { start(Accelerator.CPU) },
         onRunGpu = { start(Accelerator.GPU) },
         onRunNpu = { start(Accelerator.NPU) },
         onIndexTest = { index.launch(arrayOf(photos, Manifest.permission.POST_NOTIFICATIONS)) },
+        onCheckMedia = {
+            busy = true
+            scope.launch(Dispatchers.Default) {
+                try {
+                    val dir = File(context.getExternalFilesDir(null), "media")
+                    if (!File(dir, "media.tsv").exists()) {
+                        media = MediaCheckState(error = "No media.tsv, run make push-media")
+                    } else {
+                        val report = checkMedia(context, dir) { done, total -> media = MediaCheckState(done, total) }
+                        media = MediaCheckState(report.files.size, report.files.size, report)
+                        AppLog.i("dev: media check ${report.passed} of ${report.files.size} fine, ${report.failed} failed, ${report.skipped} skipped in ${report.millis / 1000} s")
+                    }
+                } catch (e: Exception) {
+                    media = MediaCheckState(error = "Check failed: ${e.message ?: e.javaClass.simpleName}")
+                }
+                busy = false
+            }
+        },
     )
 }
 

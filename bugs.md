@@ -2,6 +2,14 @@
 
 Style: one-line description, steps to reproduce, fix ideas. Code paths only when they help. Open bugs in full; a fixed bug becomes one line under Fixed at the bottom (the full write-up stays in git history).
 
+## Search tab taking too long to load, why?
+
+Search built its own copy of everything on every open: a full MediaStore scan (`albums(context)`), every tagged face, places, categories and the tag scoring — the same work Library had just done — and the tag scoring ran twice (once for categories, once for `niceScores`).
+
+Fixed 2026-11-13: Search now derives its rows from Library's snapshot (`searchData(lib)`), which is shared by both screens under Library's own keys (`peopleSaved`, the reload counter), so Search is never older than the tab. `libraryData` scores the tags once and hands the result to both rows.
+
+Checked on the phone (debug, the real library): `library load: people 721, albums 85, tags 61, trash 10, places 78, categories 27, total 997` (ms) — one `tags` step now, was two. Opening Search adds no second `library load` line, so it reuses the snapshot, and its rows (People, Types, Recent, and months for "ma") are on screen ~400 ms after the tap, most of that the 250 ms slide. Emulator: the 12 Search cases of `BehaviorTest`, `LayoutJumpTest` and `NavigationTest` are green.
+
 ## Grid thumbnails are the camera's EXIF preview
 
 MediaStore's thumbnail is the photo's embedded EXIF preview, which causes two problems:
@@ -55,7 +63,7 @@ That fixes the grid only half way. Checked 2026-11-04 on a landscape HEIC with `
 Fix idea: for a HEIC with a mirrored EXIF tag (2, 4, 5, 7), follow EXIF like the phone's gallery: decode the stored pixels with no turn (maybe `BitmapFactory`, check it skips `irot`) and apply the EXIF matrix, in one place all three decodes share; re-decode such tiles in `Thumb` like the wrong-shape ones. First check on the emulator with a made-up HEIC per row (arrow picture, `irot` + `imir`) what `ImageDecoder` and `BitmapFactory` apply, then on that phone.
 
 Tests needed (so no phone has to be checked by eye; ROADMAP Phase 9):
-- Files: a 4-colour picture (red, green, blue, yellow corners), 8 HEICs for EXIF 1-8 and the same 8 JPEGs with the EXIF orientation. Apple's ImageIO writes the HEICs with the phone's own box pairs (checked 2026-11-04: 2 = `irot` 0 + `imir` 1, 4 = 0 + 0, 5 = 90 + 0, 7 = 90 + 1, 3 / 6 / 8 `irot` only). Also AVIF 1-8 (Pillow; other box pairs, 7 = `irot` 270 + `imir` 0), PNG, WebP, junk tags 0 and 9, a big JPEG (halving), and JPEGs with a camera preview inside (also a 3:4 cut of a 4:3 photo). `bench/fixtures.py` makes them into `app/src/androidTest/assets/fixtures/` (43 files, 1.9 MB with the DNGs) and checks each against the EXIF table with macOS ImageIO, Pillow and LibRaw. DNG: four hand-written ones (turn tags 1, 3, 6, 8, 360 KB each) and one real Canon 60D frame from raw.pixls.us in `real/` (CC0, 0.47 MB, serial removed, source in `bench/fixtures.tsv`). Everything is in git, so no test depends on a download.
+- Files: a 4-colour picture (red, green, blue, yellow corners), 8 HEICs for EXIF 1-8 and the same 8 JPEGs with the EXIF orientation. Apple's ImageIO writes the HEICs with the phone's own box pairs (checked 2026-11-04: 2 = `irot` 0 + `imir` 1, 4 = 0 + 0, 5 = 90 + 0, 7 = 90 + 1, 3 / 6 / 8 `irot` only). Also AVIF 1-8 (Pillow; other box pairs, 7 = `irot` 270 + `imir` 0), PNG, WebP, junk tags 0 and 9, a big JPEG (halving), and JPEGs with a camera preview inside (also a 3:4 cut of a 4:3 photo). `bench/fixtures.py` makes them into `app/src/androidTest/assets/fixtures/` (43 files, 1.9 MB with the DNGs) and checks each against the EXIF table with macOS ImageIO, Pillow and LibRaw. DNG: four hand-written ones (turn tags 1, 3, 6, 8, 360 KB each) and one real Canon 60D frame from raw.pixls.us in `real/` (CC0, 0.47 MB, serial removed, source in `media.tsv`). Everything is in git, so no test depends on a download.
 - Test (androidTest, emulator): put each file in MediaStore, run the real paths (grid tile `Thumb`, viewer decode, index `loadPhoto`), compare the four corner colours with a hand-written table for EXIF 1-8 (from the spec, not from what Android returns).
 - The emulator is NOT enough for HEIC (found 2026-11-04, API 37 emulator): every HEIC case is green there, orientation 1-8 on grid, viewer and index, and the grid thumb is sharp. So Android 17 applies `imir` and gives a full-size HEIC thumb; the bug on the MediaTek phone needs an older emulator image (which Android version does that phone run?) or the phone. Once a fix flips by `imir` itself, the API 37 run must stay green (no double flip).
 - Red on the API 37 emulator before the fixes (2026-11-04), all 176 cases green after: JPEG with a camera preview (grid for tags 2 and 4, sharpness for 1, 2, 3, 4, 6, 8) and DNG tags 3, 6, 8 on grid, viewer and index (Android does not turn a DNG by its TIFF tag). Checked on the phone with a made-up tag 6 DNG: grid and viewer show it right, so no double turn there. The phone's only real DNG is landscape, so no real portrait DNG was checked. Open, not tested: a mirrored (2, 4) JPEG whose preview is at least a tile / 1.2 wide still shows as stored.
@@ -100,6 +108,10 @@ Still open:
 - The full decode for photos with faces (~120-145 ms a photo on average) still runs in the loop, after the faces are found. The helper thread could do it early, at the price of decoding photos that turn out to have no faces.
 - A 2048 px full decode is cheaper but changes the face crops. Face quality comes first, so only with the user's OK.
 
+## HDR videos may look dull in the player
+
+The player draws on a `TextureView`, so the video can move with the page; a `TextureView` has no HDR output, the phone's own player (a `SurfaceView`) has. Steps: open an HDR or Dolby Vision camera clip in Memoria, then in the phone's player (More > Open in the phone's player), compare the colours. Not checked yet. Fix ideas if it shows: a `SurfaceView` while the page stands still, the `TextureView` only while it moves.
+
 # Known issues and bad patterns
 
 Found while reading the code, not seen on the phone yet. No steps, just the risk.
@@ -114,7 +126,7 @@ Found while reading the code, not seen on the phone yet. No steps, just the risk
 - **Dead `photo.path` column.** `PhotoRow.path` (`Index.kt`) is written on insert but no query reads it. Remove it when the schema is next touched (needs a migration).
 - **`FaceImage` loads one face per query.** Every face on screen runs its own `thumb(id)` query and WebP decode (`People.kt`). People draws ~50 covers (one per person, not per face), so ~50 queries where one `WHERE id IN (...)` would do. Not a wall (people grow slowly), but the wrong shape: batch the ids a screen is about to show, or coalesce the requests in the cache so no screen has to remember to prefetch.
 - **AutoIndex scans the whole library on every app open.** `changedPhotos` (`AutoIndex.kt`) builds `libraryPhotos` (~4.4k `MediaPhoto`s) plus `photoIds` / `taggedIds` / `boxedIds` sets and `unplaced().size` each time the app comes to the front (3 s after the change burst), even when nothing is new. ~50-100 ms of background work per open, linear in the library. Compare a cheap count first.
-- **Each screen scans MediaStore again.** `timeline`, `albums` and `trash` are three separate scans of the same table; Library runs two per open, and Search, Categories, Category, Place, Videos and Folders to skip each call `albums(context)` for the same rows (`Photos.kt`, `Albums.kt`). One shared, in-memory scan is in `ROADMAP.md` Phase 11 (from the 2026-11-02 perf review).
+- **Each screen scans MediaStore again.** `timeline`, `albums` and `trash` are three separate scans of the same table; Library runs two per open, and Categories, Category, Place, Videos and Folders to skip each call `albums(context)` for the same rows (`Photos.kt`, `Albums.kt`). Search no longer scans (it reads Library's shared snapshot, 2026-11-13). One shared, in-memory scan is in `ROADMAP.md` Phase 11 (from the 2026-11-02 perf review).
 - **The face and thumb caches are never trimmed.** `thumbs` (`maxMemory / 2`) and `faceBitmaps` (`maxMemory / 8`) have no `onTrimMemory` (`Photos.kt`, `People.kt`), so 5/8 of the heap is held across a background/foreground switch.
 
 ## Perf numbers (`make perf`)
@@ -140,6 +152,25 @@ Native heap after 8 flings 52 MB (87 MB on 2026-11-04, not explained), no blank 
 
 # Fixed
 
+- 2026-11-13 Viewer: a tap hid the bars at once, but the status bar stayed for over a second. The app left the system bars on Android's default behavior, which fades them out over 1.5 s; the immersive behavior (`BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE`) slides them out in 340 ms.
+- 2026-11-13 Player: a drag on the seek bar moved only the knob; the video jumped on the lift. It seeks as the finger moves now, in Media3's scrubbing mode.
+- 2026-11-13 Player: a swipe dragged past the middle and back left the video as a still with its sound running (the `ready` flag stayed off). The video now shows on the page whose file the player holds (`prepared`), and moves with it.
+- 2026-11-13 Player: every video page got the playing video's shape, so a portrait clip next to a landscape one slid in small, then jumped. A neighbour keeps its own poster's shape.
+- 2026-11-13 Player: closing a video, the picture swapped to another frame at the start and again on landing (the tile shows MediaStore's middle frame). The live frame shrinks now (paused), and the tile's picture fades in over the second half of the way.
+- 2026-11-13 Player: the poster was "any" frame (`-1`), not the first, so the picture changed when playback started. It is frame 0 now.
+- 2026-11-13 Player: the controls never faded while playing; the mockup says 2 s after the last touch. They fade now, and stay while paused, with More or the details open.
+- 2026-11-13 Player: unplugging headphones kept the sound going on the speaker. `setHandleAudioBecomingNoisy`.
+- 2026-11-13 Player: the start of every swipe on a video counted as a 2x hold for one frame (pill flash, speed blip): a cancelled wait looked like a timeout.
+- 2026-11-13 Player: the clock read the player 4 times a second: the knob jumped back after a seek, and short clips moved in big steps. It reads every ~3 px of the line now, and a seek moves the knob at once; the bottom line is drawn from the clock without recomposing the viewer.
+- 2026-11-13 Player: the progress line showed while the page moved (open, close, pull). Only with the bars hidden and the page still now.
+- 2026-11-13 Player: mid-swipe the bar showed the last clip's time and length. The clock follows the player only while it holds the page's video.
+- 2026-11-13 Player: the "cannot play" card dimmed the top bar, missed "MP4 · 48 MB" and used Material's button. The bars sit over the scrim, the facts line is there, the button is `PillButton`.
+- 2026-11-13 Player: the seek line was 1.5 dp (mockup: 4) and the knob had no shadow.
+- 2026-11-12 Player: the video stayed full screen over the grid while the viewer opened or closed, and over the details panel. The fix assumed a `TextureView` ignores the page's motion; it does not (Compose draws it inside its own layers), and the 2026-11-13 review put the video back on the moving page (`videoPage_pictureMovesWithThePage`).
+- 2026-11-12 Player: the lift that ends a 2x hold also counted as a tap, so the bars slid open after every hold.
+- 2026-11-12 Player: the page was sized by the tile's MediaStore ratio (0 for some files) until the player reported, so the box jumped as the video started. The poster's own shape is the fallback now.
+- 2026-11-12 Player: the screen could sleep under a playing video. `keepScreenOn` while it plays.
+- 2026-11-12 Viewer: the bars took their padding from the visible system bars, so hiding them on a tap moved the icons by the status bar height while they faded, and so did the grid under them. The height now comes from the bars even while hidden (`*IgnoringVisibility`).
 - 2026-10-15 Viewer: screen-sized photos did not fill the screen. The photo fills it, bars float on top.
 - 2026-10-15 Viewer: zoomed photo drawn over the next one. Pager pages don't clip: `clipToBounds`, pan clamped to the fitted photo.
 - 2026-10-15 Viewer: panning while zoomed crawled. `pointerInput` must come before `graphicsLayer`, or deltas arrive divided by the zoom.
@@ -208,3 +239,5 @@ Native heap after 8 flings 52 MB (87 MB on 2026-11-04, not explained), no blank 
 - 2026-11-04 DNG photos with a turn tag showed sideways: Android decodes a DNG as stored. Grid, viewer, index and Help recognize turn by the TIFF tag (`dngTurn`, `turnedBy` in `Faces.kt`). Checked on the phone with a made-up tag 6 DNG.
 - 2026-11-06 Library opened slowly on the first open after launch: the load ran inside `LibraryScreen`, so the tab waited for it and showed grey tiles. `libraryData` loads once now and `preloadLibrary` warms it at launch, so the first open starts from data.
 - 2026-11-06 Video GPS read as "no GPS" for every video. Android hides the location behind the plain video URI; `MediaStore.setRequireOriginal` in `videoGps()`, as `Details.kt` already does.
+- 2026-11-13 Photos lost the open and close animation, the drag-down and the details square: the page only counted as current when the video player held its file, and a photo never sets that flag. `pageIsCurrent` leaves the player out for photos (later dropped: the page in view takes the motion, the player only decides where the video shows). Checked on the phone: the photo grows out of its tile and shrinks back.
+- 2026-11-13 A nudged video page restarted its video from 0 when the pager snapped back: the settle step re-prepared the same file. `prepared` remembers the tile the player holds, so the same video is never prepared twice.

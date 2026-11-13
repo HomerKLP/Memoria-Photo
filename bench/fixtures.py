@@ -5,7 +5,8 @@
 """Photo-file test fixtures (bugs.md "Mirrored HEIC", ROADMAP Phase 9).
 
 `uv run bench/fixtures.py` makes the files in app/src/androidTest/assets/fixtures/ (committed, up to ~400 KB each).
-Real camera DNGs from others (CC0, small, no GPS, serial numbers removed) sit in fixtures/real/; bench/fixtures.tsv says where each came from.
+Real camera DNGs from others (CC0, small, no GPS, serial numbers removed) sit in fixtures/real/; app/src/androidTest/assets/media.tsv says where each came from.
+A new file needs a row in media.tsv too (MediaTableTest fails without it).
 
 Every made file is the same picture: red, green, blue, yellow corners (top-left, top-right, bottom-left, bottom-right).
 After making them, the script checks each file against the table below with outside readers (macOS ImageIO, Pillow, LibRaw for DNG).

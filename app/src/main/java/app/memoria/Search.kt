@@ -28,6 +28,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -84,50 +85,53 @@ fun match(query: String, hit: Hit): Pair<Int, String>? {
 
 fun count(n: Int, word: String) = "$n $word${if (n == 1) "" else "s"}"
 
+/** The year and month hits of [dates], newest first, for the Photos tab: a month's key is its header key, so a month opens the tab right there. */
+fun dateHits(dates: List<Long>, zone: ZoneId): List<Hit> {
+    val monthName = DateTimeFormatter.ofPattern("LLLL yyyy")
+    val months = dates.groupBy { YearMonth.from(Instant.ofEpochMilli(it).atZone(zone)) }.toSortedMap(reverseOrder())
+    return months.entries.groupBy { it.key.year }.flatMap { (year, ms) ->
+        // a year opens the tab at its newest month
+        listOf(Hit(HitKind.year, "m${ms.first().key}", "$year", count(ms.sumOf { it.value.size }, "item"))) +
+            ms.map { (m, tiles) -> Hit(HitKind.month, "m$m", monthName.format(m), count(tiles.size, "item")) }
+    }
+}
+
+/**
+ * Search's rows from [lib], the Library tab's snapshot: named people, places, albums, categories, then the
+ * years and months of the same albums. No MediaStore scan and no tag scoring of its own, so an open is cheap
+ * and the names, covers and counts are the ones Library shows.
+ */
+fun searchData(lib: LibraryData): SearchData {
+    val all = lib.albums.flatMap { it.tiles }
+    val people = lib.faces.filter { !it.name.isNullOrBlank() }.sortedByDescending { it.photos }
+    return SearchData(
+        people = people,
+        hits = people.map { Hit(HitKind.person, "${it.id}", it.name!!, count(it.photos, "photo"), face = it.cover) } +
+            lib.places.map { Hit(HitKind.place, "${it.id}", it.name, count(it.tiles.size, "photo"), cover = it.cover) } +
+            lib.albums.map { Hit(HitKind.album, "${it.id}", it.name, count(it.tiles.size, "item"), cover = it.tiles.firstOrNull()) } +
+            lib.categories.map { Hit(HitKind.category, it.id, it.name, count(it.tiles.size, "photo"), cover = it.cover, words = it.words) } +
+            dateHits(all.map { it.date }, ZoneId.systemDefault()),
+        types = listOfNotNull(
+            Hit(HitKind.videos, "videos", "Videos"),
+            Hit(HitKind.favorites, "favorites", "Favorites"),
+            // no screenshots screen yet: the chip opens the phone's Screenshots album, if there is one
+            lib.albums.firstOrNull { it.name.equals("Screenshots", ignoreCase = true) }?.let { Hit(HitKind.album, "${it.id}", it.name) },
+        ),
+    )
+}
+
 @Composable
-fun SearchScreen(onBack: () -> Unit, onOpen: (Hit) -> Unit, onSeeAllPeople: () -> Unit) {
+fun SearchScreen(onBack: () -> Unit, onOpen: (Hit) -> Unit, onSeeAllPeople: () -> Unit, reload: Int = 0) {
     val context = LocalContext.current
-    val dao = remember { Db.get(context).index() }
     val prefs = remember { context.getSharedPreferences("search", Context.MODE_PRIVATE) }
     // what you opened, newest first, as "kind key" lines; the names come from fresh data, so a rename shows
     var recent by remember { mutableStateOf(prefs.getString("recent", "").orEmpty().lines().filter { it.isNotBlank() }) }
     val saveRecent = { lines: List<String> -> recent = lines; prefs.edit { putString("recent", lines.joinToString("\n")) } }
     var query by rememberSaveable { mutableStateOf("") }
-    val data by cachedProduceState("search") {
-        withContext(Dispatchers.IO) {
-            // no vectors: Search shows names, covers and counts only
-            val byPerson = dao.taggedFaces().groupBy { it.personId }
-            val people = dao.people().filter { !it.hidden && !it.name.isNullOrBlank() }
-                .mapNotNull { p -> byPerson[p.id]?.let { fs -> Person(fs.map { it.toVec() }, (fs.firstOrNull { it.id == p.mainFaceId } ?: fs.first()).toVec(), p.id, p.name, false, p.coverFaceId) } }
-                .sortedByDescending { it.photos }
-            val albums = albums(context)
-            val all = albums.flatMap { it.tiles }
-            // categories only as typed hits: their row is on Library
-            val categories = loadCategories(context, all)
-            // same month names and keys as the Photos tab headers, so a month opens the tab right there
-            val zone = ZoneId.systemDefault()
-            val monthName = DateTimeFormatter.ofPattern("LLLL yyyy")
-            val months = all.groupBy { YearMonth.from(Instant.ofEpochMilli(it.date).atZone(zone)) }.toSortedMap(reverseOrder())
-            val dates = months.entries.groupBy { it.key.year }.flatMap { (year, ms) ->
-                // a year opens the tab at its newest month
-                listOf(Hit(HitKind.year, "m${ms.first().key}", "$year", count(ms.sumOf { it.value.size }, "item"))) +
-                    ms.map { (m, tiles) -> Hit(HitKind.month, "m$m", monthName.format(m), count(tiles.size, "item")) }
-            }
-            SearchData(
-                people = people,
-                hits = people.map { Hit(HitKind.person, "${it.id}", it.name!!, count(it.photos, "photo"), face = it.cover) } +
-                    places(dao.placed(), all, niceScores(context)).map { Hit(HitKind.place, "${it.id}", it.name, count(it.tiles.size, "photo"), cover = it.cover) } +
-                    albums.map { Hit(HitKind.album, "${it.id}", it.name, count(it.tiles.size, "item"), cover = it.tiles.firstOrNull()) } +
-                    categories.map { Hit(HitKind.category, it.id, it.name, count(it.tiles.size, "photo"), cover = it.cover, words = it.words) } +
-                    dates,
-                types = listOfNotNull(
-                    Hit(HitKind.videos, "videos", "Videos"),
-                    Hit(HitKind.favorites, "favorites", "Favorites"),
-                    // no screenshots screen yet: the chip opens the phone's Screenshots album, if there is one
-                    albums.firstOrNull { it.name.equals("Screenshots", ignoreCase = true) }?.let { Hit(HitKind.album, "${it.id}", it.name) },
-                ),
-            )
-        }
+    // Library's own keys, so Search shows the same snapshot it just built instead of loading its own copy
+    val saved by peopleSaved.collectAsState()
+    val data by cachedProduceState("search", saved, reload) {
+        withContext(Dispatchers.Default) { searchData(sharedLibrary(context, saved, reload)) }
     }
     val line = { h: Hit -> "${h.kind} ${h.key}" }
     val all = data?.let { it.hits + it.types }.orEmpty()

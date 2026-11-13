@@ -64,11 +64,13 @@ fun DevToolsContent(
     numbers: DevNumbers?,
     log: String,
     preview: Pair<Bitmap, List<Face>>? = null,
+    media: MediaCheckState? = null,
     onBack: () -> Unit = {},
     onRunCpu: () -> Unit = {},
     onRunGpu: () -> Unit = {},
     onRunNpu: () -> Unit = {},
     onIndexTest: () -> Unit = {},
+    onCheckMedia: () -> Unit = {},
 ) {
     Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
         TopBar("Dev tools", "Debug builds only", onBack = onBack)
@@ -78,6 +80,9 @@ fun DevToolsContent(
         SettingRow(R.drawable.ic_bolt, "Run on NPU", "Same photos, on the NPU", onRunNpu.takeIf { !busy })
         SectionHead("Index")
         SettingRow(R.drawable.ic_folder, "Index test folder", "Pictures/MemoriaTest only", onIndexTest)
+        SectionHead("Media")
+        SettingRow(R.drawable.ic_check, "Check media files", "Open the test photos and videos", onCheckMedia.takeIf { !busy })
+        Mono(mediaCheckText(media), minLines = 3)
         SectionHead("Numbers")
         Mono(devNumbersText(numbers), minLines = 4)
         SectionHead("Log")

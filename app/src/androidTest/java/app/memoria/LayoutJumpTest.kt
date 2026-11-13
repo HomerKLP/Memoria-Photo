@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.gestures.scrollBy
 import kotlinx.coroutines.runBlocking
@@ -222,6 +223,18 @@ class LayoutJumpTest {
         rule.runOnIdle { busy = true }
         assertSame("Index test folder", folderBefore, rule.onNodeWithText("Index test folder").top())
         assertSame("Run on CPU", cpuBefore, rule.onNodeWithText("Run on CPU").top())
+    }
+
+    /** The media block's three lines are always there, so Numbers and Log never move as it runs and ends. */
+    @Test fun devTools_mediaCheck_linesKeepTheirPlace() {
+        var media by mutableStateOf<MediaCheckState?>(null)
+        rule.setContent { MemoriaTheme { Surface { DevToolsContent(busy = false, numbers = null, log = "", media = media) } } }
+
+        val numbersBefore = rule.onNodeWithText("Numbers").top()
+        rule.runOnIdle { media = MediaCheckState(23, 55) }
+        assertSame("Numbers head while checking", numbersBefore, rule.onNodeWithText("Numbers").top())
+        rule.runOnIdle { media = MediaCheckState(55, 55, MediaCheckReport(listOf(MediaCheckResult("a.mp4", "fail")), emptyList(), 61_000)) }
+        assertSame("Numbers head after the result", numbersBefore, rule.onNodeWithText("Numbers").top())
     }
 
     @Test fun library_emptyToPeople_peopleRowStaysSameHeight() {
@@ -1166,5 +1179,56 @@ class LayoutJumpTest {
         assertSame("field height while typing", height, rule.onNodeWithTag("searchField").height())
         rule.runOnIdle { text = "" }
         assertSame("field after clearing", top, rule.onNodeWithTag("searchField").top())
+    }
+
+    /** A video adds the player line above the action row: the row (Share, Favorite, Details, Delete) must not move for it. */
+    @Test fun viewer_playerBar_keepsTheActionRowPut() {
+        var video by mutableStateOf(false)
+        rule.setContent {
+            MemoriaTheme { Surface { Box(Modifier.fillMaxSize()) {
+                ViewerChrome(
+                    visible = true, title = "Sat, 11 Oct", subtitle = "14:32", favorite = false,
+                    onBack = {}, onShare = {}, onFavorite = {}, onInfo = {}, onDelete = {},
+                    playerBar = if (video) ({ PlayerBar(true, 84_000, 190_000, {}, {}) }) else null,
+                )
+            } } }
+        }
+
+        val share = rule.onNodeWithContentDescription("Share")
+        val top = share.top()
+        val width = share.width()
+        rule.runOnIdle { video = true }
+        assertSame("Share after the player line", top, rule.onNodeWithContentDescription("Share").top())
+        assertSame("Share width", width, rule.onNodeWithContentDescription("Share").width())
+    }
+
+    /** A video keeps its own shape on screen: letterboxed, never stretched (the 2026-11-12 bug). */
+    @Test fun viewer_video_keepsItsShape() {
+        var aspect by mutableStateOf(9f / 16f)
+        rule.setContent {
+            // a box of no video's shape, so letterboxing shows in both
+            MemoriaTheme { Surface { Box(Modifier.size(360.dp, 480.dp).testTag("screen")) {
+                VideoBox(aspect) { Box(Modifier.fillMaxSize().testTag("texture")) }
+            } } }
+        }
+
+        val screen = rule.onNodeWithTag("screen").getUnclippedBoundsInRoot()
+        fun texture() = rule.onNodeWithTag("texture").getUnclippedBoundsInRoot()
+        val portrait = texture()
+        assertEquals(
+            "portrait keeps 9:16", 9f / 16f,
+            (portrait.right - portrait.left).value / (portrait.bottom - portrait.top).value, 0.01f,
+        )
+        assertEquals("portrait fills the height", 480f, (portrait.bottom - portrait.top).value, 1f)
+        assertTrue("portrait letterboxes the sides", (portrait.right - portrait.left).value < (screen.right - screen.left).value - 1f)
+
+        rule.runOnIdle { aspect = 16f / 9f }
+        val land = texture()
+        assertEquals(
+            "landscape keeps 16:9", 16f / 9f,
+            (land.right - land.left).value / (land.bottom - land.top).value, 0.01f,
+        )
+        assertEquals("landscape fills the width", 360f, (land.right - land.left).value, 1f)
+        assertTrue("landscape letterboxes top and bottom", (land.bottom - land.top).value < (screen.bottom - screen.top).value - 1f)
     }
 }

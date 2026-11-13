@@ -21,23 +21,31 @@ import java.io.IOException
 import kotlin.math.min
 
 /**
- * Bugs that depend on the photo file (bugs.md "Mirrored HEIC", ROADMAP Phase 9): every fixture in
- * `assets/fixtures/` is put in MediaStore and shown through the app's real paths, the grid tile, the
- * viewer decode and the index decode. A made file is a picture with red, green, blue and yellow corners
- * (top-left, top-right, bottom-left, bottom-right), so the corner colours tell how it was turned.
- * Made by `bench/fixtures.py`, the real ones come from `bench/fixtures.tsv`. A new file is a new case.
+ * `assets/media.tsv`: one row per test photo and video, with what the app must do with it. Columns:
+ * file, expect (upright, opens, plays, plays or card, card), shape (width:height on screen), orientation
+ * (a photo's 1-8, junk 0 / 9, or -), codec and sound (videos), about and source (for people only).
+ * `MediaTableTest` checks every file has a row.
+ */
+fun mediaTable(): List<Map<String, String>> {
+    val lines = InstrumentationRegistry.getInstrumentation().context.assets.open("media.tsv").bufferedReader().readLines().filter { it.isNotBlank() }
+    val head = lines.first().split('\t')
+    return lines.drop(1).map { head.zip(it.split('\t')).toMap() }
+}
+
+/**
+ * Bugs that depend on the photo file (bugs.md "Mirrored HEIC", ROADMAP Phase 9): every photo row of
+ * `media.tsv` is put in MediaStore and shown through the app's real paths, the grid tile, the viewer
+ * decode and the index decode. A made file ("upright") is a picture with red, green, blue and yellow
+ * corners (top-left, top-right, bottom-left, bottom-right), so the corner colours tell how it was turned;
+ * a real file ("opens") must come out in its shape. Made by `bench/fixtures.py`. A new row is a new case.
  * Runs on an emulator like `BehaviorTest`, never on the phone.
  */
 @RunWith(Parameterized::class)
-class PhotoFileTest(private val name: String) {
+class PhotoFileTest(private val name: String, private val row: Map<String, String>) {
 
     companion object {
-        // Real photos (no known corners): the shape the photo must come out with.
-        private val real = mapOf("real/dng_canon60d.dng" to 960f / 540f)
-
         @JvmStatic @Parameterized.Parameters(name = "{0}")
-        fun files(): List<String> =
-            InstrumentationRegistry.getInstrumentation().context.assets.list("fixtures").orEmpty().filter { "." in it }.sorted() + real.keys
+        fun files(): List<Array<Any>> = mediaTable().filter { it["file"]!!.startsWith("fixtures/") }.map { arrayOf(it["file"]!!, it) }
     }
 
     @get:Rule val rule = createComposeRule()
@@ -48,11 +56,9 @@ class PhotoFileTest(private val name: String) {
 
     // From the EXIF spec, not from what Android returns: what the viewer must show for each orientation
     // (corners as top-left top-right bottom-left bottom-right) of a picture stored as R G / B Y.
-    private val upright = mapOf(1 to "RGBY", 2 to "GRYB", 3 to "YBGR", 4 to "BYRG", 5 to "RBGY", 6 to "BRYG", 7 to "YGBR", 8 to "GYRB")
-    private val colors = mapOf('R' to intArrayOf(230, 30, 30), 'G' to intArrayOf(30, 200, 30), 'B' to intArrayOf(30, 30, 230), 'Y' to intArrayOf(240, 220, 30))
-
     // junk tags (0, 9), no tag, and PNG / WebP show as stored
-    private val expected: String? = if (name in real) null else upright[Regex("_o(\\d)").find(name)?.groupValues?.get(1)?.toInt()] ?: "RGBY"
+    private val expected = uprightCorners[row["orientation"]!!.toIntOrNull()] ?: "RGBY"
+    private val shape: Float? = row["shape"]!!.split(':').takeIf { it.size == 2 }?.let { it[0].toFloat() / it[1].toFloat() }
 
     @After fun removeTestPhoto() {
         added?.let { resolver.delete(it.uri, null, null) }
@@ -61,9 +67,9 @@ class PhotoFileTest(private val name: String) {
     /** The fixture as the app sees any photo: a MediaStore row, with the tile built by the app's own query. */
     private fun tile(): Tile {
         val bytes = try {
-            InstrumentationRegistry.getInstrumentation().context.assets.open("fixtures/$name").use { it.readBytes() }
+            InstrumentationRegistry.getInstrumentation().context.assets.open(name).use { it.readBytes() }
         } catch (e: IOException) {
-            fail("$name is missing from assets/fixtures: run `uv run bench/fixtures.py`")
+            fail("$name is missing from the test assets: run `uv run bench/fixtures.py`")
             throw e
         }
         val ext = name.substringAfterLast('.')
@@ -87,14 +93,9 @@ class PhotoFileTest(private val name: String) {
         return listOf(1 to 1, 3 to 1, 1 to 3, 3 to 3).map { (x, y) -> b.getPixel(b.width * x / 4, b.height * y / 4) }
     }
 
-    private fun corners(bitmap: Bitmap): String = pixels(bitmap).map { p ->
-        colors.minBy { (_, c) -> (c[0] - (p shr 16 and 255)).let { it * it } + (c[1] - (p shr 8 and 255)).let { it * it } + (c[2] - (p and 255)).let { it * it } }.key
-    }.joinToString("")
-
     private fun assertUpright(where: String, bitmap: Bitmap) {
-        val shape = real[name]
-        if (shape == null) assertEquals("$where of $name (${bitmap.width}x${bitmap.height}, pixels ${pixels(bitmap).joinToString(" ") { "%06x".format(it and 0xffffff) }})", expected, corners(bitmap))
-        else assertEquals("$where of $name (${bitmap.width}x${bitmap.height}), width / height", shape, bitmap.width.toFloat() / bitmap.height, shape * 0.05f)
+        if (row["expect"] == "upright") assertEquals("$where of $name (${bitmap.width}x${bitmap.height}, pixels ${pixels(bitmap).joinToString(" ") { "%06x".format(it and 0xffffff) }})", expected, cornerString(bitmap))
+        else assertEquals("$where of $name (${bitmap.width}x${bitmap.height}), width / height", shape!!, bitmap.width.toFloat() / bitmap.height, shape * 0.05f)
     }
 
     /** The picture the grid tile draws: `Thumb` keeps it in the `thumbs` cache once it is loaded. */

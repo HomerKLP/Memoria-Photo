@@ -5,12 +5,15 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBarsIgnoringVisibility
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -98,6 +101,8 @@ suspend fun libraryData(context: Context): LibraryData = withContext(Dispatchers
     }
     val albums = timed("albums") { albums(context) }
     val all = albums.flatMap { it.tiles }
+    // one tag pass for both rows below: each scored the same vectors again before
+    val scored = timed("tags") { scoredTags(context) }
     val result = LibraryData(
         faces = people,
         unsure = people.flatMap { p -> p.shownFaces.filter { !it.sure } }.sortedBy { it.quality },
@@ -105,15 +110,22 @@ suspend fun libraryData(context: Context): LibraryData = withContext(Dispatchers
         favorites = all.count { it.favorite },
         videos = all.count { it.duration != null },
         trash = timed("trash") { runCatching { trash(context).size }.getOrDefault(0) },
-        places = timed("places") { places(dao.placed(), all, niceScores(context)) },
-        categories = timed("categories") { loadCategories(context, all) },
+        places = timed("places") { places(dao.placed(), all, niceScores(scored)) },
+        categories = timed("categories") { loadCategories(context, all, scored) },
     )
     AppLog.i("library load: ${steps.joinToString(", ")}, total ${(System.nanoTime() - start) / 1_000_000}")
     result
 }
 
+/**
+ * [libraryData] for its keys, shared: Search shows the same snapshot instead of scanning MediaStore and
+ * scoring tags again on every open. The keys are Library's own, so Search is never older than the tab.
+ */
+suspend fun sharedLibrary(context: Context, saved: Int, reload: Int): LibraryData =
+    sharedValue("library", listOf(saved, reload)) { libraryData(context) }
+
 /** Loads Library once at app start: its first open has an empty cache, so it would show grey skeletons. */
-suspend fun preloadLibrary(context: Context) = preloadCached("library") { libraryData(context) }
+suspend fun preloadLibrary(context: Context) = preloadCached("library") { sharedLibrary(context, peopleSaved.value, 0) }
 
 /** Shown at once when the tab opens again, then replaced by a fresh load. */
 @Composable
@@ -140,7 +152,7 @@ fun LibraryScreen(
     // cached, not null: an empty first frame is shorter and the tab's restored scroll clamps to it.
     // Keyed on [saved]: the run saves people every so often, so they show up while indexing. [reload]: back from a screen opened over it.
     val saved by peopleSaved.collectAsState()
-    val data by cachedProduceState("library", saved, reload) { libraryData(context) }
+    val data by cachedProduceState("library", saved, reload) { sharedLibrary(context, saved, reload) }
     LibraryContent(
         data = data,
         indexing = running,
@@ -162,6 +174,7 @@ fun LibraryScreen(
 }
 
 /** Library tab: people, review, albums, places, categories, shortcuts. Layout per docs/design.html; the index run shows in Settings. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun LibraryContent(
     data: LibraryData?,
@@ -183,7 +196,7 @@ fun LibraryContent(
 ) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         // the list scrolls under the status bar, like Photos
-        Spacer(Modifier.statusBarsPadding())
+        Spacer(Modifier.windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility))
         Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("Library", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
             IconButton(onOpenSettings) { Icon(painterResource(R.drawable.ic_settings), "Settings") }
@@ -204,7 +217,7 @@ fun LibraryContent(
 
         Shortcuts(onOpenFavorites, onOpenVideos, onOpenTrash, data?.favorites ?: 0, data?.videos ?: 0, data?.trash ?: 0)
         // room for the floating tabs, so the last row can scroll above them
-        Spacer(Modifier.navigationBarsPadding().height(72.dp))
+        Spacer(Modifier.windowInsetsPadding(WindowInsets.navigationBarsIgnoringVisibility).height(72.dp))
     }
 }
 

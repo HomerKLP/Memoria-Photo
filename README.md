@@ -10,6 +10,7 @@ Android photo gallery with face recognition that runs fully on your phone.<br>
 No cloud. No account. No trackers.
 
 [![Release](https://img.shields.io/github/v/release/HomerKLP/Memoria-Photo)](https://github.com/HomerKLP/Memoria-Photo/releases)
+[![Tests](https://github.com/HomerKLP/Memoria-Photo/actions/workflows/tests.yml/badge.svg?branch=dev)](https://github.com/HomerKLP/Memoria-Photo/actions/workflows/tests.yml)
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
 ![Android 13+](https://img.shields.io/badge/Android-13%2B-3DDC84?logo=android&logoColor=white)
 ![Kotlin](https://img.shields.io/badge/Kotlin-Compose-7F52FF?logo=kotlin&logoColor=white)
@@ -61,6 +62,7 @@ The models were picked on real family photos, not only on paper: 3 face finders 
 
 - **Photos:** timeline by day and month, month slider, select many with a drag.
 - **Viewer:** zoom, swipe, details (date, time zone, place, camera, people and pets).
+- **Video:** plays in the viewer, with a seek bar, double tap ±5 s, and hold for 2x speed.
 - **Albums:** phone folders, new albums, move photos.
 - **Places:** photos by town, names found offline.
 - **Pets:** cats and dogs, found and grouped like people, with names.
@@ -68,6 +70,16 @@ The models were picked on real family photos, not only on paper: 3 face finders 
 - **Categories:** pets, documents, food, sunsets and 10 more, sorted on the phone.
 - **Search:** people, places, months, categories.
 - **Folders to skip:** keep some folders out of the index (faces, pets, search, places).
+
+## Supported formats
+
+Memoria plays and shows files with the phone's own decoders, so a codec works where your phone has one. These are tested on every pull request ([`media.tsv`](app/src/androidTest/assets/media.tsv)):
+
+- **Photos:** JPEG, HEIC, AVIF, PNG, WebP, DNG (raw), always the right way up.
+- **Videos:** MP4, MOV, MKV, WebM, 3GP with H.264, HEVC (8 and 10-bit), VP9, AV1, H.263; sound in AAC and Opus.
+- **A video the phone can't play** shows a card with a button to open it in another player.
+
+Known gap: sound in AC-3, E-AC-3 or DTS (some `.mkv` and camcorder files) plays silent on most phones, with no warning yet.
 
 ## Privacy
 
@@ -125,6 +137,15 @@ make install                   # macOS: build, install over USB, open the app
 ```
 
 The debug build installs as "Memoria Debug", next to the release app. `make` alone lists every command.
+
+### Tests
+
+```sh
+make check    # unit and screenshot tests, no device, about a minute
+make layout   # every emulator test: taps, layout jumps, real photo and video files, about 10 minutes
+```
+
+Every push to `dev` runs the quick tests on GitHub. A pull request to `master` also runs every emulator test on 4 emulators at once and shows how much code the tests cover. The test photos and videos, and what the app must do with each, are listed in [`media.tsv`](app/src/androidTest/assets/media.tsv).
 
 The models are made from the original ONNX files by [`bench/tflite.py`](bench/tflite.py) (needs [uv](https://docs.astral.sh/uv/)). Three ONNX files are made first: the tagger by `bench/tags.py onnx`, the pet model by `bench/pets.py onnx noodle_s`, YOLO26-M by Ultralytics' export (command in [`bench/objects.py`](bench/objects.py)).
 

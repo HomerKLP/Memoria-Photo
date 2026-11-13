@@ -2,6 +2,9 @@ package app.memoria
 
 import android.net.Uri
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -29,10 +32,14 @@ import androidx.compose.ui.test.assertIsNotFocused
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.down
+import androidx.compose.ui.test.doubleClick
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -45,6 +52,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
@@ -460,6 +468,101 @@ class BehaviorTest {
         }
         assertEquals(0, backs)
         assertEquals(1, photoTaps)
+    }
+
+    // --- Player --------------------------------------------------------------------------------
+
+    @Test fun player_pauseTap_callsOnToggle() {
+        var toggles = 0
+        rule.setContent {
+            MemoriaTheme { Surface { PlayerBar(playing = true, position = 84_000, length = 190_000, onToggle = { toggles++ }, onSeek = {}) } }
+        }
+
+        rule.onNodeWithContentDescription("Pause").performClick()
+        assertEquals(1, toggles)
+    }
+
+    @Test fun player_timeReads_andTheBarSeeks() {
+        var seek: Long? = null
+        rule.setContent {
+            MemoriaTheme { Surface { PlayerBar(playing = false, position = 84_000, length = 190_000, onToggle = {}, onSeek = { seek = it }) } }
+        }
+
+        rule.onNodeWithText("1:24", substring = true).assertIsDisplayed()
+        rule.onNodeWithText("3:10", substring = true).assertIsDisplayed()
+        rule.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.SetProgress)).performSemanticsAction(SemanticsActions.SetProgress) { it(0.5f) }
+        assertTrue(seek != null && kotlin.math.abs(seek!! - 95_000L) < 2_000L)
+    }
+
+    /** Dragging the bar seeks while the finger moves, so the frame follows it; the player's scrubbing mode spans the drag. */
+    @Test fun player_drag_seeksAsItMoves() {
+        val seeks = mutableListOf<Long>()
+        val scrubbing = mutableListOf<Boolean>()
+        rule.setContent {
+            MemoriaTheme { Surface {
+                PlayerBar(playing = true, position = 0, length = 100_000, onToggle = {}, onSeek = { seeks += it }, onScrubbing = { scrubbing += it })
+            } }
+        }
+        val bar = rule.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.SetProgress))
+        bar.performTouchInput { down(Offset(width * 0.2f, centerY)); moveTo(Offset(width * 0.6f, centerY)) }
+        assertTrue("seeks before the lift: $seeks", seeks.isNotEmpty() && kotlin.math.abs(seeks.last() - 60_000L) < 3_000L)
+        assertEquals(listOf(true), scrubbing)
+        bar.performTouchInput { up() }
+        assertEquals(listOf(true, false), scrubbing)
+    }
+
+    /** The video page's fingers: double tap the right half = +5 s, the left half = −5 s, hold = 2x (mockup "Player"). */
+    private fun videoPage(onSkip: (Int) -> Unit = {}, onHold: (Boolean) -> Unit = {}) = rule.setContent {
+        MemoriaTheme { Surface { Box(Modifier.fillMaxSize().testTag("page")) {
+            ViewerPage(videoTile(1), onZoomed = {}, player = null, current = true, onSkip = onSkip, onHold = onHold)
+        } } }
+    }
+
+    @Test fun videoPage_doubleTapRight_seeksForward() {
+        var skipped = 0
+        videoPage(onSkip = { skipped = it })
+        rule.onNodeWithTag("page").performTouchInput { doubleClick(Offset(width * 0.8f, height / 2f)) }
+        assertEquals(1, skipped)
+    }
+
+    @Test fun videoPage_doubleTapLeft_seeksBack() {
+        var skipped = 0
+        videoPage(onSkip = { skipped = it })
+        rule.onNodeWithTag("page").performTouchInput { doubleClick(Offset(width * 0.2f, height / 2f)) }
+        assertEquals(-1, skipped)
+    }
+
+    @Test fun videoPage_hold_runs2xUntilRelease() {
+        val held = mutableListOf<Boolean>()
+        videoPage(onHold = { held += it })
+        rule.onNodeWithTag("page").performTouchInput { down(center); advanceEventTime(800); up() }
+        assertEquals(listOf(true, false), held)
+    }
+
+    /** A swipe that takes the finger before the long press is a swipe, not a hold: the 2x pill flashed at the start of every drag. */
+    @Test fun videoPage_swipe_isNoHold() {
+        val held = mutableListOf<Boolean>()
+        rule.setContent {
+            MemoriaTheme { Surface { Box(Modifier.fillMaxSize().testTag("page").draggable(rememberDraggableState {}, Orientation.Vertical)) {
+                ViewerPage(videoTile(1), onZoomed = {}, player = null, current = true, onHold = { held += it })
+            } } }
+        }
+        rule.onNodeWithTag("page").performTouchInput { swipeDown() }
+        rule.mainClock.advanceTimeBy(1_000)
+        assertEquals(emptyList<Boolean>(), held)
+    }
+
+    /** The lift that ends a 2x hold must not also count as a tap: the bars slid open after every hold. */
+    @Test fun videoPage_hold_doesNotToggleTheBars() {
+        var taps = 0
+        rule.setContent {
+            MemoriaTheme { Surface { Box(Modifier.fillMaxSize().testTag("page")) {
+                ViewerPage(videoTile(1), onZoomed = {}, onTap = { taps++ }, player = null, current = true)
+            } } }
+        }
+        rule.onNodeWithTag("page").performTouchInput { down(center); advanceEventTime(800); up() }
+        rule.mainClock.advanceTimeBy(1_000) // the tap detector waits out its double-tap window first
+        assertEquals(0, taps)
     }
 
     // --- Album ---------------------------------------------------------------------------------
@@ -1356,7 +1459,7 @@ class BehaviorTest {
         unsure = listOf(face(99)),
         albums = listOf(Album(1, "Camera", (1L..6L).map { tile(it) })),
         favorites = 4, videos = 2, trash = 3,
-        places = listOf(Place(1, "Riverton", (1L..3L).map { tile(it) })),
+        places = listOf(Place(1, "Riverton", (1L..3L).map { tile(it) }, tile(1))), // a place without a cover shows no name
         categories = listOf(Category("pet", "Pets", emptyList(), tile(1), (1L..2L).map { tile(it) })),
     )
 
@@ -1678,12 +1781,14 @@ class BehaviorTest {
         var gpu = false
         var npu = false
         var folder = false
+        var media = false
         var back = false
         rule.setContent {
             MemoriaTheme { Surface {
                 DevToolsContent(
                     busy = false, numbers = null, log = "Index SUCCEEDED",
                     onBack = { back = true }, onRunCpu = { cpu = true }, onRunGpu = { gpu = true }, onRunNpu = { npu = true }, onIndexTest = { folder = true },
+                    onCheckMedia = { media = true },
                 )
             } }
         }
@@ -1696,6 +1801,8 @@ class BehaviorTest {
         assertTrue(npu)
         rule.onNodeWithText("Index test folder").performClick()
         assertTrue(folder)
+        rule.onNodeWithText("Check media files").performClick()
+        assertTrue(media)
         rule.onNodeWithContentDescription("Back").performClick()
         assertTrue(back)
     }
@@ -1705,11 +1812,13 @@ class BehaviorTest {
         var gpu = false
         var npu = false
         var folder = false
+        var media = false
         rule.setContent {
             MemoriaTheme { Surface {
                 DevToolsContent(
                     busy = true, numbers = null, log = "",
                     onRunCpu = { cpu = true }, onRunGpu = { gpu = true }, onRunNpu = { npu = true }, onIndexTest = { folder = true },
+                    onCheckMedia = { media = true },
                 )
             } }
         }
@@ -1717,9 +1826,11 @@ class BehaviorTest {
         rule.onNodeWithText("Run on CPU").performClick()
         rule.onNodeWithText("Run on GPU").performClick()
         rule.onNodeWithText("Run on NPU").performClick()
+        rule.onNodeWithText("Check media files").performClick()
         assertFalse(cpu)
         assertFalse(gpu)
         assertFalse(npu)
+        assertFalse(media)
         rule.onNodeWithText("Index test folder").performClick()
         assertTrue(folder)
     }

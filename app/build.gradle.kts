@@ -28,6 +28,9 @@ android {
         debug {
             applicationIdSuffix = ".debug"
             manifestPlaceholders["appName"] = "Memoria Debug"
+            // CI only (-Pcoverage): it slows the debug app, so phone builds stay without it
+            enableUnitTestCoverage = providers.gradleProperty("coverage").isPresent
+            enableAndroidTestCoverage = providers.gradleProperty("coverage").isPresent
         }
     }
     buildFeatures {
@@ -50,6 +53,12 @@ ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
 
+// On CI (Linux) a few text-edge pixels come out 1/255 off the Mac's baselines: up to 0.03% by the plugin's similarity score.
+// The Mac still compares exactly. The plugin's DSL has no setting for it with AGP 9, so it goes on the task.
+tasks.withType<com.android.compose.screenshot.tasks.PreviewScreenshotValidationTask>().configureEach {
+    testEngineInput.threshold.set(if (providers.environmentVariable("CI").isPresent) 0.001f else 0f)
+}
+
 dependencies {
     implementation(platform("androidx.compose:compose-bom:2026.09.00"))
     implementation("androidx.compose.material3:material3")
@@ -63,6 +72,8 @@ dependencies {
     implementation("androidx.room:room-ktx:2.8.5")
     ksp("androidx.room:room-compiler:2.8.5")
     implementation("androidx.work:work-runtime:2.12.0")
+    // the video player: hardware decode through the platform's MediaCodec, our own minimal controls
+    implementation("androidx.media3:media3-exoplayer:1.11.1")
     // Installs baseline profiles (ours and the ones Compose/AndroidX ship) on first run
     implementation("androidx.profileinstaller:profileinstaller:1.4.1")
     // the Macrobenchmark module (:baselineprofile) generates our profile

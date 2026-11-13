@@ -10,11 +10,14 @@ import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBarsIgnoringVisibility
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -83,6 +86,25 @@ import kotlin.math.roundToInt
 private val cache = mutableMapOf<String, Any?>()
 
 /**
+ * Values two screens show (Library and Search), built once and shared, with the keys each was built for.
+ * A different stamp means the copy is old: Library rebuilt for another [peopleSaved] or after a screen
+ * went back to it, so its data changed and the next screen must not show the old one.
+ */
+private val shared = mutableMapOf<String, Any?>()
+private val sharedStamps = mutableMapOf<String, List<Any?>>()
+
+/** The shared value built for exactly this [stamp], or null: a copy built for other keys is out of date. */
+internal fun sharedHit(values: Map<String, Any?>, stamps: Map<String, List<Any?>>, key: String, stamp: List<Any?>): Any? =
+    if (stamps[key] == stamp) values[key] else null
+
+/** [load] once per [stamp], shared by every screen that asks (see [shared]). */
+suspend fun <T : Any> sharedValue(key: String, stamp: List<Any?>, load: suspend () -> T): T {
+    @Suppress("UNCHECKED_CAST")
+    (sharedHit(shared, sharedStamps, key, stamp) as? T)?.let { return it }
+    return load().also { shared[key] = it; sharedStamps[key] = stamp }
+}
+
+/**
  * Like produceState, but starts from what this key had last time and remembers the fresh value.
  * A screen that starts empty is short for a frame, and a list's restored scroll clamps to that.
  * An empty result is never remembered: it is as short as no cache, and a screen that closes when its
@@ -118,8 +140,10 @@ suspend fun <T : Any> preloadCached(key: String, load: suspend () -> T) {
  * starts from this cache, so a small change like a new cover shows on its first frame instead of the
  * stale value. Does nothing when the key is not cached or holds another type.
  */
-fun <T : Any> updateCached(key: String, type: Class<T>, transform: (T) -> T) =
+fun <T : Any> updateCached(key: String, type: Class<T>, transform: (T) -> T) {
     updateInCache(cache, key, type, transform)
+    updateInCache(shared, key, type, transform) // Search shows the same value, so it takes the change too
+}
 
 /** The map part of [updateCached], split out so it can be unit-tested without a composition. */
 internal fun <T : Any> updateInCache(map: MutableMap<String, Any?>, key: String, type: Class<T>, transform: (T) -> T) {
@@ -230,10 +254,13 @@ fun ActionBar(
  * The floating pill under [Tabs] and [SelectBar] (mockup "Tabs"): no bar behind it, so photos show on
  * both sides. It keeps clear of the gesture bar itself; the list under it ends with room to clear it.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun FloatingBar(modifier: Modifier, content: @Composable RowScope.() -> Unit) {
     Row(
-        modifier.navigationBarsPadding().padding(bottom = 8.dp)
+        // The bar height even while the system bars are hidden: the viewer hides them on a tap, and the pill
+        // must not slide down for it (it shows in the grid behind a closing viewer)
+        modifier.windowInsetsPadding(WindowInsets.navigationBarsIgnoringVisibility).padding(bottom = 8.dp)
             .shadow(6.dp, CircleShape, spotColor = Color(0x73462D14))
             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.94f), CircleShape)
             // a tap between the buttons must not reach the photo under the pill
@@ -556,8 +583,8 @@ private fun Modifier.monthSliderDrag(months: Int, top: Dp, bottom: Dp, onDraggin
         }
     }
 
-/** One line in a [Menu]: an icon, a label, an action. [dividerBefore] draws a line above it (groups). [checked] shows the accent check. */
-class MenuItem(val icon: Int, val label: String, val dividerBefore: Boolean = false, val checked: Boolean = false, val onClick: () -> Unit)
+/** One line in a [Menu]: an icon, a label, an action. [dividerBefore] draws a line above it (groups). [checked] shows the accent check. [enabled] false greys the line out and takes no taps (a screen not built yet). */
+class MenuItem(val icon: Int, val label: String, val dividerBefore: Boolean = false, val checked: Boolean = false, val enabled: Boolean = true, val onClick: () -> Unit)
 
 /**
  * The shared Menu part (mockup "Menu"): drops under a top bar's More, over the screen, no dim. One
@@ -588,7 +615,10 @@ fun Menu(expanded: Boolean, onDismiss: () -> Unit, items: List<MenuItem>, modifi
             items.forEachIndexed { i, item ->
                 if (item.dividerBefore && i > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 Row(
-                    Modifier.fillMaxWidth().height(48.dp).clickable(onClick = item.onClick).padding(horizontal = 16.dp),
+                    Modifier.fillMaxWidth().height(48.dp)
+                        .clickable(enabled = item.enabled, onClick = item.onClick)
+                        .alpha(if (item.enabled) 1f else 0.38f)
+                        .padding(horizontal = 16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
