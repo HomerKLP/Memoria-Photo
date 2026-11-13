@@ -7,7 +7,7 @@
 `uv run bench/videofix.py` writes the clips in app/src/androidTest/assets/videos/ (committed, a few
 KB each) and reads them back to check them: the shape the player must report, the codec and the turn.
 The clips cover what a library actually holds, so a new codec or container is one line here plus one
-case in VideoFileTest: a camera's H.264 and HEVC, a portrait phone video (stored landscape, turned by
+row in media.tsv: a camera's H.264 and HEVC, a portrait phone video (stored landscape, turned by
 the track's display matrix), a QuickTime .mov from an iPhone, a .mkv download, VP9, AV1 and 10-bit
 HEVC, an old phone's H.263 .3gp. The camera-like clips have a tone for sound (AAC, Opus in WebM): a
 sound track the phone cannot decode plays silent with no error, so the test checks it was picked.
