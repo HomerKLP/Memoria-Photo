@@ -1,9 +1,12 @@
 name: tests
 
-# A PR from dev shows this run's result too, so PRs need no run of their own.
+# Every push to dev: the quick checks (unit, screenshots). A PR to master and the Run button on GitHub
+# add the emulator tests, split over 4 emulators at once.
 on:
   push:
     branches: [dev]
+  pull_request:
+    branches: [master]
   workflow_dispatch:
 
 # A newer push stops the older run.
@@ -11,15 +14,13 @@ concurrency:
   group: tests-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  ORG_GRADLE_PROJECT_coverage: "true"
+
 jobs:
-  tests:
+  check:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
-    env:
-      ORG_GRADLE_PROJECT_coverage: "true"
-      IMAGE: "system-images;android-37.0;google_apis;x86_64"
-      # avdmanager and the emulator look in different folders on GitHub's runner unless this is set
-      ANDROID_AVD_HOME: /home/runner/.android/avd
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-java@v5
@@ -32,11 +33,46 @@ jobs:
       - name: Unit and screenshot tests
         run: ./gradlew --continue :app:createDebugUnitTestCoverageReport :app:validateDebugScreenshotTest
 
+      # A push has no emulator part, so its coverage is the unit tests' alone.
+      - name: Coverage
+        if: ${{ !cancelled() && github.event_name == 'push' }}
+        run: python3 .github/coverage.py $(find app/build/reports/coverage -name report.xml) >> $GITHUB_STEP_SUMMARY
+
+      # always(): a cancelled or timed-out run still leaves its screenshots and logs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: check
+          path: |
+            app/build/reports/
+            app/build/test-results/
+            app/build/outputs/screenshotTest-results/
+          retention-days: 14
+
+  device:
+    if: github.event_name != 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    env:
+      IMAGE: "system-images;android-37.0;google_apis;x86_64"
+      # avdmanager and the emulator look in different folders on GitHub's runner unless this is set
+      ANDROID_AVD_HOME: /home/runner/.android/avd
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v5
+
       # The emulator needs KVM; the Pixel 6 screen is 1080 px wide, 360 dp at density 480 like the mockup.
       # Booted here, not by make layout, so a failed boot stops in 10 minutes and prints the emulator's log.
       - name: Emulator
         id: emulator
-        if: ${{ !cancelled() }}
         run: |
           mkdir -p $ANDROID_AVD_HOME
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -52,26 +88,34 @@ jobs:
           booted || { echo "Emulator did not boot:"; tail -100 emulator.log; exit 1; }
           echo "Booted in about $((i * 5)) s"
 
+      # Each of the 4 jobs runs a quarter of the tests (the test runner's own sharding).
       - name: Device tests
-        if: ${{ !cancelled() && steps.emulator.outcome == 'success' }}
+        if: ${{ steps.emulator.outcome == 'success' }}
         run: >
           make layout AVD=ci
           ADB=$ANDROID_HOME/platform-tools/adb
           EMULATOR=$ANDROID_HOME/emulator/emulator
           TASK=:app:createDebugAndroidTestCoverageReport
+          UI_FILTER="-Pandroid.testInstrumentationRunnerArguments.numShards=4 -Pandroid.testInstrumentationRunnerArguments.shardIndex=${{ matrix.shard }}"
 
-      - name: Coverage
-        if: ${{ !cancelled() }}
-        run: python3 .github/coverage.py $(find app/build/reports/coverage -name report.xml) >> $GITHUB_STEP_SUMMARY
-
-      # always(): a cancelled or timed-out run still leaves its screenshots and logs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: reports
+          name: device-${{ matrix.shard }}
           path: |
             app/build/reports/
-            app/build/test-results/
-            app/build/outputs/screenshotTest-results/
+            app/build/outputs/androidTest-results/
             emulator.log
           retention-days: 14
+
+  # One table for the unit tests and all 4 emulator parts.
+  coverage:
+    if: ${{ !cancelled() && github.event_name != 'push' }}
+    needs: [check, device]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - run: python3 .github/coverage.py $(find artifacts -path '*coverage*' -name report.xml) >> $GITHUB_STEP_SUMMARY

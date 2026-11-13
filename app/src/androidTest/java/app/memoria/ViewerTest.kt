@@ -144,6 +144,7 @@ class ViewerTest {
         val video = videoTile()
         rule.setContent { MemoriaTheme { Viewer(video.id, listOf(video), onBack = {}) } }
         rule.onNodeWithContentDescription("Share").assertIsDisplayed()
-        rule.waitUntil(10_000) { runCatching { rule.onNodeWithContentDescription("Share").assertIsNotDisplayed() }.isSuccess }
+        // 7 s on the Mac's emulator, 13 s on CI's slower one
+        rule.waitUntil(20_000) { runCatching { rule.onNodeWithContentDescription("Share").assertIsNotDisplayed() }.isSuccess }
     }
 }

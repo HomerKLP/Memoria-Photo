@@ -20,16 +20,21 @@ def pct(hit, seen):
     return f"{100 * len(hit) / len(seen):.0f}%" if seen else "-"
 
 
-reports = {path: lines(path) for path in sys.argv[1:]}
-if not reports:
+# The device tests come in several parts (one report each), so reports are grouped by kind.
+kinds = defaultdict(lambda: (set(), set()))
+for path in sys.argv[1:]:
+    s, h = lines(path)
+    kind = kinds["Device tests" if "androidTest" in path else "Unit tests"]
+    kind[0].update(s)
+    kind[1].update(h)
+if not kinds:
     print("## Test coverage\nNo report: the tests did not get far enough.")
     sys.exit()
-seen = set().union(*(s for s, _ in reports.values()))
-hit = set().union(*(h for _, h in reports.values()))
+seen = set().union(*(s for s, _ in kinds.values()))
+hit = set().union(*(h for _, h in kinds.values()))
 
 print(f"## Test coverage: {pct(hit, seen)} of lines")
-for path, (s, h) in reports.items():
-    kind = "Device tests" if "androidTest" in path else "Unit tests"
+for kind, (s, h) in sorted(kinds.items()):
     print(f"- {kind} alone: {pct(h, s)}")
 
 files = defaultdict(lambda: [0, 0])

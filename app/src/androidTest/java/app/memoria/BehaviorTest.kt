@@ -1459,7 +1459,7 @@ class BehaviorTest {
         unsure = listOf(face(99)),
         albums = listOf(Album(1, "Camera", (1L..6L).map { tile(it) })),
         favorites = 4, videos = 2, trash = 3,
-        places = listOf(Place(1, "Riverton", (1L..3L).map { tile(it) })),
+        places = listOf(Place(1, "Riverton", (1L..3L).map { tile(it) }, tile(1))), // a place without a cover shows no name
         categories = listOf(Category("pet", "Pets", emptyList(), tile(1), (1L..2L).map { tile(it) })),
     )
 
