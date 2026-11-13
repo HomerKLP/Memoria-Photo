@@ -857,6 +857,49 @@ fun ViewerMore() = MemoriaTheme {
     }
 }
 
+/** Video, playing (mockup "Player"): the player line over the actions row. Pairs with viewer_playerBar_keepsTheActionRowPut. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 800)
+@Composable
+fun ViewerVideo() = MemoriaTheme {
+    Surface {
+        Box(Modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxSize().background(viewerPhoto))
+            ViewerChrome(
+                true, "Sat, 11 Oct", "14:32", favorite = false, {}, {}, {}, {}, {},
+                playerBar = { PlayerBar(playing = true, position = 84_000, length = 190_000, onToggle = {}, onSeek = {}) },
+            )
+        }
+    }
+}
+
+/** Video, playing, tapped (mockup "player-clean"): the bars are gone, only the 2 px progress line stays at the bottom edge. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 800)
+@Composable
+fun ViewerVideoTapped() = MemoriaTheme {
+    Surface {
+        Box(Modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxSize().background(viewerPhoto))
+            ViewerChrome(false, "Sat, 11 Oct", "14:32", favorite = false, {}, {}, {}, {}, {}, progress = { 0.44f })
+        }
+    }
+}
+
+/** Video, cannot play (mockup "player-error"): the card on a scrim, the bars stay bright over it. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 800)
+@Composable
+fun ViewerVideoFailed() = MemoriaTheme {
+    Surface {
+        Box(Modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxSize().background(viewerPhoto))
+            PlayerFailed(videoTile(1)) {}
+            ViewerChrome(true, "Sat, 11 Oct", "14:32", favorite = false, {}, {}, {}, {}, {})
+        }
+    }
+}
+
 /** Photos, selecting (mockup): the select top bar and the day circle, some tiles picked. Pairs with photos_selecting_keepsGridPut. */
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 800)

@@ -106,6 +106,10 @@ Found while reading the code, not seen on the phone yet. No steps, just the risk
 
 - **Stopped index leaves new faces out.** `IndexWorker` skips the last `savePeople()` when stopped, so faces added since the last regroup keep `personId = null` and are hidden in People until the next run.
 - **Fixing a person's main face moves faces answered against it.** Answers point at the person's main face. If the user moves or removes that main face, after a regroup the faces with a yes for that person follow it. Fix: answer against a few starting faces, or move the answers to the new main face.
+## HDR videos may look dull in the player
+
+The player draws on a `TextureView`, so the video can move with the page; a `TextureView` has no HDR output, the phone's own player (a `SurfaceView`) has. Steps: open an HDR or Dolby Vision camera clip in Memoria, then in the phone's player (More > Open in the phone's player), compare the colours. Not checked yet. Fix ideas if it shows: a `SurfaceView` while the page stands still, the `TextureView` only while it moves.
+
 - **Small faces drop out.** Faces under 40 px never join a person and are also missing from the People screen (`People.kt` `groupFaces`). Intended, but they are silently gone, not "unsure".
 - **Global mutable state.** `lastTimeline` and `thumbs` are top-level (`Photos.kt`); the Photos tab and the viewer both depend on them silently.
 - **Bitmap churn.** `detect` makes new full-size bitmaps per photo and never recycles (`Faces.kt`). Adds to load cost and heat.
@@ -140,7 +144,19 @@ Native heap after 8 flings 52 MB (87 MB on 2026-11-04, not explained), no blank 
 
 # Fixed
 
-- 2026-11-12 Player: the video stayed full screen over the grid while the viewer opened or closed, and over the details panel. A `TextureView` is a real view and ignores the page's motion; the poster does the motion now, and the texture is attached only once the page is in place.
+- 2026-11-13 Player: a swipe dragged past the middle and back left the video as a still with its sound running (the `ready` flag stayed off). The video now shows on the page whose file the player holds (`prepared`), and moves with it.
+- 2026-11-13 Player: every video page got the playing video's shape, so a portrait clip next to a landscape one slid in small, then jumped. A neighbour keeps its own poster's shape.
+- 2026-11-13 Player: closing a video, the picture swapped to another frame at the start and again on landing (the tile shows MediaStore's middle frame). The live frame shrinks now (paused), and the tile's picture fades in over the second half of the way.
+- 2026-11-13 Player: the poster was "any" frame (`-1`), not the first, so the picture changed when playback started. It is frame 0 now.
+- 2026-11-13 Player: the controls never faded while playing; the mockup says 2 s after the last touch. They fade now, and stay while paused, with More or the details open.
+- 2026-11-13 Player: unplugging headphones kept the sound going on the speaker. `setHandleAudioBecomingNoisy`.
+- 2026-11-13 Player: the start of every swipe on a video counted as a 2x hold for one frame (pill flash, speed blip): a cancelled wait looked like a timeout.
+- 2026-11-13 Player: the clock read the player 4 times a second: the knob jumped back after a seek, and short clips moved in big steps. It reads every ~3 px of the line now, and a seek moves the knob at once; the bottom line is drawn from the clock without recomposing the viewer.
+- 2026-11-13 Player: the progress line showed while the page moved (open, close, pull). Only with the bars hidden and the page still now.
+- 2026-11-13 Player: mid-swipe the bar showed the last clip's time and length. The clock follows the player only while it holds the page's video.
+- 2026-11-13 Player: the "cannot play" card dimmed the top bar, missed "MP4 · 48 MB" and used Material's button. The bars sit over the scrim, the facts line is there, the button is `PillButton`.
+- 2026-11-13 Player: the seek line was 1.5 dp (mockup: 4) and the knob had no shadow.
+- 2026-11-12 Player: the video stayed full screen over the grid while the viewer opened or closed, and over the details panel. The fix assumed a `TextureView` ignores the page's motion; it does not (Compose draws it inside its own layers), and the 2026-11-13 review put the video back on the moving page (`videoPage_pictureMovesWithThePage`).
 - 2026-11-12 Player: the lift that ends a 2x hold also counted as a tap, so the bars slid open after every hold.
 - 2026-11-12 Player: the page was sized by the tile's MediaStore ratio (0 for some files) until the player reported, so the box jumped as the video started. The poster's own shape is the fallback now.
 - 2026-11-12 Player: the screen could sleep under a playing video. `keepScreenOn` while it plays.
@@ -213,5 +229,5 @@ Native heap after 8 flings 52 MB (87 MB on 2026-11-04, not explained), no blank 
 - 2026-11-04 DNG photos with a turn tag showed sideways: Android decodes a DNG as stored. Grid, viewer, index and Help recognize turn by the TIFF tag (`dngTurn`, `turnedBy` in `Faces.kt`). Checked on the phone with a made-up tag 6 DNG.
 - 2026-11-06 Library opened slowly on the first open after launch: the load ran inside `LibraryScreen`, so the tab waited for it and showed grey tiles. `libraryData` loads once now and `preloadLibrary` warms it at launch, so the first open starts from data.
 - 2026-11-06 Video GPS read as "no GPS" for every video. Android hides the location behind the plain video URI; `MediaStore.setRequireOriginal` in `videoGps()`, as `Details.kt` already does.
-- 2026-11-13 Photos lost the open and close animation, the drag-down and the details square: the page only counted as current when the video player held its file, and a photo never sets that flag. `pageIsCurrent` leaves the player out for photos. Checked on the phone: the photo grows out of its tile and shrinks back.
+- 2026-11-13 Photos lost the open and close animation, the drag-down and the details square: the page only counted as current when the video player held its file, and a photo never sets that flag. `pageIsCurrent` leaves the player out for photos (later dropped: the page in view takes the motion, the player only decides where the video shows). Checked on the phone: the photo grows out of its tile and shrinks back.
 - 2026-11-13 A nudged video page restarted its video from 0 when the pager snapped back: the settle step re-prepared the same file. `prepared` remembers the tile the player holds, so the same video is never prepared twice.

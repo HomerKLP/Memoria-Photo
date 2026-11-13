@@ -9,7 +9,9 @@ KB each) and reads them back to check them: the shape the player must report, th
 The clips cover what a library actually holds, so a new codec or container is one line here plus one
 case in VideoFileTest: a camera's H.264 and HEVC, a portrait phone video (stored landscape, turned by
 the track's display matrix), a QuickTime .mov from an iPhone, a .mkv download, VP9, AV1 and 10-bit
-HEVC. Three plain colours, so a frame's colour can be checked later if a case needs it.
+HEVC, an old phone's H.263 .3gp. The camera-like clips have a tone for sound (AAC, Opus in WebM): a
+sound track the phone cannot decode plays silent with no error, so the test checks it was picked.
+Three plain colours, so a frame's colour can be checked (VideoFileTest reads the first, red).
 A broken file is there too: the viewer's "cannot play" card needs one.
 """
 import math
@@ -36,18 +38,20 @@ class Clip:
     rate: int = 8
     pix_fmt: str = "yuv420p"
     rotate: int = 0  # degrees the player must turn it, as a phone writes a portrait video
+    audio: str = ""  # a sound encoder: a 440 Hz tone as long as the video
 
 
 CLIPS = [
-    Clip("video_land.mp4", 320, 180, "libx264", "mp4"),  # a landscape phone video
+    Clip("video_land.mp4", 320, 180, "libx264", "mp4", frames=40, audio="aac"),  # a landscape phone video, 5 s: it still plays when the controls fade at 2 s
     Clip("video_port.mp4", 180, 320, "libx264", "mp4"),  # a portrait one: the clip that stretched in the viewer
     Clip("video_hevc.mp4", 320, 180, "libx265", "mp4"),  # HEVC, what a phone's camera records
-    Clip("video_vp9.webm", 320, 180, "libvpx-vp9", "webm"),  # a container the phone may not have
+    Clip("video_vp9.webm", 320, 180, "libvpx-vp9", "webm", audio="libopus"),  # a container the phone may not have
     Clip("video_rot90.mp4", 320, 180, "libx264", "mp4", rotate=90),  # a portrait camera video: 320x180 stored, shown 180x320
-    Clip("video_mov.mov", 320, 180, "libx264", "mov"),  # an iPhone's QuickTime file
+    Clip("video_mov.mov", 320, 180, "libx264", "mov", audio="aac"),  # an iPhone's QuickTime file
     Clip("video_mkv.mkv", 320, 180, "libx265", "matroska"),  # a download's container
     Clip("video_av1.mp4", 320, 180, "libsvtav1", "mp4"),  # AV1: plays where the phone has a decoder
     Clip("video_hevc10.mp4", 320, 180, "libx265", "mp4", pix_fmt="yuv420p10le"),  # 10-bit HEVC, like an HDR recording
+    Clip("video_3gp.3gp", 176, 144, "h263", "3gp", frames=15, rate=15, audio="aac"),  # an old phone's clip (AAC: no AMR encoder here)
 ]
 
 
@@ -58,6 +62,9 @@ def make(c: Clip) -> Path:
         stream.width, stream.height = c.w, c.h
         stream.pix_fmt = c.pix_fmt
         stream.bit_rate = 150_000
+        sound = out.add_stream(c.audio, rate=48_000) if c.audio else None
+        if sound:
+            sound.bit_rate = 24_000  # a few KB a second, enough for a tone
         for i in range(c.frames):
             rgb = SHAPES["RGB"[i % 3]]
             frame = av.VideoFrame.from_ndarray(np.full((c.h, c.w, 3), rgb, dtype=np.uint8), format="rgb24")
@@ -65,6 +72,16 @@ def make(c: Clip) -> Path:
                 out.mux(packet)
         for packet in stream.encode():
             out.mux(packet)
+        if sound:
+            total = 48_000 * c.frames // c.rate
+            for at in range(0, total, 1024):
+                tone = 0.2 * np.sin(2 * np.pi * 440 * np.arange(at, min(at + 1024, total)) / 48_000)
+                frame = av.AudioFrame.from_ndarray(tone.astype(np.float32).reshape(1, -1), format="fltp", layout="mono")
+                frame.sample_rate, frame.pts = 48_000, at
+                for packet in sound.encode(frame):
+                    out.mux(packet)
+            for packet in sound.encode():
+                out.mux(packet)
     if c.rotate:
         set_rotation(path, c.rotate)
     return path
@@ -104,7 +121,8 @@ def check(c: Clip) -> str:
         frames = sum(1 for _ in f.decode(video=0))
         turn = rotation(path) if b"tkhd" in path.read_bytes() else 0
         shown = f"{s.codec_context.height}x{s.codec_context.width}" if turn % 180 else f"{s.codec_context.width}x{s.codec_context.height}"
-        return f"{c.name}: {s.codec_context.name} {s.codec_context.width}x{s.codec_context.height}, shown {shown} (turn {turn}), {frames} frames, {path.stat().st_size} bytes"
+        sound = f", sound {f.streams.audio[0].codec_context.name}" if f.streams.audio else ""
+        return f"{c.name}: {s.codec_context.name} {s.codec_context.width}x{s.codec_context.height}, shown {shown} (turn {turn}), {frames} frames{sound}, {path.stat().st_size} bytes"
 
 
 if __name__ == "__main__":

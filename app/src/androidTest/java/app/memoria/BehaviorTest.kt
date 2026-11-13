@@ -2,6 +2,9 @@ package app.memoria
 
 import android.net.Uri
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -517,6 +520,19 @@ class BehaviorTest {
         videoPage(onHold = { held += it })
         rule.onNodeWithTag("page").performTouchInput { down(center); advanceEventTime(800); up() }
         assertEquals(listOf(true, false), held)
+    }
+
+    /** A swipe that takes the finger before the long press is a swipe, not a hold: the 2x pill flashed at the start of every drag. */
+    @Test fun videoPage_swipe_isNoHold() {
+        val held = mutableListOf<Boolean>()
+        rule.setContent {
+            MemoriaTheme { Surface { Box(Modifier.fillMaxSize().testTag("page").draggable(rememberDraggableState {}, Orientation.Vertical)) {
+                ViewerPage(videoTile(1), onZoomed = {}, player = null, current = true, onHold = { held += it })
+            } } }
+        }
+        rule.onNodeWithTag("page").performTouchInput { swipeDown() }
+        rule.mainClock.advanceTimeBy(1_000)
+        assertEquals(emptyList<Boolean>(), held)
     }
 
     /** The lift that ends a 2x hold must not also count as a tap: the bars slid open after every hold. */

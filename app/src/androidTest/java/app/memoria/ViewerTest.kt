@@ -13,6 +13,9 @@ import androidx.activity.result.ActivityResultRegistryOwner
 import androidx.activity.result.contract.ActivityResultContract
 import androidx.core.app.ActivityOptionsCompat
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -41,7 +44,8 @@ class ViewerTest {
 
     private val tiles = (1..3).map { n ->
         val values = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, "viewertest$n.jpg")
+            // a new name each run: the emulator's disk keeps MediaStore rows across runs, and a reused name failed the insert
+            put(MediaStore.MediaColumns.DISPLAY_NAME, "viewertest$n-${System.nanoTime()}.jpg")
             put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
             put(MediaStore.MediaColumns.RELATIVE_PATH, "Pictures/ViewerTest")
         }
@@ -112,5 +116,34 @@ class ViewerTest {
         rule.onRoot().performTouchInput { swipeRight() }
         rule.waitUntil(20_000) { viewerTile == video.id }
         rule.waitUntil(10_000) { textures() == 1 }
+    }
+
+    /**
+     * Dragged past the middle and back before letting go: the page in view changes twice, the player keeps the
+     * same video, and the page must show it again, not a still with the sound running on (2026-11-13).
+     */
+    @Test fun swipe_pastTheMiddleAndBack_keepsThePicture() {
+        viewerTile = null
+        val video = videoTile()
+        rule.setContent { MemoriaTheme { Viewer(video.id, listOf(video, tiles[0]), onBack = {}) } }
+        rule.waitUntil(20_000) { textures() == 1 }
+
+        rule.onRoot().performTouchInput {
+            down(center)
+            moveBy(Offset(-width * 0.7f, 0f), delayMillis = 150)
+            moveBy(Offset(width * 0.7f, 0f), delayMillis = 150)
+            up()
+        }
+        rule.waitForIdle()
+        assertEquals(video.id, viewerTile)
+        rule.waitUntil(10_000) { textures() == 1 }
+    }
+
+    /** Playing, the controls fade 2 s after the last touch (mockup "Video, playing"); the 5 s clip still plays then. */
+    @Test fun video_controlsFadeWhilePlaying() {
+        val video = videoTile()
+        rule.setContent { MemoriaTheme { Viewer(video.id, listOf(video), onBack = {}) } }
+        rule.onNodeWithContentDescription("Share").assertIsDisplayed()
+        rule.waitUntil(10_000) { runCatching { rule.onNodeWithContentDescription("Share").assertIsNotDisplayed() }.isSuccess }
     }
 }

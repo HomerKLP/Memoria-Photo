@@ -510,7 +510,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 <header class="top">
   <h1>Memoria Photo</h1>
   <p class="lede">Light theme, Honey palette. Photos and faces are placeholders, names and places are made up.</p>
-  <p class="latest"><b>Latest, 12 Nov:</b> <a href="#page-player">Player</a> — video plays in the viewer, one control line, double tap ±5 s, hold 2x, a five-item More. Six new figures. Nothing built yet.</p>
+  <p class="latest"><b>Latest, 13 Nov:</b> <a href="#player-error">Player, cannot play</a> — the actions row stays under the card, over the scrim, so Share, Favorite and Delete still work. The Player section is built.</p>
 </header>
 
 <aside class="rail" aria-label="Contents">
@@ -784,7 +784,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 </section>
 <section class="group" id="page-player">
   <h2>Player</h2>
-  <p class="lede">Video plays in the viewer, where the photo is, never in another app. One control line, swipe for the next photo or video, double tap ±5 s, hold for 2x. Nothing here is built yet.</p>
+  <p class="lede">Video plays in the viewer, where the photo is, never in another app. One control line, swipe for the next photo or video, double tap ±5 s, hold for 2x.</p>
   <div class="phones">
     <figure id="player">
       <div class="phone dark viewer video">
@@ -808,7 +808,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Video, playing: the video plays in the viewer, where the photo is — no other app, no second screen, so Back, swipe, More and the details stay the same. It runs on the phone's own hardware decoder through Media3, the one the system player uses, on the player's own surface (no frame copied into the UI per frame), so it starts fast, stays cool, and plays the popular codecs: H.264, HEVC, VP9, AV1, 10-bit and HDR, in MP4, MKV, WebM, 3GP and MOV. The player line is the whole control set: play / pause, one seek bar, time played and length. Drag the bar to seek, nowhere else. The controls fade out 2 s after the last touch while it plays and stay while it is paused; a tap brings them back. The photo viewer's actions row stays under them. Volume is the phone's own buttons. A video starts from the beginning each time: no resume point</figcaption>
+      <figcaption>Video, playing: the video plays in the viewer, where the photo is — no other app, no second screen, so Back, swipe, More and the details stay the same. It runs on the phone's own hardware decoder through Media3, the one the system player uses, so it starts fast and plays the popular codecs: H.264, HEVC, VP9, AV1 and 10-bit, in MP4, MKV, WebM, 3GP and MOV. The frames are drawn in the page itself (a TextureView), so the video grows from its tile, shrinks back, slides and follows a pull like a photo; HDR clips play, their colours are a phone check. The player line is the whole control set: play / pause, one seek bar, time played and length. Drag the bar to seek, nowhere else. The controls fade out 2 s after the last touch while it plays and stay while it is paused; a tap brings them back. The photo viewer's actions row stays under them. Volume is the phone's own buttons. A video starts from the beginning each time: no resume point</figcaption>
     </figure>
     <figure id="player-clean">
       <div class="phone dark viewer">
@@ -849,9 +849,15 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
           <p>1:24 · MP4 · 48 MB<br>The phone's own player may still open it</p>
           <button class="pill-btn">Open in the phone's player</button>
         </div>
+        <div class="actions">
+          <button class="icon-btn" aria-label="Share"><svg class="i"><use href="#i-share"/></svg></button>
+          <button class="icon-btn" aria-label="Favorite"><svg class="i"><use href="#i-heart-line"/></svg></button>
+          <button class="icon-btn" aria-label="Info"><svg class="i"><use href="#i-info"/></svg></button>
+          <button class="icon-btn" aria-label="Delete"><svg class="i"><use href="#i-trash-line"/></svg></button>
+        </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Video, cannot play: the one fallback, which is what the app does today. Media3 uses the same hardware decoders as the system player, so this should be rare: a container or codec the phone itself has no decoder for. The card names the file and the button hands it to the phone's player. The top bar and More still work, so Share, Move to album, Favorite and Delete do too</figcaption>
+      <figcaption>Video, cannot play: the one fallback, which is what the app does today. Media3 uses the same hardware decoders as the system player, so this should be rare: a container or codec the phone itself has no decoder for. The card names the file and the button hands it to the phone's player. The card replaces the player line; the top bar and the actions row stay bright over the scrim, so Share, Favorite, Details, Delete and More (Move to album) still work</figcaption>
     </figure>
     <figure id="player-more">
       <div class="phone dark viewer video" id="player-more-phone">
