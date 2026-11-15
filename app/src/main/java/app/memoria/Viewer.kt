@@ -684,7 +684,7 @@ fun PlayerBar(
     var drag by remember { mutableStateOf<Float?>(null) } // the thumb under the finger
     val span = length.coerceAtLeast(1L).toFloat()
     val at = drag ?: (position / span).coerceIn(0f, 1f)
-    Row(modifier.fillMaxWidth().padding(start = 4.dp, end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         IconButton(onToggle) {
             Icon(painterResource(if (playing) R.drawable.ic_pause else R.drawable.ic_play), if (playing) "Pause" else "Play", tint = onViewer)
         }
@@ -696,7 +696,8 @@ fun PlayerBar(
             modifier = Modifier.weight(1f),
         )
         // Fixed width and tabular digits: the total arrives once the file is read, and the slider must not jump then
-        Row(Modifier.width(120.dp), horizontalArrangement = Arrangement.End) {
+        // 88 dp fits "59:59 / 59:59"; shortcut: longer clips clip the two-digit minutes.
+        Row(Modifier.width(88.dp), horizontalArrangement = Arrangement.End) {
             val time = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum")
             Text(clock((at * span).toLong()), color = onViewer, style = time)
             Text(" / ${clock(length)}", color = onViewer.copy(alpha = 0.65f), style = time)
