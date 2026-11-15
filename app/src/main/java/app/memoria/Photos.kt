@@ -766,6 +766,7 @@ fun PhotosContent(
                                     .testTag("tile-${x.id}").animateItem(),
                                 selecting = selecting,
                                 selected = x.id in selectedIds,
+                                onTop = onTop,
                             )
                         }
                     }
@@ -837,11 +838,17 @@ private fun Modifier.selectDrag(grid: LazyGridState, self: Tile, tilesById: Map<
     }
 
 @Composable
-fun TileImage(tile: Tile, modifier: Modifier, selecting: Boolean = false, selected: Boolean = false, heart: Boolean = true) {
-    DisposableEffect(tile.id) { onDispose { tileSpots.remove(tile.id) } }
+fun TileImage(tile: Tile, modifier: Modifier, selecting: Boolean = false, selected: Boolean = false, heart: Boolean = true, onTop: () -> Boolean = { true }) {
+    // The Photos tab stays composed under an opened screen: its copy of a tile must not take the spot the viewer lands in
+    val top = onTop()
+    val spot = remember { arrayOfNulls<LayoutCoordinates>(1) }
+    DisposableEffect(tile.id, top) {
+        if (top) spot[0]?.let { tileSpots[tile.id] = it }
+        onDispose { spot[0]?.let { tileSpots.remove(tile.id, it) } }
+    }
     Box(
         modifier.aspectRatio(1f)
-            .onPlaced { tileSpots[tile.id] = it }
+            .onPlaced { spot[0] = it; if (top) tileSpots[tile.id] = it }
             .drawWithContent { if (viewerTile != tile.id) drawContent() }
             .then(if (selected) Modifier.border(3.dp, MaterialTheme.colorScheme.primary) else Modifier),
     ) {

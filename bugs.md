@@ -165,6 +165,7 @@ Library shows all its covers 151 ms after the tap on the first open (cold start)
 Native heap after 8 flings 52 MB (87 MB on 2026-11-04, not explained), no blank tiles on a cold fling. Cold start is up from v0.3.0's 116/163 ms (same phone, more library and DB work now).
 
 # Fixed
+- 2026-11-15 Viewer: opened from a screen over the Photos tab (Search > Videos), a close after a swipe flew to a thin strip at the left edge or faded. Both grids wrote the same id in the global `tileSpots`, and the hidden tab's tile could win or delete the visible one. The tab's tiles now write only while the tab is on top, and a tile removes only its own entry.
 - 2026-11-15 Player: a 2x hold started about 1 s late and froze the picture 4 times (60-75 ms): ExoPlayer changed the sound's speed only after its 0.5 s of buffered sound played out. The system now changes the speed (`setEnableAudioTrackPlaybackParams`), so 2x starts at once.
 
 - 2026-11-15 Player: HDR clips (HLG, PQ, Dolby Vision) looked dull: a `TextureView` shows HDR only in an HDR window. The viewer sets `COLOR_MODE_HDR` while the player holds an HDR clip, so two HDR clips in a row never dim in between. The phone fades the brightness by itself (3 to 5 s), so the app does not.
