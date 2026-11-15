@@ -669,6 +669,16 @@ class BehaviorTest {
         rule.onNodeWithText("This place has only photos. Pick All or Photos to see them").assertIsDisplayed()
     }
 
+    /** A category page has no filter icon: Videos would always be empty, Photos is the whole list. */
+    @Test fun category_hasNoFilterIcon() {
+        rule.setContent {
+            MemoriaTheme { Surface { PlaceContent(Place(1, "Pets", listOf(tile(1), tile(2))), filterable = false) } }
+        }
+
+        rule.onNodeWithContentDescription("Filter").assertDoesNotExist()
+        rule.onNodeWithTag("tile-1").assertIsDisplayed()
+    }
+
     /** The filter holds while selecting, so Select all picks only what it shows. */
     @Test fun album_filter_selectAllPicksWhatItShows() {
         var picked by mutableStateOf<Set<Long>?>(null)

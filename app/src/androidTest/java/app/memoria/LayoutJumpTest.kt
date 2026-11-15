@@ -821,6 +821,20 @@ class LayoutJumpTest {
         assertSame("On this device", headerBefore, rule.onNodeWithText("On this device").top())
     }
 
+    /** Places: loaded and empty, the empty state takes the grid's place; the bar and its subtitle must not move. */
+    @Test fun places_loadingToEmpty_keepsBarAndEmptyStateInPlace() {
+        var places by mutableStateOf<List<Place>?>(null)
+        rule.setContent { MemoriaTheme { Surface { PlacesContent(places) } } }
+
+        val barBefore = rule.onNodeWithTag("topBar").height()
+        val titleBefore = rule.onNodeWithText("Places").top()
+        rule.runOnIdle { places = emptyList() }
+        assertSame("top bar height", barBefore, rule.onNodeWithTag("topBar").height())
+        assertSame("title", titleBefore, rule.onNodeWithText("Places").top())
+        rule.onNodeWithText("None yet").assertExists()
+        rule.onNodeWithText("No places yet").assertExists()
+    }
+
     /** Categories: the cover grid loads after the bar; the title must not move. */
     @Test fun categories_loadingToLoaded_titleStaysPut() {
         var categories by mutableStateOf<List<Category>?>(null)

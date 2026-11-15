@@ -35,22 +35,22 @@ body {
   font: 14px/1.4 var(--body);
   padding: 32px 16px 56px;
 }
-/* Fixed table of contents: groups with their sub-screens, always visible on the left. */
-.rail { display: none; }
+/* Fixed table of contents: groups with their sub-screens, always visible on the left. Scoped to aside: the month slider's thin line is also .rail. */
+aside.rail { display: none; }
 @media (min-width: 1024px) {
   body { padding-left: calc(var(--rail) + 24px); }
-  .rail {
+  aside.rail {
     display: block; position: fixed; inset: 0 auto 0 0; box-sizing: border-box; width: var(--rail); z-index: 10;
     padding: 22px 10px 22px 14px; overflow-y: auto;
     background: var(--surface); border-right: 1px solid var(--line); font-size: 13px;
   }
-  .rail h2 { font: 700 12px/1.2 var(--body); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); margin: 22px 0 6px; }
-  .rail h2:first-child { margin-top: 0; }
-  .rail a { display: block; color: var(--fg); text-decoration: none; padding: 4px 8px; border-radius: 8px; }
-  .rail a:hover { background: var(--bg); }
-  .rail a.on { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
-  .rail .sub a { padding-left: 16px; color: var(--muted); }
-  .rail .sub a.on { color: var(--accent); }
+  aside.rail h2 { font: 700 12px/1.2 var(--body); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); margin: 22px 0 6px; }
+  aside.rail h2:first-child { margin-top: 0; }
+  aside.rail a { display: block; color: var(--fg); text-decoration: none; padding: 4px 8px; border-radius: 8px; }
+  aside.rail a:hover { background: var(--bg); }
+  aside.rail a.on { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+  aside.rail .sub a { padding-left: 16px; color: var(--muted); }
+  aside.rail .sub a.on { color: var(--accent); }
 }
 :target { scroll-margin-top: 16px; }
 /* The app bundles the static Bricolage "24pt" cut; without this the browser reshapes it per size */
@@ -508,7 +508,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 <header class="top">
   <h1>Memoria Photo</h1>
   <p class="lede">Light theme, Honey palette. Photos and faces are placeholders, names and places are made up.</p>
-  <p class="latest"><b>Latest, 15 Nov:</b> <a href="#viewer-details">Photo details</a> — the camera line says Ultra HDR for a photo with a gain map; HDR videos play in HDR, the phone fades their brightness (<a href="#player">Player</a>); <a href="#player-hold">2x hold</a> starts at once.</p>
+  <p class="latest"><b>Latest, 15 Nov:</b> <a href="#viewer-details">Photo details</a> — the camera line says Ultra HDR for a photo with a gain map; HDR videos play in HDR, the phone fades their brightness (<a href="#player">Player</a>); <a href="#player-hold">2x hold</a> starts at once. The <a href="#slider-part">month slider</a> draws as its thin line again. <a href="#page-albums">Albums</a> has no More button; the <a href="#category">Category</a> page has no filter icon; <a href="#places-empty">Places, empty</a> is its own screen.</p>
 </header>
 
 <aside class="rail" aria-label="Contents">
@@ -1075,7 +1075,6 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <div class="subbar">
           <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
           <div class="title"><b>Albums</b><span>12 albums · 3,880 items</span></div>
-          <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
         </div>
         <div class="scroll">
           <div class="head"><h3>On this device</h3><span class="hint">Device folders</span></div>
@@ -1311,7 +1310,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         <div class="scroll vids" id="category-photos"></div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Category: opens from a category tile or a typed hit. Every photo with that tag, newest first, by month; the month stays pinned. Tap opens the viewer, long press selects, like Place (no Move). Photos only: videos are not tagged yet. A photo has a tag when the tagger's score passes that tag's cutoff, set so about 9 in 10 are right</figcaption>
+      <figcaption>Category: opens from a category tile or a typed hit. Every photo with that tag, newest first, by month; the month stays pinned. Tap opens the viewer, long press selects, like Place (no Move). No filter icon: a tag never has videos, so Videos would be empty and Photos is the whole list. Photos only: videos are not tagged yet. A photo has a tag when the tagger's score passes that tag's cutoff, set so about 9 in 10 are right</figcaption>
     </figure>
   </div>
 </section>
@@ -2048,7 +2047,7 @@ Photos: …/files/test</div>
     <p>Plain in the list, like any heading. Once pinned at the top it turns into a small floating pill with no band behind it, so photos show around it (scroll the box above). It stays pinned while any photo of that month is on screen, then the next month pushes it up. The heading box keeps its size both ways, so nothing jumps.</p>
   </article>
 
-  <article class="part">
+  <article class="part" id="slider-part">
     <h3>Timeline month slider</h3>
     <div style="position:relative; height:230px; border-radius:12px; overflow:hidden; background:linear-gradient(160deg,#9CC3E6,#E9D8B8)">
       <div class="slider on" style="top:0; bottom:0">

@@ -129,8 +129,17 @@ fun PlacesScreen(onBack: () -> Unit, onOpenPlace: (Int) -> Unit) {
 @Composable
 fun PlacesContent(places: List<Place>?, onBack: () -> Unit = {}, onOpenPlace: (Int) -> Unit = {}) {
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-        TopBar("Places", places?.let { p -> "${p.size} places · ${p.sumOf { it.tiles.size }} photos" }, onBack = onBack)
-        LazyVerticalGrid(
+        TopBar(
+            "Places",
+            places?.let { p -> if (p.isEmpty()) "None yet" else "${p.size} places · ${p.sumOf { it.tiles.size }} photos" },
+            onBack = onBack,
+        )
+        // loaded and empty: the index read every photo and none has a location (mockup "Places, empty")
+        if (places != null && places.isEmpty()) EmptyState(
+            R.drawable.ic_pin, "No places yet",
+            "Photos with a location show up here, by town. For new ones, turn on location in your camera app",
+        )
+        else LazyVerticalGrid(
             GridCells.Fixed(3), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -158,7 +167,7 @@ fun PlaceScreen(id: Int, onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit)
 @Composable
 fun PlaceContent(
     place: Place?, onBack: () -> Unit = {}, onOpen: (List<Tile>, Tile) -> Unit = { _, _ -> }, pick: Pick = Pick(null),
-    filter: Filter = Filter.All, onFilter: (Filter) -> Unit = {},
+    filter: Filter = Filter.All, onFilter: (Filter) -> Unit = {}, filterable: Boolean = true,
 ) {
     val p = place
     val sel = pick.ids
@@ -188,7 +197,7 @@ fun PlaceContent(
                 // " " while loading: an empty title may measure to nothing and the grid would jump
                 else TopBar(
                     p?.name?.ifEmpty { " " } ?: " ", p?.let { val v = it.tiles.count { t -> t.duration != null }; photosAndVideos(it.tiles.size - v, v) }, onBack = onBack,
-                    trailing = { FilterButton(filter) { filtering = true } },
+                    trailing = { if (filterable) FilterButton(filter) { filtering = true } },
                 )
             }
             val grid = rememberLazyGridState()

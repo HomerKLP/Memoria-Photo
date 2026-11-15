@@ -262,6 +262,12 @@ fun PlacesGrid() = MemoriaTheme { Surface { PlacesContent(fakePlaces) } }
 @Composable
 fun PlacesLoading() = MemoriaTheme { Surface { PlacesContent(null) } }
 
+/** Places, empty (mockup). Pairs with places_loadingToEmpty_keepsBarAndNotePlace. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 760)
+@Composable
+fun PlacesEmpty() = MemoriaTheme { Surface { PlacesContent(emptyList()) } }
+
 /** Place, selecting (mockup). Pairs with place_selecting_keepsTopBarAndGridTop. */
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 760)

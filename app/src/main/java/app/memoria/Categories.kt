@@ -176,5 +176,6 @@ fun CategoryScreen(id: String, onBack: () -> Unit, onOpen: (List<Tile>, Tile) ->
     }
     // the last photo was deleted, or the tags are gone: close instead of a blank page
     CloseWhenEmpty(category, category?.tiles?.isEmpty() == true, onBack)
-    PlaceContent(category, onBack, onOpen, pick)
+    // no filter: a tag never has videos, so Videos would always be empty
+    PlaceContent(category, onBack, onOpen, pick, filterable = false)
 }
