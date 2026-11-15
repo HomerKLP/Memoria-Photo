@@ -1,5 +1,6 @@
 package app.memoria
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.LruCache
@@ -391,6 +392,34 @@ fun FaceImage(face: FaceVec, modifier: Modifier) {
     }
 }
 
+/** Everything [PeopleScreen] shows, in one pass, also warmed at app start (see [preloadPeople]). */
+suspend fun peopleData(dao: IndexDao): PeopleData = withContext(Dispatchers.IO) {
+    // Faces without vectors: the grid only shows pictures. Merge with ranks by distance, so it loads them itself.
+    val faces = dao.taggedFaces()
+    val byPerson = faces.groupBy { it.personId }
+    // getValue would crash on a person with no faces (stopped index, manual edit); skip it
+    val people = dao.people().mapNotNull { p -> byPerson[p.id]?.let { fs -> Person(fs.map { it.toVec() }, (fs.firstOrNull { it.id == p.mainFaceId } ?: fs.first()).toVec(), p.id, p.name, p.hidden, p.coverFaceId, p.pos) } }
+        .sortedWith(compareBy({ it.name.isNullOrBlank() }, { it.pos ?: Int.MAX_VALUE }, { -it.photos })) // named first, moved ones in their order, then by photo count
+    // hidden people stay in the list, so one opened from Hidden people still shows
+    val shown = people.filter { !it.hidden }
+    val unsure = shown.flatMap { p -> p.shownFaces.filter { !it.sure } }.sortedBy { it.quality }
+    PeopleData(peopleAndPets(shown), people, unsure)
+}
+
+/** Loads the list and its first covers at app start, so the first open shows faces instead of grey circles. */
+suspend fun preloadPeople(context: Context) = preloadCached("people") {
+    val dao = Db.get(context).index()
+    peopleData(dao).also { data ->
+        withContext(Dispatchers.IO) {
+            data.people.filter { !it.hidden }.take(60).forEach { p ->
+                if (faceBitmaps.get(p.cover.id) == null) runCatching {
+                    dao.thumb(p.cover.id)?.let { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }
+                }.getOrNull()?.also { faceBitmaps.put(p.cover.id, it) }
+            }
+        }
+    }
+}
+
 /** Loads people, unsure faces and the index totals, then hands them to [PeopleContent]. */
 @Composable
 fun PeopleScreen(
@@ -417,20 +446,7 @@ fun PeopleScreen(
     var unmergeBusy by remember { mutableStateOf(false) }
     // [saved] as a key: the run saves people every so often, so they show up while indexing.
     val saved by peopleSaved.collectAsState()
-    val result by cachedProduceState("people", reload, saved) {
-        withContext(Dispatchers.IO) {
-            // Faces without vectors: the grid only shows pictures. Merge with ranks by distance, so it loads them itself.
-            val faces = dao.taggedFaces()
-            val byPerson = faces.groupBy { it.personId }
-            // getValue would crash on a person with no faces (stopped index, manual edit); skip it
-            val people = dao.people().mapNotNull { p -> byPerson[p.id]?.let { fs -> Person(fs.map { it.toVec() }, (fs.firstOrNull { it.id == p.mainFaceId } ?: fs.first()).toVec(), p.id, p.name, p.hidden, p.coverFaceId, p.pos) } }
-                .sortedWith(compareBy({ it.name.isNullOrBlank() }, { it.pos ?: Int.MAX_VALUE }, { -it.photos })) // named first, moved ones in their order, then by photo count
-            // hidden people stay in the list, so one opened from Hidden people still shows
-            val shown = people.filter { !it.hidden }
-            val unsure = shown.flatMap { p -> p.shownFaces.filter { !it.sure } }.sortedBy { it.quality }
-            PeopleData(peopleAndPets(shown), people, unsure)
-        }
-    }
+    val result by cachedProduceState("people", reload, saved) { peopleData(dao) }
     // the app's own Back closes the list, with the back swipe preview
     BackHandler(naming != null || selected != null || openId != null) { if (naming != null) naming = null else if (selected != null) selected = null else onPersonBack() }
     val merges by produceState(emptyList<MergeRow>(), reload, saved) { value = withContext(Dispatchers.IO) { dao.merges() } }

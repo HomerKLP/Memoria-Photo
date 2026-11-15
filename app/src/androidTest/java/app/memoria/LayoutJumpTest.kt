@@ -821,6 +821,20 @@ class LayoutJumpTest {
         assertSame("On this device", headerBefore, rule.onNodeWithText("On this device").top())
     }
 
+    /** Places: loaded and empty, the empty state takes the grid's place; the bar and its subtitle must not move. */
+    @Test fun places_loadingToEmpty_keepsBarAndEmptyStateInPlace() {
+        var places by mutableStateOf<List<Place>?>(null)
+        rule.setContent { MemoriaTheme { Surface { PlacesContent(places) } } }
+
+        val barBefore = rule.onNodeWithTag("topBar").height()
+        val titleBefore = rule.onNodeWithText("Places").top()
+        rule.runOnIdle { places = emptyList() }
+        assertSame("top bar height", barBefore, rule.onNodeWithTag("topBar").height())
+        assertSame("title", titleBefore, rule.onNodeWithText("Places").top())
+        rule.onNodeWithText("None yet").assertExists()
+        rule.onNodeWithText("No places yet").assertExists()
+    }
+
     /** Categories: the cover grid loads after the bar; the title must not move. */
     @Test fun categories_loadingToLoaded_titleStaysPut() {
         var categories by mutableStateOf<List<Category>?>(null)
@@ -1093,6 +1107,24 @@ class LayoutJumpTest {
             faces = listOf(face(1), FaceVec(2, 1, floatArrayOf(0f, 0f, 50f, 50f), FloatArray(512), 0.9f, PhotoKind.camera, null, pet = true))
             info = full
         }
+        assertSame("date", dateBefore, rule.onNodeWithText(dateText).top())
+    }
+
+    /** Details of a video: the camera line, the length and the facts fill in below the date; the date must not move. */
+    @Test fun details_videoFillingIn_keepsDatePut() {
+        val tile = Tile(1, Uri.parse("content://media/external/video/media/1"), 1_700_000_000_000L, 58_000L)
+        val bare = PhotoInfo("a.mp4", "DCIM/Camera", 0, 0, 0, null, null, null)
+        val full = PhotoInfo(
+            "VID_20261011_143212.mp4", "DCIM/Camera", 366_000_000, 3840, 2160, "Mountain View",
+            "4K · 30 fps · HDR Dolby Vision", "HEVC 10-bit · 50 Mbps · AAC stereo 48 kHz",
+        )
+        var info by mutableStateOf(bare)
+        rule.setContent { MemoriaTheme { Surface { DetailsContent(tile, info, emptyList(), emptyMap()) } } }
+
+        val dateText = java.time.format.DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy")
+            .format(java.time.Instant.ofEpochMilli(tile.date).atZone(java.time.ZoneId.systemDefault()))
+        val dateBefore = rule.onNodeWithText(dateText).top()
+        rule.runOnIdle { info = full }
         assertSame("date", dateBefore, rule.onNodeWithText(dateText).top())
     }
 

@@ -262,6 +262,12 @@ fun PlacesGrid() = MemoriaTheme { Surface { PlacesContent(fakePlaces) } }
 @Composable
 fun PlacesLoading() = MemoriaTheme { Surface { PlacesContent(null) } }
 
+/** Places, empty (mockup). Pairs with places_loadingToEmpty_keepsBarAndNotePlace. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 760)
+@Composable
+fun PlacesEmpty() = MemoriaTheme { Surface { PlacesContent(emptyList()) } }
+
 /** Place, selecting (mockup). Pairs with place_selecting_keepsTopBarAndGridTop. */
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 760)
@@ -404,6 +410,22 @@ fun DetailsView() = MemoriaTheme {
             ),
             names = mapOf(1L to "Dana", 3L to "Murka"),
             zone = java.time.ZoneOffset.UTC, // the recording machine's zone would leak into the baseline
+        )
+    }
+}
+
+/** A video, mockup "viewer-video-details": the camera line says how it was recorded. Pairs with details_videoFillingIn_keepsDatePut. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 760)
+@Composable
+fun DetailsVideoView() = MemoriaTheme {
+    Surface(color = viewerBg) {
+        DetailsContent(
+            tile = Tile(1, android.net.Uri.parse("content://media/external/video/media/1"), 1_700_000_000_000L, 58_000L),
+            info = PhotoInfo("VID_20261011_143212.mp4", "DCIM/Camera", 366_000_000, 3840, 2160, "Mountain View", "4K · 30 fps · HDR Dolby Vision", "HEVC 10-bit · 50 Mbps · AAC stereo 48 kHz"),
+            faces = emptyList(),
+            names = emptyMap(),
+            zone = java.time.ZoneOffset.UTC,
         )
     }
 }

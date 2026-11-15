@@ -28,4 +28,13 @@ class ScreenStackTest {
     @Test fun screenKey_differsByDepth() = assertNotEquals(screenKey(0, Screen.Album(7)), screenKey(1, Screen.Album(7)))
 
     @Test fun screenKey_differsByKind() = assertNotEquals(screenKey(1, Screen.Album(7)), screenKey(1, Screen.Place(7)))
+
+    // every screen the debug shortcut can open (`make jump`), and a name that means nothing gives no screen
+    @Test fun screenNamed_knowsEveryScreenKind_andNothingElse() {
+        val names = listOf("settings", "dev", "licenses", "skip", "hidden", "people", "albums", "places", "categories", "favorites", "videos", "search", "trash")
+        val screens = names.map { screenNamed(it) }
+        assertEquals(names.size, screens.filterNotNull().distinct().size)
+        assertEquals(null, screenNamed("person42"))
+        assertEquals(null, screenNamed(null))
+    }
 }

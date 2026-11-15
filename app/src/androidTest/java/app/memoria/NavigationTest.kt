@@ -121,6 +121,19 @@ class NavigationTest {
         assertOnLibrary()
     }
 
+    // the debug shortcut (`make jump --es screen Places`): straight to a screen, no tapping through the app
+    @Test fun jump_opensTheScreen_backGoesToTheTabUnderIt() {
+        rule.setContent { MemoriaTheme { Surface { App(dir, jump = Jump("places", null, 1)) } } }
+        waitFor("Places")
+        back()
+        assertOnLibrary()
+    }
+
+    @Test fun jump_opensTheTab() {
+        rule.setContent { MemoriaTheme { Surface { App(dir, jump = Jump(null, "library", 1)) } } }
+        assertOnLibrary()
+    }
+
     @Test fun settingsPages_backGoesUpOnePageAtATime() {
         start()
         openLibrary()

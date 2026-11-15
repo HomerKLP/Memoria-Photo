@@ -766,6 +766,7 @@ fun PhotosContent(
                                     .testTag("tile-${x.id}").animateItem(),
                                 selecting = selecting,
                                 selected = x.id in selectedIds,
+                                onTop = onTop,
                             )
                         }
                     }
@@ -837,11 +838,17 @@ private fun Modifier.selectDrag(grid: LazyGridState, self: Tile, tilesById: Map<
     }
 
 @Composable
-fun TileImage(tile: Tile, modifier: Modifier, selecting: Boolean = false, selected: Boolean = false, heart: Boolean = true) {
-    DisposableEffect(tile.id) { onDispose { tileSpots.remove(tile.id) } }
+fun TileImage(tile: Tile, modifier: Modifier, selecting: Boolean = false, selected: Boolean = false, heart: Boolean = true, onTop: () -> Boolean = { true }) {
+    // The Photos tab stays composed under an opened screen: its copy of a tile must not take the spot the viewer lands in
+    val top = onTop()
+    val spot = remember { arrayOfNulls<LayoutCoordinates>(1) }
+    DisposableEffect(tile.id, top) {
+        if (top) spot[0]?.let { tileSpots[tile.id] = it }
+        onDispose { spot[0]?.let { tileSpots.remove(tile.id, it) } }
+    }
     Box(
         modifier.aspectRatio(1f)
-            .onPlaced { tileSpots[tile.id] = it }
+            .onPlaced { spot[0] = it; if (top) tileSpots[tile.id] = it }
             .drawWithContent { if (viewerTile != tile.id) drawContent() }
             .then(if (selected) Modifier.border(3.dp, MaterialTheme.colorScheme.primary) else Modifier),
     ) {
@@ -891,16 +898,16 @@ fun Thumb(tile: Tile, modifier: Modifier) {
             var own = false
             if (thumb != null && tile.duration == null) {
                 val type = runCatching { resolver.getType(tile.uri) }.getOrNull()
-                turn = dngTurn(resolver, tile.uri, type)
+                turn = photoTurn(resolver, tile.uri, type)
                 val heif = type == "image/heic" || type == "image/heif"
                 // Decode the photo itself when MediaStore's picture is:
                 // - under 200 px (old cameras: the 160 px EXIF preview), or under a tile / 1.2 (a camera's 320x240 preview, soft in a tile; not HEIC, which is slow to decode, see bugs.md)
                 // - of another shape (some old cameras wrote a middle cut, which shows around the photo in the viewer)
-                // - a DNG with a turn tag (Android shows it as stored)
+                // - a DNG or HEIC with a turn or mirror tag (phones get those wrong: Android shows a DNG as stored and drops a HEIC's mirror)
                 val short = min(thumb.width, thumb.height)
                 own = short < 200 || (!heif && short < tilePx / 1.2f) || !sameShape(thumb.width, thumb.height, tile.ratio) || turn != 1
             }
-            value = (if (own) runCatching { tileBitmap(context, tile, turn) }.getOrNull() ?: thumb else thumb)
+            value = (if (own) runCatching { tileBitmap(context, tile) }.getOrNull() ?: thumb else thumb)
                 ?.also { thumbs.put(tile.id, it) }
         }
         // The tile left the screen: stop its load
@@ -923,7 +930,9 @@ fun Thumb(tile: Tile, modifier: Modifier) {
  * The grid tile's own decode, when MediaStore's picture is too small or wrongly shaped: about a third of
  * the screen, halving only (an exact size makes Skia keep every n-th pixel, which looks pixelated).
  */
-internal fun tileBitmap(context: Context, tile: Tile, turn: Int = dngTurn(context.contentResolver, tile.uri)): Bitmap =
-    ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, tile.uri)) { decoder, info, _ ->
+internal fun tileBitmap(context: Context, tile: Tile): Bitmap {
+    val (source, turn) = plainSource(context.contentResolver, tile.uri)
+    return ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
         decoder.setTargetSampleSize(viewerSample(info.size.width, info.size.height, context.resources.displayMetrics.widthPixels / 3))
     }.turnedBy(turn)
+}

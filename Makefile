@@ -18,7 +18,7 @@ KEY_SHA256 := bc1c500550d9e3bd73e27f44132877189329f88875ace0bd6049a828e792b240
 VERSION := $(shell sed -n 's/.*versionName = "\(.*\)"/\1/p' app/build.gradle.kts)
 APK := app/build/outputs/apk/release/memoria-$(VERSION).apk
 
-.PHONY: help install apk release pull-db push-models push-media test screenshots shot-check emulator layout behavior perf check
+.PHONY: help install jump apk release pull-db push-models push-media test screenshots shot-check emulator layout behavior perf check
 
 help:
 	@echo "make install     build debug (app.memoria.debug, next to release), install on the phone over USB, open it (stops if the build fails)"
@@ -27,6 +27,7 @@ help:
 	@echo "make pull-db     copy the debug app's DB (+ -wal, -shm) to testdata/out/db/; the last copy moves to db/prev-<time>/"
 	@echo "make push-models models/*.tflite to the debug app under the names it reads, rw-rw-rw-, dates kept (no download needed)"
 	@echo "make push-media  media.tsv and the test photos and videos to the debug app's files/media/ (Dev tools > Check media files)"
+	@echo "make jump        open a debug build straight on a screen or tab, no tapping through: make jump S=People [T=library]"
 	@echo "make test        unit tests (pure logic, no device); one class: make test T=DetailsGpsTest"
 	@echo "make screenshots refresh screenshot baselines (no device)"
 	@echo "make shot-check  validate screenshots against the baselines (no device)"
@@ -41,6 +42,11 @@ install:
 	./gradlew :app:assembleDebug
 	$(ADB) -d install -r app/build/outputs/apk/debug/app-debug.apk
 	$(ADB) -d shell am start -n app.memoria.debug/app.memoria.MainActivity
+
+# Debug builds only. CLEAR_TOP|SINGLE_TOP, so a running app gets it in onNewIntent instead of a second activity.
+# Screens: settings, dev, licenses, skip, hidden, people, albums, places, categories, favorites, videos, search, trash.
+jump:
+	$(ADB) -d shell am start -n app.memoria.debug/app.memoria.MainActivity -f 0x24000000 $(if $(S),--es screen $(S)) $(if $(T),--es tab $(T))
 
 apk:
 	./gradlew :app:assembleRelease
