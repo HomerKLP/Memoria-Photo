@@ -367,11 +367,12 @@ private fun FacePhoto(face: FaceVec) {
             runCatching {
                 var side = 0
                 val uri = ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, face.photoId)
-                val bitmap = ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, uri)) { decoder, info, _ ->
+                val (source, turn) = plainSource(context.contentResolver, uri)
+                val bitmap = ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
                     side = max(info.size.width, info.size.height)
                     val s = 1440f / side
                     if (s < 1) decoder.setTargetSize((info.size.width * s).toInt(), (info.size.height * s).toInt())
-                }.turnedBy(dngTurn(context.contentResolver, uri))
+                }.turnedBy(turn)
                 // boxes are in index pixels: the photo with its longest side capped at 4096 (loadPhoto)
                 bitmap.asImageBitmap() to max(bitmap.width, bitmap.height).toFloat() / min(side, 4096)
             }.getOrNull()

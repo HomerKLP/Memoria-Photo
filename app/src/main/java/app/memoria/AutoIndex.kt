@@ -129,5 +129,7 @@ private suspend fun changedPhotos(context: Context): Int {
         libraryPhotos(context) + libraryVideos(context), dao.photoIds().toHashSet(), dao.taggedIds(Tagger.VERSION).toHashSet(), dao.boxedIds(ObjectDetector.VERSION).toHashSet(),
         tagging = taggerFile(context).exists(), boxing = objectsFiles(context).all { it.exists() },
     )
-    return plan.gone.size + plan.todo.size + plan.catchUp.size + dao.unplaced().size + dao.unplacedVideos().size
+    // the one-time mirror fix (see IndexWorker) counts as work until it has run
+    val mirrorFix = if (context.getSharedPreferences("index", Context.MODE_PRIVATE).getBoolean("mirrorFixed", false)) 0 else 1
+    return plan.gone.size + plan.todo.size + plan.catchUp.size + dao.unplaced().size + dao.unplacedVideos().size + mirrorFix
 }

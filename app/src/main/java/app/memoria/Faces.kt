@@ -15,6 +15,7 @@ import com.google.ai.edge.litert.BuiltinNpuAcceleratorProvider
 import com.google.ai.edge.litert.CompiledModel
 import com.google.ai.edge.litert.Environment
 import java.io.File
+import java.nio.ByteBuffer
 import java.nio.FloatBuffer
 import kotlin.math.exp
 import kotlin.math.floor
@@ -33,7 +34,7 @@ class Face(val box: FloatArray, val score: Float, val landmarks: FloatArray) {
 
 /**
  * Decodes with EXIF rotation, longest side capped at [side] (4096 like the bench). [size] gets the photo's own width and height, after [turn].
- * [turn] is a DNG's TIFF tag from [dngTurn]: Android shows a DNG as stored, so the picture is turned here.
+ * [turn] is the photo's own tag from [plainSource], which hands over a DNG or HEIC as stored, so the picture is turned here.
  */
 fun loadPhoto(source: ImageDecoder.Source, side: Int = 4096, turn: Int = 1, size: (Int, Int) -> Unit = { _, _ -> }): Bitmap {
     var w = 0
@@ -49,19 +50,242 @@ fun loadPhoto(source: ImageDecoder.Source, side: Int = 4096, turn: Int = 1, size
     return bitmap.turnedBy(turn)
 }
 
-/** [loadPhoto] of a MediaStore photo, the way the index reads it: a DNG is turned by its TIFF tag. */
-fun loadPhoto(resolver: ContentResolver, uri: Uri, side: Int = 4096, size: (Int, Int) -> Unit = { _, _ -> }): Bitmap =
-    loadPhoto(ImageDecoder.createSource(resolver, uri), side, dngTurn(resolver, uri), size)
+/** [loadPhoto] of a MediaStore photo, the way the index reads it: a DNG or HEIC is turned by its own tag. */
+fun loadPhoto(resolver: ContentResolver, uri: Uri, side: Int = 4096, size: (Int, Int) -> Unit = { _, _ -> }): Bitmap {
+    val (source, turn) = plainSource(resolver, uri)
+    return loadPhoto(source, side, turn, size)
+}
 
-/** A DNG's TIFF turn tag (1-8), and 1 for any other file. ImageDecoder and the thumbnailer show a DNG as stored whatever this says (`PhotoFileTest`), so each decode of a photo turns by it. */
-fun dngTurn(resolver: ContentResolver, uri: Uri, type: String? = runCatching { resolver.getType(uri) }.getOrNull() ?: fileType(uri)): Int =
-    if (type != "image/x-adobe-dng") 1
-    else runCatching { resolver.openInputStream(uri)!!.use { ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, 1) } }.getOrDefault(1)
+/**
+ * The source to decode [uri] with, and the tag to turn the result by. A HEIC's own turn and mirror are cleared
+ * out of a copy of its bytes, so the decoder returns the stored pixels and [blankHeicTurn]'s tag turns them once.
+ */
+fun plainSource(resolver: ContentResolver, uri: Uri, type: String? = photoType(resolver, uri)): Pair<ImageDecoder.Source, Int> {
+    if (type == "image/heic" || type == "image/heif") {
+        val bytes = runCatching { resolver.openInputStream(uri)?.readBytes() }.getOrNull()
+            ?: return ImageDecoder.createSource(resolver, uri) to 1 // no bytes read, so nothing was cleared: let the decoder keep its own turn
+        return ImageDecoder.createSource(ByteBuffer.wrap(bytes)) to blankHeicTurn(bytes)
+    }
+    return ImageDecoder.createSource(resolver, uri) to photoTurn(resolver, uri, type)
+}
+
+/** The photo's own turn tag (1-8): a DNG's TIFF tag or a HEIC's boxes, and 1 for any other file, which Android turns itself. */
+fun photoTurn(resolver: ContentResolver, uri: Uri, type: String? = photoType(resolver, uri)): Int = when (type) {
+    "image/x-adobe-dng" ->
+        runCatching { resolver.openInputStream(uri)!!.use { ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, 1) } }.getOrDefault(1)
+    "image/heic", "image/heif" ->
+        runCatching { resolver.openInputStream(uri)!!.use { blankHeicTurn(it.readNBytes(65536)) } }.getOrDefault(1)
+    else -> 1
+}
+
+private fun photoType(resolver: ContentResolver, uri: Uri): String? =
+    runCatching { resolver.getType(uri) }.getOrNull() ?: fileType(uri)
+
+/**
+ * Clears the turn and mirror notes of the HEIC file in [bytes] and returns them as an EXIF-style tag (1-8), plus the mirror axis it used.
+ * Phones' decoders drop the mirror or turn twice (bugs.md "Mirrored HEIC"), so the pixels are decoded as stored and turned once here.
+ */
+fun blankHeic(bytes: ByteArray): Pair<Int, Int> {
+    val end = min(bytes.size, 65536)
+    val free = byteArrayOf(0x66, 0x72, 0x65, 0x65) // "free"
+    // ipco child index -> the box's angle or axis, and the first of each for a file with no pitm entry
+    val irot = HashMap<Int, Int>()
+    val imir = HashMap<Int, Int>()
+    var firstIrot = -1
+    var firstImir = -1
+    for (ipco in boxesOf(bytes, end, "ipco")) {
+        var at = ipco + 8
+        val stop = boxStop(bytes, ipco, end)
+        var index = 1
+        while (at + 8 <= stop) {
+            val size = u32(bytes, at, false)
+            if (size < 8) break
+            val type = String(bytes, at + 4, 4, Charsets.US_ASCII)
+            if ((type == "irot" || type == "imir") && at + 9 <= stop) {
+                val payload = bytes[at + 8].toInt() and 0xff
+                if (type == "irot") {
+                    irot[index] = payload and 3
+                    if (firstIrot < 0) firstIrot = payload and 3
+                } else {
+                    imir[index] = payload and 1
+                    if (firstImir < 0) firstImir = payload and 1
+                }
+                free.copyInto(bytes, at + 4) // same size, so the property indexes stay
+            }
+            at += size
+            index++
+        }
+    }
+    var primary = -1
+    for (pitm in boxesOf(bytes, end, "pitm")) {
+        if (pitm + 12 > boxStop(bytes, pitm, end)) continue
+        primary = if (u8(bytes, pitm + 8) == 0) u16(bytes, pitm + 12, false) else u32(bytes, pitm + 12, false)
+        break
+    }
+    var primaryAngle = -1
+    var primaryAxis = -1
+    for (ipma in boxesOf(bytes, end, "ipma")) {
+        val stop = boxStop(bytes, ipma, end)
+        val version = u8(bytes, ipma + 8)
+        val wide = (u8(bytes, ipma + 11) and 1) != 0 // flags' low bit: 2-byte associations
+        var at = ipma + 12
+        if (at + 4 > stop) continue
+        val entries = u32(bytes, at, false)
+        at += 4
+        for (e in 0 until entries) {
+            if (at >= stop) break
+            val id = if (version == 0) u16(bytes, at, false) else u32(bytes, at, false)
+            at += if (version == 0) 2 else 4
+            if (at >= stop) break
+            val count = u8(bytes, at)
+            at++
+            for (a in 0 until count) {
+                if (at + (if (wide) 2 else 1) > stop) break
+                val v = if (wide) u16(bytes, at, false) else u8(bytes, at)
+                if (v < 0) break
+                val index = v and if (wide) 0x7fff else 0x7f
+                if (id == primary) {
+                    irot[index]?.let { primaryAngle = it }
+                    imir[index]?.let { primaryAxis = it }
+                }
+                // A left-over index of a cleared property is skipped by readers only when it is not essential
+                if (index in irot || index in imir) bytes[at] = (bytes[at].toInt() and 0x7f).toByte()
+                at += if (wide) 2 else 1
+            }
+        }
+    }
+    val angle = if (primaryAngle >= 0) primaryAngle else firstIrot
+    val axis = if (primaryAxis >= 0) primaryAxis else firstImir
+    val exif = blankExifTurn(bytes)
+    if (angle < 0 && axis < 0) return (if (exif in 1..8) exif else 1) to -1
+    return (HEIC_TURNS[(if (angle < 0) 0 else angle * 90) to axis] ?: 1) to axis
+}
+
+fun blankHeicTurn(bytes: ByteArray): Int = blankHeic(bytes).first
+
+/** The mirror axis of a HEIC's own boxes (0 or 1), and -1 when it has none or the file can't be read. */
+fun heicMirrorAxis(resolver: ContentResolver, uri: Uri): Int =
+    runCatching { resolver.openInputStream(uri)!!.use { blankHeic(it.readNBytes(65536)).second } }.getOrDefault(-1)
+
+/** True when this phone's HEIC decoder shows the probe file (EXIF 5) without its mirror. */
+fun decoderDropsMirror(context: Context): Boolean = try {
+    val bitmap = ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.assets, "mirror_probe.heic")) { decoder, _, _ ->
+        decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+        decoder.setTargetSampleSize(4)
+    }
+    val p = bitmap.getPixel(bitmap.width / 4, bitmap.height / 4) // upright: the red top-left corner
+    !(Color.red(p) > 150 && Color.green(p) < 120 && Color.blue(p) < 120)
+} catch (e: Exception) {
+    false // can't tell, so leave the user's data alone
+}
+
+/**
+ * Index in [new] -> the id of the old face found at the same place. An old box is also tried mirrored by [axis],
+ * as an old decode on a phone that dropped a HEIC's mirror found it. Boxes are in pixels of a [width] x [height] picture.
+ */
+fun matchFaces(old: List<Pair<Long, FloatArray>>, new: List<FloatArray>, axis: Int, width: Int, height: Int): Map<Int, Long> {
+    // every pair at 0.5 IoU or better, highest first, then each old face goes to one new face only
+    val pairs = new.withIndex().flatMap { (n, box) ->
+        old.withIndex().mapNotNull { (o, face) ->
+            val score = max(iou(box, face.second), iou(box, mirrored(face.second, axis, width, height)))
+            if (score >= 0.5f) Triple(n, o, score) else null
+        }
+    }.sortedByDescending { it.third }
+    val out = HashMap<Int, Long>()
+    val taken = HashSet<Int>()
+    for ((n, o, _) in pairs) {
+        if (n in out || o in taken) continue
+        out[n] = old[o].first
+        taken += o
+    }
+    return out
+}
+
+/** [b] turned into the same picture as its mirror: axis 0 top-bottom, axis 1 left-right, -1 as it is. */
+private fun mirrored(b: FloatArray, axis: Int, width: Int, height: Int): FloatArray = when (axis) {
+    0 -> floatArrayOf(b[0], height - b[3], b[2], height - b[1])
+    1 -> floatArrayOf(width - b[2], b[1], width - b[0], b[3])
+    else -> b
+}
+
+/** The start offsets of the boxes of [type] in the first [end] bytes of [bytes]. */
+private fun boxesOf(bytes: ByteArray, end: Int, type: String): List<Int> {
+    val t = type.toByteArray(Charsets.US_ASCII)
+    val out = ArrayList<Int>()
+    for (typeAt in 4 until end - 3) {
+        if (bytes[typeAt] != t[0] || bytes[typeAt + 1] != t[1] || bytes[typeAt + 2] != t[2] || bytes[typeAt + 3] != t[3]) continue
+        val start = typeAt - 4
+        val size = u32(bytes, start, false)
+        if (size >= 8 && size <= bytes.size - start) out += start
+    }
+    return out
+}
+
+/** Where the box at [start] ends, at most [end]. */
+private fun boxStop(bytes: ByteArray, start: Int, end: Int): Int {
+    val size = u32(bytes, start, false)
+    return if (size < 8) start else min(start + size, end)
+}
+
+/** The tag of each (rotation counter-clockwise, mirror axis or -1) pair a HEIC file can hold. */
+private val HEIC_TURNS = mapOf(
+    (0 to -1) to 1, (0 to 0) to 4, (0 to 1) to 2,
+    (90 to -1) to 8, (90 to 0) to 5, (90 to 1) to 7,
+    (180 to -1) to 3, (180 to 0) to 2, (180 to 1) to 4,
+    (270 to -1) to 6, (270 to 0) to 7, (270 to 1) to 5,
+)
+
+/** Clears IFD0's orientation tag (0x0112) in [bytes] and returns its old value, 1 when there is none. */
+private fun blankExifTurn(bytes: ByteArray): Int {
+    var s = 0
+    while (s <= bytes.size - 8) {
+        if (bytes[s] == 'E'.code.toByte() && bytes[s + 1] == 'x'.code.toByte() && bytes[s + 2] == 'i'.code.toByte() &&
+            bytes[s + 3] == 'f'.code.toByte() && bytes[s + 4] == 0.toByte() && bytes[s + 5] == 0.toByte()
+        ) {
+            val t = s + 6
+            val little = bytes[t] == 'I'.code.toByte() && bytes[t + 1] == 'I'.code.toByte()
+            val big = bytes[t] == 'M'.code.toByte() && bytes[t + 1] == 'M'.code.toByte()
+            if ((little || big) && u16(bytes, t + 2, little) == 42) {
+                val ifd = t + u32(bytes, t + 4, little)
+                val n = u16(bytes, ifd, little)
+                for (k in 0 until n) {
+                    val e = ifd + 2 + 12 * k
+                    if (e + 12 > bytes.size) break
+                    if (u16(bytes, e, little) != 0x0112) continue
+                    val value = u16(bytes, e + 8, little)
+                    bytes[e + 8] = if (little) 1 else 0
+                    bytes[e + 9] = if (little) 0 else 1
+                    return value
+                }
+            }
+        }
+        s++
+    }
+    return 1
+}
+
+/** A byte at [at], and -1 when it is outside [b]. */
+private fun u8(b: ByteArray, at: Int): Int = if (at < 0 || at >= b.size) -1 else b[at].toInt() and 0xff
+
+/** A 16-bit value at [at], and -1 when it is outside [b]. */
+private fun u16(b: ByteArray, at: Int, little: Boolean): Int {
+    if (at < 0 || at + 2 > b.size) return -1
+    return if (little) (b[at].toInt() and 0xff) or ((b[at + 1].toInt() and 0xff) shl 8)
+    else ((b[at].toInt() and 0xff) shl 8) or (b[at + 1].toInt() and 0xff)
+}
+
+/** A 32-bit value at [at], and -1 when it is outside [b]. */
+private fun u32(b: ByteArray, at: Int, little: Boolean): Int {
+    if (at < 0 || at + 4 > b.size) return -1
+    return if (little) u16(b, at, true) or (u16(b, at + 2, true) shl 16)
+    else (u16(b, at, false) shl 16) or u16(b, at + 2, false)
+}
 
 /** The type of a `file://` URI, which the resolver has no header for (Dev tools' media check). */
 private fun fileType(uri: Uri): String? = when (uri.scheme) {
     "file" -> when (uri.lastPathSegment?.substringAfterLast('.', "")?.lowercase()) {
         "dng" -> "image/x-adobe-dng"
+        "heic", "heif" -> "image/heic"
         else -> null
     }
     else -> null

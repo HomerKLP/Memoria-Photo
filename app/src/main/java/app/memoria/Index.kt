@@ -28,6 +28,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverter
 import androidx.room.TypeConverters
+import androidx.room.Update
 import androidx.room.migration.Migration
 import androidx.room.withTransaction
 import androidx.work.Constraints
@@ -81,6 +82,12 @@ class FaceRow(
     // a cat or dog box (`docs/objects.md`): DINOv2 vector, quality = box score, no landmarks; grouped by groupPets, never by groupFaces
     val pet: Boolean = false,
 )
+
+/** A face's id and box, for [IndexDao.faceBoxes]. */
+class FaceBox(val id: Long, val box: FloatArray)
+
+/** What the mirror fix writes into an old face row; the rest (person, Not a face) stays. */
+class FaceUpdate(val id: Long, val box: FloatArray, val score: Float, val landmarks: FloatArray, val vector: FloatArray, val quality: Float, val thumb: ByteArray)
 
 /**
  * People saved by the last index run, see savePeople. `name`, `hidden`, `coverFaceId` and `pos` are the user's; kept across re-index runs.
@@ -219,6 +226,11 @@ interface IndexDao {
     @Query("DELETE FROM face WHERE id IN (:ids)") suspend fun deleteFaceIds(ids: List<Long>)
     @Insert suspend fun insertFaces(faces: List<FaceRow>)
     @Query("DELETE FROM face WHERE photoId = :photoId AND pet") suspend fun deletePets(photoId: Long)
+    /** A photo's face boxes: the mirror fix matches them to the faces found again, so a match keeps its row. */
+    @Query("SELECT id, box FROM face WHERE photoId = :photoId AND NOT pet") suspend fun faceBoxes(photoId: Long): List<FaceBox>
+    // @Update, not a @Query: Room expands an array parameter of a query into a list
+    @Update(entity = FaceRow::class) suspend fun updateFace(face: FaceUpdate)
+    @Query("UPDATE photo SET kind = :kind, objects = :objects WHERE id = :id") suspend fun updatePhoto(id: Long, kind: PhotoKind, objects: Int?)
     /** Photos with a cat or dog box 0.5+ and their surest box: the Pets category. */
     @Query("SELECT photoId, MAX(score) AS score FROM object_box WHERE cls IN (15, 16) AND score >= 0.5 GROUP BY photoId")
     suspend fun petPhotos(): Map<@MapColumn("photoId") Long, @MapColumn("score") Float>
@@ -554,6 +566,29 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         val done = dao.photoIds().toHashSet()
         val tagged = dao.taggedIds(Tagger.VERSION).toHashSet()
         val boxed = dao.boxedIds(ObjectDetector.VERSION).toHashSet()
+        // one-time: faces found on a HEIC whose mirror the old decode dropped sit on a mirrored picture, so those photos are scanned again
+        val prefs = applicationContext.getSharedPreferences("index", Context.MODE_PRIVATE)
+        if (!testOnly && !prefs.getBoolean("mirrorFixed", false) && !prefs.contains("mirrorPending")) {
+            val drops = decoderDropsMirror(applicationContext)
+            val ids = if (!drops) emptyList() else all.filter {
+                !it.video && it.id in done && (it.mime == "image/heic" || it.mime == "image/heif") &&
+                    heicMirrorAxis(applicationContext.contentResolver, ContentUris.withAppendedId(Media.EXTERNAL_CONTENT_URI, it.id)) >= 0
+            }.map { it.id }
+            prefs.edit().putStringSet("mirrorPending", ids.map { "$it" }.toSet()).apply()
+            AppLog.i("mirror fix: decoder drops the mirror $drops, ${ids.size} photos to scan again")
+        }
+        // a Find faces again or a deleted photo drops its id, and then nothing is left to fix
+        val pending = if (testOnly) mutableSetOf() else
+            prefs.getStringSet("mirrorPending", null).orEmpty().map { it.toLong() }.filter { it in done }.toMutableSet()
+        fun savePending() {
+            if (testOnly) return
+            val edit = prefs.edit()
+            if (pending.isEmpty()) edit.putBoolean("mirrorFixed", true).remove("mirrorPending")
+            else edit.putStringSet("mirrorPending", pending.map { "$it" }.toSet())
+            edit.apply()
+        }
+        if (pending.isEmpty()) savePending()
+        val refresh = if (pending.isEmpty()) emptyList() else all.filter { it.id in pending }
         val tagging = taggerFile(applicationContext).exists()
         val boxing = objectsFiles(applicationContext).all { it.exists() }
         val plan = indexPlan(all, done, tagged, boxed, tagging, boxing)
@@ -561,15 +596,15 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         if (!testOnly) plan.gone.chunked(500).forEach { dao.deleteFaces(it); dao.deletePhotos(it); dao.deleteVectors(it); dao.deleteTags(it); dao.deleteBoxes(it) }
         if (isStopped) return Result.success()
         val todo = plan.todo
-        val newPhotos = todo.filter { !it.video }
+        val newPhotos = todo.filter { !it.video } + refresh // the refresh photos are in [done], so not in [todo]
         val newVideos = todo.filter { it.video }
-        val catchUp = plan.catchUp // photos indexed before the tagger or the object models, or by older ones
-        if (todo.isEmpty() && catchUp.isEmpty()) {
+        val catchUp = plan.catchUp.filter { it.id !in pending } // photos indexed before the tagger or the object models, or by older ones
+        if (todo.isEmpty() && catchUp.isEmpty() && refresh.isEmpty()) {
             IndexProgress.finish(applicationContext)
             placePhotos()
             return savePeople() // nothing new, but the grouping code may have changed
         }
-        val base = total - todo.size - catchUp.size // photos with every step done, so the bar starts there
+        val base = total - todo.size - catchUp.size - refresh.size // photos with every step done, so the bar starts there
         IndexProgress.start(applicationContext, total, base)
         // Foreground, or the system stops the job midway. Not allowed when started from the background (rerun after a stop), then it runs as a plain job.
         val notifications = applicationContext.getSystemService(NotificationManager::class.java)
@@ -581,11 +616,20 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
             AppLog.w("index runs as a plain job", e)
             false
         }
-        AppLog.i("index run: ${todo.size} to scan, ${catchUp.size} to catch up, ${if (foreground) "foreground" else "plain job"}")
+        AppLog.i("index run: ${todo.size} to scan, ${catchUp.size} to catch up, ${refresh.size} to fix, ${if (foreground) "foreground" else "plain job"}")
+        // the user's faces stay whatever the match says: answered, merged, or a cover
+        val keptFaces = if (pending.isEmpty()) emptySet() else (
+            dao.answers().flatMap { listOf(it.faceId, it.personFace) } + dao.merges().flatMap { listOf(it.face, it.personFace) } +
+                dao.people().mapNotNull { it.coverFaceId }
+            ).toSet()
         val start = System.nanoTime()
         var count = 0
         var tagCount = 0
         var catchUpCount = 0
+        var fixedCount = 0
+        var keptRows = 0
+        var addedRows = 0
+        var droppedRows = 0
         var nextSave = start + 30_000_000_000L
         // no tagger file, or it won't load: faces only
         val tagger = if (!taggerFile(applicationContext).exists()) null else try {
@@ -618,10 +662,12 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                     times.start()
                     val ready = next!!.get() // decoded while the last photo ran
                     next = ahead(i + 1)
-                    val tag = tagger?.takeIf { photo.id !in tagged } // a Rescan keeps the vectors
+                    val tag = tagger?.takeIf { photo.id !in tagged || photo.id in pending } // a Rescan keeps the vectors
                     var vector: FloatArray? = null
                     var boxes: List<ObjectBoxRow>? = null // null: not boxed, the object models are not here
                     var pets = emptyList<FaceRow>()
+                    var fullWidth = 0 // the full decode, made only when faces are found
+                    var fullHeight = 0
                     val (kind, faces) = try {
                         val prep = ready.getOrThrow() // a decode error lands in the catch below, like before
                         val kind = prep.kind
@@ -656,6 +702,8 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                             times.lap(Step.Faces)
                             if (found.isEmpty()) found else {
                                 val image = loadPhoto(applicationContext.contentResolver, photoUri)
+                                fullWidth = image.width
+                                fullHeight = image.height
                                 times.lap(Step.FullDecode)
                                 val kx = image.width.toFloat() / small.width
                                 val ky = image.height.toFloat() / small.height
@@ -672,13 +720,44 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                         if (objects != null) boxes = emptyList()
                         PhotoKind.error to emptyList()
                     }
-                    Db.get(applicationContext).withTransaction {
-                        dao.insert(PhotoRow(photo.id, photo.path, kind, objects = boxes?.let { ObjectDetector.VERSION }), faces.map {
-                            FaceRow(photoId = photo.id, box = it.box, score = it.score, landmarks = it.landmarks, vector = it.vector!!, quality = it.quality!!, thumb = it.thumb!!)
-                        } + pets)
-                        boxes?.let { dao.insertBoxes(it) }
+                    val rows = faces.map {
+                        FaceRow(photoId = photo.id, box = it.box, score = it.score, landmarks = it.landmarks, vector = it.vector!!, quality = it.quality!!, thumb = it.thumb!!)
                     }
-                    vector?.let { dao.insertVector(PhotoVectorRow(photo.id, Tagger.VERSION, it)); tagCount++ }
+                    val fixing = photo.id in pending
+                    val axis = if (fixing) heicMirrorAxis(applicationContext.contentResolver, ContentUris.withAppendedId(Media.EXTERNAL_CONTENT_URI, photo.id)) else -1
+                    if (!fixing) Db.get(applicationContext).withTransaction {
+                        dao.insert(PhotoRow(photo.id, photo.path, kind, objects = boxes?.let { ObjectDetector.VERSION }), rows + pets)
+                        boxes?.let { dao.insertBoxes(it) }
+                    } else Db.get(applicationContext).withTransaction {
+                        // a photo found on a mirrored picture: an old face keeps its row when a new one sits at the same place
+                        if (kind != PhotoKind.error) { // an unreadable photo must not lose its faces
+                            dao.updatePhoto(photo.id, kind, boxes?.let { ObjectDetector.VERSION })
+                            dao.deleteBoxes(listOf(photo.id))
+                            boxes?.let { dao.insertBoxes(it) }
+                            dao.deletePets(photo.id)
+                            if (pets.isNotEmpty()) dao.insertFaces(pets)
+                            dao.deleteTags(listOf(photo.id)) // made again from the new vector
+                            val old = dao.faceBoxes(photo.id)
+                            val match = matchFaces(old.map { it.id to it.box }, faces.map { it.box }, axis, fullWidth, fullHeight)
+                            for ((n, face) in faces.withIndex()) {
+                                val id = match[n]
+                                if (id == null) dao.insertFaces(listOf(rows[n]))
+                                else dao.updateFace(FaceUpdate(id, face.box, face.score, face.landmarks, face.vector!!, face.quality!!, face.thumb!!))
+                            }
+                            val drop = old.filter { it.id !in match.values && it.id !in keptFaces }.map { it.id }
+                            if (drop.isNotEmpty()) dao.deleteFaceIds(drop)
+                            keptRows += match.size
+                            addedRows += faces.size - match.size
+                            droppedRows += drop.size
+                        }
+                    }
+                    // a photo being fixed that can't be read now keeps its old vector too
+                    if (!(fixing && kind == PhotoKind.error)) vector?.let { dao.insertVector(PhotoVectorRow(photo.id, Tagger.VERSION, it)); tagCount++ }
+                    if (fixing) {
+                        pending -= photo.id
+                        savePending()
+                        fixedCount++
+                    }
                     times.lap(Step.Database)
                     count++
                     if (count % 100 == 0) AppLog.i("per photo ms (n=$count): ${times.perPhoto(count)}")
@@ -744,6 +823,7 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
             notifications.cancel(1)
             IndexProgress.finish(applicationContext)
             val stop = if (isStopped) ", stopped, reason $stopReason" else ""
+            if (fixedCount > 0) AppLog.i("mirror fix: $fixedCount photos, $keptRows faces kept their row, $addedRows added, $droppedRows dropped")
             AppLog.i("indexed $count photos, tagged $tagCount, caught up $catchUpCount in %.0f s$stop".format((System.nanoTime() - start) / 1e9))
             if (count > 0) AppLog.i("per photo ms (n=$count): ${times.perPhoto(count)}")
         }
