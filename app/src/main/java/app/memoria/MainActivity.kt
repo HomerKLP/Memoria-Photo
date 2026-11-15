@@ -165,9 +165,12 @@ fun App(dir: File, openSettings: Int = 0, atUpdates: Boolean = false) {
         val watcher = watchNewPhotos(context, lifecycleOwner.lifecycle)
         onDispose { watcher.close() }
     }
-    // Library's first open would paint grey skeletons for as long as its load runs (its cache is empty
-    // at launch). Start it here instead; it is queries on IO, so the first frame does not wait for it.
-    LaunchedEffect(Unit) { preloadLibrary(context) }
+    // Library and People would paint placeholders for as long as their first load runs (their cache is empty
+    // at launch). Start both here instead; they are queries on IO, so the first frame does not wait for them.
+    LaunchedEffect(Unit) {
+        preloadLibrary(context)
+        preloadPeople(context)
+    }
     // tiles a screen below are built early, so their thumbnails load before they scroll in
     val photosGrid = rememberLazyGridState(cacheWindow = LazyLayoutCacheWindow(aheadFraction = 1f))
     val scope = rememberCoroutineScope()
