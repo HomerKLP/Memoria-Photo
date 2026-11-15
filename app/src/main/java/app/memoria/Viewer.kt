@@ -1,6 +1,7 @@
 package app.memoria
 
 import android.app.Activity
+import android.content.pm.ActivityInfo
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -129,7 +130,9 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -163,7 +166,9 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
     // phone's own hardware decoder, the same one the system player uses, so the usual codecs play fast.
     // Audio focus is asked for, so a call or another app's music owns the sound like in a real player.
     val player = remember {
-        ExoPlayer.Builder(context).setAudioAttributes(
+        // The system changes the sound's speed: ExoPlayer's own way waits for half a second of buffered
+        // sound to play out, so a 2x hold started late and the picture froze while the clock caught up
+        ExoPlayer.Builder(context, DefaultRenderersFactory(context).setEnableAudioTrackPlaybackParams(true)).setAudioAttributes(
             AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(),
             true,
         ).setHandleAudioBecomingNoisy(true) // headphones out: pause, never go on through the speaker
@@ -177,6 +182,7 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
     var loop by remember { mutableStateOf(false) }
     var holding by remember { mutableStateOf(false) } // 2x while a finger is down
     var videoAspect by remember { mutableStateOf(0f) } // the held video's own width / height: a TextureView stretches without it
+    var hdr by remember { mutableStateOf(false) } // the held video is HLG or PQ (Dolby Vision from a phone is HLG underneath)
     // The video the player holds: only its page draws the video, and a nudged page never restarts it
     var prepared by remember { mutableStateOf<Long?>(null) }
     var pill by remember { mutableStateOf(0) } // +5 s / −5 s, on the half that was tapped
@@ -188,6 +194,13 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
             override fun onPlayerError(error: PlaybackException) { failed = prepared }
             override fun onVideoSizeChanged(size: VideoSize) {
                 videoAspect = videoAspectOf(size.width, size.height, size.pixelWidthHeightRatio)
+            }
+            // a new clip's empty tracks are skipped, so two HDR clips in a row never dim in between
+            override fun onTracksChanged(tracks: Tracks) {
+                if (!tracks.isEmpty) hdr = tracks.groups.any { g ->
+                    g.type == C.TRACK_TYPE_VIDEO && g.isSelected &&
+                        g.getTrackFormat(0).colorInfo?.colorTransfer.let { it == C.COLOR_TRANSFER_HLG || it == C.COLOR_TRANSFER_ST2084 }
+                }
             }
         }
         player.addListener(listener)
@@ -255,6 +268,7 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
         onDispose {
             window.insetsController?.setSystemBarsAppearance(barIcons, barIcons)
             window.insetsController?.show(WindowInsets.Type.systemBars())
+            window.colorMode = ActivityInfo.COLOR_MODE_DEFAULT
             viewerTile = null
             if (editedIn) viewerEdits++
         }
@@ -291,6 +305,7 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
             player.pause()
             player.clearMediaItems()
             prepared = null
+            hdr = false
         } else if (prepared != tile.id) {
             videoAspect = 0f // the last video's shape must not size this one
             failed = null
@@ -300,6 +315,10 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
             prepared = tile.id
         }
     }
+    // A TextureView shows HDR only in an HDR window, so the window goes HDR while the player holds an HDR clip.
+    // The phone fades the extra brightness in and out by itself (3 to 5 s on the test phone).
+    val hdrOn = hdr && !closing
+    LaunchedEffect(hdrOn) { window.colorMode = if (hdrOn) ActivityInfo.COLOR_MODE_HDR else ActivityInfo.COLOR_MODE_DEFAULT }
     // Swipe down to close: track the drag, dismiss only past a threshold
     val dismissAt = with(LocalDensity.current) { 120.dp.toPx() }
     // A short pull opens or closes the details, a flick decides by its direction

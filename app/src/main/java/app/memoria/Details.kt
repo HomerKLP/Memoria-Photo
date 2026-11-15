@@ -158,7 +158,11 @@ fun loadInfo(context: Context, tile: Tile): PhotoInfo {
     }.getOrNull()
     return PhotoInfo(
         name, folder, size, width, height, place,
-        if (tile.duration != null) video?.first else exif?.getAttribute(ExifInterface.TAG_MODEL)?.trim()?.takeIf { it.isNotEmpty() },
+        if (tile.duration != null) video?.first else listOfNotNull(
+            exif?.getAttribute(ExifInterface.TAG_MODEL)?.trim()?.takeIf { it.isNotEmpty() },
+            // an Ultra HDR JPEG names its gain map in the XMP
+            "Ultra HDR".takeIf { exif?.getAttributeBytes(ExifInterface.TAG_XMP)?.decodeToString()?.contains("hdrgm:Version") == true },
+        ).joinToString(" · ").ifEmpty { null },
         if (tile.duration != null) video?.second else settings,
         mime, exif?.getAttributeInt(ExifInterface.TAG_ORIENTATION, 0) ?: 0,
     )

@@ -115,9 +115,16 @@ Still open:
 - The full decode for photos with faces (~120-145 ms a photo on average) still runs in the loop, after the faces are found. The helper thread could do it early, at the price of decoding photos that turn out to have no faces.
 - A 2048 px full decode is cheaper but changes the face crops. Face quality comes first, so only with the user's OK.
 
-## HDR videos may look dull in the player
+## HDR video lights up slower and looks dimmer than in the phone's player
+- Seen 2026-11-15, same HLG clip: both reach the same panel peak (654 nits, SurfaceFlinger `displayBrightnessNits`), but the phone's player gets there in ~0.5 s, ours in ~4.5 s, and the user sees the phone's player brighter.
+- Why: its video goes to the screen as its own HLG layer (`SurfaceView`), so the phone's HDR / Dolby Vision path maps it. Ours is drawn by the app into its window (8-bit, at most 5x), and the phone ramps that kind of HDR slowly.
+- Fix idea: the SurfaceView swap (HDR step 2 in `decisions.md`), which also fixes the judder below.
 
-The player draws on a `TextureView`, so the video can move with the page; a `TextureView` has no HDR output, the phone's own player (a `SurfaceView`) has. Steps: open an HDR or Dolby Vision camera clip in Memoria, then in the phone's player (More > Open in the phone's player), compare the colours. Confirmed by the user 2026-11-15: no HDR in Memoria's player. Fix ideas: a `SurfaceView` while the page stands still, the `TextureView` only while it moves.
+## Video judders a little when the screen runs at 120 Hz
+- Seen 2026-11-15 on the test phone: after a touch (and during a 2x hold) the screen runs at 120 Hz, and a 30 fps clip shows frames 24/33/41 ms apart instead of 33 (2x: 8/16/24 instead of 16). At 60 Hz it is even.
+- Why: a `TextureView` shows a frame as soon as ExoPlayer hands it over (up to 50 ms early, on its 10 ms work loop) and ignores the frame's time; a `SurfaceView` waits for it.
+- Fix ideas: the SurfaceView swap (HDR step 2 in `decisions.md`); or Media3's `setEarlySchedulingThresholdUs` with dynamic scheduling (experimental).
+- Check: `adb shell dumpsys gfxinfo app.memoria.debug framestats` while a clip plays, gaps between IntendedVsync.
 
 # Known issues and bad patterns
 
@@ -158,7 +165,9 @@ Library shows all its covers 151 ms after the tap on the first open (cold start)
 Native heap after 8 flings 52 MB (87 MB on 2026-11-04, not explained), no blank tiles on a cold fling. Cold start is up from v0.3.0's 116/163 ms (same phone, more library and DB work now).
 
 # Fixed
+- 2026-11-15 Player: a 2x hold started about 1 s late and froze the picture 4 times (60-75 ms): ExoPlayer changed the sound's speed only after its 0.5 s of buffered sound played out. The system now changes the speed (`setEnableAudioTrackPlaybackParams`), so 2x starts at once.
 
+- 2026-11-15 Player: HDR clips (HLG, PQ, Dolby Vision) looked dull: a `TextureView` shows HDR only in an HDR window. The viewer sets `COLOR_MODE_HDR` while the player holds an HDR clip, so two HDR clips in a row never dim in between. The phone fades the brightness by itself (3 to 5 s), so the app does not.
 - 2026-11-13 Viewer: a tap hid the bars at once, but the status bar stayed for over a second. The app left the system bars on Android's default behavior, which fades them out over 1.5 s; the immersive behavior (`BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE`) slides them out in 340 ms.
 - 2026-11-13 Player: a drag on the seek bar moved only the knob; the video jumped on the lift. It seeks as the finger moves now, in Media3's scrubbing mode.
 - 2026-11-13 Player: a swipe dragged past the middle and back left the video as a still with its sound running (the `ready` flag stayed off). The video now shows on the page whose file the player holds (`prepared`), and moves with it.
