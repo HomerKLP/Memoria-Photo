@@ -3,6 +3,9 @@ package app.memoria
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.media.ExifInterface
+import android.media.MediaCodecInfo.CodecProfileLevel
+import android.media.MediaExtractor
+import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
 import android.provider.MediaStore
 import androidx.compose.foundation.background
@@ -50,6 +53,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlin.math.abs
 
 /** What the details panel shows. [place] is the nearest town; coordinates are never shown. */
@@ -99,11 +103,13 @@ fun loadInfo(context: Context, tile: Tile): PhotoInfo {
     else runCatching { context.contentResolver.openInputStream(original)?.use { ExifInterface(it) } }.getOrNull()
         ?: runCatching { context.contentResolver.openInputStream(tile.uri)?.use { ExifInterface(it) } }.getOrNull()
     val ll = FloatArray(2)
+    var captureFps: Float? = null
     if (exif != null) { if (exif.getLatLong(ll)) { lat = ll[0].toDouble(); lon = ll[1].toDouble() } }
     else if (tile.duration != null) runCatching {
         MediaMetadataRetriever().use { r ->
             r.setDataSource(context, original)
             iso6709(r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_LOCATION))?.let { lat = it.first; lon = it.second }
+            captureFps = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CAPTURE_FRAMERATE)?.toFloatOrNull()
         }
     }
     if (lat == 0.0 && lon == 0.0) { lat = null; lon = null } // some cameras write 0,0 when they have no GPS
@@ -120,9 +126,40 @@ fun loadInfo(context: Context, tile: Tile): PhotoInfo {
         if (iso > 0) add("ISO $iso")
         if (focal > 0) add("%.0f mm".format(focal))
     }.joinToString(" · ").takeIf { it.isNotEmpty() }
+    // Videos have no camera EXIF: their camera line comes from the tracks.
+    val video = if (tile.duration == null) null else runCatching {
+        val ex = MediaExtractor()
+        try {
+            runCatching { ex.setDataSource(context, original, null) }
+                .recoverCatching { ex.setDataSource(context, tile.uri, null) }
+                .getOrThrow()
+            val tracks = (0 until ex.trackCount).map { ex.getTrackFormat(it) }
+            val videoTracks = tracks.filter { it.getString(MediaFormat.KEY_MIME)?.startsWith("video/") == true }
+            val dolby = videoTracks.any { it.getString(MediaFormat.KEY_MIME) == "video/dolby-vision" }
+            val codec = videoTracks.firstOrNull { it.getString(MediaFormat.KEY_MIME) != "video/dolby-vision" } ?: videoTracks.firstOrNull()
+            val fps = videoTracks.firstNotNullOfOrNull { f ->
+                if (f.containsKey(MediaFormat.KEY_FRAME_RATE)) f.getNumber(MediaFormat.KEY_FRAME_RATE)?.toFloat() else null
+            }
+            val transfer = videoTracks.firstNotNullOfOrNull { f ->
+                if (f.containsKey(MediaFormat.KEY_COLOR_TRANSFER)) f.getInteger(MediaFormat.KEY_COLOR_TRANSFER) else null
+            }
+            val audio = tracks.firstOrNull { it.getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true }
+            videoLines(
+                width, height, fps, captureFps, codec?.getString(MediaFormat.KEY_MIME),
+                if (codec?.containsKey(MediaFormat.KEY_PROFILE) == true) codec.getInteger(MediaFormat.KEY_PROFILE) else null,
+                transfer, dolby, size, tile.duration,
+                audio?.getString(MediaFormat.KEY_MIME),
+                if (audio?.containsKey(MediaFormat.KEY_CHANNEL_COUNT) == true) audio.getInteger(MediaFormat.KEY_CHANNEL_COUNT) else null,
+                if (audio?.containsKey(MediaFormat.KEY_SAMPLE_RATE) == true) audio.getInteger(MediaFormat.KEY_SAMPLE_RATE) else null,
+            )
+        } finally {
+            ex.release()
+        }
+    }.getOrNull()
     return PhotoInfo(
         name, folder, size, width, height, place,
-        exif?.getAttribute(ExifInterface.TAG_MODEL)?.trim()?.takeIf { it.isNotEmpty() }, settings,
+        if (tile.duration != null) video?.first else exif?.getAttribute(ExifInterface.TAG_MODEL)?.trim()?.takeIf { it.isNotEmpty() },
+        if (tile.duration != null) video?.second else settings,
         mime, exif?.getAttributeInt(ExifInterface.TAG_ORIENTATION, 0) ?: 0,
     )
 }
@@ -163,10 +200,105 @@ internal fun iso6709(s: String?): Pair<Double, Double>? {
 }
 
 internal fun sizeLabel(bytes: Long) = when {
+    bytes >= 100_000_000 -> "%.0f MB".format(bytes / 1e6)
     bytes >= 1_000_000 -> "%.1f MB".format(bytes / 1e6)
     bytes >= 1_000 -> "%.0f KB".format(bytes / 1e3)
     else -> "$bytes B"
 }
+
+/**
+ * A video's camera line, per docs/design.html "viewer-video-details": size, speed, HDR kind;
+ * then codec, bitrate and sound. A part the file does not tell is left out.
+ */
+internal fun videoLines(
+    width: Int, height: Int, fps: Float?, captureFps: Float?,
+    videoMime: String?, profile: Int?, transfer: Int?, dolby: Boolean,
+    bytes: Long, durationMs: Long,
+    audioMime: String?, channels: Int?, sampleRate: Int?,
+): Pair<String?, String?> {
+    val short = minOf(width, height)
+    val size = when {
+        short <= 0 -> null
+        short >= 4320 -> "8K"
+        short >= 2160 -> "4K"
+        else -> "${short}p"
+    }
+    val speed = when {
+        fps == null -> null
+        captureFps == null -> "${Math.round(fps)} fps"
+        captureFps >= 2 * fps -> "Slow motion · ${Math.round(captureFps)} fps"
+        captureFps > 0 && captureFps <= fps / 2 -> "Time-lapse"
+        else -> "${Math.round(fps)} fps"
+    }
+    val hdr = when {
+        dolby -> "HDR Dolby Vision"
+        transfer == MediaFormat.COLOR_TRANSFER_HLG -> "HDR HLG"
+        transfer == MediaFormat.COLOR_TRANSFER_ST2084 -> "HDR10"
+        else -> null
+    }
+    val codec = when (videoMime) {
+        "video/avc" -> "H.264" + tenBit(profile, CodecProfileLevel.AVCProfileHigh10)
+        "video/hevc" -> "HEVC" + tenBit(
+            profile,
+            CodecProfileLevel.HEVCProfileMain10, CodecProfileLevel.HEVCProfileMain10HDR10, CodecProfileLevel.HEVCProfileMain10HDR10Plus,
+        )
+        // ponytail: DV profiles 9 and 10 are AVC / AV1; phones record 8.x on HEVC
+        "video/dolby-vision" -> "HEVC 10-bit"
+        "video/x-vnd.on2.vp9" -> "VP9" + tenBit(
+            profile,
+            CodecProfileLevel.VP9Profile2, CodecProfileLevel.VP9Profile3, CodecProfileLevel.VP9Profile2HDR,
+            CodecProfileLevel.VP9Profile3HDR, CodecProfileLevel.VP9Profile2HDR10Plus, CodecProfileLevel.VP9Profile3HDR10Plus,
+        )
+        "video/x-vnd.on2.vp8" -> "VP8"
+        "video/av01" -> "AV1" + tenBit(
+            profile,
+            CodecProfileLevel.AV1ProfileMain10, CodecProfileLevel.AV1ProfileMain10HDR10, CodecProfileLevel.AV1ProfileMain10HDR10Plus,
+        )
+        "video/mp4v-es" -> "MPEG-4"
+        "video/3gpp" -> "H.263"
+        "video/mpeg2" -> "MPEG-2"
+        "video/apv" -> "APV"
+        else -> null
+    }
+    val bitrate = if (bytes > 0 && durationMs > 0) {
+        val bps = bytes * 8 / (durationMs / 1000.0)
+        when {
+            bps >= 10_000_000 -> "${Math.round(bps / 1e6)} Mbps"
+            bps >= 1_000_000 -> "%.1f Mbps".format(Locale.ROOT, bps / 1e6)
+            else -> "${Math.round(bps / 1e3)} kbps"
+        }
+    } else null
+    val sound = if (audioMime == null) "No sound" else listOfNotNull(
+        when (audioMime) {
+            "audio/mp4a-latm" -> "AAC"
+            "audio/opus" -> "Opus"
+            "audio/vorbis" -> "Vorbis"
+            "audio/mpeg" -> "MP3"
+            "audio/flac" -> "FLAC"
+            "audio/raw" -> "PCM"
+            "audio/3gpp" -> "AMR"
+            "audio/amr-wb" -> "AMR-WB"
+            "audio/ac3" -> "AC-3"
+            "audio/eac3" -> "E-AC-3"
+            "audio/vnd.dts" -> "DTS"
+            else -> null
+        },
+        when (channels) {
+            1 -> "mono"
+            2 -> "stereo"
+            6 -> "5.1"
+            8 -> "7.1"
+            null -> null
+            else -> "$channels ch"
+        },
+        sampleRate?.takeIf { it > 0 }?.let { if (it % 1000 == 0) "${it / 1000} kHz" else "%.1f kHz".format(Locale.ROOT, it / 1000.0) },
+    ).joinToString(" ").takeIf { it.isNotEmpty() }
+    val title = listOfNotNull(size, speed, hdr).joinToString(" · ").takeIf { it.isNotEmpty() }
+    val subtitle = listOfNotNull(codec, bitrate, sound).joinToString(" · ").takeIf { it.isNotEmpty() }
+    return title to subtitle
+}
+
+private fun tenBit(profile: Int?, vararg profiles: Int) = if (profile != null && profile in profiles) " 10-bit" else ""
 
 /** "GMT+1", like the mockup. */
 internal fun zoneLabel(offset: ZoneOffset): String {
@@ -295,12 +427,16 @@ fun DetailsContent(
             Section("Details")
             i.camera?.let { Line(R.drawable.ic_camera, it, i.settings) }
             if (i.name.isNotEmpty()) {
-                val facts = listOfNotNull(
+                val facts = if (tile.duration != null) listOfNotNull(
+                    clock(tile.duration),
+                    "${i.width} × ${i.height}".takeIf { i.width > 0 },
+                    sizeLabel(i.size).takeIf { i.size > 0 },
+                ) else listOfNotNull(
                     "%.1f MP".format(i.width * i.height / 1e6).takeIf { i.width > 0 },
                     "${i.width} × ${i.height}".takeIf { i.width > 0 },
                     sizeLabel(i.size).takeIf { i.size > 0 },
                 )
-                Line(R.drawable.ic_photo, i.name, facts.joinToString(" · "))
+                Line(if (tile.duration != null) R.drawable.ic_video else R.drawable.ic_photo, i.name, facts.joinToString(" · "))
             }
             if (i.folder.isNotEmpty()) Line(R.drawable.ic_folder, i.folder.substringAfterLast('/'), i.folder)
         }

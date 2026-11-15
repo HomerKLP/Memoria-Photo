@@ -110,7 +110,7 @@ Still open:
 
 ## HDR videos may look dull in the player
 
-The player draws on a `TextureView`, so the video can move with the page; a `TextureView` has no HDR output, the phone's own player (a `SurfaceView`) has. Steps: open an HDR or Dolby Vision camera clip in Memoria, then in the phone's player (More > Open in the phone's player), compare the colours. Not checked yet. Fix ideas if it shows: a `SurfaceView` while the page stands still, the `TextureView` only while it moves.
+The player draws on a `TextureView`, so the video can move with the page; a `TextureView` has no HDR output, the phone's own player (a `SurfaceView`) has. Steps: open an HDR or Dolby Vision camera clip in Memoria, then in the phone's player (More > Open in the phone's player), compare the colours. Confirmed by the user 2026-11-15: no HDR in Memoria's player. Fix ideas: a `SurfaceView` while the page stands still, the `TextureView` only while it moves.
 
 # Known issues and bad patterns
 

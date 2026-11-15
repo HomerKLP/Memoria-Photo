@@ -1096,6 +1096,24 @@ class LayoutJumpTest {
         assertSame("date", dateBefore, rule.onNodeWithText(dateText).top())
     }
 
+    /** Details of a video: the camera line, the length and the facts fill in below the date; the date must not move. */
+    @Test fun details_videoFillingIn_keepsDatePut() {
+        val tile = Tile(1, Uri.parse("content://media/external/video/media/1"), 1_700_000_000_000L, 58_000L)
+        val bare = PhotoInfo("a.mp4", "DCIM/Camera", 0, 0, 0, null, null, null)
+        val full = PhotoInfo(
+            "VID_20261011_143212.mp4", "DCIM/Camera", 366_000_000, 3840, 2160, "Mountain View",
+            "4K · 30 fps · HDR Dolby Vision", "HEVC 10-bit · 50 Mbps · AAC stereo 48 kHz",
+        )
+        var info by mutableStateOf(bare)
+        rule.setContent { MemoriaTheme { Surface { DetailsContent(tile, info, emptyList(), emptyMap()) } } }
+
+        val dateText = java.time.format.DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy")
+            .format(java.time.Instant.ofEpochMilli(tile.date).atZone(java.time.ZoneId.systemDefault()))
+        val dateBefore = rule.onNodeWithText(dateText).top()
+        rule.runOnIdle { info = full }
+        assertSame("date", dateBefore, rule.onNodeWithText(dateText).top())
+    }
+
     /** Details, debug builds: the five "…" rows hold the space, so the Debug head and the panel keep their place when the real rows come in. */
     @Test fun details_debugRowsLoading_keepPanelHeight() {
         val tile = Tile(1, Uri.parse("content://media/external/images/media/1"), 1_700_000_000_000L, null)

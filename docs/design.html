@@ -508,7 +508,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 <header class="top">
   <h1>Memoria Photo</h1>
   <p class="lede">Light theme, Honey palette. Photos and faces are placeholders, names and places are made up.</p>
-  <p class="latest"><b>Latest, 14 Nov:</b> <a href="#devtools">Dev tools</a> — new Check media files row: opens every test photo and video like the gallery and shows how many failed.</p>
+  <p class="latest"><b>Latest, 15 Nov:</b> <a href="#viewer-video-details">Video details</a> — a video's details now show how it was recorded: 4K, fps, HDR kind, codec and sound.</p>
 </header>
 
 <aside class="rail" aria-label="Contents">
@@ -754,6 +754,32 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
       </div>
       <figcaption>Viewer, swiped up: the photo moves to the top as a full-width square, zoomed to fill it, and only the panel's rounded edge covers it. The details sit under it on the viewer's black, with rounded top corners that overlap the photo a little, and scroll inside the space left when they are longer. People &amp; pets (only if the photo has faces or a pet: people left to right, then pets; the head says "People" or "Pets" when only one kind is there), place (only if the photo has GPS: the nearest town, never coordinates), details. A named face or a face with no person opens Who is this?; "Add name" on an unnamed person's face opens Name this person (names the whole person). A pet works the same way: a named pet or a picture in no pet opens Who is this? for a pet, "Add name" on an unnamed pet opens Name this pet. A pet picture in no pet shows too, so a left-out picture can join its pet</figcaption>
     </figure>
+    <figure id="viewer-video-details">
+      <div class="phone dark">
+        <div class="photo-top" data-shot>
+          <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+          <div class="vbar">
+            <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+            <div class="when">Sat, 11 Oct<span>14:32</span></div>
+            <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
+          </div>
+        </div>
+        <div class="info">
+          <div class="grab"></div>
+          <div class="date"><b>Saturday, 11 October 2026</b><span>14:32 · GMT+1</span></div>
+
+          <div class="head"><h3>Place</h3></div>
+          <div class="line"><svg class="i"><use href="#i-pin"/></svg><div><b>Riverton</b></div></div>
+
+          <div class="head"><h3>Details</h3></div>
+          <div class="line"><svg class="i"><use href="#i-camera"/></svg><div><b>4K · 30 fps · HDR Dolby Vision</b><span>HEVC 10-bit · 50 Mbps · AAC stereo 48 kHz</span></div></div>
+          <div class="line"><svg class="i"><use href="#i-video"/></svg><div><b>VID_20261011_143212.mp4</b><span>0:58 · 3840 × 2160 · 366 MB</span></div></div>
+          <div class="line"><svg class="i"><use href="#i-folder"/></svg><div><b>Camera</b><span>DCIM/Camera</span></div></div>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Video, swiped up: the same panel as a photo. The camera line says how it was recorded: size (8K, 4K, else the short side, like 1080p), frame rate, and the HDR kind (HDR Dolby Vision, HDR HLG, HDR10; nothing for a normal video). A slow-motion clip says Slow motion · 240 fps in place of the frame rate, a time-lapse says Time-lapse. Under it: codec, 10-bit (only then), bitrate, and the sound (AAC stereo 48 kHz, or No sound). A part the file does not tell is left out. The file line has the video icon and the length in place of MP. No camera model: most phones do not write it in a video</figcaption>
+    </figure>
     <figure id="viewer-debug">
       <div class="phone dark">
         <div class="photo-top" data-shot>
@@ -806,7 +832,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Video, playing: the video plays in the viewer, where the photo is — no other app, no second screen, so Back, swipe, More and the details stay the same. It runs on the phone's own hardware decoder through Media3, the one the system player uses, so it starts fast and plays the popular codecs: H.264, HEVC, VP9, AV1 and 10-bit, in MP4, MKV, WebM, 3GP and MOV. The frames are drawn in the page itself (a TextureView), so the video grows from its tile, shrinks back, slides and follows a pull like a photo; HDR clips play, their colours are a phone check. The player line is the whole control set: play / pause, one seek bar, time played and length. Drag the bar to seek, nowhere else: the frame follows the finger while it drags, and playback goes on from there on the lift. The controls fade out 2 s after the last touch while it plays and stay while it is paused; a tap brings them back. The photo viewer's actions row stays under them. Volume is the phone's own buttons. A video starts from the beginning each time: no resume point</figcaption>
+      <figcaption>Video, playing: the video plays in the viewer, where the photo is — no other app, no second screen, so Back, swipe, More and the details stay the same. It runs on the phone's own hardware decoder through Media3, the one the system player uses, so it starts fast and plays the popular codecs: H.264, HEVC, VP9, AV1 and 10-bit, in MP4, MKV, WebM, 3GP and MOV. The frames are drawn in the page itself (a TextureView), so the video grows from its tile, shrinks back, slides and follows a pull like a photo; HDR clips play, but without HDR brightness for now (a TextureView has no HDR output, see bugs.md). The player line is the whole control set: play / pause, one seek bar, time played and length. Drag the bar to seek, nowhere else: the frame follows the finger while it drags, and playback goes on from there on the lift. The controls fade out 2 s after the last touch while it plays and stay while it is paused; a tap brings them back. The photo viewer's actions row stays under them. Volume is the phone's own buttons. A video starts from the beginning each time: no resume point</figcaption>
     </figure>
     <figure id="player-clean">
       <div class="phone dark viewer">

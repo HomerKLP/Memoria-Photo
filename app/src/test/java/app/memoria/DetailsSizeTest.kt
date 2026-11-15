@@ -20,5 +20,7 @@ class DetailsSizeTest {
 
     @Test fun megabytesRoundToOneDecimal() = assertEquals("3.5 MB", sizeLabel(3_500_000))
 
+    @Test fun bigVideosAreWholeMegabytes() = assertEquals("366 MB", sizeLabel(366_000_000))
+
     @Test fun zero() = assertEquals("0 B", sizeLabel(0))
 }
