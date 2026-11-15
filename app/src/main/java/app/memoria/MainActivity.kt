@@ -94,6 +94,18 @@ class MainActivity : ComponentActivity() {
     // bumped by a tap on the index or update notification, so App opens Settings; the update one scrolls to Updates
     private var openSettings by mutableIntStateOf(0)
     private var atUpdates by mutableStateOf(false)
+    // `am start --es screen People [--es tab library]` opens that screen without tapping through the app
+    private var jump by mutableStateOf<Jump?>(null)
+    private val debugBuild by lazy { (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 }
+
+    /** The debug shortcut in this launch, or null: a debug build, and it carries `screen` and/or `tab`. */
+    private fun shortcut(intent: Intent): Jump? {
+        if (!debugBuild) return null
+        val screen = intent.getStringExtra("screen")?.lowercase()
+        val tab = intent.getStringExtra("tab")?.lowercase()
+        // [Jump.at] is bumped, so the same shortcut opens again after Back (see `make jump`)
+        return if (screen == null && tab == null) null else Jump(screen, tab, (jump?.at ?: 0) + 1)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // Light app: dark bar icons even when the phone is in dark mode
@@ -109,6 +121,7 @@ class MainActivity : ComponentActivity() {
         }
         // not on a restore: the same intent comes back, and Settings would open again
         if (savedInstanceState == null && intent.getBooleanExtra("openSettings", false)) { atUpdates = intent.getBooleanExtra("atUpdates", false); openSettings++ }
+        if (savedInstanceState == null) shortcut(intent)?.let { jump = it }
         val dir = File(getExternalFilesDir(null), "test").apply { mkdirs() }
         // the models come by themselves on Wi-Fi; on mobile data, or after Cancel, the user taps Download or Retry
         lifecycleScope.launch(Dispatchers.IO) {
@@ -116,21 +129,22 @@ class MainActivity : ComponentActivity() {
             if (wifi && Models.status(this@MainActivity).first == Models.Status.Missing) Models.download(this@MainActivity, wifiOnly = true)
             Updates.tidy(this@MainActivity)
         }
-        val debug = (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+        val debug = debugBuild
         if (!debug && Updates.auto(this)) Updates.schedule(this)
-        setContent { MemoriaTheme { Surface { App(dir, openSettings, atUpdates) } } }
+        setContent { MemoriaTheme { Surface { App(dir, openSettings, atUpdates, jump) } } }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         if (intent.getBooleanExtra("openSettings", false)) { atUpdates = intent.getBooleanExtra("atUpdates", false); openSettings++ }
+        shortcut(intent)?.let { jump = it }
     }
 }
 
 /** Two tabs, Photos and Library. The test screen opens from Library. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun App(dir: File, openSettings: Int = 0, atUpdates: Boolean = false) {
+fun App(dir: File, openSettings: Int = 0, atUpdates: Boolean = false, jump: Jump? = null) {
     var tab by rememberSaveable { mutableStateOf("photos") } // the tab under the opened screens
     // the screens opened over the tab, oldest first; Back closes the last one
     var stack by rememberSaveable { mutableStateOf(emptyList<Screen>()) }
@@ -183,6 +197,14 @@ fun App(dir: File, openSettings: Int = 0, atUpdates: Boolean = false) {
         repeat(stack.size) { back() }
         tab = "library"
         push(Screen.Settings(atUpdates))
+    }
+    // the debug shortcut (MainActivity, `make jump`): straight to a screen, no tapping through the app
+    LaunchedEffect(jump) {
+        if (jump == null) return@LaunchedEffect
+        val screen = screenNamed(jump.screen)
+        // a screen sits over a tab: Library, unless the jump asked for Photos (same as the Settings one above)
+        tab = if (jump.tab == "photos" || jump.tab == "library") jump.tab else if (screen != null) "library" else tab
+        if (screen != null) { viewing = null; repeat(stack.size) { back() }; push(screen) }
     }
     // Photos tab select mode (mockup "Photos, selecting"): the picked tiles, shared so the bottom bar swaps
     val selection = remember { PhotoSelection() }
@@ -431,6 +453,27 @@ sealed interface Screen : Serializable {
 
 /** A stack entry's id for its saved state: the kind and the depth, not the arguments, so [Screen.People] keeps its state as a person opens. */
 internal fun screenKey(depth: Int, screen: Screen) = "$depth ${screen.javaClass.simpleName}"
+
+/** The screen `am start --es screen <name>` means, or null if the name is not one. Ids (a person, an album) have no shortcut. */
+internal fun screenNamed(name: String?): Screen? = when (name) {
+    "settings" -> Screen.Settings()
+    "dev" -> Screen.Dev
+    "licenses" -> Screen.Licenses
+    "skip" -> Screen.Skip
+    "hidden" -> Screen.Hidden()
+    "people" -> Screen.People()
+    "albums" -> Screen.Albums()
+    "places" -> Screen.Places
+    "categories" -> Screen.Categories
+    "favorites" -> Screen.Favorites
+    "videos" -> Screen.Videos
+    "search" -> Screen.Search
+    "trash" -> Screen.Trash
+    else -> null
+}
+
+/** A debug shortcut from a launch intent: the screen and tab to open, and [at] bumped per launch so the same one fires again. */
+data class Jump(val screen: String?, val tab: String?, val at: Int)
 
 // how dark the screen under a sliding one gets
 private const val underDim = 0.2f
