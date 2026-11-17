@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -111,8 +112,6 @@ fun niceScores(scored: Pair<List<Tag>, List<PhotoTagRow>>): Map<Long, Float> =
 
 suspend fun niceScores(context: Context): Map<Long, Float> = niceScores(scoredTags(context))
 
-private suspend fun loadCategories(context: Context) = withContext(Dispatchers.IO) { loadCategories(context, albums(context).flatMap { it.tiles }) }
-
 /** One tag on just its photos, for the Category screen: no MediaStore scan of the whole library. */
 private suspend fun loadCategory(context: Context, id: String): Category? = withContext(Dispatchers.IO) {
     val tags = Tag.load(context)
@@ -139,11 +138,12 @@ fun CategoryRow(categories: List<Category>?, onOpen: (String) -> Unit) {
     }
 }
 
-/** Every category with photos, most photos first. Layout per docs/design.html "Categories", like Places. */
+/** Every category with photos, most photos first. Layout per docs/design.html "Categories", like Places. Reuses Library's snapshot. */
 @Composable
-fun CategoriesScreen(onBack: () -> Unit, onOpenCategory: (String) -> Unit) {
+fun CategoriesScreen(onBack: () -> Unit, onOpenCategory: (String) -> Unit, reload: Int = 0) {
     val context = LocalContext.current
-    val categories by cachedProduceState("categories") { loadCategories(context) }
+    val saved by peopleSaved.collectAsState()
+    val categories by cachedProduceState("categories", saved, reload) { sharedLibrary(context, saved, reload).categories }
     CategoriesContent(categories, onBack, onOpenCategory)
 }
 

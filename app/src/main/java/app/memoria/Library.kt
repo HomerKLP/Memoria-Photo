@@ -120,8 +120,8 @@ suspend fun libraryData(context: Context): LibraryData = withContext(Dispatchers
  * [libraryData] for its keys, shared: Search shows the same snapshot instead of scanning MediaStore and
  * scoring tags again on every open. The keys are Library's own, so Search is never older than the tab.
  */
-suspend fun sharedLibrary(context: Context, saved: Int, reload: Int): LibraryData =
-    sharedValue("library", listOf(saved, reload)) { libraryData(context) }
+suspend fun sharedLibrary(context: Context, saved: Int, reload: Int, changes: Int = 0): LibraryData =
+    sharedValue("library", listOf(saved, reload, changes)) { libraryData(context) }
 
 /** Loads Library once at app start: its first open has an empty cache, so it would show grey skeletons. */
 suspend fun preloadLibrary(context: Context) = preloadCached("library") { sharedLibrary(context, peopleSaved.value, 0) }

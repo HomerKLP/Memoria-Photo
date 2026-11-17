@@ -29,6 +29,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -101,9 +102,6 @@ fun places(rows: List<PhotoRow>, tiles: List<Tile>, scores: Map<Long, Float> = e
         .sortedByDescending { it.tiles.size }
 }
 
-private suspend fun loadPlaces(context: Context) =
-    withContext(Dispatchers.IO) { places(Db.get(context).index().placed(), albums(context).flatMap { it.tiles }, niceScores(context)) }
-
 /** Library's Places row: the 3 biggest towns. null (loading) or no places yet: grey tiles hold the space. */
 @Composable
 fun PlaceRow(places: List<Place>?, onOpen: (Int) -> Unit) {
@@ -117,11 +115,12 @@ fun PlaceRow(places: List<Place>?, onOpen: (Int) -> Unit) {
     }
 }
 
-/** Every town, most photos first. Layout per docs/design.html "Places". */
+/** Every town, most photos first. Layout per docs/design.html "Places". Reuses Library's snapshot (see [sharedLibrary]). */
 @Composable
-fun PlacesScreen(onBack: () -> Unit, onOpenPlace: (Int) -> Unit) {
+fun PlacesScreen(onBack: () -> Unit, onOpenPlace: (Int) -> Unit, reload: Int = 0) {
     val context = LocalContext.current
-    val places by cachedProduceState("places") { loadPlaces(context) }
+    val saved by peopleSaved.collectAsState()
+    val places by cachedProduceState("places", saved, reload) { sharedLibrary(context, saved, reload).places }
     PlacesContent(places, onBack, onOpenPlace)
 }
 

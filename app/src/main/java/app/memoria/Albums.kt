@@ -42,6 +42,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -413,12 +414,15 @@ fun VideosContent(videos: Videos?, onBack: () -> Unit = {}, onOpen: (List<Tile>,
 }
 
 @Composable
-fun VideosScreen(onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit) {
+fun VideosScreen(onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit, reload: Int = 0) {
     val context = LocalContext.current
     val pick = rememberPick()
-    val videos by cachedProduceState("videos", pick.changes, isEmpty = { it.all.isEmpty() }) {
+    val saved by peopleSaved.collectAsState()
+    // a delete in the list needs a fresh snapshot; one extra cache entry at most
+    val changes = if (pick.changes == 0) 0 else 1
+    val videos by cachedProduceState("videos", saved, reload, changes, isEmpty = { it.all.isEmpty() }) {
         withContext(Dispatchers.IO) {
-            val all = albums(context).flatMap { it.tiles }.filter { it.duration != null }.sortedByDescending { it.date }
+            val all = sharedLibrary(context, saved, reload, changes).albums.flatMap { it.tiles }.filter { it.duration != null }.sortedByDescending { it.date }
             var bytes = 0L
             context.contentResolver.query(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, arrayOf(MediaStore.Video.Media.SIZE), null, null, null)?.use { c ->
                 while (c.moveToNext()) bytes += c.getLong(0)
