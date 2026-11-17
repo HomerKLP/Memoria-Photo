@@ -2,6 +2,12 @@
 
 Style: one-line description, steps to reproduce, fix ideas. Code paths only when they help. Open bugs in full; a fixed bug becomes one line under Fixed at the bottom (the full write-up stays in git history).
 
+## VideoPlayTest flakes on the 10-bit HEVC clip
+
+`make layout` on the API 37 emulator once failed `plays_asItsRowSays[videos/video_hevc10.mp4]` with `ERROR_CODE_FAILED_RUNTIME_CHECK` (1004); the rerun of `VideoPlayTest` was 11/11 green. The row (`plays or card`) allows only 4000-4999 as "the decoder refused it", and the emulator's 10-bit HEVC path sometimes reports 1004 instead.
+
+Fix idea: for `plays or card`, accept any error whose code is not a file/container error, or treat this row as `card` on an emulator.
+
 ## Search tab taking too long to load, why?
 
 Search built its own copy of everything on every open: a full MediaStore scan (`albums(context)`), every tagged face, places, categories and the tag scoring — the same work Library had just done — and the tag scoring ran twice (once for categories, once for `niceScores`).
