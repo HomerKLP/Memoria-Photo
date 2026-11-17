@@ -97,7 +97,8 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
     val player = remember {
         // ExoPlayer changes the sound's speed itself (Sonic), not the system: letting the AudioTrack do it
         // (setEnableAudioTrackPlaybackParams) froze the clock after a pause and play on the test phone,
-        // until media3 gave up with ERROR_CODE_TIMEOUT (bugs.md, 2026-11-17)
+        // until media3 gave up with ERROR_CODE_TIMEOUT (bugs.md, 2026-11-17). A newer media3 does not
+        // help: 1.12.0-beta01 moved the clock +63/+29/+27 ms per 0.5 s of play, the same freeze.
         ExoPlayer.Builder(context, DefaultRenderersFactory(context)).setAudioAttributes(
             AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(),
             true,

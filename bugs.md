@@ -136,6 +136,7 @@ Still open:
 - Seen 2026-11-17, the price of the pause/play fix below: `speed 2x at 23329 ms` → `speed 1x at 25842 ms`, so 2513 ms of picture in 1594 ms of finger (1.6x): about 0.7 s of the hold ran at 1x. On the 11 s clip: 1564 ms in 1111 ms.
 - Why: without `setEnableAudioTrackPlaybackParams` ExoPlayer drains the buffered sound through Sonic before the new speed applies. The flag skipped the drain but froze the clock after a pause (Fixed, 2026-11-17).
 - Fix idea: wait for the SurfaceView swap (HDR step 2) and see if the drain still matters; or set the speed on the AudioTrack only while a finger is down, if media3 ever offers it per speed.
+- Tried 2026-11-17: `1.12.0-beta01` (the newest, one step past the stable 1.11.1) still freezes with `setEnableAudioTrackPlaybackParams(true)` (+63, +29, +27 ms per 0.5 s of play after the second pause). So a media3 bump is not the way; the comment in `Viewer.kt` says so.
 
 # Known issues and bad patterns
 
