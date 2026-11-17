@@ -2,6 +2,24 @@
 
 Style: one-line description, steps to reproduce, fix ideas. Code paths only when they help. Open bugs in full; a fixed bug becomes one line under Fixed at the bottom (the full write-up stays in git history).
 
+## Regroup rebuilds every person every 30 s and holds an n² table
+
+Grouping runs inside the scan: `savePeople` → `regroup` every ~30 s, once at the end of every run even when nothing new was found, and after Unmerge. It compares every face with every other face and keeps the whole distance table in memory: ~100 MB at 5k faces, ~400 MB at 10k (`averageLinkage`, `Groups.kt`). The test phone's ~4.4k photos are already in the tens-of-millions-of-pairs range. What a user feels: a pause of about a second per rebuild plus a large allocation that hits the garbage collector, so frames taken right after a run look worse. Not measured yet: the app logs `saved N people (M kept their id) in X ms`, nobody recorded that line.
+
+Steps:
+1. Start an index run on a full library, open Dev tools, read the `saved … people … in … ms` lines.
+
+Fix plan (a separate task, the user's call):
+- Split the two jobs. Per new face: assign it to the closest person's stored average (a few hundred comparisons, no matrix). Rebuild all people as its own job, only when the algorithm version changes, after Find faces again, on drift, or from Dev tools.
+- DB v17: `person.mean` plus counts, and a `grouping` row (`algorithmVersion`, `lastReclusterAt`, `facesSinceRecluster`, `drift`), backfilled by the migration. `MigrationTest` must keep every name, cover and merge.
+- Drift counter: new persons created and faces further from their person's mean than the cut. Past a line (~5%) → queue a rebuild. This keeps the fast path from rotting.
+- Full pass: same algorithm, blocked rows and half-precision storage, so memory is O(n) instead of O(n²) and the result is identical.
+- The means also make Merge with cheap: no `faceVecs()` read on every sheet open (`Merge.kt`).
+- Tests: unit assign rules (match, no match, quality gate, pets separate, video faces join only), drift, a golden case where assign + rebuild equals rebuild alone, `DaoTest` for the transaction, `MigrationTest`, and a phone run where every name stays on the same person.
+- Rollout: v17 ships the means with the old path, then the run path switches to assign; rollback is calling the old `savePeople` again.
+
+Not started.
+
 ## VideoPlayTest flakes on the 10-bit HEVC clip
 
 `make layout` on the API 37 emulator once failed `plays_asItsRowSays[videos/video_hevc10.mp4]` with `ERROR_CODE_FAILED_RUNTIME_CHECK` (1004); the rerun of `VideoPlayTest` was 11/11 green. The row (`plays or card`) allows only 4000-4999 as "the decoder refused it", and the emulator's 10-bit HEVC path sometimes reports 1004 instead.
