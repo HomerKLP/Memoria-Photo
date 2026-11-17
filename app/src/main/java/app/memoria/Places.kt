@@ -48,7 +48,6 @@ import kotlin.math.cos
 /** GeoNames towns of 1000+ people, city districts left out (decisions.md). `assets/towns.tsv` comes from `bench/places.py towns`. */
 class Towns(val id: IntArray, val name: Array<String>, val lat: FloatArray, val lon: FloatArray) {
     /** Index of the nearest town. */
-    // ponytail: linear scan of ~140k towns, ~1 ms a photo; a lat/lon grid if it ever shows in the index time
     fun nearest(la: Double, lo: Double): Int {
         val k = cos(Math.toRadians(la)) // flat-earth distance: fine at town distances, and only the order matters
         var best = 0

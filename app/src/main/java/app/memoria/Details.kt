@@ -246,7 +246,6 @@ internal fun videoLines(
             profile,
             CodecProfileLevel.HEVCProfileMain10, CodecProfileLevel.HEVCProfileMain10HDR10, CodecProfileLevel.HEVCProfileMain10HDR10Plus,
         )
-        // ponytail: DV profiles 9 and 10 are AVC / AV1; phones record 8.x on HEVC
         "video/dolby-vision" -> "HEVC 10-bit"
         "video/x-vnd.on2.vp9" -> "VP9" + tenBit(
             profile,

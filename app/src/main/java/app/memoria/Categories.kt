@@ -82,12 +82,6 @@ fun categories(tags: List<Tag>, rows: List<PhotoTagRow>, tiles: List<Tile>, pets
     }.sortedByDescending { it.tiles.size }
 }
 
-private fun dot(a: FloatArray, b: FloatArray): Float {
-    var s = 0f
-    for (i in a.indices) s += a[i] * b[i]
-    return s
-}
-
 /**
  * Scores only the vectors with no tags yet (new photos; all of them after a new `tags.json`), then reads the stored tags.
  * Scoring all 4.4k vectors on each open took ~150 ms of Library's ~280 on the test phone's release build (`bugs.md`).
