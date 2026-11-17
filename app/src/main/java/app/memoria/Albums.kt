@@ -418,11 +418,10 @@ fun VideosScreen(onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit, reload:
     val context = LocalContext.current
     val pick = rememberPick()
     val saved by peopleSaved.collectAsState()
-    // a delete in the list needs a fresh snapshot; one extra cache entry at most
-    val changes = if (pick.changes == 0) 0 else 1
-    val videos by cachedProduceState("videos", saved, reload, changes, isEmpty = { it.all.isEmpty() }) {
+    // every edit needs a fresh snapshot, so the key takes the whole count (shared keeps one copy per key)
+    val videos by cachedProduceState("videos", saved, reload, pick.changes, isEmpty = { it.all.isEmpty() }) {
         withContext(Dispatchers.IO) {
-            val all = sharedLibrary(context, saved, reload, changes).albums.flatMap { it.tiles }.filter { it.duration != null }.sortedByDescending { it.date }
+            val all = sharedLibrary(context, saved, reload, pick.changes).albums.flatMap { it.tiles }.filter { it.duration != null }.sortedByDescending { it.date }
             var bytes = 0L
             context.contentResolver.query(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, arrayOf(MediaStore.Video.Media.SIZE), null, null, null)?.use { c ->
                 while (c.moveToNext()) bytes += c.getLong(0)
