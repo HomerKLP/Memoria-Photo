@@ -154,155 +154,161 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         }
         val prefetch = Executors.newSingleThreadExecutor() // one thread is enough: HEIC decoding tops out at ~100 ms a photo even on 4 threads
         val times = StepTimes()
-        try {
-            FacePipeline(applicationContext).use { pipeline ->
-                AppLog.i("models loaded in ${(System.nanoTime() - start) / 1_000_000} ms")
-                fun ahead(i: Int): Future<kotlin.Result<Prepared>>? = newPhotos.getOrNull(i)?.let { p -> prefetch.submit(Callable { runCatching { prepare(applicationContext, p) } }) }
-                var next = ahead(0)
-                for ((i, photo) in newPhotos.withIndex()) {
-                    if (isStopped) break
-                    times.start()
-                    val ready = next!!.get() // decoded while the last photo ran
-                    next = ahead(i + 1)
-                    val tag = tagger?.takeIf { photo.id !in tagged || photo.id in pending } // a Rescan keeps the vectors
-                    var vector: FloatArray? = null
-                    var boxes: List<ObjectBoxRow>? = null // null: not boxed, the object models are not here
-                    var pets = emptyList<FaceRow>()
-                    var fullWidth = 0 // the full decode, made only when faces are found
-                    var fullHeight = 0
-                    val (kind, faces) = try {
-                        val prep = ready.getOrThrow() // a decode error lands in the catch below, like before
-                        val kind = prep.kind
-                        times.lap(Step.Wait)
-                        kind to if (kind == PhotoKind.skip) {
-                            if (tag != null) vector = tagAlone(tag, photo.id)
-                            if (objects != null) boxes = emptyList()
-                            emptyList()
-                        } else {
-                            // Detect on a small decode, full decode only for photos with faces (~half). The tagger reads the same small decode.
-                            val photoUri = prep.uri!!
-                            val small = prep.small!!
-                            val w = prep.width
-                            val h = prep.height
-                            if (tag != null) vector = try {
-                                tag.vector(tag.input(small))
-                            } catch (e: Exception) {
-                                AppLog.w("tag ${photo.id}", e)
-                                FloatArray(0)
-                            }
-                            times.lap(Step.Tag)
-                            val lb = Letterbox(small)
-                            val found = if (objects == null) pipeline.detect(lb) else {
-                                val all = objects.first.detect(lb)
-                                boxes = all.map { boxRow(photo.id, it, small) }
-                                pets = all.filter { it.cls != PERSON && it.score >= 0.7f }.map { petFace(photo.id, it, small, objects.second, w, h) }
-                                times.lap(Step.Objects)
-                                // no person box, no face detection; then a face counts only inside a person box (docs/objects.md)
-                                val people = all.filter { it.cls == PERSON }.map { it.box }
-                                if (people.isEmpty()) emptyList() else pipeline.detect(lb).filter { inPerson(it.box, people) }
-                            }
-                            times.lap(Step.Faces)
-                            if (found.isEmpty()) found else {
-                                val image = loadPhoto(applicationContext.contentResolver, photoUri)
-                                fullWidth = image.width
-                                fullHeight = image.height
-                                times.lap(Step.FullDecode)
-                                val kx = image.width.toFloat() / small.width
-                                val ky = image.height.toFloat() / small.height
-                                found.onEach { f ->
-                                    for (a in listOf(f.box, f.landmarks)) for (i in a.indices) a[i] *= if (i % 2 == 0) kx else ky
-                                    pipeline.embed(image, f)
-                                    f.thumb = faceThumb(image, f.box)
-                                }.also { times.lap(Step.Embed) }
-                            }
-                        }
-                    } catch (e: Exception) {
-                        AppLog.w("index ${photo.id}", e)
-                        if (tag != null && vector == null) vector = FloatArray(0) // unreadable: not tried again
+
+        /** A new photo: its decode runs on the helper thread while the models work on the last one. */
+        suspend fun scanPhotos(pipeline: FacePipeline) {
+            fun ahead(i: Int): Future<kotlin.Result<Prepared>>? = newPhotos.getOrNull(i)?.let { p -> prefetch.submit(Callable { runCatching { prepare(applicationContext, p) } }) }
+            var next = ahead(0)
+            for ((i, photo) in newPhotos.withIndex()) {
+                if (isStopped) break
+                times.start()
+                val ready = next!!.get() // decoded while the last photo ran
+                next = ahead(i + 1)
+                val tag = tagger?.takeIf { photo.id !in tagged || photo.id in pending } // a Rescan keeps the vectors
+                var vector: FloatArray? = null
+                var boxes: List<ObjectBoxRow>? = null // null: not boxed, the object models are not here
+                var pets = emptyList<FaceRow>()
+                var fullWidth = 0 // the full decode, made only when faces are found
+                var fullHeight = 0
+                val (kind, faces) = try {
+                    val prep = ready.getOrThrow() // a decode error lands in the catch below, like before
+                    val kind = prep.kind
+                    times.lap(Step.Wait)
+                    kind to if (kind == PhotoKind.skip) {
+                        if (tag != null) vector = tagAlone(tag, photo.id)
                         if (objects != null) boxes = emptyList()
-                        PhotoKind.error to emptyList()
-                    }
-                    val rows = faces.map {
-                        FaceRow(photoId = photo.id, box = it.box, score = it.score, landmarks = it.landmarks, vector = it.vector!!, quality = it.quality!!, thumb = it.thumb!!)
-                    }
-                    val fixing = photo.id in pending
-                    val axis = if (fixing) heicMirrorAxis(applicationContext.contentResolver, ContentUris.withAppendedId(Media.EXTERNAL_CONTENT_URI, photo.id)) else -1
-                    if (!fixing) Db.get(applicationContext).withTransaction {
-                        dao.insert(PhotoRow(photo.id, photo.path, kind, objects = boxes?.let { ObjectDetector.VERSION }), rows + pets)
-                        boxes?.let { dao.insertBoxes(it) }
-                    } else Db.get(applicationContext).withTransaction {
-                        // a photo found on a mirrored picture: an old face keeps its row when a new one sits at the same place
-                        if (kind != PhotoKind.error) { // an unreadable photo must not lose its faces
-                            dao.updatePhoto(photo.id, kind, boxes?.let { ObjectDetector.VERSION })
-                            dao.deleteBoxes(listOf(photo.id))
-                            boxes?.let { dao.insertBoxes(it) }
-                            dao.deletePets(photo.id)
-                            if (pets.isNotEmpty()) dao.insertFaces(pets)
-                            dao.deleteTags(listOf(photo.id)) // made again from the new vector
-                            val old = dao.faceBoxes(photo.id)
-                            val match = matchFaces(old.map { it.id to it.box }, faces.map { it.box }, axis, fullWidth, fullHeight)
-                            for ((n, face) in faces.withIndex()) {
-                                val id = match[n]
-                                if (id == null) dao.insertFaces(listOf(rows[n]))
-                                else dao.updateFace(FaceUpdate(id, face.box, face.score, face.landmarks, face.vector!!, face.quality!!, face.thumb!!))
-                            }
-                            val drop = old.filter { it.id !in match.values && it.id !in keptFaces }.map { it.id }
-                            if (drop.isNotEmpty()) dao.deleteFaceIds(drop)
-                            keptRows += match.size
-                            addedRows += faces.size - match.size
-                            droppedRows += drop.size
+                        emptyList()
+                    } else {
+                        // Detect on a small decode, full decode only for photos with faces (~half). The tagger reads the same small decode.
+                        val photoUri = prep.uri!!
+                        val small = prep.small!!
+                        val w = prep.width
+                        val h = prep.height
+                        if (tag != null) vector = try {
+                            tag.vector(tag.input(small))
+                        } catch (e: Exception) {
+                            AppLog.w("tag ${photo.id}", e)
+                            FloatArray(0)
+                        }
+                        times.lap(Step.Tag)
+                        val lb = Letterbox(small)
+                        val found = if (objects == null) pipeline.detect(lb) else {
+                            val all = objects.first.detect(lb)
+                            boxes = all.map { boxRow(photo.id, it, small) }
+                            pets = all.filter { it.cls != PERSON && it.score >= 0.7f }.map { petFace(photo.id, it, small, objects.second, w, h) }
+                            times.lap(Step.Objects)
+                            // no person box, no face detection; then a face counts only inside a person box (docs/objects.md)
+                            val people = all.filter { it.cls == PERSON }.map { it.box }
+                            if (people.isEmpty()) emptyList() else pipeline.detect(lb).filter { inPerson(it.box, people) }
+                        }
+                        times.lap(Step.Faces)
+                        if (found.isEmpty()) found else {
+                            val image = loadPhoto(applicationContext.contentResolver, photoUri)
+                            fullWidth = image.width
+                            fullHeight = image.height
+                            times.lap(Step.FullDecode)
+                            val kx = image.width.toFloat() / small.width
+                            val ky = image.height.toFloat() / small.height
+                            found.onEach { f ->
+                                for (a in listOf(f.box, f.landmarks)) for (i in a.indices) a[i] *= if (i % 2 == 0) kx else ky
+                                pipeline.embed(image, f)
+                                f.thumb = faceThumb(image, f.box)
+                            }.also { times.lap(Step.Embed) }
                         }
                     }
-                    // a photo being fixed that can't be read now keeps its old vector too
-                    if (!(fixing && kind == PhotoKind.error)) vector?.let { dao.insertVector(PhotoVectorRow(photo.id, Tagger.VERSION, it)); tagCount++ }
-                    if (fixing) {
-                        pending -= photo.id
-                        savePending()
-                        fixedCount++
-                    }
-                    times.lap(Step.Database)
-                    count++
-                    if (count % 100 == 0) AppLog.i("per photo ms (n=$count): ${times.perPhoto(count)}")
-                    if (foreground && count % 10 == 0) notifications.notify(1, notice(base + count, total))
-                    // people show up while indexing; saves stay 10x their own time apart, so they never take more than ~10% of the run
-                    if (System.nanoTime() > nextSave) {
-                        val t = System.nanoTime()
-                        times.start()
-                        placePhotos()
-                        savePeople()
-                        times.lap(Step.Save)
-                        nextSave = System.nanoTime() + maxOf(30_000_000_000L, 10 * (System.nanoTime() - t))
+                } catch (e: Exception) {
+                    AppLog.w("index ${photo.id}", e)
+                    if (tag != null && vector == null) vector = FloatArray(0) // unreadable: not tried again
+                    if (objects != null) boxes = emptyList()
+                    PhotoKind.error to emptyList()
+                }
+                val rows = faces.map {
+                    FaceRow(photoId = photo.id, box = it.box, score = it.score, landmarks = it.landmarks, vector = it.vector!!, quality = it.quality!!, thumb = it.thumb!!)
+                }
+                val fixing = photo.id in pending
+                val axis = if (fixing) heicMirrorAxis(applicationContext.contentResolver, ContentUris.withAppendedId(Media.EXTERNAL_CONTENT_URI, photo.id)) else -1
+                if (!fixing) Db.get(applicationContext).withTransaction {
+                    dao.insert(PhotoRow(photo.id, photo.path, kind, objects = boxes?.let { ObjectDetector.VERSION }), rows + pets)
+                    boxes?.let { dao.insertBoxes(it) }
+                } else Db.get(applicationContext).withTransaction {
+                    // a photo found on a mirrored picture: an old face keeps its row when a new one sits at the same place
+                    if (kind != PhotoKind.error) { // an unreadable photo must not lose its faces
+                        dao.updatePhoto(photo.id, kind, boxes?.let { ObjectDetector.VERSION })
+                        dao.deleteBoxes(listOf(photo.id))
+                        boxes?.let { dao.insertBoxes(it) }
+                        dao.deletePets(photo.id)
+                        if (pets.isNotEmpty()) dao.insertFaces(pets)
+                        dao.deleteTags(listOf(photo.id)) // made again from the new vector
+                        val old = dao.faceBoxes(photo.id)
+                        val match = matchFaces(old.map { it.id to it.box }, faces.map { it.box }, axis, fullWidth, fullHeight)
+                        for ((n, face) in faces.withIndex()) {
+                            val id = match[n]
+                            if (id == null) dao.insertFaces(listOf(rows[n]))
+                            else dao.updateFace(FaceUpdate(id, face.box, face.score, face.landmarks, face.vector!!, face.quality!!, face.thumb!!))
+                        }
+                        val drop = old.filter { it.id !in match.values && it.id !in keptFaces }.map { it.id }
+                        if (drop.isNotEmpty()) dao.deleteFaceIds(drop)
+                        keptRows += match.size
+                        addedRows += faces.size - match.size
+                        droppedRows += drop.size
                     }
                 }
-                // videos, after the photos: no tagger, one row per face or pet track (ROADMAP Phase 13)
-                for (video in newVideos) {
-                    if (isStopped) break
+                // a photo being fixed that can't be read now keeps its old vector too
+                if (!(fixing && kind == PhotoKind.error)) vector?.let { dao.insertVector(PhotoVectorRow(photo.id, Tagger.VERSION, it)); tagCount++ }
+                if (fixing) {
+                    pending -= photo.id
+                    savePending()
+                    fixedCount++
+                }
+                times.lap(Step.Database)
+                count++
+                if (count % 100 == 0) AppLog.i("per photo ms (n=$count): ${times.perPhoto(count)}")
+                if (foreground && count % 10 == 0) notifications.notify(1, notice(base + count, total))
+                // people show up while indexing; saves stay 10x their own time apart, so they never take more than ~10% of the run
+                if (System.nanoTime() > nextSave) {
+                    val t = System.nanoTime()
                     times.start()
-                    val rows = try {
-                        val r = videoTracks(video, pipeline, objects)
-                        times.lap(Step.Video)
-                        r
-                    } catch (e: Exception) {
-                        AppLog.w("index video ${video.id}", e)
-                        emptyList()
-                    }
-                    Db.get(applicationContext).withTransaction {
-                        // no boxes: a video is no single pixel grid; objects marked so the run never boxes it again. No town yet: [placePhotos] reads its GPS
-                        dao.insert(PhotoRow(video.id, video.path, PhotoKind.video, objects = ObjectDetector.VERSION), rows)
-                    }
-                    times.lap(Step.Database)
-                    count++
-                    if (foreground && count % 10 == 0) notifications.notify(1, notice(base + count, total, "Scanning videos"))
-                    if (System.nanoTime() > nextSave) {
-                        val t = System.nanoTime()
-                        times.start()
-                        placePhotos()
-                        savePeople()
-                        times.lap(Step.Save)
-                        nextSave = System.nanoTime() + maxOf(30_000_000_000L, 10 * (System.nanoTime() - t))
-                    }
+                    placePhotos()
+                    savePeople()
+                    times.lap(Step.Save)
+                    nextSave = System.nanoTime() + maxOf(30_000_000_000L, 10 * (System.nanoTime() - t))
                 }
             }
+        }
+
+        /** A new video: one row per face or pet track, no tagger and no boxes. */
+        suspend fun scanVideos(pipeline: FacePipeline) {
+            for (video in newVideos) {
+                if (isStopped) break
+                times.start()
+                val rows = try {
+                    val r = videoTracks(video, pipeline, objects)
+                    times.lap(Step.Video)
+                    r
+                } catch (e: Exception) {
+                    AppLog.w("index video ${video.id}", e)
+                    emptyList()
+                }
+                Db.get(applicationContext).withTransaction {
+                    // no boxes: a video is no single pixel grid; objects marked so the run never boxes it again. No town yet: [placePhotos] reads its GPS
+                    dao.insert(PhotoRow(video.id, video.path, PhotoKind.video, objects = ObjectDetector.VERSION), rows)
+                }
+                times.lap(Step.Database)
+                count++
+                if (foreground && count % 10 == 0) notifications.notify(1, notice(base + count, total, "Scanning videos"))
+                if (System.nanoTime() > nextSave) {
+                    val t = System.nanoTime()
+                    times.start()
+                    placePhotos()
+                    savePeople()
+                    times.lap(Step.Save)
+                    nextSave = System.nanoTime() + maxOf(30_000_000_000L, 10 * (System.nanoTime() - t))
+                }
+            }
+        }
+
+        /** Photos indexed before the tagger or the object models: one 640 decode for both. */
+        suspend fun scanCatchUp() {
             // the user's faces stay whatever the boxes say: answered, merged, or a cover
             val kept = if (objects == null) emptySet() else
                 (dao.answers().flatMap { listOf(it.faceId, it.personFace) } + dao.merges().flatMap { listOf(it.face, it.personFace) } + dao.people().mapNotNull { it.coverFaceId }).toSet()
@@ -316,6 +322,15 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                 if (tag != null) tagCount++
                 catchUpCount++
             }
+        }
+
+        try {
+            FacePipeline(applicationContext).use { pipeline ->
+                AppLog.i("models loaded in ${(System.nanoTime() - start) / 1_000_000} ms")
+                scanPhotos(pipeline)
+                scanVideos(pipeline)
+            }
+            scanCatchUp()
         } finally {
             prefetch.shutdownNow()
             tagger?.close()
