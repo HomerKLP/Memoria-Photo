@@ -352,12 +352,8 @@ fun DetailsPanel(tile: Tile, modifier: Modifier = Modifier) {
         people = withContext(Dispatchers.IO) {
             val dao = db.index()
             val byPerson = dao.taggedFaces().groupBy { it.personId }
-            dao.people().mapNotNull { p ->
-                byPerson[p.id]?.let { fs ->
-                    val main = fs.firstOrNull { it.id == p.mainFaceId } ?: fs.first()
-                    Person(fs.map { it.toVec() }, main.toVec(), p.id, p.name, p.hidden, p.coverFaceId)
-                }
-            }.sortedWith(compareBy({ it.name.isNullOrBlank() }, { -it.photos }))
+            dao.people().mapNotNull { p -> personOf(p, byPerson[p.id].orEmpty().map { it.toVec() }) }
+                .sortedWith(compareBy({ it.name.isNullOrBlank() }, { -it.photos }))
         }
     }
     // closes the sheet at once, then writes and reloads the row; NonCancellable, so closing the viewer right after keeps the write.

@@ -54,6 +54,15 @@ class Person(val faces: List<FaceVec>, val main: FaceVec, val id: Long = 0, val 
 /** The same person with a new cover, for updating a cached list in place (see [updateCached]). */
 fun Person.withCover(cover: Long?) = Person(faces, main, id, name, hidden, cover, pos)
 
+/**
+ * [p] with its [faces], for the screens that list saved people. Null when the person has no face left
+ * (a stopped index run, a manual edit). The main face is [PersonRow.mainFaceId], or the first one.
+ */
+fun personOf(p: PersonRow, faces: List<FaceVec>): Person? {
+    if (faces.isEmpty()) return null
+    return Person(faces, faces.firstOrNull { it.id == p.mainFaceId } ?: faces.first(), p.id, p.name, p.hidden, p.coverFaceId, p.pos)
+}
+
 /** "18 people · 3 pets", no pets part without pets (docs/design.html, People & pets). */
 fun peopleAndPets(all: List<Person>): String {
     val pets = all.count { it.pet }

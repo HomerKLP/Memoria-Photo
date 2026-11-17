@@ -69,7 +69,7 @@ suspend fun peopleData(dao: IndexDao): PeopleData = withContext(Dispatchers.IO) 
     val faces = dao.taggedFaces()
     val byPerson = faces.groupBy { it.personId }
     // getValue would crash on a person with no faces (stopped index, manual edit); skip it
-    val people = dao.people().mapNotNull { p -> byPerson[p.id]?.let { fs -> Person(fs.map { it.toVec() }, (fs.firstOrNull { it.id == p.mainFaceId } ?: fs.first()).toVec(), p.id, p.name, p.hidden, p.coverFaceId, p.pos) } }
+    val people = dao.people().mapNotNull { p -> personOf(p, byPerson[p.id].orEmpty().map { it.toVec() }) }
         .sortedWith(compareBy({ it.name.isNullOrBlank() }, { it.pos ?: Int.MAX_VALUE }, { -it.photos })) // named first, moved ones in their order, then by photo count
     // hidden people stay in the list, so one opened from Hidden people still shows
     val shown = people.filter { !it.hidden }

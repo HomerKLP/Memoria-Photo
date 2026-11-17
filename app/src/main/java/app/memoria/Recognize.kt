@@ -93,7 +93,7 @@ fun HelpRecognizeScreen(personId: Long?, onBack: () -> Unit) {
         value = withContext(Dispatchers.IO) {
             val byPerson = dao.faceVecs().filter { it.personId != null }.groupBy { it.personId!! }
             // pets stay in: they have no unsure faces, but a New person's name must not be a pet's (Who is this? lists only the face's kind)
-            dao.people().mapNotNull { p -> byPerson[p.id]?.let { fs -> Person(fs, fs.firstOrNull { it.id == p.mainFaceId } ?: fs.first(), p.id, p.name, p.hidden, p.coverFaceId, p.pos) } }
+            dao.people().mapNotNull { p -> personOf(p, byPerson[p.id].orEmpty()) }
                 .sortedWith(compareBy({ it.name.isNullOrBlank() }, { it.pos ?: Int.MAX_VALUE }, { -it.photos })) // People screen order
         }
     }

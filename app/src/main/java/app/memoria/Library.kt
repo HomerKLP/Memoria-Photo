@@ -94,9 +94,8 @@ suspend fun libraryData(context: Context): LibraryData = withContext(Dispatchers
     // Faces without vectors: the row only shows covers. Merge with loads the vectors when it opens.
     val people = timed("people") {
         val faces = dao.taggedFaces()
-        val byId = faces.associateBy { it.id }
         val byPerson = faces.groupBy { it.personId }
-        dao.people().filter { !it.hidden }.mapNotNull { p -> byId[p.mainFaceId]?.let { m -> Person((byPerson[p.id] ?: listOf(m)).map { it.toVec() }, m.toVec(), p.id, p.name, false, p.coverFaceId, p.pos) } }
+        dao.people().filter { !it.hidden }.mapNotNull { p -> personOf(p, byPerson[p.id].orEmpty().map { it.toVec() }) }
             .sortedWith(compareBy({ it.name.isNullOrBlank() }, { it.pos ?: Int.MAX_VALUE }, { -it.photos })) // named first, moved ones in their order, then by photo count
     }
     val albums = timed("albums") { albums(context) }
