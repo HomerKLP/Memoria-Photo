@@ -2,24 +2,6 @@
 
 Style: one-line description, steps to reproduce, fix ideas. Code paths only when they help. Open bugs in full; a fixed bug becomes one line under Fixed at the bottom (the full write-up stays in git history).
 
-## Regroup rebuilds every person every 30 s and holds an n² table
-
-Grouping runs inside the scan: `savePeople` → `regroup` every ~30 s, once at the end of every run even when nothing new was found, and after Unmerge. It compares every face with every other face and keeps the whole distance table in memory: ~100 MB at 5k faces, ~400 MB at 10k (`averageLinkage`, `Groups.kt`). The test phone's ~4.4k photos are already in the tens-of-millions-of-pairs range. What a user feels: a pause of about a second per rebuild plus a large allocation that hits the garbage collector, so frames taken right after a run look worse. Not measured yet: the app logs `saved N people (M kept their id) in X ms`, nobody recorded that line.
-
-Steps:
-1. Start an index run on a full library, open Dev tools, read the `saved … people … in … ms` lines.
-
-Fix plan (a separate task, the user's call):
-- Split the two jobs. Per new face: assign it to the closest person's stored average (a few hundred comparisons, no matrix). Rebuild all people as its own job, only when the algorithm version changes, after Find faces again, on drift, or from Dev tools.
-- DB v17: `person.mean` plus counts, and a `grouping` row (`algorithmVersion`, `lastReclusterAt`, `facesSinceRecluster`, `drift`), backfilled by the migration. `MigrationTest` must keep every name, cover and merge.
-- Drift counter: new persons created and faces further from their person's mean than the cut. Past a line (~5%) → queue a rebuild. This keeps the fast path from rotting.
-- Full pass: same algorithm, blocked rows and half-precision storage, so memory is O(n) instead of O(n²) and the result is identical.
-- The means also make Merge with cheap: no `faceVecs()` read on every sheet open (`Merge.kt`).
-- Tests: unit assign rules (match, no match, quality gate, pets separate, video faces join only), drift, a golden case where assign + rebuild equals rebuild alone, `DaoTest` for the transaction, `MigrationTest`, and a phone run where every name stays on the same person.
-- Rollout: v17 ships the means with the old path, then the run path switches to assign; rollback is calling the old `savePeople` again.
-
-Not started.
-
 ## VideoPlayTest flakes on the 10-bit HEVC clip
 
 `make layout` on the API 37 emulator once failed `plays_asItsRowSays[videos/video_hevc10.mp4]` with `ERROR_CODE_FAILED_RUNTIME_CHECK` (1004); the rerun of `VideoPlayTest` was 11/11 green. The row (`plays or card`) allows only 4000-4999 as "the decoder refused it", and the emulator's 10-bit HEVC path sometimes reports 1004 instead.
@@ -283,3 +265,4 @@ Native heap after 8 flings 52 MB (87 MB on 2026-11-04, not explained), no blank 
 - 2026-11-13 Photos lost the open and close animation, the drag-down and the details square: the page only counted as current when the video player held its file, and a photo never sets that flag. `pageIsCurrent` leaves the player out for photos (later dropped: the page in view takes the motion, the player only decides where the video shows). Checked on the phone: the photo grows out of its tile and shrinks back.
 - 2026-11-13 A nudged video page restarted its video from 0 when the pager snapped back: the settle step re-prepared the same file. `prepared` remembers the tile the player holds, so the same video is never prepared twice.
 - 2026-11-15 People & pets: the first open after launch was empty while its list loaded, then 28 covers came one by one (all shown 0.2-0.37 s after the tap). `preloadPeople` warms the list and the first 60 covers at app start, after `preloadLibrary`; the first open now loads nothing, like the second (3 cold starts on the phone, debug).
+- 2026-11-17 Regroup linked every starting face again on each save: an n×n table (2013 faces, 16 MB, 2-3 s on debug) that would run out of memory around 4-8k faces. Saved people now keep their faces and the linkage goes on from them (`groupFaces`, `averageLinkage` with group sums); a new `GROUPING_VERSION` regroups everyone once. On the phone (debug): the one-time full save 2313 ms (grouping 1622), then 613-824 ms (grouping 265-372); all 46 people kept their ids, names and hidden flag, no old face moved. Reading and rewriting every face row (~350-450 ms) is now the bigger part.

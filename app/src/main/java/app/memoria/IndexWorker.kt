@@ -508,12 +508,12 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         }
     }.getOrNull()
 
-    /**
-     * Groups all faces again and replaces the saved people. A new group keeps the id, name and hidden flag of the old person it
-     * matches (see [carry]), so an open Person screen and a name typed mid-run stay on the same person.
-     */
+    /** Saves people (see [regroup]); a new [GROUPING_VERSION] regroups everyone once. */
     private suspend fun savePeople(): Result {
-        regroup(Db.get(applicationContext))
+        val prefs = applicationContext.getSharedPreferences("index", Context.MODE_PRIVATE)
+        val full = prefs.getInt("grouping", 0) != GROUPING_VERSION
+        regroup(Db.get(applicationContext), full = full)
+        if (full) prefs.edit().putInt("grouping", GROUPING_VERSION).apply()
         peopleSaved.value++
         return Result.success()
     }

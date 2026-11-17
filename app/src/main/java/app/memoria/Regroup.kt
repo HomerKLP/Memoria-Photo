@@ -17,20 +17,25 @@ fun carry(ids: List<Long>, old: List<PersonRow>, oldFaces: Map<Long, Set<Long>>,
 }
 
 /**
- * Groups all faces again and replaces the saved people. A new group keeps the id, name and hidden flag of the old person it
- * matches (see [carry]), so an open Person screen and a name typed mid-run stay on the same person. The caller bumps [peopleSaved].
+ * Groups the faces and replaces the saved people. Saved people keep their faces (see [groupFaces]); [full] and a pinned person start over.
+ * A new group keeps the id, name and hidden flag of the old person it matches (see [carry]), so an open Person screen and a name typed
+ * mid-run stay on the same person. The caller bumps [peopleSaved].
  */
-suspend fun regroup(db: Db, pins: Map<Long, Long> = emptyMap()) {
+suspend fun regroup(db: Db, pins: Map<Long, Long> = emptyMap(), full: Boolean = false) {
     val start = System.nanoTime()
     val dao = db.index()
     // one transaction: a name or New person saved during the regroup waits for it instead of being lost
-    val (saved, kept) = db.withTransaction {
+    val (saved, kept, groupMs) = db.withTransaction {
         val faces = dao.faceVecs()
         val old = dao.people()
         val oldFaces = faces.filter { it.personId != null }.groupBy { it.personId!! }.mapValues { e -> e.value.map { it.id }.toSet() }
         val merges = dao.merges()
         val answers = dao.answers()
-        val people = groupFaces(faces.filter { !it.pet }, answers, merges) + groupPets(faces.filter { it.pet }, answers, merges)
+        // a face with no person goes back into the linkage alone: Unmerge (pins) splits that person this way
+        val toGroup = faces.map { if (full || it.personId in pins) FaceVec(it.id, it.photoId, it.box, it.vector, it.quality, it.kind, null, it.yes, it.rejected, it.nearSure, it.pet) else it }
+        val t = System.nanoTime()
+        val people = groupFaces(toGroup.filter { !it.pet }, answers, merges) + groupPets(faces.filter { it.pet }, answers, merges)
+        val groupMs = (System.nanoTime() - t) / 1_000_000
         val taken = mutableSetOf<Long>()
         // a pinned face no group holds any more pins nothing: that person is carried by overlap as usual
         val live = pins.filterValues { f -> people.any { p -> p.faces.any { it.id == f } } }
@@ -48,7 +53,7 @@ suspend fun regroup(db: Db, pins: Map<Long, Long> = emptyMap()) {
             val near = p.faces.filter { it.nearSure }.map { it.id }
             if (near.isNotEmpty()) dao.setNearSure(near)
         }
-        people.size to taken.size
+        Triple(people.size, taken.size, groupMs)
     }
-    AppLog.i("saved $saved people ($kept kept their id) in ${(System.nanoTime() - start) / 1_000_000} ms")
+    AppLog.i("saved $saved people ($kept kept their id) in ${(System.nanoTime() - start) / 1_000_000} ms, grouping $groupMs ms${if (full) ", full" else ""}")
 }

@@ -14,11 +14,15 @@ internal fun dot(a: FloatArray, b: FloatArray): Float {
 
 internal fun mean(faces: List<FaceVec>) = FloatArray(512).also { m -> faces.forEach { f -> f.vector.forEachIndexed { k, v -> m[k] += v } } }
 
-/** Average linkage on cosine distance (normalized vectors), groups whose distance is at most [cut], like scipy in the bench. Indices into [vectors]. */
-fun averageLinkage(vectors: List<FloatArray>, cut: Float): List<List<Int>> {
+/**
+ * Average linkage on cosine distance (normalized vectors), groups whose distance is at most [cut], like scipy in the bench. Indices into [vectors].
+ * A vector may be the sum of [sizes] faces, so the linkage goes on from those groups: two groups are 1 - sumA·sumB / (|A|·|B|) apart on average.
+ */
+fun averageLinkage(vectors: List<FloatArray>, cut: Float, sizes: List<Int> = List(vectors.size) { 1 }): List<List<Int>> {
     val n = vectors.size
     val d = Array(n) { FloatArray(n) }
-    for (i in 0 until n) for (j in i + 1 until n) { d[i][j] = 1 - dot(vectors[i], vectors[j]); d[j][i] = d[i][j] }
+    for (i in 0 until n) for (j in i + 1 until n) { d[i][j] = 1 - dot(vectors[i], vectors[j]) / (sizes[i] * sizes[j]); d[j][i] = d[i][j] }
+    val size = sizes.toIntArray()
     val members = Array(n) { mutableListOf(it) }
     val alive = BooleanArray(n) { true } // not merged into another group
     val open = BooleanArray(n) { true } // may still merge
@@ -40,14 +44,17 @@ fun averageLinkage(vectors: List<FloatArray>, cut: Float): List<List<Int>> {
         if (top > 1 && y == chain[top - 2]) {
             top -= 2
             val a = min(x, y); val b = max(x, y)
-            val na = members[a].size; val nb = members[b].size
+            val na = size[a]; val nb = size[b]
             for (k in 0 until n) { d[a][k] = (na * d[a][k] + nb * d[b][k]) / (na + nb); d[k][a] = d[a][k] }
-            members[a].addAll(members[b])
+            members[a].addAll(members[b]); size[a] += nb
             alive[b] = false; open[b] = false
         } else chain[top++] = y
     }
     return (0 until n).filter { alive[it] }.map { members[it] }
 }
+
+/** Bump when [groupFaces] changes how people form: the next save regroups everyone once, else saved people keep the old grouping. */
+const val GROUPING_VERSION = 1
 
 /**
  * Like bench.py group: average linkage on cosine distance, cut at 0.68, faces from 40 px.
@@ -55,14 +62,17 @@ fun averageLinkage(vectors: List<FloatArray>, cut: Float): List<List<Int>> {
  * other faces join the closest person under the cut. Joined faces under 0.4 are unsure: they wait for the user's yes / no.
  * [answers]: a yes keeps the face with that person and lets faces within 0.5 of it join too, a no rules that person out.
  * [merges]: the groups that hold both main faces of a Merge with become one.
+ * A starting face keeps its saved person ([FaceVec.personId]): new faces join people or each other, nobody is split or moved.
  */
 fun groupFaces(all: List<FaceVec>, answers: List<AnswerRow> = emptyList(), merges: List<MergeRow> = emptyList(), cut: Float = 0.68f): List<Person> {
     // a face the user fixed by hand follows the answers: it never starts a person (a moved face would go back), and small ones stay
     val answered = answers.map { it.faceId }.toSet()
     val (seeds, others) = all.filter { min(it.box[2] - it.box[0], it.box[3] - it.box[1]) >= 40 || it.id in answered }
         .partition { it.kind == PhotoKind.camera && it.quality >= 0.4f && it.id !in answered }
+    // the linkage starts from the saved people, so a new face is compared with each person, not with every face
+    val start = seeds.filter { it.personId != null }.groupBy { it.personId }.values.toList() + seeds.filter { it.personId == null }.map { listOf(it) }
     // A person needs faces from 6+ photos: fewer is often statues, posters or strangers seen once
-    val auto = averageLinkage(seeds.map { it.vector }, cut).map { g -> g.map { seeds[it] } }.filter { it.distinctBy { f -> f.photoId }.size > 5 }
+    val auto = averageLinkage(start.map { mean(it) }, cut, start.map { it.size }).map { g -> g.flatMap { start[it] } }.filter { it.distinctBy { f -> f.photoId }.size > 5 }
     // "Who is this?" > New person: a yes to the face's own id. That person grows only by the user's yes, never by distance.
     // A video face never starts one that way either: it is never shown, so no answer can point at it.
     val selfYes = answers.filter { it.yes && it.faceId == it.personFace }.map { it.faceId }.toSet()

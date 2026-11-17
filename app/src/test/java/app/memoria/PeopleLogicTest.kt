@@ -165,6 +165,28 @@ class PeopleLogicTest {
         assertEquals((1L..6L).toSet() + (11L..16L), merged.single().faces.map { it.id }.toSet())
     }
 
+    private fun saved(f: FaceVec, person: Long) = FaceVec(f.id, f.photoId, f.box, f.vector, f.quality, f.kind, person)
+
+    @Test fun savedPeopleKeepTheirFaces_newFacesJoinOrMakeAPerson() {
+        val b = (11L..16L).map { at(it, 0.9f, 0f, 1f) }
+        val x = at(20, 0.9f, 0f, 1f) // looks like b, saved with the seeds' person
+        val n = at(21, 0.9f, 1f) // new, looks like the seeds
+        val c = (31L..36L).map { at(it, 0.9f, 0f, 0f, 1f) } // new, nobody's
+        val ids = { people: List<Person> -> people.map { p -> p.faces.map { it.id }.toSet() }.toSet() }
+        assertEquals(
+            setOf((1L..6L).toSet() + 20L + 21L, (11L..16L).toSet(), (31L..36L).toSet()),
+            ids(groupFaces((seeds + x).map { saved(it, 1) } + b.map { saved(it, 2) } + n + c)),
+        )
+        // from scratch x goes to b
+        assertEquals(setOf((1L..6L).toSet() + 21L, (11L..16L).toSet() + 20L, (31L..36L).toSet()), ids(groupFaces(seeds + b + x + n + c)))
+    }
+
+    @Test fun anUnmergedPersonSplitsOnlyWhenItsFacesStartOver() {
+        val other = (11L..16L).map { at(it, 0.9f, 0f, 1f) }
+        assertEquals(1, groupFaces((seeds + other).map { saved(it, 1) }).size)
+        assertEquals(2, groupFaces(seeds + other).size)
+    }
+
     @Test fun aNewPersonKeepsItsFace_andNeverGrowsByDistance() {
         val n = at(7, 0.35f, 0.9f, 0.436f) // 0.1 from the seeds
         val twin = at(8, 0.35f, 0.9f, 0.436f)
