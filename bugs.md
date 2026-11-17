@@ -132,6 +132,11 @@ Still open:
 - Fix ideas: the SurfaceView swap (HDR step 2 in `decisions.md`); or Media3's `setEarlySchedulingThresholdUs` with dynamic scheduling (experimental).
 - Check: `adb shell dumpsys gfxinfo app.memoria.debug framestats` while a clip plays, gaps between IntendedVsync.
 
+## 2x hold takes about half a second to reach full speed
+- Seen 2026-11-17, the price of the pause/play fix below: `speed 2x at 23329 ms` → `speed 1x at 25842 ms`, so 2513 ms of picture in 1594 ms of finger (1.6x): about 0.7 s of the hold ran at 1x. On the 11 s clip: 1564 ms in 1111 ms.
+- Why: without `setEnableAudioTrackPlaybackParams` ExoPlayer drains the buffered sound through Sonic before the new speed applies. The flag skipped the drain but froze the clock after a pause (Fixed, 2026-11-17).
+- Fix idea: wait for the SurfaceView swap (HDR step 2) and see if the drain still matters; or set the speed on the AudioTrack only while a finger is down, if media3 ever offers it per speed.
+
 # Known issues and bad patterns
 
 Found while reading the code, not seen on the phone yet. No steps, just the risk.
@@ -266,3 +271,4 @@ Native heap after 8 flings 52 MB (87 MB on 2026-11-04, not explained), no blank 
 - 2026-11-13 A nudged video page restarted its video from 0 when the pager snapped back: the settle step re-prepared the same file. `prepared` remembers the tile the player holds, so the same video is never prepared twice.
 - 2026-11-15 People & pets: the first open after launch was empty while its list loaded, then 28 covers came one by one (all shown 0.2-0.37 s after the tap). `preloadPeople` warms the list and the first 60 covers at app start, after `preloadLibrary`; the first open now loads nothing, like the second (3 cold starts on the phone, debug).
 - 2026-11-17 Regroup linked every starting face again on each save: an n×n table (2013 faces, 16 MB, 2-3 s on debug) that would run out of memory around 4-8k faces. Saved people now keep their faces and the linkage goes on from them (`groupFaces`, `averageLinkage` with group sums); a new `GROUPING_VERSION` regroups everyone once. On the phone (debug): the one-time full save 2313 ms (grouping 1622), then 613-824 ms (grouping 265-372); all 46 people kept their ids, names and hidden flag, no old face moved. Reading and rewriting every face row (~350-450 ms) is now the bigger part.
+- 2026-11-17 Player: two pause/play taps froze the clock (sound gone, picture at ~1/3 speed), and 10 s later the "can't play here" card. `setEnableAudioTrackPlaybackParams` made the AudioTrack stop consuming after a pause while media3 kept it as its clock, until `StuckPlayerDetector` threw `ERROR_CODE_TIMEOUT`. The flag is gone and ExoPlayer changes the sound's speed itself again. On the phone (debug): 5 pause/play cycles on a 1080p and a 4K HEVC clip advance 1 s per second, the 4K clip played to its end with 0 dropped frames and 0 audio underruns; seek, 2x hold, swipe to a photo and back, and close checked too. The 2x hold starts again about 0.5 s late (open bug above).

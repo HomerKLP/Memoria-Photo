@@ -74,6 +74,7 @@ import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.analytics.AnalyticsListener
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -94,9 +95,10 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
     // phone's own hardware decoder, the same one the system player uses, so the usual codecs play fast.
     // Audio focus is asked for, so a call or another app's music owns the sound like in a real player.
     val player = remember {
-        // The system changes the sound's speed: ExoPlayer's own way waits for half a second of buffered
-        // sound to play out, so a 2x hold started late and the picture froze while the clock caught up
-        ExoPlayer.Builder(context, DefaultRenderersFactory(context).setEnableAudioTrackPlaybackParams(true)).setAudioAttributes(
+        // ExoPlayer changes the sound's speed itself (Sonic), not the system: letting the AudioTrack do it
+        // (setEnableAudioTrackPlaybackParams) froze the clock after a pause and play on the test phone,
+        // until media3 gave up with ERROR_CODE_TIMEOUT (bugs.md, 2026-11-17)
+        ExoPlayer.Builder(context, DefaultRenderersFactory(context)).setAudioAttributes(
             AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(),
             true,
         ).setHandleAudioBecomingNoisy(true) // headphones out: pause, never go on through the speaker
@@ -117,11 +119,17 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
     var touched by remember { mutableIntStateOf(0) } // any finger on the viewer restarts the controls' 2 s fade
     var menuOpen by remember { mutableStateOf(false) }
     DisposableEffect(player) {
+        // Counted for the one line written when the viewer closes: a stutter or a silent clip on the phone
+        // is then in memoria.log with a number next to it
+        var dropped = 0
+        var underruns = 0
         val listener = object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) { playing = isPlaying }
-            override fun onPlayerError(error: PlaybackException) { failed = prepared }
+            // the card hides the reason, so a refused clip leaves a line in the log
+            override fun onPlayerError(error: PlaybackException) { failed = prepared; AppLog.w("player: ${error.errorCodeName} ${error.message}", error.cause) }
             override fun onVideoSizeChanged(size: VideoSize) {
                 videoAspect = videoAspectOf(size.width, size.height, size.pixelWidthHeightRatio)
+                AppLog.i("player: video ${size.width}x${size.height}")
             }
             // a new clip's empty tracks are skipped, so two HDR clips in a row never dim in between
             override fun onTracksChanged(tracks: Tracks) {
@@ -131,11 +139,24 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
                 }
             }
         }
+        val analytics = object : AnalyticsListener {
+            override fun onDroppedVideoFrames(eventTime: AnalyticsListener.EventTime, droppedFrames: Int, elapsedMs: Long) { dropped += droppedFrames }
+            override fun onAudioUnderrun(eventTime: AnalyticsListener.EventTime, bufferSize: Int, bufferSizeMs: Long, elapsedSinceLastFeedMs: Long) { underruns++ }
+        }
         player.addListener(listener)
-        onDispose { player.removeListener(listener); player.release() }
+        player.addAnalyticsListener(analytics)
+        onDispose {
+            player.removeListener(listener)
+            val at = runCatching { player.currentPosition }.getOrNull()
+            player.release() // joins the playback thread, so the counters below are the last ones
+            AppLog.i("player: closed at $at ms, dropped $dropped frames, $underruns audio underruns")
+        }
     }
     LaunchedEffect(loop) { player.repeatMode = if (loop) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF }
-    LaunchedEffect(holding) { player.setPlaybackSpeed(if (holding) 2f else 1f) }
+    LaunchedEffect(holding) {
+        player.setPlaybackSpeed(if (holding) 2f else 1f)
+        if (player.currentMediaItem != null) AppLog.i("player: speed ${if (holding) "2x" else "1x"} at ${runCatching { player.currentPosition }.getOrNull()} ms")
+    }
     // A playing video keeps the screen awake, like the phone's own player; otherwise the display sleeps mid-clip
     val rootView = LocalView.current
     LaunchedEffect(playing) { rootView.keepScreenOn = playing }
@@ -241,6 +262,7 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
             player.prepare()
             player.play()
             prepared = tile.id
+            AppLog.i("player: open ${tile.duration} ms, ratio ${tile.ratio}")
         }
     }
     // A TextureView shows HDR only in an HDR window, so the window goes HDR while the player holds an HDR clip.
@@ -265,6 +287,7 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
         val end = player.duration.coerceAtLeast(0L)
         val to = (player.currentPosition + dir * 5000L).coerceIn(0L, if (end > 0L) end else Long.MAX_VALUE)
         player.seekTo(to)
+        AppLog.i("player: skip ${if (dir > 0) "+5" else "-5"} s to $to ms")
         playAt = to
         pill = dir
         scope.launch { delay(450); if (pill == dir) pill = 0 }
@@ -457,16 +480,24 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
                         length = videoLength,
                         onToggle = {
                             // mid-swipe the player still holds the last video
-                            if (prepared == tile.id && player.isPlaying) player.pause()
-                            else if (prepared == tile.id) {
+                            if (prepared == tile.id && player.isPlaying) {
+                                player.pause()
+                                AppLog.i("player: pause at ${player.currentPosition} ms")
+                            } else if (prepared == tile.id) {
                                 if (player.playbackState == Player.STATE_ENDED) player.seekTo(0)
                                 player.play()
+                                AppLog.i("player: play at ${player.currentPosition} ms")
                             }
                         },
                         // the knob stays where it was let go, not where the clock last read
                         onSeek = { if (prepared == tile.id) { player.seekTo(it); playAt = it } },
                         // Media3's mode for many quick seeks: the frame follows the finger, playback waits for the lift
-                        onScrubbing = { if (prepared == tile.id) player.isScrubbingModeEnabled = it },
+                        onScrubbing = {
+                            if (prepared == tile.id) {
+                                player.isScrubbingModeEnabled = it
+                                if (!it) AppLog.i("player: seek to ${player.currentPosition} ms")
+                            }
+                        },
                     )
                 }) else null,
             )
