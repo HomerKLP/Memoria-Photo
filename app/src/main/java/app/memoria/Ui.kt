@@ -74,6 +74,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -86,12 +92,15 @@ import kotlin.math.roundToInt
 private val cache = mutableMapOf<String, Any?>()
 
 /**
- * Values two screens show (Library and Search), built once and shared, with the keys each was built for.
+ * Values several screens show (Library, Search, Places, Categories), built once and shared, with the keys each was built for.
  * A different stamp means the copy is old: Library rebuilt for another [peopleSaved] or after a screen
  * went back to it, so its data changed and the next screen must not show the old one.
+ * Each entry is the load itself, so a screen that asks while it runs waits for it instead of loading again.
  */
 private val shared = mutableMapOf<String, Any?>()
 private val sharedStamps = mutableMapOf<String, List<Any?>>()
+// not a screen's scope: a screen that closes mid-load must not cancel the load another screen waits for
+private val sharedScope = CoroutineScope(SupervisorJob())
 
 /** The shared value built for exactly this [stamp], or null: a copy built for other keys is out of date. */
 internal fun sharedHit(values: Map<String, Any?>, stamps: Map<String, List<Any?>>, key: String, stamp: List<Any?>): Any? =
@@ -99,9 +108,13 @@ internal fun sharedHit(values: Map<String, Any?>, stamps: Map<String, List<Any?>
 
 /** [load] once per [stamp], shared by every screen that asks (see [shared]). */
 suspend fun <T : Any> sharedValue(key: String, stamp: List<Any?>, load: suspend () -> T): T {
+    val job = synchronized(shared) {
+        // a failed load counts as cancelled, so the next ask tries again
+        (sharedHit(shared, sharedStamps, key, stamp) as Deferred<*>?)?.takeUnless { it.isCancelled }
+            ?: sharedScope.async { load() }.also { shared[key] = it; sharedStamps[key] = stamp }
+    }
     @Suppress("UNCHECKED_CAST")
-    (sharedHit(shared, sharedStamps, key, stamp) as? T)?.let { return it }
-    return load().also { shared[key] = it; sharedStamps[key] = stamp }
+    return job.await() as T
 }
 
 /**
@@ -140,9 +153,14 @@ suspend fun <T : Any> preloadCached(key: String, load: suspend () -> T) {
  * starts from this cache, so a small change like a new cover shows on its first frame instead of the
  * stale value. Does nothing when the key is not cached or holds another type.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 fun <T : Any> updateCached(key: String, type: Class<T>, transform: (T) -> T) {
     updateInCache(cache, key, type, transform)
-    updateInCache(shared, key, type, transform) // Search shows the same value, so it takes the change too
+    // Search shows the same value, so it takes the change too; a load still running is left alone
+    synchronized(shared) {
+        val done = (shared[key] as Deferred<*>?)?.takeIf { it.isCompleted && !it.isCancelled }?.getCompleted()
+        if (type.isInstance(done)) shared[key] = CompletableDeferred(transform(type.cast(done)!!))
+    }
 }
 
 /** The map part of [updateCached], split out so it can be unit-tested without a composition. */

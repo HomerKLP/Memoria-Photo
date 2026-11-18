@@ -103,14 +103,12 @@ suspend fun loadCategories(context: Context, tiles: List<Tile>, scored: Pair<Lis
 }
 
 /** The [COVER_TAG] score per photo: how much the photo looks like a nice place (higher = nicer). */
-fun niceScores(scored: Pair<List<Tag>, List<PhotoTagRow>>): Map<Long, Float> =
-    scored.second.mapNotNull { r ->
+fun niceScores(rows: List<PhotoTagRow>): Map<Long, Float> =
+    rows.mapNotNull { r ->
         r.tags.split(';').firstNotNullOfOrNull { hit ->
             hit.split(' ').takeIf { it.size == 2 && it[0] == COVER_TAG }?.let { r.photoId to it[1].toFloat() }
         }
     }.toMap()
-
-suspend fun niceScores(context: Context): Map<Long, Float> = niceScores(scoredTags(context))
 
 /** One tag on just its photos, for the Category screen: no MediaStore scan of the whole library. */
 private suspend fun loadCategory(context: Context, id: String): Category? = withContext(Dispatchers.IO) {

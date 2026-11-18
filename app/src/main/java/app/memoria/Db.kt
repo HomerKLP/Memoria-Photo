@@ -113,6 +113,13 @@ interface IndexDao {
             "EXISTS(SELECT 1 FROM answer a WHERE a.faceId = f.id AND NOT a.yes) AS rejected FROM face f JOIN photo p ON p.id = f.photoId WHERE NOT f.notFace",
     )
     suspend fun faceVecs(): List<FaceVec>
+    /** [faceVecs] of saved people only, for Help recognize and Merge with: no loose faces' vectors. */
+    @Query(
+        "SELECT f.id, f.photoId, f.box, f.vector, f.quality, p.kind, f.personId, f.nearSure, f.pet, " +
+            "EXISTS(SELECT 1 FROM answer a WHERE a.faceId = f.id AND a.yes) AS yes, " +
+            "EXISTS(SELECT 1 FROM answer a WHERE a.faceId = f.id AND NOT a.yes) AS rejected FROM face f JOIN photo p ON p.id = f.photoId WHERE NOT f.notFace AND f.personId IS NOT NULL",
+    )
+    suspend fun personFaceVecs(): List<FaceVec>
     /** The faces of one photo, with vectors: a handful of rows instead of the whole [faceVecs]. No pets: the person-box rule is about faces. */
     @Query(
         "SELECT f.id, f.photoId, f.box, f.vector, f.quality, p.kind, f.personId, f.nearSure, f.pet, " +
@@ -171,6 +178,7 @@ interface IndexDao {
     suspend fun untaggedVectors(model: Int, stamp: Int): List<PhotoVectorRow>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertTags(rows: List<PhotoTagRow>)
     @Query("SELECT * FROM photo_tag WHERE stamp = :stamp") suspend fun photoTags(stamp: Int): List<PhotoTagRow>
+    @Query("SELECT t.* FROM photo_tag t JOIN photo p ON p.id = t.photoId WHERE p.townId = :town AND t.stamp = :stamp") suspend fun tagsInTown(town: Int, stamp: Int): List<PhotoTagRow>
     @Query("DELETE FROM photo_tag WHERE photoId IN (:ids)") suspend fun deleteTags(ids: List<Long>)
     /** Items with every index step done: the face pass, a vector from tagger [model] while [tagger] is on the phone, boxes from [objectsModel] while [objects] is. A video is done as soon as it is indexed: it is never tagged or boxed. */
     @Query(

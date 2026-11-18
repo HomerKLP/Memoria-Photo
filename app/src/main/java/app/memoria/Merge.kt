@@ -102,7 +102,7 @@ fun MergeSheet(person: Person, people: List<Person>, onDismiss: () -> Unit, onMe
     // once here when the sheet opens, not on every People open.
     var means by remember { mutableStateOf<Map<Long, FloatArray>?>(null) }
     LaunchedEffect(person.id, people) {
-        val byPerson = withContext(Dispatchers.IO) { dao.faceVecs().filter { it.personId != null }.groupBy { it.personId!! } }
+        val byPerson = withContext(Dispatchers.IO) { dao.personFaceVecs().groupBy { it.personId!! } }
         means = byPerson.mapValues { mean(it.value) }
     }
     val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)

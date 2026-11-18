@@ -99,7 +99,7 @@ fun forgetTiles(ids: Set<Long>) {
     lastFavorites = lastFavorites?.filterNot { it is Tile && it.id in ids }
 }
 
-/** Goes up when the viewer changes a photo or closes, so the screen under it reloads in place. */
+/** Goes up on every photo edit (the viewer or select mode), so the screens showing it reload. */
 var viewerEdits by mutableIntStateOf(0)
 
 /** Where each grid tile is on screen, so the viewer can grow a photo out of it and shrink it back in. */

@@ -42,7 +42,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -414,14 +413,13 @@ fun VideosContent(videos: Videos?, onBack: () -> Unit = {}, onOpen: (List<Tile>,
 }
 
 @Composable
-fun VideosScreen(onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit, reload: Int = 0) {
+fun VideosScreen(onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit) {
     val context = LocalContext.current
     val pick = rememberPick()
-    val saved by peopleSaved.collectAsState()
-    // every edit needs a fresh snapshot, so the key takes the whole count (shared keeps one copy per key)
-    val videos by cachedProduceState("videos", saved, reload, pick.changes, isEmpty = { it.all.isEmpty() }) {
+    // its own scan, not Library's snapshot: cheap, and an edit here would rebuild people and tags too
+    val videos by cachedProduceState("videos", pick.changes, isEmpty = { it.all.isEmpty() }) {
         withContext(Dispatchers.IO) {
-            val all = sharedLibrary(context, saved, reload, pick.changes).albums.flatMap { it.tiles }.filter { it.duration != null }.sortedByDescending { it.date }
+            val all = albums(context).flatMap { it.tiles }.filter { it.duration != null }.sortedByDescending { it.date }
             var bytes = 0L
             context.contentResolver.query(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, arrayOf(MediaStore.Video.Media.SIZE), null, null, null)?.use { c ->
                 while (c.moveToNext()) bytes += c.getLong(0)

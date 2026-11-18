@@ -383,7 +383,7 @@ fun App(dir: File, openSettings: Int = 0, atUpdates: Boolean = false, jump: Jump
                             is Screen.Place -> PlaceScreen(s.id, onBack = back, onOpen = open)
                             Screen.Categories -> CategoriesScreen(onBack = back, onOpenCategory = { push(Screen.Category(it)) }, reload = returns)
                             is Screen.Category -> CategoryScreen(s.id, onBack = back, onOpen = open)
-                            Screen.Videos -> VideosScreen(onBack = back, onOpen = open, reload = returns)
+                            Screen.Videos -> VideosScreen(onBack = back, onOpen = open)
                             Screen.Search -> SearchScreen(
                                 onBack = back,
                                 reload = returns,

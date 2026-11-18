@@ -8,6 +8,40 @@ Style: one-line description, steps to reproduce, fix ideas. Code paths only when
 
 Fix idea: for `plays or card`, accept any error whose code is not a file/container error, or treat this row as `card` on an emulator.
 
+## Regroup reads every face vector and rewrites every face row
+
+Each save (`regroup`, `Regroup.kt`) reads `faceVecs()`, every face with its vector, then clears `personId` on every face (`clearPersonIds`) and writes it back for every person (`setPerson`), all in one transaction, so a rename waits for it. The 2026-11-17 fix made only the grouping step incremental. On the phone (debug, 2026-11-17) a save with nothing new took 613-824 ms, of which grouping was 265-372 ms; the rest is this read and write.
+
+Steps: Dev tools > Index test folder with nothing new, then the log line `saved N people in X ms, grouping Y ms`: X minus Y.
+
+Fix idea: write only the faces whose `personId` or `nearSure` changed (the read already has the old values); the person table is small, keep replacing it. Reading fewer vectors is harder: the linkage needs each person's sum, and stored sums were dropped on 2026-11-17.
+
+## People and Library both build every person
+
+`peopleData` (People & pets) and Library's people step each read `taggedFaces()` and build every person: at app start (`preloadLibrary`, then `preloadPeople`) and on each index save while People is open. The people step is most of a Library load (721 of 997 ms on the phone's debug build, 2026-11-13).
+
+Steps: open People during an index run; each save reloads Library under it and People on top, each with its own `taggedFaces()` pass.
+
+Fix idea: People takes its list from Library's snapshot (`sharedLibrary`, keyed on `returns`) until it edits something; its own edits bump a local `reload`, and after one it loads alone as today. `preloadPeople` reads the same snapshot.
+
+## The Details fix sheet reads every person on each face tap
+
+Viewer > Details > tap a face: `Details.kt` reads `taggedFaces()` and every person to fill the Who is this? sheet, again on each tap.
+
+Steps: open Details on a photo with two faces and tap one, close the sheet, tap the other: each opens after a full read.
+
+Fix idea: take People's cached list (the `people` cache) and read only when it is missing.
+
+## Albums and Folders to skip scan MediaStore though Library has the albums
+
+`AlbumsScreen` and `SkipScreen` call `albums(context)` (~85 ms debug) while Library's snapshot holds the same list. Low: both show their cache first.
+
+Fix idea: read `sharedLibrary(...).albums`. New album pushes Albums again without bumping `returns`, so that path needs a fresh load.
+
+## Categories shows a blank page with no categories
+
+Seen on an emulator with no tagger model: the bar says "0 categories" and the page is empty, where Places shows its "No places yet" state. Fix idea: an empty state like Places (design first).
+
 ## Search tab taking too long to load, why?
 
 Search built its own copy of everything on every open: a full MediaStore scan (`albums(context)`), every tagged face, places, categories and the tag scoring — the same work Library had just done — and the tag scoring ran twice (once for categories, once for `niceScores`).
@@ -147,12 +181,12 @@ Found while reading the code, not seen on the phone yet. No steps, just the risk
 - **Small faces drop out.** Faces under 40 px never join a person and are also missing from the People screen (`People.kt` `groupFaces`). Intended, but they are silently gone, not "unsure".
 - **Global mutable state.** `lastTimeline` and `thumbs` are top-level (`Photos.kt`); the Photos tab and the viewer both depend on them silently.
 - **Bitmap churn.** `detect` makes new full-size bitmaps per photo and never recycles (`Faces.kt`). Adds to load cost and heat.
-- **`groupFaces` holds an n×n float matrix in memory** (`People.kt`). Time is O(n²) since the NN-chain (2026-10-17), but memory is 17 MB at today's 2052 starting faces and ~400 MB at 10k. Store half of it (or float16) before libraries get that big.
+- **`averageLinkage` holds an n×n float matrix in memory** (`Groups.kt`). Since 2026-11-17 a save links people plus loose faces (39 + 471 on the DB copy, ~1 MB), but a full regroup (a `GROUPING_VERSION` bump) still links every starting face: 17 MB at 2052 faces, ~400 MB at 10k. Store half of it (or float16) before libraries get that big.
 - **Flaky `NavigationTest.search_categoryWordHit_backReturnsToSearchWithTheText`.** Failed once on the emulator (2026-10-31) with Compose's "Detected multithreaded access to SnapshotStateObserver", no app frames in the trace; the class passed 13/13 on a rerun. If it shows again, look for a draw started off the main thread.
 - **Dead `photo.path` column.** `PhotoRow.path` (`Index.kt`) is written on insert but no query reads it. Remove it when the schema is next touched (needs a migration).
 - **`FaceImage` loads one face per query.** Every face on screen runs its own `thumb(id)` query and WebP decode (`People.kt`). People draws ~50 covers (one per person, not per face), so ~50 queries where one `WHERE id IN (...)` would do. Not a wall (people grow slowly), but the wrong shape: batch the ids a screen is about to show, or coalesce the requests in the cache so no screen has to remember to prefetch.
 - **AutoIndex scans the whole library on every app open.** `changedPhotos` (`AutoIndex.kt`) builds `libraryPhotos` (~4.4k `MediaPhoto`s) plus `photoIds` / `taggedIds` / `boxedIds` sets and `unplaced().size` each time the app comes to the front (3 s after the change burst), even when nothing is new. ~50-100 ms of background work per open, linear in the library. Compare a cheap count first.
-- **Each screen scans MediaStore again.** `timeline`, `albums` and `trash` are three separate scans of the same table; Library runs two per open, and Categories, Category, Place, Videos and Folders to skip each call `albums(context)` for the same rows (`Photos.kt`, `Albums.kt`). Search no longer scans (it reads Library's shared snapshot, 2026-11-13). One shared, in-memory scan is in `ROADMAP.md` Phase 11 (from the 2026-11-02 perf review).
+- **Each screen scans MediaStore again.** `timeline`, `albums` and `trash` are three separate scans of the same table; Library runs two per open, and Albums, Videos and Folders to skip each call `albums(context)` for the same rows (`Photos.kt`, `Albums.kt`). Search, Places and Categories no longer scan (they read Library's shared snapshot, 2026-11-13 and 2026-11-17); Category and Place read only their own photos. One shared, in-memory scan is in `ROADMAP.md` Phase 11 (from the 2026-11-02 perf review).
 - **The face and thumb caches are never trimmed.** `thumbs` (`maxMemory / 2`) and `faceBitmaps` (`maxMemory / 8`) have no `onTrimMemory` (`Photos.kt`, `People.kt`), so 5/8 of the heap is held across a background/foreground switch.
 
 ## Perf numbers (`make perf`)
@@ -273,3 +307,4 @@ Native heap after 8 flings 52 MB (87 MB on 2026-11-04, not explained), no blank 
 - 2026-11-15 People & pets: the first open after launch was empty while its list loaded, then 28 covers came one by one (all shown 0.2-0.37 s after the tap). `preloadPeople` warms the list and the first 60 covers at app start, after `preloadLibrary`; the first open now loads nothing, like the second (3 cold starts on the phone, debug).
 - 2026-11-17 Regroup linked every starting face again on each save: an n×n table (2013 faces, 16 MB, 2-3 s on debug) that would run out of memory around 4-8k faces. Saved people now keep their faces and the linkage goes on from them (`groupFaces`, `averageLinkage` with group sums); a new `GROUPING_VERSION` regroups everyone once. On the phone (debug): the one-time full save 2313 ms (grouping 1622), then 613-824 ms (grouping 265-372); all 46 people kept their ids, names and hidden flag, no old face moved. Reading and rewriting every face row (~350-450 ms) is now the bigger part.
 - 2026-11-17 Player: two pause/play taps froze the clock (sound gone, picture at ~1/3 speed), and 10 s later the "can't play here" card. `setEnableAudioTrackPlaybackParams` made the AudioTrack stop consuming after a pause while media3 kept it as its clock, until `StuckPlayerDetector` threw `ERROR_CODE_TIMEOUT`. The flag is gone and ExoPlayer changes the sound's speed itself again. On the phone (debug): 5 pause/play cycles on a 1080p and a 4K HEVC clip advance 1 s per second, the 4K clip played to its end with 0 dropped frames and 0 audio underruns; seek, 2x hold, swipe to a photo and back, and close checked too. The 2x hold starts again about 0.5 s late (open bug above).
+- 2026-11-18 Library's snapshot loaded twice at once: at start (the warm-up and the tab) and on every Back from Search, Places or Categories (the leaving screen and Library asked together). `sharedValue` now keeps one load per stamp in an app scope (`SharedCacheTest`); emulator: Back went from 2 `library load` lines to 1. Also from the 2026-11-18 review: Places stayed stale after a delete in a town while indexing was paused (select-mode edits now bump the global `viewerEdits`, which is in the stamp); Videos went back to its own `albums()` scan, since an edit there rebuilt the whole snapshot; Help recognize and Merge with read only people's faces (`personFaceVecs`); the Place screen reads only its town's tags (`tagsInTown`).

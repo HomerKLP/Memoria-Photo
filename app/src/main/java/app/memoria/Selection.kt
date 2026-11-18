@@ -16,7 +16,6 @@ import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -73,7 +72,6 @@ class Pick(
 fun rememberPick(): Pick {
     val context = LocalContext.current
     var ids by remember { mutableStateOf<Set<Long>?>(null) }
-    var changes by remember { mutableIntStateOf(0) }
     val size by produceState(0L, ids) { value = withContext(Dispatchers.IO) { selectedSize(context, ids.orEmpty()) } }
     val scope = rememberCoroutineScope()
     // Android's confirm for photos another app owns: [then] runs on OK
@@ -83,13 +81,13 @@ fun rememberPick(): Pick {
         then = null
         scope.launch {
             if (result.resultCode == Activity.RESULT_OK) { onOk?.invoke(); ids = null }
-            changes++ // our own photos changed before the confirm, even on Cancel
+            viewerEdits++ // our own photos changed before the confirm, even on Cancel
         }
     }
     fun confirm(request: PendingIntent, onOk: suspend () -> Unit) { then = onOk; ask.launch(IntentSenderRequest.Builder(request.intentSender).build()) }
-    fun done() { ids = null; changes++ }
+    fun done() { ids = null; viewerEdits++ }
     return Pick(
-        ids, size, changes + viewerEdits, set = { ids = it },
+        ids, size, viewerEdits, set = { ids = it },
         share = { picked ->
             if (picked.isNotEmpty()) {
                 val send = Intent(Intent.ACTION_SEND_MULTIPLE).setType("*/*").putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(picked.map { it.uri }))
