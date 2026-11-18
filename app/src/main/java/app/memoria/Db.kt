@@ -147,7 +147,9 @@ interface IndexDao {
     @Query("UPDATE person SET pos = :pos WHERE id = :id") suspend fun setPos(id: Long, pos: Int)
     @Query("DELETE FROM person") suspend fun deletePeople()
     @Query("UPDATE face SET personId = NULL, nearSure = 0") suspend fun clearPersonIds()
+    @Query("UPDATE face SET personId = NULL WHERE id IN (:faces)") suspend fun unlinkFaces(faces: List<Long>)
     @Query("UPDATE face SET nearSure = 1 WHERE id IN (:faces)") suspend fun setNearSure(faces: List<Long>)
+    @Query("UPDATE face SET nearSure = 0 WHERE id IN (:faces)") suspend fun clearNearSure(faces: List<Long>)
     @Insert suspend fun insertPerson(person: PersonRow)
     @Query("UPDATE face SET personId = :person WHERE id IN (:faces)") suspend fun setPerson(faces: List<Long>, person: Long)
     @Query("SELECT thumb FROM face WHERE id = :id") suspend fun thumb(id: Long): ByteArray?
