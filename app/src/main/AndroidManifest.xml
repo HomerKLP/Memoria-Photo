@@ -23,9 +23,12 @@
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <!-- Qualcomm FastRPC, the NPU (QNN HTP) runs through it -->
         <uses-native-library android:name="libcdsprpc.so" android:required="false" />
-        <!-- portrait only: a rotate recreated the activity and closed the viewer (bugs.md) -->
+        <!-- portrait only: a rotate recreated the activity and closed the viewer (bugs.md).
+             The viewer asks for USER while it is open, and a config change must keep it, its pager
+             and its player: no recreate. -->
         <activity
             android:name=".MainActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
             android:exported="true"
             android:screenOrientation="portrait">
             <intent-filter>

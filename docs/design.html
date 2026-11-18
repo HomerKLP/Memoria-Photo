@@ -269,6 +269,27 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .phone.viewer > .pbadge.speed { top: 66px; }
 /* The failed video: the frame stays behind a scrim, so the card reads on any photo */
 .phone.viewer > .viewer-dim { position: absolute; inset: 0; z-index: 1; background: rgba(18, 14, 10, .55); }
+/* Viewer, sideways: the viewer turns with the phone, the grids and every other screen stay portrait.
+   The frame is the phone on its side, 760 x 360; the camera cutout sits on the left edge, so the
+   bars and the status start clear of it */
+figure.land { width: calc(760px * var(--z)); }
+.phone.land { width: 760px; height: 360px; }
+.phone.land > .cutout { position: absolute; left: 6px; top: 50%; z-index: 4; width: 10px; height: 56px; margin-top: -28px; border-radius: 5px; background: #1F1A16; }
+.phone.land .status, .phone.land .vbar, .phone.land .pbar { padding-left: 34px; padding-right: 34px; }
+/* Sideways the screen is half as tall, so the same 168 px gradient would reach the middle: a shorter one */
+.phone.land.viewer::before, .phone.land.viewer::after { height: 96px; }
+.phone.land .photo-top::before { height: 96px; }
+/* The four actions sit as one compact group in the middle, not spread across the wide screen */
+.phone.land .actions { justify-content: center; gap: 24px; padding-left: 8px; padding-right: 8px; }
+/* Swiped up in landscape: the photo fills the screen, the panel is a narrower sheet over its bottom
+   edge, so the whole picture shows above and at the sides instead of a black band */
+.phone.land.det { display: block; }
+.phone.land.det .photo-top { position: absolute; inset: 0; height: auto; }
+.phone.land.det .info { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); width: 560px; height: 160px; margin: 0; border-radius: 28px 28px 0 0; }
+/* Scrolled up in landscape: the sheet keeps its width and follows the finger over the photo to the very
+   top, and the top bar steps aside, since the sheet repeats the date. The status line stays over it */
+.phone.land.det.up .info { top: 0; bottom: auto; height: 100%; }
+.phone.land.det.up .vbar { display: none; }
 /* A video the player cannot open keeps the phone's own player as the way out */
 .viewer .empty { margin: auto 0; color: rgba(244, 236, 225, .68); }
 .viewer .empty b { color: var(--on-viewer); }
@@ -508,7 +529,7 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 <header class="top">
   <h1>Memoria Photo</h1>
   <p class="lede">Light theme, Honey palette. Photos and faces are placeholders, names and places are made up.</p>
-  <p class="latest"><b>Latest, 15 Nov:</b> <a href="#viewer-details">Photo details</a> — the camera line says Ultra HDR for a photo with a gain map; HDR videos play in HDR, the phone fades their brightness (<a href="#player">Player</a>); <a href="#player-hold">2x hold</a> starts at once. The <a href="#slider-part">month slider</a> draws as its thin line again. <a href="#page-albums">Albums</a> has no More button; the <a href="#category">Category</a> page has no filter icon; <a href="#places-empty">Places, empty</a> is its own screen.</p>
+  <p class="latest"><b>Latest, 18 Nov:</b> <a href="#viewer-landscape-details-up">Viewer, sideways, details</a> — swiping the sheet up carries it, same width, over the photo to the very top, the top bar steps aside, and one pull down takes it away.</p>
 </header>
 
 <aside class="rail" aria-label="Contents">
@@ -804,6 +825,71 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
       </div>
       <figcaption>Viewer, swiped up, scrolled to the end: the Debug section sits last, after Details, in debug builds only (a release build has no such section). Always the same five rows: file (type, EXIF orientation, MediaStore id), faces (count, quality, the people they are in), tags (vector and top three tags), objects (boxes and scores), index (the photo's kind and the objects model version). A photo that is not indexed yet, and any video, shows "Not indexed" and "–" in the last four rows. While it loads every row reads "…", so nothing moves when it fills in. Read from the phone's own database, never sent anywhere. The chip per model and the time per photo are not stored, so they are not here (they stay in the log file)</figcaption>
     </figure>
+    <figure id="viewer-landscape" class="land">
+      <div class="phone dark viewer land">
+        <div class="viewer-full" data-shot></div>
+        <div class="cutout"></div>
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="vbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="when">Sat, 11 Oct<span>14:32</span></div>
+          <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
+        </div>
+        <div class="actions">
+          <button class="icon-btn" aria-label="Share"><svg class="i"><use href="#i-share"/></svg></button>
+          <button class="icon-btn" aria-label="Favorite"><svg class="i"><use href="#i-heart-line"/></svg></button>
+          <button class="icon-btn" aria-label="Info"><svg class="i"><use href="#i-info"/></svg></button>
+          <button class="icon-btn" aria-label="Delete"><svg class="i"><use href="#i-trash-line"/></svg></button>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Viewer, sideways: the viewer turns with the phone; the grids and every other screen stay portrait. The photo fits whole: a landscape photo fills the screen sideways, a portrait one keeps black sides, and nothing is cropped. The bars stay edge to edge and start clear of the camera cutout on the side. The rest is as upright: tap hides the bars, a sideways swipe is the next photo, a pull down closes, More and the details are where they were. The phone's rotate lock wins: locked, the viewer stays upright. Turning back keeps the photo you were on, and a playing video goes on</figcaption>
+    </figure>
+    <figure id="viewer-landscape-details" class="land">
+      <div class="phone dark land det">
+        <div class="photo-top" data-shot>
+          <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+          <div class="vbar">
+            <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+            <div class="when">Sat, 11 Oct<span>14:32</span></div>
+            <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
+          </div>
+        </div>
+        <div class="cutout"></div>
+        <div class="info">
+          <div class="grab"></div>
+          <div class="date"><b>Saturday, 11 October 2026</b><span>14:32 · GMT+1</span></div>
+
+          <div class="head"><h3>Place</h3></div>
+          <div class="line"><svg class="i"><use href="#i-pin"/></svg><div><b>Riverton</b></div></div>
+
+          <div class="head"><h3>Details</h3></div>
+          <div class="line"><svg class="i"><use href="#i-camera"/></svg><div><b>Pixel 8 · Ultra HDR</b><span>f/1.6 · 1/120 s · ISO 100 · 23 mm</span></div></div>
+        </div>
+      </div>
+      <figcaption>Viewer, sideways, swiped up: the details are a narrower panel rising from the bottom edge, as upright, with the same rounded top edge over the photo, so the picture shows at its sides instead of a black band. The photo stays where it is behind it. A swipe up carries the sheet on over the photo to the very top (next figure); a pull down closes it in one gesture, then the photo</figcaption>
+    </figure>
+    <figure id="viewer-landscape-details-up" class="land">
+      <div class="phone dark land det up">
+        <div class="photo-top" data-shot></div>
+        <div class="cutout"></div>
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="info">
+          <div class="grab"></div>
+          <div class="date"><b>Saturday, 11 October 2026</b><span>14:32 · GMT+1</span></div>
+
+          <div class="head"><h3>Place</h3></div>
+          <div class="line"><svg class="i"><use href="#i-pin"/></svg><div><b>Riverton</b></div></div>
+
+          <div class="head"><h3>Details</h3></div>
+          <div class="line"><svg class="i"><use href="#i-camera"/></svg><div><b>Pixel 8 · Ultra HDR</b><span>f/1.6 · 1/120 s · ISO 100 · 23 mm</span></div></div>
+
+          <div class="head"><h3>People &amp; pets</h3></div>
+          <div class="line"><svg class="i"><use href="#i-person"/></svg><div><b>Dana</b></div></div>
+        </div>
+      </div>
+      <figcaption>Viewer, sideways, the details scrolled up: the sheet keeps its width and follows the finger over the photo to the very top, so the list gets the height; the photo shows at its sides and in the rounded top corners. The top bar steps aside, since the sheet repeats the date; the phone's status line stays over it. A pull down takes the whole sheet away in one gesture, back to the photo, whichever stop it was at</figcaption>
+    </figure>
   </div>
 </section>
 <section class="group" id="page-player">
@@ -894,6 +980,31 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
         </div>
       </div>
       <figcaption>Video, More: the photo menu minus Edit in… and Use as…, which need a still photo, plus the video's own. Loop plays it again and again until it is turned off. Open in the phone's player is the manual form of the fallback. Compress video is Phase 5 and stays off until then, like the other unbuilt rows. Five items, no more: a speed picker, subtitles, audio tracks and picture-in-picture were left out to keep the player small. Tap outside or Back closes it</figcaption>
+    </figure>
+    <figure id="player-landscape" class="land">
+      <div class="phone dark viewer video land">
+        <div class="viewer-full" data-shot></div>
+        <div class="cutout"></div>
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="vbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="when">Sat, 11 Oct<span>14:32</span></div>
+          <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
+        </div>
+        <div class="pbar">
+          <button class="icon-btn" aria-label="Pause"><svg class="i"><use href="#i-pause"/></svg></button>
+          <div class="pscrub"><div class="track"><div style="width:44%"></div><b class="knob" style="left:44%"></b></div></div>
+          <span class="ptime">1:24 <i>/ 3:10</i></span>
+        </div>
+        <div class="actions">
+          <button class="icon-btn" aria-label="Share"><svg class="i"><use href="#i-share"/></svg></button>
+          <button class="icon-btn" aria-label="Favorite"><svg class="i"><use href="#i-heart-line"/></svg></button>
+          <button class="icon-btn" aria-label="Info"><svg class="i"><use href="#i-info"/></svg></button>
+          <button class="icon-btn" aria-label="Delete"><svg class="i"><use href="#i-trash-line"/></svg></button>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Video, sideways: the player line reaches across and keeps its buttons clear of the cutout; the four actions sit as one compact group in the middle, since a wide screen would leave them far apart. A landscape clip fills the screen sideways, a portrait clip stays whole in the middle with black sides. Double tap ±5 s and the 2x hold work on the wider halves, the pill on the side that was tapped</figcaption>
     </figure>
   </div>
 </section>

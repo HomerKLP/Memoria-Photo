@@ -243,9 +243,10 @@ fun ViewerPage(
     var page by remember { mutableStateOf<LayoutCoordinates?>(null) }
     // The photo's rect and clip right now. No clip: no tile to fly from, so it fades with [shown].
     fun motion(fit: Size, screen: Size): Pair<Rect, Rect?> {
-        // details out: the photo moves into a full-width square at the top, zoomed to fill it
+        // details out: the photo moves into a full-width square at the top, zoomed to fill it. Sideways
+        // the panel is a sheet over the photo instead, so the photo keeps the whole screen (mockup).
         val d = details()
-        if (d > 0f) {
+        if (d > 0f && screen.width <= screen.height) {
             val square = Rect(0f, 0f, screen.width, screen.width)
             return photoMotion(fit, screen, square, square, 1f - d, 0f)
         }

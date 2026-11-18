@@ -59,6 +59,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -85,6 +86,18 @@ import kotlinx.coroutines.launch
 
 internal val onViewer = Color(0xFFF4ECE1)
 internal val viewerBg = Color(0xFF120E0A)
+
+// Sideways the details are a bottom sheet: 44% of the height and 74% of the width, as in the mockup (160x560 of 360x760)
+internal const val landscapeSheetHeight = 0.44f
+internal const val landscapeSheetWidth = 0.74f
+
+/**
+ * How tall the details panel is on a [width] x [height] screen. Upright it rides up over the photo's
+ * square ([overlap] is the rounded top the two share); sideways it is a sheet over the photo, so its
+ * height comes from the screen alone.
+ */
+internal fun viewerUp(width: Int, height: Int, overlap: Float): Float =
+    if (width > height) height * landscapeSheetHeight else (height - width + overlap).coerceAtLeast(0f)
 
 /** Full-screen photos, swipe sideways for the next one. Opens on the tile with id start. */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class]) // the player's scrubbing mode
@@ -177,7 +190,14 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
     // Tap the photo: the bars and the system bars hide, so only the photo is left. Tap again brings them back.
     var barsVisible by remember { mutableStateOf(true) }
     // Light bar icons on the dark viewer, dark again when it closes
-    val window = (LocalView.current.context as Activity).window
+    val activity = LocalView.current.context as Activity
+    val window = activity.window
+    // The viewer turns with the phone, the rest of the app stays portrait (manifest, ROADMAP).
+    // USER follows the phone's rotate lock: locked, the viewer stays upright.
+    DisposableEffect(activity) {
+        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_USER
+        onDispose { activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT }
+    }
     val barIcons = APPEARANCE_LIGHT_STATUS_BARS or APPEARANCE_LIGHT_NAVIGATION_BARS
     // 0: the photo sits in its grid tile, 1: full screen. It grows on open and shrinks back on close.
     val shown = remember { Animatable(0f) }
@@ -196,6 +216,7 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
     // full-width square at the top (docs/design.html "Viewer, swiped up"). up = how far the panel is out, in px.
     val up = remember { Animatable(0f, visibilityThreshold = 1f) } // 1 px: the spring's long tail would keep the bottom bar away
     var detailsOpen by remember { mutableStateOf(false) } // where the panel settles
+    var dragFrom by remember { mutableFloatStateOf(0f) } // where the sheet was when the finger went down
     val details by remember { derivedStateOf { up.value > 0f || detailsOpen } }
     // details longer than the panel: how far they are scrolled, and their full height
     val listY = remember { Animatable(0f) }
@@ -276,11 +297,14 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
     val openAt = with(LocalDensity.current) { 48.dp.toPx() }
     val flingAt = with(LocalDensity.current) { 400.dp.toPx() }
     var view by remember { mutableStateOf(IntSize.Zero) }
+    val land = view.width > view.height // sideways: the details are a sheet over the photo, not the square
     // Open, the panel's rounded top overlaps the photo square by this much
     val overlap = with(LocalDensity.current) { 28.dp.toPx() }
-    fun openUp() = (view.height - view.width + overlap).coerceAtLeast(0f)
-    // the list stops at its ends; they move when the details load after the panel opened
-    LaunchedEffect(listH, view) { listY.updateBounds(0f, (listH - openUp()).coerceAtLeast(0f)) }
+    fun openUp() = viewerUp(view.width, view.height, overlap)
+    // Sideways the sheet goes on up over the photo to the very top, so the whole list has the whole screen
+    fun sheetMax() = if (land) view.height.toFloat() else openUp()
+    // the list stops at its ends; they move when the details load or the sheet grows
+    LaunchedEffect(listH, view, up.value) { listY.updateBounds(0f, (listH - up.value.coerceAtLeast(openUp())).coerceAtLeast(0f)) }
     val scope = rememberCoroutineScope()
     // Double tap: ±5 s on the half that was tapped, with the pill for a moment (mockup "Player, double tap")
     fun skip(dir: Int) {
@@ -293,18 +317,19 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
         pill = dir
         scope.launch { delay(450); if (pill == dir) pill = 0 }
     }
-    fun settle(open: Boolean) {
-        detailsOpen = open
-        scope.launch { up.animateTo(if (open) openUp() else 0f, spring(stiffness = Spring.StiffnessMediumLow)) }
+    fun settle(to: Float) {
+        detailsOpen = to > 0f
+        scope.launch { up.animateTo(to, spring(stiffness = Spring.StiffnessMediumLow)) }
     }
+    fun settle(open: Boolean) = settle(if (open) openUp() else 0f)
     // A zoomed photo owns every finger, so the pager and the vertical swipes wait. Reset when the page changes.
     var zoomed by remember { mutableStateOf(false) }
     LaunchedEffect(pager.currentPage) { zoomed = false }
     fun close() {
         if (closing) return
         closing = true
-        // a photo in the details square fades, the panel slides down
-        fly = !zoomed && up.value == 0f && onScreen(tile.id)
+        // a photo in the details square fades, the panel slides down; sideways there is no tile to land in
+        fly = !land && !zoomed && up.value == 0f && onScreen(tile.id)
         if (up.value > 0f) scope.launch { up.animateTo(0f, tween(250)) }
         player.pause() // the sound stops with the tap, and a still frame shrinks into the tile
         scope.launch {
@@ -373,25 +398,40 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
                 .draggable(
                     orientation = Orientation.Vertical,
                     state = rememberDraggableState { delta ->
-                        val open = openUp()
                         when {
                             dragY.value > 0f -> scope.launch { dragY.snapTo((dragY.value + delta).coerceAtLeast(0f)) }
-                            delta < 0f && up.value < open -> scope.launch { up.snapTo((up.value - delta).coerceAtMost(open)) }
+                            delta < 0f && up.value < sheetMax() -> scope.launch { up.snapTo((up.value - delta).coerceAtMost(sheetMax())) }
+                            // pulled past its rest stop, the sheet itself goes down first, so one swipe takes
+                            // it off even with the list scrolled; at rest the list scrolls back first, as upright
+                            land && delta > 0f && up.value > openUp() -> scope.launch { up.snapTo((up.value - delta).coerceAtLeast(0f)) }
                             delta < 0f || listY.value > 0f -> scope.launch { listY.snapTo(listY.value - delta) }
                             up.value > 0f -> scope.launch { up.snapTo((up.value - delta).coerceAtLeast(0f)) }
                             else -> { detailsOpen = false; scope.launch { dragY.snapTo(delta.coerceAtLeast(0f)) } }
                         }
                     },
                     enabled = !zoomed && !closing,
+                    onDragStarted = { dragFrom = up.value },
                     onDragStopped = { velocity ->
                         when {
                             // past the threshold the photo goes back to its tile; under it, it eases back into place
                             dragY.value > dismissAt -> close()
                             dragY.value > 0f -> scope.launch { dragY.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow)) }
-                            up.value >= openUp() -> {
+                            up.value >= sheetMax() -> {
                                 detailsOpen = true
                                 // a flick keeps the list going and it coasts to a stop, at the latest at either end
                                 scope.launch { listY.animateDecay(-velocity, coast) }
+                            }
+                            // sideways the sheet has two stops going up; going down from the top it comes off in
+                            // one gesture, so a swipe down always puts the photo back
+                            land -> {
+                                val rest = openUp()
+                                val to = when {
+                                    dragFrom >= sheetMax() - 1f -> if (up.value < dragFrom - openAt) 0f else sheetMax()
+                                    up.value > (rest + sheetMax()) / 2f || (abs(velocity) > flingAt && velocity < 0f) -> sheetMax()
+                                    up.value > rest / 2f -> rest
+                                    else -> 0f
+                                }
+                                settle(to)
                             }
                             up.value > 0f -> settle(
                                 if (abs(velocity) > flingAt) velocity < 0f
@@ -425,11 +465,13 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
             }
             // the bars step aside while the photo moves
             val still by remember { derivedStateOf { shown.value == 1f && dragY.value == 0f && !closing } }
+            // sideways a sheet pulled past its rest stop covers the top bar, so it steps aside: the sheet repeats the date
+            val covered by remember { derivedStateOf { view.width > view.height && up.value > viewerUp(view.width, view.height, overlap) + 1f } }
             val video = tile.duration != null && failed != tile.id
             // A file the decoder refuses: the card replaces the player line; the bars stay over its scrim
             if (tile.duration != null && failed == tile.id) PlayerFailed(tile) { openInPlayer(context, tile) }
             ViewerChrome(
-                visible = (barsVisible || details) && still,
+                visible = (barsVisible || details) && still && !covered,
                 bottom = !details,
                 title = DateTimeFormatter.ofPattern(dayPattern).format(zone),
                 subtitle = DateTimeFormatter.ofPattern("HH:mm").format(zone),
@@ -502,12 +544,16 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
                     )
                 }) else null,
             )
-            // the panel is as tall as its open spot and slides up from under the bottom edge
+            // the panel is as tall as its open spot and slides up from under the bottom edge; sideways it is
+            // a narrower sheet on the bottom edge that follows the finger up over the photo to the very top
             if (details) Box(
-                Modifier.fillMaxWidth().height(with(LocalDensity.current) { openUp().toDp() })
-                    .graphicsLayer { translationY = view.height - up.value }
+                Modifier.fillMaxWidth(if (land) landscapeSheetWidth else 1f)
+                    .align(if (land) Alignment.BottomCenter else Alignment.TopStart)
+                    .height(with(LocalDensity.current) { (if (land) up.value else openUp()).toDp() })
+                    .graphicsLayer { if (!land) translationY = view.height - up.value }
                     .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
                     .background(viewerBg)
+                    .testTag("detailsSheet")
                     .pointerInput(Unit) {}, // a tap on the panel's empty space must not reach the photo under it
             ) {
                 DetailsPanel(

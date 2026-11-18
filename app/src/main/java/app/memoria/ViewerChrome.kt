@@ -2,6 +2,7 @@ package app.memoria
 
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets as Insets
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -20,6 +22,7 @@ import androidx.compose.foundation.layout.navigationBarsIgnoringVisibility
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Icon
@@ -42,6 +45,9 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.progressBarRangeInfo
@@ -79,6 +85,13 @@ fun ViewerChrome(
 ) {
     var menu by remember { mutableStateOf(false) }
     LaunchedEffect(menu) { onMenu(menu) }
+    // Sideways the camera cutout sits on one side. Both sides get its width, so the title and the four
+    // actions stay on the screen's centre like the mockup, not half a cutout to the right, and nothing
+    // lands under the hole.
+    val cutout = Insets.displayCutout
+    val density = LocalDensity.current
+    val direction = LocalLayoutDirection.current
+    val side = with(density) { maxOf(cutout.getLeft(this, direction), cutout.getRight(this, direction)).toDp() }
     // The bars stay composed and are only placed while showing: composing them when the opened photo
     // settled cost a dropped frame, and unplaced bars take no taps meant for the photo.
     val top = animateFloatAsState(if (visible) 1f else 0f, tween(barsFadeMillis), label = "topBar")
@@ -92,7 +105,7 @@ fun ViewerChrome(
                 .background(Brush.verticalGradient(listOf(viewerBg.copy(alpha = 0.62f), Color.Transparent)))
                 // The system bar height even while it is hidden: a tap hides the bars, and a bar that loses
                 // its padding first jumps 40 dp up under the fading icons
-                .windowInsetsPadding(Insets.statusBarsIgnoringVisibility).padding(bottom = 16.dp),
+                .windowInsetsPadding(Insets.statusBarsIgnoringVisibility).padding(start = side, end = side, bottom = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onBack) { Icon(painterResource(R.drawable.ic_back), "Back", tint = onViewer) }
@@ -111,10 +124,15 @@ fun ViewerChrome(
                 .graphicsLayer { alpha = low.value }
                 .fillMaxWidth()
                 .background(Brush.verticalGradient(listOf(Color.Transparent, viewerBg.copy(alpha = 0.62f))))
-                .windowInsetsPadding(Insets.navigationBarsIgnoringVisibility).padding(top = 16.dp, bottom = 6.dp),
+                .windowInsetsPadding(Insets.navigationBarsIgnoringVisibility).padding(start = side, end = side, top = 16.dp, bottom = 6.dp),
         ) {
             playerBar?.invoke()
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
+            // Sideways a wide screen would leave four icons far apart, so they sit as one compact group
+            val land = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = if (land) Arrangement.spacedBy(24.dp, Alignment.CenterHorizontally) else Arrangement.SpaceAround,
+            ) {
                 IconButton(onShare) { Icon(painterResource(R.drawable.ic_share), "Share", tint = onViewer) }
                 IconButton(onFavorite) {
                     Icon(

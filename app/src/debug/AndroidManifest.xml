@@ -1,0 +1,10 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- The activity the Compose tests run in: the viewer turns it sideways like MainActivity,
+             and a rebuild would lose the composition, so the same portrait lock and config changes. -->
+        <activity
+            android:name="androidx.activity.ComponentActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
+            android:screenOrientation="portrait" />
+    </application>
+</manifest>
