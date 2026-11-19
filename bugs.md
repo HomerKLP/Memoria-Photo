@@ -14,28 +14,6 @@ Each save (`regroup`, `Regroup.kt`) reads `faceVecs()`, every face with its vect
 
 Fix idea: store each person's vector sum so the linkage does not need every vector; the stored sums were dropped on 2026-11-17.
 
-## People and Library both build every person
-
-`peopleData` (People & pets) and Library's people step each read `taggedFaces()` and build every person: at app start (`preloadLibrary`, then `preloadPeople`) and on each index save while People is open. The people step is most of a Library load (721 of 997 ms on the phone's debug build, 2026-11-13).
-
-Steps: open People during an index run; each save reloads Library under it and People on top, each with its own `taggedFaces()` pass.
-
-Fix idea: People takes its list from Library's snapshot (`sharedLibrary`, keyed on `returns`) until it edits something; its own edits bump a local `reload`, and after one it loads alone as today. `preloadPeople` reads the same snapshot.
-
-## The Details fix sheet reads every person on each face tap
-
-Viewer > Details > tap a face: `Details.kt` reads `taggedFaces()` and every person to fill the Who is this? sheet, again on each tap.
-
-Steps: open Details on a photo with two faces and tap one, close the sheet, tap the other: each opens after a full read.
-
-Fix idea: take People's cached list (the `people` cache) and read only when it is missing.
-
-## Albums and Folders to skip scan MediaStore though Library has the albums
-
-`AlbumsScreen` and `SkipScreen` call `albums(context)` (~85 ms debug) while Library's snapshot holds the same list. Low: both show their cache first.
-
-Fix idea: read `sharedLibrary(...).albums`. New album pushes Albums again without bumping `returns`, so that path needs a fresh load.
-
 ## Categories shows a blank page with no categories
 
 Seen on an emulator with no tagger model: the bar says "0 categories" and the page is empty, where Places shows its "No places yet" state. Fix idea: an empty state like Places (design first).
@@ -138,14 +116,11 @@ Found while reading the code, not seen on the phone yet. No steps, just the risk
 - **Fixing a person's main face moves faces answered against it.** Answers point at the person's main face. If the user moves or removes that main face, after a regroup the faces with a yes for that person follow it. Fix: answer against a few starting faces, or move the answers to the new main face.
 - **Small faces drop out.** Faces under 40 px never join a person and are also missing from the People screen (`People.kt` `groupFaces`). Intended, but they are silently gone, not "unsure".
 - **Global mutable state.** `lastTimeline` and `thumbs` are top-level (`Photos.kt`); the Photos tab and the viewer both depend on them silently.
-- **Bitmap churn.** `detect` makes new full-size bitmaps per photo and never recycles (`Faces.kt`). Adds to load cost and heat.
+- **Index bitmaps wait for GC.** The full decode (`loadPhoto`, twice when turned) and `Letterbox` are never recycled. Measured 2026-11-19 (Dev tools > Run on NPU, 132 full decodes, debug): native heap 120-250 MB, one peak 354, back to 77 after; the GC keeps up and speed is the same. If a low-RAM phone runs out: `image.recycle()` after the faces loop in `IndexWorker` and recycle the source in `turnedBy`.
 - **`averageLinkage` holds an n×n float matrix in memory** (`Groups.kt`). Since 2026-11-17 a save links people plus loose faces (39 + 471 on the DB copy, ~1 MB), but a full regroup (a `GROUPING_VERSION` bump) still links every starting face: 17 MB at 2052 faces, ~400 MB at 10k. Store half of it (or float16) before libraries get that big.
 - **Flaky `NavigationTest.search_categoryWordHit_backReturnsToSearchWithTheText`.** Failed once on the emulator (2026-10-31) with Compose's "Detected multithreaded access to SnapshotStateObserver", no app frames in the trace; the class passed 13/13 on a rerun. If it shows again, look for a draw started off the main thread.
 - **Dead `photo.path` column.** `PhotoRow.path` (`Index.kt`) is written on insert but no query reads it. Remove it when the schema is next touched (needs a migration).
-- **`FaceImage` loads one face per query.** Every face on screen runs its own `thumb(id)` query and WebP decode (`People.kt`). People draws ~50 covers (one per person, not per face), so ~50 queries where one `WHERE id IN (...)` would do. Not a wall (people grow slowly), but the wrong shape: batch the ids a screen is about to show, or coalesce the requests in the cache so no screen has to remember to prefetch.
-- **AutoIndex scans the whole library on every app open.** `changedPhotos` (`AutoIndex.kt`) builds `libraryPhotos` (~4.4k `MediaPhoto`s) plus `photoIds` / `taggedIds` / `boxedIds` sets and `unplaced().size` each time the app comes to the front (3 s after the change burst), even when nothing is new. ~50-100 ms of background work per open, linear in the library. Compare a cheap count first.
-- **Each screen scans MediaStore again.** `timeline`, `albums` and `trash` are three separate scans of the same table; Library runs two per open, and Albums, Videos and Folders to skip each call `albums(context)` for the same rows (`Photos.kt`, `Albums.kt`). Search, Places and Categories no longer scan (they read Library's shared snapshot, 2026-11-13 and 2026-11-17); Category and Place read only their own photos. One shared, in-memory scan is in `ROADMAP.md` Phase 11 (from the 2026-11-02 perf review).
-- **The face and thumb caches are never trimmed.** `thumbs` (`maxMemory / 2`) and `faceBitmaps` (`maxMemory / 8`) have no `onTrimMemory` (`Photos.kt`, `People.kt`), so 5/8 of the heap is held across a background/foreground switch.
+- **The face and thumb caches are never trimmed.** `thumbs` and `faceBitmaps` (`Thumbs.kt`, `FaceViews.kt`) have no `onTrimMemory`. Measured 2026-11-19 (debug, 40 flings, then Home): the app keeps ~85 MB native + ~140 MB graphics, and Android sent no trim while it was the previous app. No harm seen on the 12 GB test phone; trimming would cost blank tiles on return.
 
 # Fixed
 - 2026-11-18 Regroup rewrote every face row on each save (clear every `personId` and `nearSure`, then write every person's faces): ~350-450 ms of a save with nothing new. It writes only the faces whose person or flag changed (`faceWrites`, `RegroupTest`), and `nearSure` is part of the diff since the full clear was its only reset. On the phone (debug, 2026-11-18): three saves with nothing new 518, 539 and 313 ms (grouping 374, 395, 201), so the rest fell from ~350-450 ms to 112-144; 47 of 47 people kept their ids, and the pulled DB had no face linked to a missing person and every main face with its person.
@@ -215,7 +190,7 @@ Found while reading the code, not seen on the phone yet. No steps, just the risk
 - 2026-10-22 Memoria Debug never auto-indexed new photos: the models copied by hand were `shell`-owned and unreadable, so `modelsReady()` stayed false. `make push-models` sets the rights.
 - 2026-10-23 Emulator: its software OpenGL GPU gave one face's result for every face after the 51st. `FacePipeline` runs the CPU on the emulator now.
 - 2026-10-27 Grid tiles pixelated on some DSLR photos. An exact 480 px decode skipped pixels; now halving only.
-- 2026-10-27 Opening a photo: the grow animation skipped or broke. It is a spring from rest now, and the grid stays put. A more mature open is Phase 7 in `ROADMAP.md`.
+- 2026-10-27 Opening a photo: the grow animation skipped or broke. It is a spring from rest now, and the grid stays put. The mature open landed 2026-11-03 (`decisions.md`).
 - 2026-11-03 An album named with 5 spaces showed as "(invalid)". Android makes "." and ".." into "(invalid)", and a keyboard likely turned the spaces into a dot. Next and Move stay off for names of only dots (`NewAlbum.kt`, `Move.kt`); not reproduced with the keyboard.
 - 2026-10-29 A cat and a fish meme formed a person. A face outside every person box is dropped (`inPerson`, `Index.kt`), shipped in 0.4.0. The fish photo is not checked on that phone.
 - 2026-10-30 Pet groups mixed different cats. Noodle pet vectors, boxes 0.7+, cut 0.68, split pets join under 0.76: none mixed; quality is below people's, limited by the models (`docs/objects.md`).
