@@ -275,7 +275,10 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 figure.land { width: calc(760px * var(--z)); }
 .phone.land { width: 760px; height: 360px; }
 .phone.land > .cutout { position: absolute; left: 6px; top: 50%; z-index: 4; width: 10px; height: 56px; margin-top: -28px; border-radius: 5px; background: #1F1A16; }
-.phone.land .vbar, .phone.land .pbar { padding-left: 34px; padding-right: 34px; }
+.phone.land .pbar { padding-left: 34px; padding-right: 34px; }
+/* Sideways the camera hole is on the left only: the top bar clears it there, while the dots keep their edge.
+   With the status bar hidden the bar takes a small top margin instead of sitting on the very edge */
+.phone.land .vbar { padding-left: 34px; padding-right: 4px; padding-top: 8px; }
 /* Sideways the screen is half as tall, so the same 168 px gradient would reach the middle: a shorter one */
 .phone.land.viewer::before, .phone.land.viewer::after { height: 96px; }
 .phone.land .photo-top::before { height: 96px; }
@@ -529,7 +532,7 @@ figure.land { width: calc(760px * var(--z)); }
 <header class="top">
   <h1>Memoria Photo</h1>
   <p class="lede">Light theme, Honey palette. Photos and faces are placeholders, names and places are made up.</p>
-  <p class="latest"><b>Latest, 19 Nov:</b> <a href="#viewer-landscape">Viewer, sideways</a> — the status bar stays hidden, more room for the controls; a pull down goes to black and the phone turns upright before the grid fades in; a pull with the details list scrolled scrolls it back first, it no longer closes the sheet at once.</p>
+  <p class="latest"><b>Latest, 20 Nov:</b> <a href="#viewer-landscape">Viewer, sideways</a> — the status bar stays hidden and the top bar takes a few pixels of margin; each corner clears only its own side's camera hole, so the three dots sit on the edge, not a hole's width inside it.</p>
 </header>
 
 <aside class="rail" aria-label="Contents">

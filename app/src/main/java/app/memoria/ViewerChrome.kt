@@ -92,6 +92,10 @@ fun ViewerChrome(
     val density = LocalDensity.current
     val direction = LocalLayoutDirection.current
     val side = with(density) { maxOf(cutout.getLeft(this, direction), cutout.getRight(this, direction)).toDp() }
+    // Sideways the camera hole sits on one side only: each corner takes its own side, so Back clears the hole
+    // and More stays on the edge instead of both floating a cutout away from it.
+    val cutStart = with(density) { cutout.getLeft(this, direction).toDp() }
+    val cutEnd = with(density) { cutout.getRight(this, direction).toDp() }
     // Sideways the system bars are hidden for good (see Viewer), so the bars take their space: the screen is
     // short and the controls need the room. Upright the bar height is kept even while the bars are hidden, so
     // a tap that hides them never moves the icons.
@@ -103,24 +107,27 @@ fun ViewerChrome(
     val top = animateFloatAsState(if (visible) 1f else 0f, tween(barsFadeMillis), label = "topBar")
     val low = animateFloatAsState(if (visible && bottom) 1f else 0f, tween(barsFadeMillis), label = "bottomBar")
     Box(Modifier.fillMaxSize()) {
-        Row(
+        Box(
             Modifier.align(Alignment.TopCenter)
                 .layout { m, c -> val p = m.measure(c); layout(p.width, p.height) { if (top.value > 0f) p.place(0, 0) } }
                 .graphicsLayer { alpha = top.value }
                 .fillMaxWidth()
                 .background(Brush.verticalGradient(listOf(viewerBg.copy(alpha = 0.62f), Color.Transparent)))
                 // The system bar height even while it is hidden: a tap hides the bars, and a bar that loses
-                // its padding first jumps 40 dp up under the fading icons
-                .windowInsetsPadding(topInset).padding(start = side, end = side, bottom = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                // its padding first jumps 40 dp up under the fading icons. Sideways the system bars are gone,
+                // so the bar takes a small margin of its own instead of sitting on the very edge.
+                .windowInsetsPadding(topInset).padding(top = if (land) 8.dp else 0.dp, bottom = 16.dp),
         ) {
-            IconButton(onBack) { Icon(painterResource(R.drawable.ic_back), "Back", tint = onViewer) }
-            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+            IconButton(onBack, Modifier.align(Alignment.CenterStart).padding(start = cutStart)) {
+                Icon(painterResource(R.drawable.ic_back), "Back", tint = onViewer)
+            }
+            // The date is centred on the screen, not between the buttons, so a side camera hole never shifts it
+            Column(Modifier.align(Alignment.Center).padding(horizontal = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(title, color = onViewer, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 Text(subtitle, color = onViewer.copy(alpha = 0.7f), fontSize = 12.sp)
             }
-            // More (three dots): the same width as Back, so the date stays centered. Opens the Menu part.
-            IconButton({ if (menuItems.isNotEmpty()) menu = true }) {
+            // More (three dots) on the edge, its own side only: sideways the hole is on one side of the screen
+            IconButton({ if (menuItems.isNotEmpty()) menu = true }, Modifier.align(Alignment.CenterEnd).padding(end = cutEnd)) {
                 Icon(painterResource(R.drawable.ic_more), "More", tint = onViewer)
             }
         }

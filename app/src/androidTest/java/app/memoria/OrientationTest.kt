@@ -28,9 +28,12 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.test.swipeUp
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.height
 import androidx.compose.ui.unit.width
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.File
 import org.junit.After
@@ -183,9 +186,23 @@ class OrientationTest {
 
         turn()
         rule.waitUntil(10_000) { !statusBarShown() }
-        // the top bar sits on the top edge, with no status bar strip above it
-        val back = rule.onNodeWithContentDescription("Back").getUnclippedBoundsInRoot().top
-        assertTrue("the top bar should sit on the top edge: $back", back < 20.dp)
+        // the top bar sits on the top edge, with a small margin and no status bar strip above it
+        val back = rule.onNodeWithContentDescription("Back").getUnclippedBoundsInRoot()
+        assertTrue("the top bar should sit on the top edge: ${back.top}", back.top < 28.dp)
+        // each corner takes only its own side's camera hole: the dots are not pushed in by the other side
+        val (cutL, cutR) = cutout()
+        val frame = rule.onRoot().getUnclippedBoundsInRoot()
+        val more = rule.onNodeWithContentDescription("More").getUnclippedBoundsInRoot()
+        assertTrue("the dots should sit on their edge: ${frame.right - more.right - cutR}", frame.right - more.right - cutR < 16.dp)
+        assertTrue("Back should clear the camera hole: ${back.left - frame.left - cutL}", back.left - frame.left - cutL < 16.dp)
+    }
+
+    /** The camera hole's insets, which sit on one side of the screen sideways. */
+    private fun cutout(): Pair<Dp, Dp> {
+        val ins = ViewCompat.getRootWindowInsets(rule.activity.window.decorView)
+            ?.getInsets(WindowInsetsCompat.Type.displayCutout())
+        val density = rule.activity.resources.displayMetrics.density
+        return ((ins?.left ?: 0) / density).dp to ((ins?.right ?: 0) / density).dp
     }
 
     /** A pull with the details list scrolled scrolls the list back first, sideways too: the sheet no longer
