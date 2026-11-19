@@ -23,7 +23,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * The phone sweep of ROADMAP Phase 9 (mockup #devtools): every file in `files/media/` opens through the
+ * The phone sweep (mockup #devtools, `docs/media-matrix.md`): every file in `files/media/` opens through the
  * app's own code (grid tile, viewer, index decode, player) and is compared with its `media.tsv` row, so a
  * format the emulator gets right and the phone does not shows up here. Never the user's photos.
  */

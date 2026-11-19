@@ -31,7 +31,7 @@ class LightFace(
 class Person(val faces: List<FaceVec>, val main: FaceVec, val id: Long = 0, val name: String? = null, val hidden: Boolean = false, val coverFaceId: Long? = null, val pos: Int? = null) {
     /**
      * The person's faces from photos: the faces row, the Unsure card, Help recognize, the cover and the face count.
-     * A video face only ever joins a person, it never shows (ROADMAP Phase 13).
+     * A video face only ever joins a person, it never shows.
      */
     val shownFaces = faces.filter { it.kind != PhotoKind.video }
 

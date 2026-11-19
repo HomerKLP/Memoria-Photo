@@ -33,7 +33,7 @@ fun mediaTable(): List<Map<String, String>> {
 }
 
 /**
- * Bugs that depend on the photo file (bugs.md "Mirrored HEIC", ROADMAP Phase 9): every photo row of
+ * Bugs that depend on the photo file: every photo row of
  * `media.tsv` is put in MediaStore and shown through the app's real paths, the grid tile, the viewer
  * decode and the index decode. A made file ("upright") is a picture with red, green, blue and yellow
  * corners (top-left, top-right, bottom-left, bottom-right), so the corner colours tell how it was turned;

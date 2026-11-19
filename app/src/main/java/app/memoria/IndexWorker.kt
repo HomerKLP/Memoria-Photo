@@ -400,7 +400,7 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         ObjectBoxRow(photoId = photoId, cls = b.cls, score = b.score, box = FloatArray(4) { i -> b.box[i] / if (i % 2 == 0) small.width else small.height })
 
     /**
-     * One video's faces and pets as one row per track (ROADMAP Phase 13): frames every max(3 s, length / 10), at most 10,
+     * One video's faces and pets as one row per track: frames every max(3 s, length / 10), at most 10,
      * faces 40 px+ and pets from boxes 0.7+ joined inside the video by vector at 0.68. A row keeps the top-3 vector and the best frame's box, quality and thumb.
      * Boxes come back in the video's own pixels, so the 40 px floor means the same as on a photo (a uniform scale; a rotated video still keeps the sizes right).
      */

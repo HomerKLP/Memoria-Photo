@@ -2,7 +2,7 @@
 # requires-python = "==3.12.*"
 # dependencies = ["pillow", "piexif", "pyobjc-framework-Quartz", "rawpy"]
 # ///
-"""Photo-file test fixtures (bugs.md "Mirrored HEIC", ROADMAP Phase 9).
+"""Photo-file test fixtures (docs/media-matrix.md).
 
 `uv run bench/fixtures.py` makes the files in app/src/androidTest/assets/fixtures/ (committed, up to ~400 KB each).
 Real camera DNGs from others (CC0, small, no GPS, serial numbers removed) sit in fixtures/real/; app/src/androidTest/assets/media.tsv says where each came from.

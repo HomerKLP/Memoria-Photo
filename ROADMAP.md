@@ -51,16 +51,6 @@ Released (0.10.0). This file lists open work only, most important first. What is
 
 - Map of photos by GPS (offline map tiles, or tiles fetched when online).
 
-## Not planned
-
-- Cloud sync or backup server.
-- Direct Google Photos sync: Google closed library read access for other apps in 2025.
-- iOS.
-- Full photo editor.
-- A viewer that survives process death still closes to the grid (the user's call, 2026-11-03).
-- Room `Flow` queries instead of the reload counters (`decisions.md`, 2026-10-22).
-- One MediaStore scan shared by the timeline, albums and trash: albums takes 34-127 ms and trash 4-22 ms (debug), off screen behind cached data (`decisions.md`, 2026-11-19).
-
 ## Open questions
 
 - Media matrix size: the 8K video and the 108 / 200 MP photos may be MBs even in solid colour. Commit them, make them on the emulator at test time, or keep them out of git and run them only on the Mac's emulator?
