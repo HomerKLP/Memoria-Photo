@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets as Insets
-import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -22,7 +21,6 @@ import androidx.compose.foundation.layout.navigationBarsIgnoringVisibility
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
-import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Icon
@@ -46,8 +44,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.progressBarRangeInfo
@@ -88,29 +84,25 @@ fun ViewerChrome(
 ) {
     var menu by remember { mutableStateOf(false) }
     LaunchedEffect(menu) { onMenu(menu) }
-    // Sideways the camera cutout sits on one side. Both sides get its width, so the title and the four
-    // actions stay on the screen's centre like the mockup, not half a cutout to the right, and nothing
-    // lands under the hole.
-    val cutout = Insets.displayCutout
-    val density = LocalDensity.current
-    val direction = LocalLayoutDirection.current
-    val side = with(density) { maxOf(cutout.getLeft(this, direction), cutout.getRight(this, direction)).toDp() }
-    // Sideways the camera hole sits on one side only: each corner takes its own side, so Back clears the hole
-    // and More stays on the edge instead of both floating a cutout away from it.
-    val cutStart = with(density) { cutout.getLeft(this, direction).toDp() }
-    val cutEnd = with(density) { cutout.getRight(this, direction).toDp() }
     // Sideways the system bars are hidden for good (see Viewer), so the bars take their space: the screen is
     // short and the controls need the room. Upright the bar height is kept even while the bars are hidden, so
     // a tap that hides them never moves the icons.
     val land = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val topInset = if (land) Insets(0, 0, 0, 0) else Insets.statusBarsIgnoringVisibility
     val bottomInset = if (land) Insets(0, 0, 0, 0) else Insets.navigationBarsIgnoringVisibility
+    // The mockup's own numbers, not the camera hole's insets: its landscape frame insets the top bar 34 from
+    // the camera's edge and 4 from the other, and the four actions 8 on both sides. Sideways the hole sits in
+    // the middle of the edge, below a 64 dp bar, so no bar reaches it; upright the status bar's height (which
+    // holds the hole) is the inset.
+    val barStart = if (land) 34.dp else 4.dp
+    val barEnd = 4.dp
+    val actionsPad = 8.dp
     // The bars stay composed and are only placed while showing: composing them when the opened photo
     // settled cost a dropped frame, and unplaced bars take no taps meant for the photo.
     val top = animateFloatAsState(if (visible) 1f else 0f, tween(barsFadeMillis), label = "topBar")
     val low = animateFloatAsState(if (visible && bottom) 1f else 0f, tween(barsFadeMillis), label = "bottomBar")
     Box(Modifier.fillMaxSize()) {
-        Box(
+        Row(
             Modifier.align(Alignment.TopCenter)
                 .layout { m, c -> val p = m.measure(c); layout(p.width, p.height) { if (top.value > 0f) p.place(0, 0) } }
                 .graphicsLayer { alpha = top.value }
@@ -118,19 +110,18 @@ fun ViewerChrome(
                 .background(Brush.verticalGradient(listOf(viewerBg.copy(alpha = 0.62f), Color.Transparent)))
                 // The system bar height even while it is hidden: a tap hides the bars, and a bar that loses
                 // its padding first jumps 40 dp up under the fading icons. Sideways the system bars are gone,
-                // so the bar takes a small margin of its own instead of sitting on the very edge.
-                .windowInsetsPadding(topInset).padding(top = if (land) 8.dp else 0.dp, bottom = 16.dp),
+                // so the bar takes the mockup's own 8 dp top margin instead.
+                .windowInsetsPadding(topInset)
+                .padding(start = barStart, end = barEnd, top = if (land) 8.dp else 0.dp, bottom = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onBack, Modifier.align(Alignment.CenterStart).padding(start = cutStart)) {
-                Icon(painterResource(R.drawable.ic_back), "Back", tint = onViewer)
-            }
-            // The date is centred on the screen, not between the buttons, so a side camera hole never shifts it
-            Column(Modifier.align(Alignment.Center).padding(horizontal = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            IconButton(onBack) { Icon(painterResource(R.drawable.ic_back), "Back", tint = onViewer) }
+            // As the mockup: the date sits between the two buttons, so the camera's side margin shifts it a little
+            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(title, color = onViewer, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 Text(subtitle, color = onViewer.copy(alpha = 0.7f), fontSize = 12.sp)
             }
-            // More (three dots) on the edge, its own side only: sideways the hole is on one side of the screen
-            IconButton({ if (menuItems.isNotEmpty()) menu = true }, Modifier.align(Alignment.CenterEnd).padding(end = cutEnd)) {
+            IconButton({ if (menuItems.isNotEmpty()) menu = true }) {
                 Icon(painterResource(R.drawable.ic_more), "More", tint = onViewer)
             }
         }
@@ -140,12 +131,13 @@ fun ViewerChrome(
                 .graphicsLayer { alpha = low.value }
                 .fillMaxWidth()
                 .background(Brush.verticalGradient(listOf(Color.Transparent, viewerBg.copy(alpha = 0.62f))))
-                .windowInsetsPadding(bottomInset).padding(start = side, end = side, top = 16.dp, bottom = 6.dp),
+                .windowInsetsPadding(bottomInset).padding(top = 16.dp, bottom = 6.dp),
         ) {
-            playerBar?.invoke()
+            // the player line insets 8 of its own, so sideways this makes the mockup's 34
+            Box(Modifier.padding(horizontal = if (land) 26.dp else 0.dp)) { playerBar?.invoke() }
             // Sideways a wide screen would leave four icons far apart, so they sit as one compact group
             Row(
-                Modifier.fillMaxWidth(),
+                Modifier.fillMaxWidth().padding(horizontal = actionsPad),
                 horizontalArrangement = if (land) Arrangement.spacedBy(24.dp, Alignment.CenterHorizontally) else Arrangement.SpaceAround,
             ) {
                 IconButton(onShare) { Icon(painterResource(R.drawable.ic_share), "Share", tint = onViewer) }
