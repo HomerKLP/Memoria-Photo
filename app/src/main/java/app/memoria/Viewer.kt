@@ -83,6 +83,7 @@ import java.time.format.DateTimeFormatter
 import kotlin.math.abs
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 internal val onViewer = Color(0xFFF4ECE1)
 internal val viewerBg = Color(0xFF120E0A)
@@ -209,8 +210,20 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
     // The downward pull follows the finger and shrinks the photo, then springs back or closes
     val dragY = remember { Animatable(0f) }
     val screenH = with(LocalDensity.current) { LocalConfiguration.current.screenHeightDp.dp.toPx() }
-    // The grid shows through as the photo leaves
-    val backdrop = { shown.value * (1f - (dragY.value / (screenH / 2f)).coerceIn(0f, 1f)) }
+    var view by remember { mutableStateOf(IntSize.Zero) } // the window, for the sideways layout below
+    // Sideways the grid under the viewer is laid out sideways too, and the app never shows that: there the
+    // backdrop stays black, and a close turns the window upright under it before the grid fades in.
+    var turning by remember { mutableStateOf(false) } // closing from sideways: black until the window is upright
+    val reveal = remember { Animatable(1f) } // 1: black, 0: the grid shows
+    val land = view.width > view.height // sideways: the details are a sheet over the photo, not the square
+    val backdrop = {
+        when {
+            turning -> reveal.value
+            land -> 1f
+            // upright the grid shows through as the photo leaves
+            else -> shown.value * (1f - (dragY.value / (screenH / 2f)).coerceIn(0f, 1f))
+        }
+    }
     val dark by remember { derivedStateOf { backdrop() > 0.5f } }
     // Swipe up: the black details panel rides up from the bottom edge while the photo moves into a
     // full-width square at the top (docs/design.html "Viewer, swiped up"). up = how far the panel is out, in px.
@@ -223,14 +236,15 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
     var listH by remember { mutableFloatStateOf(0f) }
     LaunchedEffect(details) { if (!details) listY.snapTo(0f) }
     val coast = rememberSplineBasedDecay<Float>()
-    LaunchedEffect(details, barsVisible, dark, closing) {
+    // Sideways the system bars stay hidden for good: the screen is short, and the controls take that room
+    LaunchedEffect(details, barsVisible, dark, closing, land) {
         val controller = window.insetsController ?: return@LaunchedEffect
         // Immersive: the bars slide out in 340 ms. The default behavior fades them over 1.5 s, so the status
         // bar stayed long after the viewer's own bars were gone (Android's InsetsController durations)
         controller.systemBarsBehavior = BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         controller.setSystemBarsAppearance(if (!dark) barIcons else 0, barIcons)
         // the details keep the top bar, so the system bars show too
-        if (details || barsVisible || closing) controller.show(WindowInsets.Type.systemBars())
+        if (!land && (details || barsVisible || closing)) controller.show(WindowInsets.Type.systemBars())
         else controller.hide(WindowInsets.Type.systemBars())
     }
     // Edit in… may save a new copy, so the screen under reloads on close; a plain close skips the reload (a 30 ms frame)
@@ -296,8 +310,6 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
     // A short pull opens or closes the details, a flick decides by its direction
     val openAt = with(LocalDensity.current) { 48.dp.toPx() }
     val flingAt = with(LocalDensity.current) { 400.dp.toPx() }
-    var view by remember { mutableStateOf(IntSize.Zero) }
-    val land = view.width > view.height // sideways: the details are a sheet over the photo, not the square
     // Open, the panel's rounded top overlaps the photo square by this much
     val overlap = with(LocalDensity.current) { 28.dp.toPx() }
     fun openUp() = viewerUp(view.width, view.height, overlap)
@@ -328,6 +340,10 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
     fun close() {
         if (closing) return
         closing = true
+        // Sideways the app must be upright before the grid shows, or you see the grid laid out sideways for a
+        // moment (it used to turn only when the viewer left). The turn also reshapes the picture, so the
+        // picture leaves first, on the black the pull left, then the window turns and the grid fades in.
+        turning = land
         // a photo in the details square fades, the panel slides down; sideways there is no tile to land in
         fly = !land && !zoomed && up.value == 0f && onScreen(tile.id)
         if (up.value > 0f) scope.launch { up.animateTo(0f, tween(250)) }
@@ -336,6 +352,13 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
             // no tile to land in: a dragged photo slides off, a still one fades
             if (!fly && dragY.value > 0f) dragY.animateTo(screenH, tween(200))
             else shown.animateTo(0f, tween(250, easing = FastOutSlowInEasing))
+            if (turning) {
+                shown.snapTo(0f) // off the screen by now, and the turn must not reshape it
+                activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                // the turn takes a frame or two: hold the black until it lands, then let the grid fade in
+                withTimeoutOrNull(1_000) { while (view.width > view.height) delay(16) }
+                reveal.animateTo(0f, tween(180))
+            }
             onBack()
         }
     }
@@ -401,10 +424,11 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
                         when {
                             dragY.value > 0f -> scope.launch { dragY.snapTo((dragY.value + delta).coerceAtLeast(0f)) }
                             delta < 0f && up.value < sheetMax() -> scope.launch { up.snapTo((up.value - delta).coerceAtMost(sheetMax())) }
-                            // pulled past its rest stop, the sheet itself goes down first, so one swipe takes
-                            // it off even with the list scrolled; at rest the list scrolls back first, as upright
-                            land && delta > 0f && up.value > openUp() -> scope.launch { up.snapTo((up.value - delta).coerceAtLeast(0f)) }
+                            // a pull with the list scrolled always scrolls the list back first, sideways too:
+                            // there the sheet moved instead, so a pull with the list far down closed it at once
                             delta < 0f || listY.value > 0f -> scope.launch { listY.snapTo(listY.value - delta) }
+                            // at the top of the list, sideways the sheet comes down over the photo in one pull
+                            land && delta > 0f && up.value > openUp() -> scope.launch { up.snapTo((up.value - delta).coerceAtLeast(0f)) }
                             up.value > 0f -> scope.launch { up.snapTo((up.value - delta).coerceAtLeast(0f)) }
                             else -> { detailsOpen = false; scope.launch { dragY.snapTo(delta.coerceAtLeast(0f)) } }
                         }

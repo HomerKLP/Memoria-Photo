@@ -92,6 +92,12 @@ fun ViewerChrome(
     val density = LocalDensity.current
     val direction = LocalLayoutDirection.current
     val side = with(density) { maxOf(cutout.getLeft(this, direction), cutout.getRight(this, direction)).toDp() }
+    // Sideways the system bars are hidden for good (see Viewer), so the bars take their space: the screen is
+    // short and the controls need the room. Upright the bar height is kept even while the bars are hidden, so
+    // a tap that hides them never moves the icons.
+    val land = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val topInset = if (land) Insets(0, 0, 0, 0) else Insets.statusBarsIgnoringVisibility
+    val bottomInset = if (land) Insets(0, 0, 0, 0) else Insets.navigationBarsIgnoringVisibility
     // The bars stay composed and are only placed while showing: composing them when the opened photo
     // settled cost a dropped frame, and unplaced bars take no taps meant for the photo.
     val top = animateFloatAsState(if (visible) 1f else 0f, tween(barsFadeMillis), label = "topBar")
@@ -105,7 +111,7 @@ fun ViewerChrome(
                 .background(Brush.verticalGradient(listOf(viewerBg.copy(alpha = 0.62f), Color.Transparent)))
                 // The system bar height even while it is hidden: a tap hides the bars, and a bar that loses
                 // its padding first jumps 40 dp up under the fading icons
-                .windowInsetsPadding(Insets.statusBarsIgnoringVisibility).padding(start = side, end = side, bottom = 16.dp),
+                .windowInsetsPadding(topInset).padding(start = side, end = side, bottom = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onBack) { Icon(painterResource(R.drawable.ic_back), "Back", tint = onViewer) }
@@ -124,11 +130,10 @@ fun ViewerChrome(
                 .graphicsLayer { alpha = low.value }
                 .fillMaxWidth()
                 .background(Brush.verticalGradient(listOf(Color.Transparent, viewerBg.copy(alpha = 0.62f))))
-                .windowInsetsPadding(Insets.navigationBarsIgnoringVisibility).padding(start = side, end = side, top = 16.dp, bottom = 6.dp),
+                .windowInsetsPadding(bottomInset).padding(start = side, end = side, top = 16.dp, bottom = 6.dp),
         ) {
             playerBar?.invoke()
             // Sideways a wide screen would leave four icons far apart, so they sit as one compact group
-            val land = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = if (land) Arrangement.spacedBy(24.dp, Alignment.CenterHorizontally) else Arrangement.SpaceAround,

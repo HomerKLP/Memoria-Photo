@@ -9,6 +9,7 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.os.ParcelFileDescriptor
 import android.provider.MediaStore
+import android.view.WindowInsets
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -21,17 +22,20 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.test.swipeUp
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.height
 import androidx.compose.ui.unit.width
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.File
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -149,8 +153,9 @@ class OrientationTest {
         rule.onNodeWithContentDescription("Back").assertIsDisplayed()
     }
 
-    /** Closing the viewer while sideways brings the app back upright, as the mockup says. */
-    @Test fun close_sideways_returnsTheAppToPortrait() {
+    /** Closing the viewer while sideways brings the app back upright before it leaves, so the grid is never
+     *  seen sideways: the turn happens under the black the pull left. */
+    @Test fun close_sideways_turnsTheAppUprightBeforeTheGridShows() {
         var backs = 0
         rule.setContent {
             MemoriaTheme {
@@ -163,9 +168,60 @@ class OrientationTest {
 
         rule.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
         rule.waitUntil(10_000) { backs == 1 }
-        // the viewer left the screen, so its dispose put the app back to portrait
-        rule.waitUntil(10_000) { rule.activity.requestedOrientation == ActivityInfo.SCREEN_ORIENTATION_PORTRAIT }
+        // it hands the screen back upright: no landscape grid, not even for a frame
+        assertEquals(Configuration.ORIENTATION_PORTRAIT, orientation())
+        assertEquals(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT, rule.activity.requestedOrientation)
         uprightAgain()
         assertEquals(Configuration.ORIENTATION_PORTRAIT, orientation())
+    }
+
+    /** Sideways the phone's own status bar stays hidden, so the photo and the controls take the height. */
+    @Test fun sideways_theStatusBarStaysHidden() {
+        rule.setContent { MemoriaTheme { Viewer(tiles[0].id, tiles, onBack = {}) } }
+        rule.waitUntil(10_000) { viewerTile == tiles[0].id }
+        rule.waitUntil(10_000) { statusBarShown() } // upright the bars show with the viewer's own
+
+        turn()
+        rule.waitUntil(10_000) { !statusBarShown() }
+        // the top bar sits on the top edge, with no status bar strip above it
+        val back = rule.onNodeWithContentDescription("Back").getUnclippedBoundsInRoot().top
+        assertTrue("the top bar should sit on the top edge: $back", back < 20.dp)
+    }
+
+    /** A pull with the details list scrolled scrolls the list back first, sideways too: the sheet no longer
+     *  comes off under the finger while the list is still far down. */
+    @Test fun sideways_pullDown_withTheListScrolled_scrollsItBackFirst() {
+        rule.setContent { MemoriaTheme { Viewer(tiles[0].id, tiles, onBack = {}) } }
+        rule.waitUntil(10_000) { viewerTile == tiles[0].id }
+        turn()
+
+        rule.onNodeWithContentDescription("Details").performClick()
+        rule.waitUntil(10_000) { rule.onAllNodesWithTag("detailsSheet").fetchSemanticsNodes().isNotEmpty() }
+        rule.waitForIdle()
+        // the sheet to the very top of the screen
+        repeat(2) {
+            rule.onNodeWithTag("detailsSheet").performTouchInput { swipeUp() }
+            rule.waitForIdle()
+        }
+        val frame = rule.onRoot().getUnclippedBoundsInRoot()
+        assertEquals(1f, rule.onNodeWithTag("detailsSheet", useUnmergedTree = true).getUnclippedBoundsInRoot().height.value / frame.height.value, 0.01f)
+        val top = rule.onNodeWithText("Debug").getUnclippedBoundsInRoot().top
+        // then the list scrolled down, so a pull has something to scroll back
+        rule.onNodeWithTag("detailsSheet").performTouchInput { swipeUp(startY = height * 0.8f, endY = height * 0.5f) }
+        rule.waitForIdle()
+        val before = rule.onNodeWithText("Debug").getUnclippedBoundsInRoot().top
+
+        // past the old close threshold: the list goes back, the sheet stays
+        rule.onNodeWithTag("detailsSheet").performTouchInput { swipeDown(startY = height * 0.15f, endY = height * 0.4f) }
+        rule.waitForIdle()
+
+        rule.onNodeWithTag("detailsSheet").assertIsDisplayed()
+        val after = rule.onNodeWithText("Debug").getUnclippedBoundsInRoot().top
+        assertTrue("the list should scroll back, not close ($top, $before -> $after)", after > before)
+    }
+
+    private fun statusBarShown(): Boolean {
+        val decor = rule.activity.window.decorView
+        return decor.rootWindowInsets?.isVisible(WindowInsets.Type.statusBars()) == true
     }
 }
