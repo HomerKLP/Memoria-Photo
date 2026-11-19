@@ -612,7 +612,7 @@ class MenuItem(val icon: Int, val label: String, val dividerBefore: Boolean = fa
  * the right edge: 8 dp under More, 56 dp under the Filter icon (one 48 dp button further in).
  */
 @Composable
-fun Menu(expanded: Boolean, onDismiss: () -> Unit, items: List<MenuItem>, modifier: Modifier = Modifier, end: Dp = 8.dp) {
+fun Menu(expanded: Boolean, onDismiss: () -> Unit, items: List<MenuItem>, modifier: Modifier = Modifier, end: Dp = 8.dp, top: Dp = 88.dp) {
     if (!expanded) return
     // a preview has no back dispatcher; guard so a plain render does not crash
     if (LocalOnBackPressedDispatcherOwner.current != null) BackHandler(onBack = onDismiss)
@@ -622,7 +622,7 @@ fun Menu(expanded: Boolean, onDismiss: () -> Unit, items: List<MenuItem>, modifi
         ),
     ) {
         Column(
-            Modifier.align(Alignment.TopEnd).padding(top = 88.dp, end = end)
+            Modifier.align(Alignment.TopEnd).padding(top = top, end = end)
                 .widthIn(min = 248.dp).width(IntrinsicSize.Max) // a long label stays on one line
                 .shadow(12.dp, RoundedCornerShape(16.dp), spotColor = Color.Black.copy(alpha = 0.5f))
                 .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(16.dp))

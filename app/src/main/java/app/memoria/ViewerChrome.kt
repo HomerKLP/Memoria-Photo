@@ -60,6 +60,9 @@ import androidx.compose.ui.unit.sp
 // Bars fade fast: the tap must feel immediate. Material's default fade is a spring (~400 ms).
 private const val barsFadeMillis = 120
 
+/** Where the More menu drops: under the top bar, which upright holds the status bar and sideways does not. */
+internal fun viewerMenuTop(land: Boolean) = if (land) 56.dp else 88.dp
+
 /**
  * The viewer's top and bottom bars, from docs/design.html "Viewer": they float on the fully visible
  * photo and are transparent — a soft vertical gradient keeps the white icons readable — so they never
@@ -157,7 +160,8 @@ fun ViewerChrome(
                 IconButton(onDelete) { Icon(painterResource(R.drawable.ic_trash_line), "Delete", tint = onViewer) }
             }
         }
-        Menu(menu, onDismiss = { menu = false }, items = menuItems)
+        // Sideways the bar is shorter (no status bar), so the menu drops from the button's own bottom
+        Menu(menu, onDismiss = { menu = false }, items = menuItems, top = viewerMenuTop(land))
     }
 }
 

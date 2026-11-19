@@ -881,6 +881,29 @@ fun ViewerMore() = MemoriaTheme {
     }
 }
 
+/** Viewer, sideways, More: the bar is shorter there (no status bar), so the menu drops from the button's bottom. */
+@PreviewTest
+@Preview(widthDp = 760, heightDp = 360)
+@Composable
+fun ViewerMoreLandscape() = MemoriaTheme {
+    Surface {
+        Box(Modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxSize().background(viewerPhoto))
+            ViewerChrome(true, "Sat, 11 Oct", "14:32", favorite = false, {}, {}, {}, {}, {})
+            Menu(
+                true, onDismiss = {}, top = viewerMenuTop(land = true),
+                items = listOf(
+                    MenuItem(R.drawable.ic_refresh, "Loop", checked = true) {},
+                    MenuItem(R.drawable.ic_play, "Open in the phone's player") {},
+                    MenuItem(R.drawable.ic_folder, "Show in album") {},
+                    MenuItem(R.drawable.ic_move, "Move to album", dividerBefore = true) {},
+                    MenuItem(R.drawable.ic_video, "Compress video", enabled = false) {},
+                ),
+            )
+        }
+    }
+}
+
 /** Video, playing (mockup "Player"): the player line over the actions row. Pairs with viewer_playerBar_keepsTheActionRowPut. */
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 800)
@@ -897,8 +920,7 @@ fun ViewerVideo() = MemoriaTheme {
     }
 }
 
-/** Video, cannot play (mockup "player-error"): the card on a scrim, the bars stay bright over it. */
-@PreviewTest
+/** Video, cannot play (mockup "player-error"): the card on a scrim, the bars stay bright over it. */@PreviewTest
 @Preview(widthDp = 360, heightDp = 800)
 @Composable
 fun ViewerVideoFailed() = MemoriaTheme {
