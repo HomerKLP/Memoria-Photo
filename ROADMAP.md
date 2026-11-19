@@ -2,7 +2,7 @@
 
 Open-source Android gallery. All photo processing and AI runs on the phone: photos and face data never leave it, the face models download once on first run, no accounts, ads, trackers or analytics. The internet is used only for optional comfort features — map tiles for the photo map, update checks, and that one-time model download — never to upload or analyze photos. Face data stays in a local DB, with export and import for backup.
 
-Released (0.10.0). This file lists open work only, most important first. What is done and why each call was made: `decisions.md` and git.
+Released (0.11.0). This file lists open work only, most important first. What is done and why each call was made: `decisions.md` and git.
 
 **Index upgrades:** a new index step (search labels, OCR, video towns) fills in only what an existing index is missing (the catch-up pass in `IndexWorker`). Never re-index from scratch, so names, merges, hidden people, covers and answers stay.
 
