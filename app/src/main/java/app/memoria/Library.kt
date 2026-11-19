@@ -94,9 +94,8 @@ suspend fun libraryData(context: Context): LibraryData = withContext(Dispatchers
     // Faces without vectors: the row only shows covers. Merge with loads the vectors when it opens.
     val people = timed("people") {
         val faces = dao.taggedFaces()
-        val byId = faces.associateBy { it.id }
         val byPerson = faces.groupBy { it.personId }
-        dao.people().filter { !it.hidden }.mapNotNull { p -> byId[p.mainFaceId]?.let { m -> Person((byPerson[p.id] ?: listOf(m)).map { it.toVec() }, m.toVec(), p.id, p.name, false, p.coverFaceId, p.pos) } }
+        dao.people().filter { !it.hidden }.mapNotNull { p -> personOf(p, byPerson[p.id].orEmpty().map { it.toVec() }) }
             .sortedWith(compareBy({ it.name.isNullOrBlank() }, { it.pos ?: Int.MAX_VALUE }, { -it.photos })) // named first, moved ones in their order, then by photo count
     }
     val albums = timed("albums") { albums(context) }
@@ -110,7 +109,7 @@ suspend fun libraryData(context: Context): LibraryData = withContext(Dispatchers
         favorites = all.count { it.favorite },
         videos = all.count { it.duration != null },
         trash = timed("trash") { runCatching { trash(context).size }.getOrDefault(0) },
-        places = timed("places") { places(dao.placed(), all, niceScores(scored)) },
+        places = timed("places") { places(dao.placed(), all, niceScores(scored.second)) },
         categories = timed("categories") { loadCategories(context, all, scored) },
     )
     AppLog.i("library load: ${steps.joinToString(", ")}, total ${(System.nanoTime() - start) / 1_000_000}")
@@ -120,9 +119,10 @@ suspend fun libraryData(context: Context): LibraryData = withContext(Dispatchers
 /**
  * [libraryData] for its keys, shared: Search shows the same snapshot instead of scanning MediaStore and
  * scoring tags again on every open. The keys are Library's own, so Search is never older than the tab.
+ * [viewerEdits] too: Places opened again after a delete in a town must not show the old copy.
  */
 suspend fun sharedLibrary(context: Context, saved: Int, reload: Int): LibraryData =
-    sharedValue("library", listOf(saved, reload)) { libraryData(context) }
+    sharedValue("library", listOf(saved, reload, viewerEdits)) { libraryData(context) }
 
 /** Loads Library once at app start: its first open has an empty cache, so it would show grey skeletons. */
 suspend fun preloadLibrary(context: Context) = preloadCached("library") { sharedLibrary(context, peopleSaved.value, 0) }

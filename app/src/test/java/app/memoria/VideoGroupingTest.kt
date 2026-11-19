@@ -6,7 +6,7 @@ import org.junit.Test
 import kotlin.math.sqrt
 
 /**
- * Video faces and pets (ROADMAP Phase 13): they only join people and pets built from photos, never start one,
+ * Video faces and pets: they only join people and pets built from photos, never start one,
  * and never show on People. One video counts as one video, not a photo.
  */
 class VideoGroupingTest {

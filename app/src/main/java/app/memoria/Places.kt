@@ -29,6 +29,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,7 +49,6 @@ import kotlin.math.cos
 /** GeoNames towns of 1000+ people, city districts left out (decisions.md). `assets/towns.tsv` comes from `bench/places.py towns`. */
 class Towns(val id: IntArray, val name: Array<String>, val lat: FloatArray, val lon: FloatArray) {
     /** Index of the nearest town. */
-    // ponytail: linear scan of ~140k towns, ~1 ms a photo; a lat/lon grid if it ever shows in the index time
     fun nearest(la: Double, lo: Double): Int {
         val k = cos(Math.toRadians(la)) // flat-earth distance: fine at town distances, and only the order matters
         var best = 0
@@ -102,9 +102,6 @@ fun places(rows: List<PhotoRow>, tiles: List<Tile>, scores: Map<Long, Float> = e
         .sortedByDescending { it.tiles.size }
 }
 
-private suspend fun loadPlaces(context: Context) =
-    withContext(Dispatchers.IO) { places(Db.get(context).index().placed(), albums(context).flatMap { it.tiles }, niceScores(context)) }
-
 /** Library's Places row: the 3 biggest towns. null (loading) or no places yet: grey tiles hold the space. */
 @Composable
 fun PlaceRow(places: List<Place>?, onOpen: (Int) -> Unit) {
@@ -118,11 +115,12 @@ fun PlaceRow(places: List<Place>?, onOpen: (Int) -> Unit) {
     }
 }
 
-/** Every town, most photos first. Layout per docs/design.html "Places". */
+/** Every town, most photos first. Layout per docs/design.html "Places". Reuses Library's snapshot (see [sharedLibrary]). */
 @Composable
-fun PlacesScreen(onBack: () -> Unit, onOpenPlace: (Int) -> Unit) {
+fun PlacesScreen(onBack: () -> Unit, onOpenPlace: (Int) -> Unit, reload: Int = 0) {
     val context = LocalContext.current
-    val places by cachedProduceState("places") { loadPlaces(context) }
+    val saved by peopleSaved.collectAsState()
+    val places by cachedProduceState("places", saved, reload) { sharedLibrary(context, saved, reload).places }
     PlacesContent(places, onBack, onOpenPlace)
 }
 
@@ -154,8 +152,12 @@ fun PlaceScreen(id: Int, onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit)
     val context = LocalContext.current
     val pick = rememberPick()
     val place by cachedProduceState("place$id", pick.changes, isEmpty = { it.tiles.isEmpty() }) {
-        // this town's photos only, no MediaStore scan of the whole library
-        withContext(Dispatchers.IO) { Db.get(context).index().photosIn(id).let { rows -> places(rows, photosByIds(context, rows.map { it.id }), niceScores(context)) } }.firstOrNull() ?: Place(id, "", emptyList())
+        // this town's photos and tags only, no scan of the whole library
+        withContext(Dispatchers.IO) {
+            val dao = Db.get(context).index()
+            Tag.load(context) // sets Tag.stamp
+            dao.photosIn(id).let { rows -> places(rows, photosByIds(context, rows.map { it.id }), niceScores(dao.tagsInTown(id, Tag.stamp))) }
+        }.firstOrNull() ?: Place(id, "", emptyList())
     }
     // the last photo of the place was deleted: the town is gone, so close instead of a blank page
     CloseWhenEmpty(place, place?.tiles?.isEmpty() == true, onBack)

@@ -1,9 +1,12 @@
 package app.memoria
 
+import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -33,5 +36,24 @@ class SharedCacheTest {
 
         assertEquals("data 2", sharedValue("test-shared-once", listOf(2), load))
         assertEquals(2, loads)
+    }
+
+    // Library under a screen and the screen on top both ask on Back or on an index save.
+    @Test fun twoScreensAskingAtOnceLoadOnce() = runBlocking {
+        var loads = 0
+        val load = suspend { loads++; delay(50); "data" }
+
+        val a = async { sharedValue("test-shared-together", listOf(1), load) }
+        val b = async { sharedValue("test-shared-together", listOf(1), load) }
+
+        assertEquals("data", a.await())
+        assertEquals("data", b.await())
+        assertEquals(1, loads)
+    }
+
+    // At app start the warm-up may fail (no permission yet); Library must load again, not keep the error.
+    @Test fun aFailedLoadIsTriedAgain() = runBlocking {
+        assertTrue(runCatching { sharedValue<String>("test-shared-fail", listOf(1)) { error("no permission") } }.isFailure)
+        assertEquals("data", sharedValue("test-shared-fail", listOf(1)) { "data" })
     }
 }

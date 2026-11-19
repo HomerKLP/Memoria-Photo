@@ -379,9 +379,9 @@ fun App(dir: File, openSettings: Int = 0, atUpdates: Boolean = false, jump: Jump
                                 onMoved = { id -> back(); back(); push(Screen.Albums()); push(Screen.Album(id)) },
                             )
                             is Screen.Album -> AlbumScreen(s.id, onBack = back, onOpen = open)
-                            Screen.Places -> PlacesScreen(onBack = back, onOpenPlace = { push(Screen.Place(it)) })
+                            Screen.Places -> PlacesScreen(onBack = back, onOpenPlace = { push(Screen.Place(it)) }, reload = returns)
                             is Screen.Place -> PlaceScreen(s.id, onBack = back, onOpen = open)
-                            Screen.Categories -> CategoriesScreen(onBack = back, onOpenCategory = { push(Screen.Category(it)) })
+                            Screen.Categories -> CategoriesScreen(onBack = back, onOpenCategory = { push(Screen.Category(it)) }, reload = returns)
                             is Screen.Category -> CategoryScreen(s.id, onBack = back, onOpen = open)
                             Screen.Videos -> VideosScreen(onBack = back, onOpen = open)
                             Screen.Search -> SearchScreen(
@@ -421,8 +421,6 @@ fun App(dir: File, openSettings: Int = 0, atUpdates: Boolean = false, jump: Jump
     }
 }
 
-// ponytail: the viewer's photos live outside composition, so a dark mode or font switch keeps them;
-// after process death they are gone and the viewer closes. Reload them by the open id if that matters.
 private var viewTiles by mutableStateOf<List<Tile>>(emptyList())
 
 /** A screen opened over the tabs, with what it shows. Serializable, so the stack survives the app being restarted. */

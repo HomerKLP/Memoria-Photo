@@ -2,7 +2,7 @@
 # requires-python = "==3.12.*"
 # dependencies = ["av", "numpy"]
 # ///
-"""Video fixtures for VideoFileTest (ROADMAP Phase 9).
+"""Video fixtures for VideoFileTest (docs/media-matrix.md).
 
 `uv run bench/videofix.py` writes the clips in app/src/androidTest/assets/videos/ (committed, a few
 KB each) and reads them back to check them: the shape the player must report, the codec and the turn.

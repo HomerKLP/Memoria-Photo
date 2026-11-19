@@ -2,13 +2,21 @@
 
 Style: one-line description, steps to reproduce, fix ideas. Code paths only when they help. Open bugs in full; a fixed bug becomes one line under Fixed at the bottom (the full write-up stays in git history).
 
-## Search tab taking too long to load, why?
+## VideoPlayTest flakes on the 10-bit HEVC clip
 
-Search built its own copy of everything on every open: a full MediaStore scan (`albums(context)`), every tagged face, places, categories and the tag scoring — the same work Library had just done — and the tag scoring ran twice (once for categories, once for `niceScores`).
+`make layout` on the API 37 emulator once failed `plays_asItsRowSays[videos/video_hevc10.mp4]` with `ERROR_CODE_FAILED_RUNTIME_CHECK` (1004); the rerun of `VideoPlayTest` was 11/11 green. The row (`plays or card`) allows only 4000-4999 as "the decoder refused it", and the emulator's 10-bit HEVC path sometimes reports 1004 instead.
 
-Fixed 2026-11-13: Search now derives its rows from Library's snapshot (`searchData(lib)`), which is shared by both screens under Library's own keys (`peopleSaved`, the reload counter), so Search is never older than the tab. `libraryData` scores the tags once and hands the result to both rows.
+Fix idea: for `plays or card`, accept any error whose code is not a file/container error, or treat this row as `card` on an emulator.
 
-Checked on the phone (debug, the real library): `library load: people 721, albums 85, tags 61, trash 10, places 78, categories 27, total 997` (ms) — one `tags` step now, was two. Opening Search adds no second `library load` line, so it reuses the snapshot, and its rows (People, Types, Recent, and months for "ma") are on screen ~400 ms after the tap, most of that the 250 ms slide. Emulator: the 12 Search cases of `BehaviorTest`, `LayoutJumpTest` and `NavigationTest` are green.
+## Regroup reads every face vector on each save
+
+Each save (`regroup`, `Regroup.kt`) reads `faceVecs()`, every face with its vector, in one transaction, so a rename waits for it. Before the row-write fix (2026-11-18) a save with nothing new took 613-824 ms on the phone (debug): grouping 265-372, the row rewrite ~350-450. After it: 313-539 ms, grouping 201-395, so the read and the person rows are now 112-144 ms.
+
+Fix idea: store each person's vector sum so the linkage does not need every vector; the stored sums were dropped on 2026-11-17.
+
+## Categories shows a blank page with no categories
+
+Seen on an emulator with no tagger model: the bar says "0 categories" and the page is empty, where Places shows its "No places yet" state. Fix idea: an empty state like Places (design first).
 
 ## Grid thumbnails are the camera's EXIF preview
 
@@ -26,7 +34,7 @@ Fix ideas:
 
 Why (AOSP `ThumbnailUtils.createImageThumbnail`, checked 2026-11-04): a JPEG's EXIF preview is used at any size, with no size check, and turned only for EXIF 3, 6, 8. HEIC goes through `MediaMetadataRetriever`.
 - The `small` check in `Thumb` is 200 px, but a tile is ~360 px, so a 240x320 preview passes it and stays soft.
-- A mirrored EXIF (2, 4) keeps the preview's shape, so `sameShape` does not catch it.
+- A mirrored EXIF (2, 4) keeps the preview's shape, so `sameShape` does not catch it, and a preview at least tile / 1.2 wide still shows as stored (open, 2026-11-04).
 
 Measured 2026-11-04 on the second test phone (MediaTek, 1216 px wide, 1050 HEIC + 881 JPEG), 60 random photos of each type, tile ~405 px:
 - System thumbs are soft: HEIC 60 of 60 (all 240x320), JPEG 55 of 60 (mostly 144x192). The 200 px check in `Thumb` fixes only the JPEG ones, never HEIC.
@@ -41,41 +49,9 @@ Other apps:
 - Glide galleries decode the file with halving, turn by all 8 EXIF values, and keep a disk cache.
 - The phone's own gallery shows no jump, so it likely does the same (not checked).
 
-## Mirrored HEIC selfies show upside down in the viewer, sideways in the grid
-
-Seen 2026-11-02 on another phone (MediaTek), release app: front-camera HEIC photos show upside down in the viewer and turned 90° in the grid; the phone's own gallery shows them right. Sample of that phone's HEICs (first 64 KB read, nothing kept):
-
-| MediaStore | HEIC `irot` (ccw) | HEIC `imir` axis | EXIF | count |
-|---|---|---|---|---|
-| 270 | 90 | 1 (top-bottom) | 7 | 8 |
-| 90 | 90 | 0 (left-right) | 5 | 1 |
-| 180 | 0 | 0 | 4 | 21 |
-| 0 | 0 | 1 | 2 | 3 |
-
-Cause: the files are fine, the decoder is not. With `imir` read as libheif and the current HEIF text do (0 = top and bottom swap, 1 = left and right swap) and `irot` applied first, all four rows match their EXIF tag; an earlier note read `imir` the other way and put every row 180° off. Android's HEIF reader passes only a rotation to Skia (`SkHeifCodec.cpp`, checked 2026-11-04), so `ImageDecoder` (viewer, `Thumb` re-decode, `loadPhoto` in the index) applies `irot` and drops `imir`: row 3 (EXIF 4) shows upside down, rows 1, 2, 4 mirrored. If that phone shows row 1 upside down too, its decoder reads `imir` the old way. Either way faces in these photos are likely missed. The grid preview comes from `loadThumbnail`, and Android's thumbnailer turns only for EXIF 3, 6, 8, not the mirrored 2, 4, 5, 7: rows 1 and 2 stay sideways, row 3 upside down.
-
-Checked 2026-11-04 on one open photo (an iPhone selfie HEIC, `irot` 90 + `imir` 0, MediaStore orientation 90): macOS shows it upright, the viewer shows it flipped top to bottom, its system thumb is a sideways 320x240 (the photo is portrait), and the People cover circles of its faces are upside down. So `ImageDecoder` applies `irot` and drops `imir`. Same phone, all 1050 HEICs (first 64 KB each): 236 (22%) have an `imir` box: (`irot` 90, `imir` 0) 109, (0, 0) 103, (0, 1) 16, (90, 1) 8. The other 814 have `irot` only or nothing. Only the one photo was compared by eye; the other combos follow the same rule.
-
-Smaller fix idea: after the `ImageDecoder` decode, flip the bitmap by the file's `imir` axis (box type `imir`, size 9, in the first 64 KB), in the one place all three decodes share.
-
-That fixes the grid only half way. Checked 2026-11-04 on a landscape HEIC with `irot` 0 + `imir` 0: the system thumb is the stored picture upside down, the same shape as the photo, so `Thumb` keeps it and the tile stays upside down while the fixed viewer opens upright. The `imir` + rotate-90 HEICs (117 of the 236) have a sideways thumb, so `Thumb` already re-decodes them and the decode fix covers them. The `imir`-only ones (`irot` 0, 119 of the 236) need `Thumb` to re-decode them too: the shape test cannot see them, so check the `imir` box, or decode every HEIC (the own-thumb plan above).
-
-Fix idea: for a HEIC with a mirrored EXIF tag (2, 4, 5, 7), follow EXIF like the phone's gallery: decode the stored pixels with no turn (maybe `BitmapFactory`, check it skips `irot`) and apply the EXIF matrix, in one place all three decodes share; re-decode such tiles in `Thumb` like the wrong-shape ones. First check on the emulator with a made-up HEIC per row (arrow picture, `irot` + `imir`) what `ImageDecoder` and `BitmapFactory` apply, then on that phone.
-
-Tests needed (so no phone has to be checked by eye; ROADMAP Phase 9):
-- Files: a 4-colour picture (red, green, blue, yellow corners), 8 HEICs for EXIF 1-8 and the same 8 JPEGs with the EXIF orientation. Apple's ImageIO writes the HEICs with the phone's own box pairs (checked 2026-11-04: 2 = `irot` 0 + `imir` 1, 4 = 0 + 0, 5 = 90 + 0, 7 = 90 + 1, 3 / 6 / 8 `irot` only). Also AVIF 1-8 (Pillow; other box pairs, 7 = `irot` 270 + `imir` 0), PNG, WebP, junk tags 0 and 9, a big JPEG (halving), and JPEGs with a camera preview inside (also a 3:4 cut of a 4:3 photo). `bench/fixtures.py` makes them into `app/src/androidTest/assets/fixtures/` (43 files, 1.9 MB with the DNGs) and checks each against the EXIF table with macOS ImageIO, Pillow and LibRaw. DNG: four hand-written ones (turn tags 1, 3, 6, 8, 360 KB each) and one real Canon 60D frame from raw.pixls.us in `real/` (CC0, 0.47 MB, serial removed, source in `media.tsv`). Everything is in git, so no test depends on a download.
-- Test (androidTest, emulator): put each file in MediaStore, run the real paths (grid tile `Thumb`, viewer decode, index `loadPhoto`), compare the four corner colours with a hand-written table for EXIF 1-8 (from the spec, not from what Android returns).
-- The emulator is NOT enough for HEIC (found 2026-11-04, API 37 emulator): every HEIC case is green there, orientation 1-8 on grid, viewer and index, and the grid thumb is sharp. So Android 17 applies `imir` and gives a full-size HEIC thumb; the bug on the MediaTek phone needs an older emulator image (which Android version does that phone run?) or the phone. Once a fix flips by `imir` itself, the API 37 run must stay green (no double flip).
-- Red on the API 37 emulator before the fixes (2026-11-04), all 176 cases green after: JPEG with a camera preview (grid for tags 2 and 4, sharpness for 1, 2, 3, 4, 6, 8) and DNG tags 3, 6, 8 on grid, viewer and index (Android does not turn a DNG by its TIFF tag). Checked on the phone with a made-up tag 6 DNG: grid and viewer show it right, so no double turn there. The phone's only real DNG is landscape, so no real portrait DNG was checked. Open, not tested: a mirrored (2, 4) JPEG whose preview is at least a tile / 1.2 wide still shows as stored. On the MediaTek phone (2026-11-15) its three EXIF 4 JPEGs show right in the grid and the viewer, people on the same sides in both.
-- Decided 2026-11-04, then dropped (the user: HEIC is a strange one, keep it here for history): the `imir` check in `Thumb` and the known-failing HEIC tile. Not done.
-- Checked 2026-11-15 on that phone, now on Android 17 (API 37, so the version is not the cause), debug build. Real photos, grid and viewer the same: `irot`-only ones are right; (`irot` 0, `imir` 0) and (90, 0) are upside down, shown as stored plus `irot`, so the old reading holds. The phone's gallery shows both upright but not mirrored (text reads normally): it turns by MediaStore's orientation, which holds only the turn (180 for EXIF 4, 90 for EXIF 5), so it loses just a left-right mirror, which is hard to see on a face. Our viewer shows the (90, 0) photo exactly 180° off from the gallery, as this predicts. The phone has its own HEIF decoder (`c2.mtk.heif.decoder`) besides Google's; that it is the one that drops `imir` is a guess, as the phone hides the codec logs. Not looked at: (0, 1) and (90, 1), which should look only mirrored.
-- The fixture HEICs fail on that phone the same way as the real files: o1, o3, o6, o8 right, o2, o4, o5, o7 lose the mirror (an earlier note here judged them against o1's corners and was wrong). So `PhotoFileTest` would catch it there; the API 37 emulator applies `imir` and stays green.
-- Fixed 2026-11-15: every HEIC decode (grid, viewer, index) reads `irot` + `imir` from the file (the EXIF tag only when there is no box), hides them and the EXIF tag in a copy of the bytes so the decoder returns the stored picture, then turns once (`plainSource` in `Faces.kt`, `HeicTurnTest`). On that phone, debug build: all 8 fixture HEICs match the table in the grid and the viewer; 9 real EXIF 4 and 5 photos, the upside-down ones too, are upright. A mirrored selfie now shows as the iPhone saved it (a label reads backwards); the phone's gallery shows it unmirrored. Faces found before the fix: a one-time step in the next index run scans the mirrored HEICs again and writes each face found at the same place (old box tried as-is and flipped) into its old row, so names, answers, merges and covers stay (`matchFaces`, `MirrorMatchTest`). It runs only when a bundled mirrored HEIC (`mirror_probe.heic`) decodes wrong on the phone. On that phone: 236 photos in 161 s, 270 faces kept their row (the reported upside-down face circle now upright, same id and person), 111 new faces (missed on the upside-down picture), 10 dropped; all 20 people kept their ids, no answer lost. Grid: 0.06% janky frames; after a fling the HEIC album fills in 3-5 s, a JPEG album in 2.5-3.3 s (debug), so judge on release with `make perf`. `PhotoFileTest` on the API 37 emulator: 176 of 176. A first try that only renamed the boxes failed there for every HEIC: the file marks them essential, so a strict reader refuses it; the boxes' essential flag is now cleared too.
-- Sharpness: the grid tile's bitmap short side must be at least tile px / 1.2. Done for JPEG and the rest: `Thumb` re-decodes when the thumb is smaller (not HEIC) and asks MediaStore for a tile-size thumb. Scroll speed and blank tiles measured 2026-11-04 on release (`make perf`): 0% janky, 0% blank, so the re-decodes cost nothing visible. HEIC passes on the emulator; the phone's soft HEIC thumbs stay open above.
-
 ## To check on the test phone: grid speed after the HEIC fix
 
-The grid now decodes every turned or mirrored HEIC itself (about 70% of iPhone photos) instead of using MediaStore's thumb. On the test phone, release build: `make release` (the user runs it), pause the index, `make perf`. JPEG must not get slower than the 2026-11-04 numbers (0% janky, 0% blank tiles on a cold fling, see Perf numbers); HEIC may. The JPEG path did not change (`photoTurn` gives 1 with no file read), so a drop there is a new bug. Not done yet.
+The grid now decodes every turned or mirrored HEIC itself (about 70% of iPhone photos) instead of using MediaStore's thumb. On the test phone, release build: `make release` (the user runs it), pause the index, `make perf`. JPEG must not get slower than the 2026-11-04 numbers (0% janky, 0% blank tiles on a cold fling); HEIC may. The JPEG path did not change (`photoTurn` gives 1 with no file read), so a drop there is a new bug. Not done yet.
 
 ## No pets on another phone (Snapdragon 8 Gen 3)
 
@@ -126,6 +102,12 @@ Still open:
 - Fix ideas: the SurfaceView swap (HDR step 2 in `decisions.md`); or Media3's `setEarlySchedulingThresholdUs` with dynamic scheduling (experimental).
 - Check: `adb shell dumpsys gfxinfo app.memoria.debug framestats` while a clip plays, gaps between IntendedVsync.
 
+## 2x hold takes about half a second to reach full speed
+- Seen 2026-11-17, the price of the pause/play fix below: `speed 2x at 23329 ms` → `speed 1x at 25842 ms`, so 2513 ms of picture in 1594 ms of finger (1.6x): about 0.7 s of the hold ran at 1x. On the 11 s clip: 1564 ms in 1111 ms.
+- Why: without `setEnableAudioTrackPlaybackParams` ExoPlayer drains the buffered sound through Sonic before the new speed applies. The flag skipped the drain but froze the clock after a pause (Fixed, 2026-11-17).
+- Fix idea: wait for the SurfaceView swap (HDR step 2) and see if the drain still matters; or set the speed on the AudioTrack only while a finger is down, if media3 ever offers it per speed.
+- Tried 2026-11-17: `1.12.0-beta01` (the newest, one step past the stable 1.11.1) still freezes with `setEnableAudioTrackPlaybackParams(true)` (+63, +29, +27 ms per 0.5 s of play after the second pause). So a media3 bump is not the way; the comment in `Viewer.kt` says so.
+
 # Known issues and bad patterns
 
 Found while reading the code, not seen on the phone yet. No steps, just the risk.
@@ -134,41 +116,22 @@ Found while reading the code, not seen on the phone yet. No steps, just the risk
 - **Fixing a person's main face moves faces answered against it.** Answers point at the person's main face. If the user moves or removes that main face, after a regroup the faces with a yes for that person follow it. Fix: answer against a few starting faces, or move the answers to the new main face.
 - **Small faces drop out.** Faces under 40 px never join a person and are also missing from the People screen (`People.kt` `groupFaces`). Intended, but they are silently gone, not "unsure".
 - **Global mutable state.** `lastTimeline` and `thumbs` are top-level (`Photos.kt`); the Photos tab and the viewer both depend on them silently.
-- **Bitmap churn.** `detect` makes new full-size bitmaps per photo and never recycles (`Faces.kt`). Adds to load cost and heat.
-- **`groupFaces` holds an n×n float matrix in memory** (`People.kt`). Time is O(n²) since the NN-chain (2026-10-17), but memory is 17 MB at today's 2052 starting faces and ~400 MB at 10k. Store half of it (or float16) before libraries get that big.
+- **Index bitmaps wait for GC.** The full decode (`loadPhoto`, twice when turned) and `Letterbox` are never recycled. Measured 2026-11-19 (Dev tools > Run on NPU, 132 full decodes, debug): native heap 120-250 MB, one peak 354, back to 77 after; the GC keeps up and speed is the same. If a low-RAM phone runs out: `image.recycle()` after the faces loop in `IndexWorker` and recycle the source in `turnedBy`.
+- **`averageLinkage` holds an n×n float matrix in memory** (`Groups.kt`). Since 2026-11-17 a save links people plus loose faces (39 + 471 on the DB copy, ~1 MB), but a full regroup (a `GROUPING_VERSION` bump) still links every starting face: 17 MB at 2052 faces, ~400 MB at 10k. Store half of it (or float16) before libraries get that big.
 - **Flaky `NavigationTest.search_categoryWordHit_backReturnsToSearchWithTheText`.** Failed once on the emulator (2026-10-31) with Compose's "Detected multithreaded access to SnapshotStateObserver", no app frames in the trace; the class passed 13/13 on a rerun. If it shows again, look for a draw started off the main thread.
 - **Dead `photo.path` column.** `PhotoRow.path` (`Index.kt`) is written on insert but no query reads it. Remove it when the schema is next touched (needs a migration).
-- **`FaceImage` loads one face per query.** Every face on screen runs its own `thumb(id)` query and WebP decode (`People.kt`). People draws ~50 covers (one per person, not per face), so ~50 queries where one `WHERE id IN (...)` would do. Not a wall (people grow slowly), but the wrong shape: batch the ids a screen is about to show, or coalesce the requests in the cache so no screen has to remember to prefetch.
-- **AutoIndex scans the whole library on every app open.** `changedPhotos` (`AutoIndex.kt`) builds `libraryPhotos` (~4.4k `MediaPhoto`s) plus `photoIds` / `taggedIds` / `boxedIds` sets and `unplaced().size` each time the app comes to the front (3 s after the change burst), even when nothing is new. ~50-100 ms of background work per open, linear in the library. Compare a cheap count first.
-- **Each screen scans MediaStore again.** `timeline`, `albums` and `trash` are three separate scans of the same table; Library runs two per open, and Categories, Category, Place, Videos and Folders to skip each call `albums(context)` for the same rows (`Photos.kt`, `Albums.kt`). Search no longer scans (it reads Library's shared snapshot, 2026-11-13). One shared, in-memory scan is in `ROADMAP.md` Phase 11 (from the 2026-11-02 perf review).
-- **The face and thumb caches are never trimmed.** `thumbs` (`maxMemory / 2`) and `faceBitmaps` (`maxMemory / 8`) have no `onTrimMemory` (`Photos.kt`, `People.kt`), so 5/8 of the heap is held across a background/foreground switch.
-
-## Perf numbers (`make perf`)
-
-Release build, baseline profile compiled, full library (~4400 photos), median of 3. Frame times, plus how long Library takes to show its covers. Other screens' load times are not measured yet. Compare runs taken in the same state (a warm phone right after indexing reads 2-4x more janky frames). Earlier runs are in git history.
-
-| 2026-11-05, v0.7.1 | frames | janky % | p90 ms | p99 ms |
-|---|---|---|---|---|
-| Cold start: first frame 135 ms, timeline 180 ms | | | | |
-| Photos, first scroll | 431 | 0.5 | 6 | 8 |
-| Photos, scroll | 418 | 0 | 5 | 7 |
-| Library, open + scroll | 190 | 0.5 | 6 | 16 |
-| Albums, open + scroll | 174 | 0.6 | 9 | 11 |
-| Places, open + scroll | 187 | 0.5 | 8 | 12 |
-| Categories, open + scroll | 55 | 0 | 7 | 11 |
-| People, open + scroll | 188 | 0.5 | 6 | 11 |
-| Viewer, open + 3 swipes | 266 | 1.1 | 6 | 17 |
-| Details, open | 110 | 0 | 5 | 6 |
-
-Library shows all its covers 151 ms after the tap on the first open (cold start) and 155 ms on a second open. That is the lowest the screencap method reads (one cap), so the real time is at or under it. The app's own log (`library load:` line, one run) gives the first load's steps: albums 32 ms, categories 32, people 27, places 9, trash 8, total 110. The covers draw about 40 ms after that.
-
-Native heap after 8 flings 52 MB (87 MB on 2026-11-04, not explained), no blank tiles on a cold fling. Cold start is up from v0.3.0's 116/163 ms (same phone, more library and DB work now).
+- **The face and thumb caches are never trimmed.** `thumbs` and `faceBitmaps` (`Thumbs.kt`, `FaceViews.kt`) have no `onTrimMemory`. Measured 2026-11-19 (debug, 40 flings, then Home): the app keeps ~85 MB native + ~140 MB graphics, and Android sent no trim while it was the previous app. No harm seen on the 12 GB test phone; trimming would cost blank tiles on return.
 
 # Fixed
+- 2026-11-19 Viewer sideways: a pull down showed the grid laid out sideways until the phone turned back. The picture leaves on black now, then the window turns upright and the grid fades in (`turning`, `reveal`, `OrientationTest`).
+- 2026-11-19 Viewer sideways, details: a pull with the list scrolled moved the sheet and closed it at once. The list scrolls back first, sideways too; the sheet follows only at the top of the list.
+- 2026-11-19 Viewer sideways: the phone's status bar showed over the photo and the player. It stays hidden sideways, and the bars take the status and nav bar height there, so the controls get the room.
+- 2026-11-18 Regroup rewrote every face row on each save (clear every `personId` and `nearSure`, then write every person's faces): ~350-450 ms of a save with nothing new. It writes only the faces whose person or flag changed (`faceWrites`, `RegroupTest`), and `nearSure` is part of the diff since the full clear was its only reset. On the phone (debug, 2026-11-18): three saves with nothing new 518, 539 and 313 ms (grouping 374, 395, 201), so the rest fell from ~350-450 ms to 112-144; 47 of 47 people kept their ids, and the pulled DB had no face linked to a missing person and every main face with its person.
 - 2026-11-15 Viewer: opened from a screen over the Photos tab (Search > Videos), a close after a swipe flew to a thin strip at the left edge or faded. Both grids wrote the same id in the global `tileSpots`, and the hidden tab's tile could win or delete the visible one. The tab's tiles now write only while the tab is on top, and a tile removes only its own entry.
 - 2026-11-15 Player: a 2x hold started about 1 s late and froze the picture 4 times (60-75 ms): ExoPlayer changed the sound's speed only after its 0.5 s of buffered sound played out. The system now changes the speed (`setEnableAudioTrackPlaybackParams`), so 2x starts at once.
-
 - 2026-11-15 Player: HDR clips (HLG, PQ, Dolby Vision) looked dull: a `TextureView` shows HDR only in an HDR window. The viewer sets `COLOR_MODE_HDR` while the player holds an HDR clip, so two HDR clips in a row never dim in between. The phone fades the brightness by itself (3 to 5 s), so the app does not.
+- 2026-11-15 iPhone HEIC selfies showed upside down in the viewer and sideways in the grid: `ImageDecoder` applies `irot` and drops `imir`. Every decode (grid, viewer, index) reads both boxes, hides them and turns once (`plainSource`); faces found before the fix keep their row (`matchFaces`).
+- 2026-11-13 Search built its own copy of everything on every open (a MediaStore scan, every tagged face, tag scoring twice). It reads Library's snapshot now, and `libraryData` scores the tags once.
 - 2026-11-13 Viewer: a tap hid the bars at once, but the status bar stayed for over a second. The app left the system bars on Android's default behavior, which fades them out over 1.5 s; the immersive behavior (`BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE`) slides them out in 340 ms.
 - 2026-11-13 Player: a drag on the seek bar moved only the knob; the video jumped on the lift. It seeks as the finger moves now, in Media3's scrubbing mode.
 - 2026-11-13 Player: a swipe dragged past the middle and back left the video as a still with its sound running (the `ready` flag stayed off). The video now shows on the page whose file the player holds (`prepared`), and moves with it.
@@ -230,7 +193,7 @@ Native heap after 8 flings 52 MB (87 MB on 2026-11-04, not explained), no blank 
 - 2026-10-22 Memoria Debug never auto-indexed new photos: the models copied by hand were `shell`-owned and unreadable, so `modelsReady()` stayed false. `make push-models` sets the rights.
 - 2026-10-23 Emulator: its software OpenGL GPU gave one face's result for every face after the 51st. `FacePipeline` runs the CPU on the emulator now.
 - 2026-10-27 Grid tiles pixelated on some DSLR photos. An exact 480 px decode skipped pixels; now halving only.
-- 2026-10-27 Opening a photo: the grow animation skipped or broke. It is a spring from rest now, and the grid stays put. A more mature open is Phase 7 in `ROADMAP.md`.
+- 2026-10-27 Opening a photo: the grow animation skipped or broke. It is a spring from rest now, and the grid stays put. The mature open landed 2026-11-03 (`decisions.md`).
 - 2026-11-03 An album named with 5 spaces showed as "(invalid)". Android makes "." and ".." into "(invalid)", and a keyboard likely turned the spaces into a dot. Next and Move stay off for names of only dots (`NewAlbum.kt`, `Move.kt`); not reproduced with the keyboard.
 - 2026-10-29 A cat and a fish meme formed a person. A face outside every person box is dropped (`inPerson`, `Index.kt`), shipped in 0.4.0. The fish photo is not checked on that phone.
 - 2026-10-30 Pet groups mixed different cats. Noodle pet vectors, boxes 0.7+, cut 0.68, split pets join under 0.76: none mixed; quality is below people's, limited by the models (`docs/objects.md`).
@@ -259,3 +222,6 @@ Native heap after 8 flings 52 MB (87 MB on 2026-11-04, not explained), no blank 
 - 2026-11-13 Photos lost the open and close animation, the drag-down and the details square: the page only counted as current when the video player held its file, and a photo never sets that flag. `pageIsCurrent` leaves the player out for photos (later dropped: the page in view takes the motion, the player only decides where the video shows). Checked on the phone: the photo grows out of its tile and shrinks back.
 - 2026-11-13 A nudged video page restarted its video from 0 when the pager snapped back: the settle step re-prepared the same file. `prepared` remembers the tile the player holds, so the same video is never prepared twice.
 - 2026-11-15 People & pets: the first open after launch was empty while its list loaded, then 28 covers came one by one (all shown 0.2-0.37 s after the tap). `preloadPeople` warms the list and the first 60 covers at app start, after `preloadLibrary`; the first open now loads nothing, like the second (3 cold starts on the phone, debug).
+- 2026-11-17 Regroup linked every starting face again on each save: an n×n table (2013 faces, 16 MB, 2-3 s on debug) that would run out of memory around 4-8k faces. Saved people now keep their faces and the linkage goes on from them (`groupFaces`, `averageLinkage` with group sums); a new `GROUPING_VERSION` regroups everyone once. On the phone (debug): the one-time full save 2313 ms (grouping 1622), then 613-824 ms (grouping 265-372); all 46 people kept their ids, names and hidden flag, no old face moved. Reading and rewriting every face row (~350-450 ms) is now the bigger part.
+- 2026-11-17 Player: two pause/play taps froze the clock (sound gone, picture at ~1/3 speed), and 10 s later the "can't play here" card. `setEnableAudioTrackPlaybackParams` made the AudioTrack stop consuming after a pause while media3 kept it as its clock, until `StuckPlayerDetector` threw `ERROR_CODE_TIMEOUT`. The flag is gone and ExoPlayer changes the sound's speed itself again. On the phone (debug): 5 pause/play cycles on a 1080p and a 4K HEVC clip advance 1 s per second, the 4K clip played to its end with 0 dropped frames and 0 audio underruns; seek, 2x hold, swipe to a photo and back, and close checked too. The 2x hold starts again about 0.5 s late (open bug above).
+- 2026-11-18 Library's snapshot loaded twice at once: at start (the warm-up and the tab) and on every Back from Search, Places or Categories (the leaving screen and Library asked together). `sharedValue` now keeps one load per stamp in an app scope (`SharedCacheTest`); emulator: Back went from 2 `library load` lines to 1. Also from the 2026-11-18 review: Places stayed stale after a delete in a town while indexing was paused (select-mode edits now bump the global `viewerEdits`, which is in the stamp); Videos went back to its own `albums()` scan, since an edit there rebuilt the whole snapshot; Help recognize and Merge with read only people's faces (`personFaceVecs`); the Place screen reads only its town's tags (`tagsInTown`).

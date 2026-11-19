@@ -246,7 +246,6 @@ internal fun videoLines(
             profile,
             CodecProfileLevel.HEVCProfileMain10, CodecProfileLevel.HEVCProfileMain10HDR10, CodecProfileLevel.HEVCProfileMain10HDR10Plus,
         )
-        // ponytail: DV profiles 9 and 10 are AVC / AV1; phones record 8.x on HEVC
         "video/dolby-vision" -> "HEVC 10-bit"
         "video/x-vnd.on2.vp9" -> "VP9" + tenBit(
             profile,
@@ -353,12 +352,8 @@ fun DetailsPanel(tile: Tile, modifier: Modifier = Modifier) {
         people = withContext(Dispatchers.IO) {
             val dao = db.index()
             val byPerson = dao.taggedFaces().groupBy { it.personId }
-            dao.people().mapNotNull { p ->
-                byPerson[p.id]?.let { fs ->
-                    val main = fs.firstOrNull { it.id == p.mainFaceId } ?: fs.first()
-                    Person(fs.map { it.toVec() }, main.toVec(), p.id, p.name, p.hidden, p.coverFaceId)
-                }
-            }.sortedWith(compareBy({ it.name.isNullOrBlank() }, { -it.photos }))
+            dao.people().mapNotNull { p -> personOf(p, byPerson[p.id].orEmpty().map { it.toVec() }) }
+                .sortedWith(compareBy({ it.name.isNullOrBlank() }, { -it.photos }))
         }
     }
     // closes the sheet at once, then writes and reloads the row; NonCancellable, so closing the viewer right after keeps the write.

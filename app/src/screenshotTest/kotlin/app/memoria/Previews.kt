@@ -9,8 +9,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -879,6 +881,29 @@ fun ViewerMore() = MemoriaTheme {
     }
 }
 
+/** Viewer, sideways, More: the bar is shorter there (no status bar), so the menu drops from the button's bottom. */
+@PreviewTest
+@Preview(widthDp = 760, heightDp = 360)
+@Composable
+fun ViewerMoreLandscape() = MemoriaTheme {
+    Surface {
+        Box(Modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxSize().background(viewerPhoto))
+            ViewerChrome(true, "Sat, 11 Oct", "14:32", favorite = false, {}, {}, {}, {}, {})
+            Menu(
+                true, onDismiss = {}, top = viewerMenuTop(land = true),
+                items = listOf(
+                    MenuItem(R.drawable.ic_refresh, "Loop", checked = true) {},
+                    MenuItem(R.drawable.ic_play, "Open in the phone's player") {},
+                    MenuItem(R.drawable.ic_folder, "Show in album") {},
+                    MenuItem(R.drawable.ic_move, "Move to album", dividerBefore = true) {},
+                    MenuItem(R.drawable.ic_video, "Compress video", enabled = false) {},
+                ),
+            )
+        }
+    }
+}
+
 /** Video, playing (mockup "Player"): the player line over the actions row. Pairs with viewer_playerBar_keepsTheActionRowPut. */
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 800)
@@ -895,8 +920,7 @@ fun ViewerVideo() = MemoriaTheme {
     }
 }
 
-/** Video, cannot play (mockup "player-error"): the card on a scrim, the bars stay bright over it. */
-@PreviewTest
+/** Video, cannot play (mockup "player-error"): the card on a scrim, the bars stay bright over it. */@PreviewTest
 @Preview(widthDp = 360, heightDp = 800)
 @Composable
 fun ViewerVideoFailed() = MemoriaTheme {
@@ -905,6 +929,87 @@ fun ViewerVideoFailed() = MemoriaTheme {
             Box(Modifier.fillMaxSize().background(viewerPhoto))
             PlayerFailed(videoTile(1)) {}
             ViewerChrome(true, "Sat, 11 Oct", "14:32", favorite = false, {}, {}, {}, {}, {})
+        }
+    }
+}
+
+/** Viewer, sideways (mockup #viewer-landscape): the photo fills the frame, the bars clear the side camera cutout. */
+@PreviewTest
+@Preview(widthDp = 760, heightDp = 360)
+@Composable
+fun ViewerLandscape() = MemoriaTheme {
+    Surface {
+        Box(Modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxSize().background(viewerPhoto))
+            ViewerChrome(true, "Sat, 11 Oct", "14:32", favorite = false, {}, {}, {}, {}, {})
+        }
+    }
+}
+
+/** Video, sideways (mockup #player-landscape): the player line reaches across, the four actions sit as one group. */
+/** Viewer, sideways, details (mockup #viewer-landscape-details): a 560 px sheet on the bottom edge, the photo at its sides. */
+@PreviewTest
+@Preview(widthDp = 760, heightDp = 360)
+@Composable
+fun ViewerLandscapeDetails() = MemoriaTheme {
+    Surface {
+        Box(Modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxSize().background(viewerPhoto))
+            ViewerChrome(true, "Sat, 11 Oct", "14:32", favorite = false, {}, {}, {}, {}, {})
+            Box(
+                Modifier.fillMaxWidth(landscapeSheetWidth).fillMaxHeight(landscapeSheetHeight)
+                    .align(Alignment.BottomCenter)
+                    .background(viewerBg, RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)),
+            ) {
+                DetailsContent(
+                    tile = Tile(1, android.net.Uri.parse("content://media/external/images/media/1"), 1_700_000_000_000L, null),
+                    info = PhotoInfo("IMG_20261011_143201.jpg", "DCIM/Camera", 3_500_000, 4032, 3024, "Mountain View", "Pixel 9", "f/1.8 · 1/120 s · ISO 64 · 24 mm"),
+                    faces = emptyList(),
+                    names = emptyMap(),
+                    zone = java.time.ZoneOffset.UTC,
+                )
+            }
+        }
+    }
+}
+
+/** Viewer, sideways, details scrolled up (mockup #viewer-landscape-details-up): the sheet has the whole frame and the bars step aside. */
+@PreviewTest
+@Preview(widthDp = 760, heightDp = 360)
+@Composable
+fun ViewerLandscapeDetailsUp() = MemoriaTheme {
+    Surface {
+        Box(Modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxSize().background(viewerPhoto))
+            Box(
+                Modifier.fillMaxWidth(landscapeSheetWidth).fillMaxHeight()
+                    .align(Alignment.BottomCenter)
+                    .background(viewerBg, RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)),
+            ) {
+                DetailsContent(
+                    tile = Tile(1, android.net.Uri.parse("content://media/external/images/media/1"), 1_700_000_000_000L, null),
+                    info = PhotoInfo("IMG_20261011_143201.jpg", "DCIM/Camera", 3_500_000, 4032, 3024, "Mountain View", "Pixel 9", "f/1.8 · 1/120 s · ISO 64 · 24 mm"),
+                    faces = emptyList(),
+                    names = emptyMap(),
+                    zone = java.time.ZoneOffset.UTC,
+                )
+            }
+        }
+    }
+}
+
+/** Video, sideways (mockup #player-landscape): the player line reaches across, the four actions sit as one group. */
+@PreviewTest
+@Preview(widthDp = 760, heightDp = 360)
+@Composable
+fun ViewerLandscapeVideo() = MemoriaTheme {
+    Surface {
+        Box(Modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxSize().background(viewerPhoto))
+            ViewerChrome(
+                true, "Sat, 11 Oct", "14:32", favorite = false, {}, {}, {}, {}, {},
+                playerBar = { PlayerBar(playing = true, position = 84_000, length = 190_000, onToggle = {}, onSeek = {}) },
+            )
         }
     }
 }

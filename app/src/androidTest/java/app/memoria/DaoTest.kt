@@ -70,6 +70,22 @@ class DaoTest {
         assertEquals(listOf(1L), dao.taggedFaces().map { it.id })
     }
 
+    @Test fun personFaceVecs_onlyPeopleFaces_noNotFace_andFlagsAnswers() = runBlocking {
+        dao.insert(
+            PhotoRow(1, "DCIM/Camera/a.jpg", PhotoKind.camera),
+            listOf(
+                FaceRow(id = 1, photoId = 1, box = FloatArray(0), score = 0.9f, landmarks = FloatArray(0), vector = FloatArray(0), quality = 0.9f, thumb = ByteArray(0), personId = 7),
+                FaceRow(id = 2, photoId = 1, box = FloatArray(0), score = 0.9f, landmarks = FloatArray(0), vector = FloatArray(0), quality = 0.9f, thumb = ByteArray(0)),
+                FaceRow(id = 3, photoId = 1, box = FloatArray(0), score = 0.9f, landmarks = FloatArray(0), vector = FloatArray(0), quality = 0.9f, thumb = ByteArray(0), personId = 7, notFace = true),
+                FaceRow(id = 4, photoId = 1, box = FloatArray(0), score = 0.9f, landmarks = FloatArray(0), vector = FloatArray(0), quality = 0.9f, thumb = ByteArray(0), personId = 7),
+            ),
+        )
+        dao.answer(AnswerRow(faceId = 4, personFace = 1, yes = true))
+        val faces = dao.personFaceVecs().sortedBy { it.id }
+        assertEquals(listOf(1L, 4L), faces.map { it.id })
+        assertEquals(listOf(false, true), faces.map { it.yes })
+    }
+
     @Test fun taggedIds_onlyThatModel_newVectorReplacesOld() = runBlocking {
         dao.insertVector(PhotoVectorRow(1, 1, FloatArray(768)))
         dao.insertVector(PhotoVectorRow(2, 0, FloatArray(768)))
@@ -135,6 +151,14 @@ class DaoTest {
         dao.setPlace(1, 3.0, 4.0, 6, "Other")
         assertTrue(dao.unplaced().isEmpty())
         assertEquals(setOf(1L, 3L), dao.placed().map { it.id }.toSet())
+    }
+
+    @Test fun tagsInTown_onlyThatTown_thisStamp() = runBlocking {
+        dao.insert(PhotoRow(1, "DCIM/Camera/a.jpg", PhotoKind.camera, townId = 5, town = "Town"), emptyList())
+        dao.insert(PhotoRow(2, "DCIM/Camera/b.jpg", PhotoKind.camera, townId = 6, town = "Other"), emptyList())
+        dao.insert(PhotoRow(3, "DCIM/Camera/c.jpg", PhotoKind.camera, townId = 5, town = "Town"), emptyList())
+        dao.insertTags(listOf(PhotoTagRow(1, 7, "a 0.9"), PhotoTagRow(2, 7, "a 0.8"), PhotoTagRow(3, 6, "a 0.7"))) // 3: an older tags file
+        assertEquals(listOf(1L), dao.tagsInTown(5, 7).map { it.photoId })
     }
 
     @Test fun places_videosWaitInTheirOwnUnplacedList() = runBlocking {

@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -82,12 +83,6 @@ fun categories(tags: List<Tag>, rows: List<PhotoTagRow>, tiles: List<Tile>, pets
     }.sortedByDescending { it.tiles.size }
 }
 
-private fun dot(a: FloatArray, b: FloatArray): Float {
-    var s = 0f
-    for (i in a.indices) s += a[i] * b[i]
-    return s
-}
-
 /**
  * Scores only the vectors with no tags yet (new photos; all of them after a new `tags.json`), then reads the stored tags.
  * Scoring all 4.4k vectors on each open took ~150 ms of Library's ~280 on the test phone's release build (`bugs.md`).
@@ -108,16 +103,12 @@ suspend fun loadCategories(context: Context, tiles: List<Tile>, scored: Pair<Lis
 }
 
 /** The [COVER_TAG] score per photo: how much the photo looks like a nice place (higher = nicer). */
-fun niceScores(scored: Pair<List<Tag>, List<PhotoTagRow>>): Map<Long, Float> =
-    scored.second.mapNotNull { r ->
+fun niceScores(rows: List<PhotoTagRow>): Map<Long, Float> =
+    rows.mapNotNull { r ->
         r.tags.split(';').firstNotNullOfOrNull { hit ->
             hit.split(' ').takeIf { it.size == 2 && it[0] == COVER_TAG }?.let { r.photoId to it[1].toFloat() }
         }
     }.toMap()
-
-suspend fun niceScores(context: Context): Map<Long, Float> = niceScores(scoredTags(context))
-
-private suspend fun loadCategories(context: Context) = withContext(Dispatchers.IO) { loadCategories(context, albums(context).flatMap { it.tiles }) }
 
 /** One tag on just its photos, for the Category screen: no MediaStore scan of the whole library. */
 private suspend fun loadCategory(context: Context, id: String): Category? = withContext(Dispatchers.IO) {
@@ -145,11 +136,12 @@ fun CategoryRow(categories: List<Category>?, onOpen: (String) -> Unit) {
     }
 }
 
-/** Every category with photos, most photos first. Layout per docs/design.html "Categories", like Places. */
+/** Every category with photos, most photos first. Layout per docs/design.html "Categories", like Places. Reuses Library's snapshot. */
 @Composable
-fun CategoriesScreen(onBack: () -> Unit, onOpenCategory: (String) -> Unit) {
+fun CategoriesScreen(onBack: () -> Unit, onOpenCategory: (String) -> Unit, reload: Int = 0) {
     val context = LocalContext.current
-    val categories by cachedProduceState("categories") { loadCategories(context) }
+    val saved by peopleSaved.collectAsState()
+    val categories by cachedProduceState("categories", saved, reload) { sharedLibrary(context, saved, reload).categories }
     CategoriesContent(categories, onBack, onOpenCategory)
 }
 

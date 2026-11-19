@@ -416,6 +416,7 @@ fun VideosContent(videos: Videos?, onBack: () -> Unit = {}, onOpen: (List<Tile>,
 fun VideosScreen(onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit) {
     val context = LocalContext.current
     val pick = rememberPick()
+    // its own scan, not Library's snapshot: cheap, and an edit here would rebuild people and tags too
     val videos by cachedProduceState("videos", pick.changes, isEmpty = { it.all.isEmpty() }) {
         withContext(Dispatchers.IO) {
             val all = albums(context).flatMap { it.tiles }.filter { it.duration != null }.sortedByDescending { it.date }
