@@ -81,6 +81,8 @@ fun ViewerChrome(
     bottom: Boolean = true, // false: the details panel is up and covers the bottom bar
     playerBar: (@Composable () -> Unit)? = null, // a video's controls, above the action row
     onMenu: (Boolean) -> Unit = {}, // the menu opened or closed: a video's controls stay while it is open
+    trashed: Boolean = false, // a trashed file: no Share, Favorite or More; Restore sits before Delete
+    onRestore: () -> Unit = {},
 ) {
     var menu by remember { mutableStateOf(false) }
     LaunchedEffect(menu) { onMenu(menu) }
@@ -121,7 +123,9 @@ fun ViewerChrome(
                 Text(title, color = onViewer, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 Text(subtitle, color = onViewer.copy(alpha = 0.7f), fontSize = 12.sp)
             }
-            IconButton({ if (menuItems.isNotEmpty()) menu = true }) {
+            // a trashed file has no More menu: its slot stays empty, so the date does not move
+            if (trashed) Box(Modifier.size(48.dp))
+            else IconButton({ if (menuItems.isNotEmpty()) menu = true }) {
                 Icon(painterResource(R.drawable.ic_more), "More", tint = onViewer)
             }
         }
@@ -140,15 +144,20 @@ fun ViewerChrome(
                 Modifier.fillMaxWidth().padding(horizontal = actionsPad),
                 horizontalArrangement = if (land) Arrangement.spacedBy(24.dp, Alignment.CenterHorizontally) else Arrangement.SpaceAround,
             ) {
-                IconButton(onShare) { Icon(painterResource(R.drawable.ic_share), "Share", tint = onViewer) }
-                IconButton(onFavorite) {
-                    Icon(
-                        painterResource(if (favorite) R.drawable.ic_favorite else R.drawable.ic_favorite_border),
-                        if (favorite) "Remove from favorites" else "Add to favorites",
-                        tint = if (favorite) Color(0xFFE9A23B) else onViewer,
-                    )
+                if (trashed) {
+                    IconButton(onInfo) { Icon(painterResource(R.drawable.ic_info), "Details", tint = onViewer) }
+                    IconButton(onRestore) { Icon(painterResource(R.drawable.ic_restore), "Restore", tint = onViewer) }
+                } else {
+                    IconButton(onShare) { Icon(painterResource(R.drawable.ic_share), "Share", tint = onViewer) }
+                    IconButton(onFavorite) {
+                        Icon(
+                            painterResource(if (favorite) R.drawable.ic_favorite else R.drawable.ic_favorite_border),
+                            if (favorite) "Remove from favorites" else "Add to favorites",
+                            tint = if (favorite) Color(0xFFE9A23B) else onViewer,
+                        )
+                    }
+                    IconButton(onInfo) { Icon(painterResource(R.drawable.ic_info), "Details", tint = onViewer) }
                 }
-                IconButton(onInfo) { Icon(painterResource(R.drawable.ic_info), "Details", tint = onViewer) }
                 IconButton(onDelete) { Icon(painterResource(R.drawable.ic_trash_line), "Delete", tint = onViewer) }
             }
         }

@@ -52,12 +52,13 @@ import kotlinx.coroutines.withContext
  * requests, so the system asks the user to confirm and nothing is copied into our own trash.
  */
 @Composable
-fun TrashScreen(onBack: () -> Unit) {
+fun TrashScreen(onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit = { _, _ -> }) {
     val context = LocalContext.current
     var items by remember { mutableStateOf<List<Trashed>?>(null) }
     var selected by remember { mutableStateOf(emptySet<Long>()) }
     var reload by remember { mutableStateOf(0) }
-    LaunchedEffect(reload) { items = withContext(Dispatchers.IO) { runCatching { trash(context) }.getOrDefault(emptyList()) } }
+    // viewerEdits: a restore or a delete for good in the viewer, reloaded when it closes
+    LaunchedEffect(reload, viewerEdits) { items = withContext(Dispatchers.IO) { runCatching { trash(context) }.getOrDefault(emptyList()) } }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) { selected = emptySet(); reload++ }
     }
@@ -78,6 +79,7 @@ fun TrashScreen(onBack: () -> Unit) {
         onRestore = { ask(items.orEmpty().filter { it.tile.id in selected }.map { it.tile.uri }, restore = true) },
         onDelete = { ask(items.orEmpty().filter { it.tile.id in selected }.map { it.tile.uri }, restore = false) },
         onEmpty = { ask(items.orEmpty().map { it.tile.uri }, restore = false) },
+        onOpen = { t -> onOpen(items.orEmpty().map { it.tile }, t.tile) },
     )
 }
 
@@ -94,6 +96,7 @@ fun TrashContent(
     onRestore: () -> Unit = {},
     onDelete: () -> Unit = {},
     onEmpty: () -> Unit = {},
+    onOpen: (Trashed) -> Unit = {},
 ) {
     val selecting = selected.isNotEmpty()
     // only while selecting: the app's own Back closes the screen, with the back swipe preview
@@ -131,7 +134,7 @@ fun TrashContent(
                 items(items, key = { it.tile.id }) { t ->
                     TrashTile(
                         t, selecting, t.tile.id in selected, Modifier.animateItem(fadeInSpec = null), // no fade in: a first load shows at once
-                        onClick = { if (selecting) onToggle(t.tile.id) },
+                        onClick = { if (selecting) onToggle(t.tile.id) else onOpen(t) },
                         onLongClick = { onToggle(t.tile.id) },
                     )
                 }

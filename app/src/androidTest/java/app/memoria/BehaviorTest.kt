@@ -61,6 +61,7 @@ import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -276,6 +277,26 @@ class BehaviorTest {
         assertTrue(emptied)
     }
 
+    @Test fun trash_tap_opensTheItem() {
+        var opened: Trashed? = null
+        rule.setContent { MemoriaTheme { Surface { TrashContent(trashed, onOpen = { opened = it }) } } }
+
+        rule.onNodeWithText("3 days").performClick()
+        assertEquals(3L, opened?.tile?.id)
+    }
+
+    @Test fun trash_tapWhileSelecting_onlySelects() {
+        var opened: Trashed? = null
+        var toggled = -1L
+        rule.setContent {
+            MemoriaTheme { Surface { TrashContent(trashed, selected = setOf(1L), onOpen = { opened = it }, onToggle = { toggled = it }) } }
+        }
+
+        rule.onNodeWithText("3 days").performClick()
+        assertEquals(3L, toggled)
+        assertNull(opened)
+    }
+
     // --- Sheets --------------------------------------------------------------------------------
 
     @Test fun namePerson_typing_enablesSaveAndSaves() {
@@ -447,6 +468,23 @@ class BehaviorTest {
         rule.onNodeWithContentDescription("More").performClick()
         rule.onNodeWithText("Edit in…").performClick()
         assertEquals("edit", fired)
+    }
+
+    /** A trashed file cannot be shared, favorited or moved: Details, Restore and Delete are its row. */
+    @Test fun viewer_trashed_showsRestoreAndDeleteOnly() {
+        var restored = 0
+        rule.setContent {
+            MemoriaTheme { Surface { Box(Modifier.fillMaxSize()) {
+                ViewerChrome(true, "Sat, 11 Oct", "14:32", false, {}, {}, {}, {}, {}, trashed = true, onRestore = { restored++ })
+            } } }
+        }
+
+        rule.onNodeWithContentDescription("Restore").performClick()
+        assertEquals(1, restored)
+        rule.onNodeWithContentDescription("Share").assertDoesNotExist()
+        rule.onNodeWithContentDescription("Add to favorites").assertDoesNotExist()
+        rule.onNodeWithContentDescription("More").assertDoesNotExist()
+        rule.onNodeWithContentDescription("Delete").assertExists()
     }
 
     /** Hidden bars stay composed (no dropped frame when they show), so a tap where Back was must reach the photo. */

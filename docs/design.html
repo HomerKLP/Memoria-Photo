@@ -533,7 +533,7 @@ figure.land { width: calc(760px * var(--z)); }
 <header class="top">
   <h1>Memoria Photo</h1>
   <p class="lede">Light theme, Honey palette. Photos and faces are placeholders, names and places are made up.</p>
-  <p class="latest"><b>Latest, 20 Nov:</b> <a href="#viewer-landscape">Viewer, sideways</a> — the status bar stays hidden and the top bar takes a few pixels of margin; each corner clears only its own side's camera hole, so the three dots sit on the edge; the menu drops from the button's own bottom there.</p>
+  <p class="latest"><b>Latest, 22 Nov:</b> <a href="#trash-viewer">Trash, viewer</a> — a trashed photo or video opens in the viewer, read-only: no Share, Favorite or More; Details, Restore and Delete in the actions row, and the space of the three dots stays empty so the date does not move.</p>
 </header>
 
 <aside class="rail" aria-label="Contents">
@@ -1162,6 +1162,24 @@ figure.land { width: calc(760px * var(--z)); }
         <div class="gesture"><div class="handle"></div></div>
       </div>
       <figcaption>Trash, selecting: header and note stay put, only the bar at the bottom appears, so nothing jumps. Tap more items, then Restore or Delete. Android asks to confirm, so we add no dialog</figcaption>
+    </figure>
+    <figure id="trash-viewer">
+      <div class="phone dark viewer">
+        <div class="viewer-full" data-shot></div>
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="vbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="when">Sat, 11 Oct<span>14:32</span></div>
+          <button class="icon-btn" aria-hidden="true" tabindex="-1" style="visibility:hidden"><svg class="i"><use href="#i-more"/></svg></button>
+        </div>
+        <div class="actions">
+          <button class="icon-btn" aria-label="Details"><svg class="i"><use href="#i-info"/></svg></button>
+          <button class="icon-btn" aria-label="Restore"><svg class="i"><use href="#i-restore"/></svg></button>
+          <button class="icon-btn" aria-label="Delete"><svg class="i"><use href="#i-trash-line"/></svg></button>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Trash, viewer: a tap on a trashed item opens it like any other photo or video: swipe, zoom, tap for the bars, pull down, a video plays. Share, Favorite and More are hidden: a trashed file cannot be shared, favorited or moved, so its row is Details, Restore, Delete. Restore puts the item back where it was; Delete removes it for good. Android asks to confirm both. The item leaves the viewer and the next one slides in</figcaption>
     </figure>
     <figure id="trash-empty">
       <div class="phone">

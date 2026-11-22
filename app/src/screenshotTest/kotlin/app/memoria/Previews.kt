@@ -848,6 +848,19 @@ fun ViewerBars() = MemoriaTheme {
     }
 }
 
+/** Trash, viewer (mockup "Trash, viewer"): read-only, Details / Restore / Delete, no three dots slot. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 800)
+@Composable
+fun ViewerTrashed() = MemoriaTheme {
+    Surface {
+        Box(Modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxSize().background(viewerPhoto))
+            ViewerChrome(true, "Sat, 11 Oct", "14:32", favorite = false, {}, {}, {}, {}, {}, trashed = true)
+        }
+    }
+}
+
 /** Viewer, tapped: the bars are gone, only the photo is left. */
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 800)

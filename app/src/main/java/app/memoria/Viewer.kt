@@ -1,6 +1,7 @@
 package app.memoria
 
 import android.app.Activity
+import android.app.PendingIntent
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.provider.MediaStore
@@ -103,7 +104,10 @@ internal fun viewerUp(width: Int, height: Int, overlap: Float): Float =
 /** Full-screen photos, swipe sideways for the next one. Opens on the tile with id start. */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class]) // the player's scrubbing mode
 @Composable
-fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Boolean = true, onShowInAlbum: (Tile) -> Unit = {}) {
+fun Viewer(
+    start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Boolean = true,
+    onShowInAlbum: (Tile) -> Unit = {}, trashed: Boolean = false, // a trashed item: read-only, with Restore
+) {
     val context = LocalContext.current
     // One player for the screen: the video on the page plays, a photo stops it. Media3 runs on the
     // phone's own hardware decoder, the same one the system player uses, so the usual codecs play fast.
@@ -373,13 +377,17 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
         }
     }
     val favorite = favorites[tile.id] ?: tile.favorite
-    // Trash: Android asks the user, then the next photo slides in
-    var trashing by remember { mutableStateOf<Long?>(null) }
-    val trashAsk = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
-        trashing?.let { id ->
+    // Trash: Android asks the user, then the next photo slides in. In the trash, Restore and Delete for good
+    var leaving by remember { mutableStateOf<Long?>(null) }
+    val leaveAsk = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        leaving?.let { id ->
             if (result.resultCode == Activity.RESULT_OK) { list = list.filterNot { it.id == id }; forgetTiles(setOf(id)); viewerEdits++ }
-            trashing = null
+            leaving = null
         }
+    }
+    fun askLeave(id: Long, request: PendingIntent) {
+        leaving = id
+        leaveAsk.launch(IntentSenderRequest.Builder(request.intentSender).build())
     }
     // Move to album: the sheet picks a folder, Android asks for consent when the file belongs to another app.
     // A photo opened from an album leaves it on a move, so the viewer shows the next one (same as trashing).
@@ -521,12 +529,14 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
                     }
                 },
                 onInfo = { settle(true) },
+                // in the trash the trash icon deletes for good; Restore puts the item back
                 onDelete = {
-                    trashing = tile.id
-                    val ask = MediaStore.createTrashRequest(context.contentResolver, listOf(tile.uri), true)
-                    trashAsk.launch(IntentSenderRequest.Builder(ask.intentSender).build())
+                    askLeave(tile.id, if (trashed) MediaStore.createDeleteRequest(context.contentResolver, listOf(tile.uri))
+                    else MediaStore.createTrashRequest(context.contentResolver, listOf(tile.uri), true))
                 },
-                menuItems = if (tile.duration != null) buildList {
+                trashed = trashed,
+                onRestore = { askLeave(tile.id, MediaStore.createTrashRequest(context.contentResolver, listOf(tile.uri), false)) },
+                menuItems = if (trashed) emptyList() else if (tile.duration != null) buildList {
                     // a video: the photo menu minus Edit in… and Use as…, which need a still photo (mockup "Video, More")
                     add(MenuItem(R.drawable.ic_refresh, "Loop", checked = loop) { loop = !loop })
                     add(MenuItem(R.drawable.ic_play, "Open in the phone's player") { openInPlayer(context, tile) })

@@ -1,5 +1,6 @@
 package app.memoria
 
+import android.content.ContentUris
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.media.ExifInterface
@@ -86,7 +87,8 @@ fun loadInfo(context: Context, tile: Tile): PhotoInfo {
         MediaStore.MediaColumns.SIZE, MediaStore.MediaColumns.WIDTH, MediaStore.MediaColumns.HEIGHT,
         MediaStore.MediaColumns.MIME_TYPE,
     )
-    context.contentResolver.query(base, cols, "${MediaStore.MediaColumns._ID} = ?", arrayOf(tile.id.toString()), null)?.use { c ->
+    // the item URI, not the collection: a trashed photo's row is hidden from a collection query
+    context.contentResolver.query(ContentUris.withAppendedId(base, tile.id), cols, null, null, null)?.use { c ->
         if (c.moveToNext()) {
             name = c.getString(0).orEmpty()
             folder = c.getString(1).orEmpty().trimEnd('/')

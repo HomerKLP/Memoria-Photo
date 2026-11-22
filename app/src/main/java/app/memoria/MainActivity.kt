@@ -253,7 +253,7 @@ fun App(dir: File, openSettings: Int = 0, atUpdates: Boolean = false, jump: Jump
             selectAsk.launch(IntentSenderRequest.Builder(ask.intentSender).build())
         }
     }
-    val open: (List<Tile>, Tile) -> Unit = { list, tile -> viewTiles = list; viewing = tile.id }
+    val open: (List<Tile>, Tile) -> Unit = { list, tile -> viewTiles = list; viewing = tile.id; viewTrashed = false }
     // The viewer sits on top of the screen, so the grid stays under it: the photo grows out of its tile
     // and shrinks back in. The screen under is hidden from TalkBack while the viewer is open.
     // A screen opened from a tab sits on top of it too, so the tab stays composed and back only slides the
@@ -404,7 +404,10 @@ fun App(dir: File, openSettings: Int = 0, atUpdates: Boolean = false, jump: Jump
                                 },
                                 onSeeAllPeople = { push(Screen.People()) },
                             )
-                            Screen.Trash -> TrashScreen(back)
+                            Screen.Trash -> TrashScreen(
+                                back,
+                                onOpen = { list, tile -> viewTiles = list; viewing = tile.id; viewTrashed = true },
+                            )
                         }
                     }
                 }
@@ -416,12 +419,15 @@ fun App(dir: File, openSettings: Int = 0, atUpdates: Boolean = false, jump: Jump
                 // the viewer never opened an album from inside an album, so Show in album is hidden there
                 showInAlbum = stack.lastOrNull() !is Screen.Album,
                 onShowInAlbum = { t -> albumOf(context, t.id)?.let { b -> viewing = null; push(Screen.Album(b.id)) } },
+                trashed = viewTrashed,
             )
         }
     }
 }
 
 private var viewTiles by mutableStateOf<List<Tile>>(emptyList())
+// the viewer was opened from the trash: read-only, with Restore in place of the trash icon
+private var viewTrashed by mutableStateOf(false)
 
 /** A screen opened over the tabs, with what it shows. Serializable, so the stack survives the app being restarted. */
 sealed interface Screen : Serializable {
