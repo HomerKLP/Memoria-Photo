@@ -7,8 +7,6 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,12 +15,9 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -34,12 +29,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -157,20 +150,9 @@ fun TrashTile(
     onClick: () -> Unit = {},
     onLongClick: () -> Unit = onClick,
 ) {
-    Box(
-        modifier.aspectRatio(1f)
-            .then(if (on) Modifier.border(3.dp, MaterialTheme.colorScheme.primary) else Modifier)
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
-    ) {
-        Thumb(t.tile, Modifier.fillMaxSize())
-        if (selecting) Box(
-            Modifier.align(Alignment.TopStart).padding(6.dp).size(22.dp).clip(CircleShape)
-                .then(
-                    if (on) Modifier.background(MaterialTheme.colorScheme.primary)
-                    else Modifier.border(2.dp, Color.White, CircleShape),
-                ),
-            contentAlignment = Alignment.Center,
-        ) { if (on) Icon(painterResource(R.drawable.ic_check), null, Modifier.size(16.dp), tint = Color.White) }
+    Box(modifier.aspectRatio(1f).combinedClickable(onClick = onClick, onLongClick = onLongClick)) {
+        // TileImage, not Thumb: it records the tile's spot, so the viewer grows out of it and shrinks back
+        TileImage(t.tile, Modifier.fillMaxSize(), selecting = selecting, selected = on, heart = false)
         val shadow = TextStyle(color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium, shadow = Shadow(Color.Black.copy(alpha = 0.5f), Offset(0f, 1f), 2f))
         Text("${t.daysLeft} days", Modifier.align(Alignment.BottomStart).padding(start = 6.dp, bottom = 5.dp), style = shadow)
     }
