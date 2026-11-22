@@ -8,23 +8,24 @@ Released (0.11.0). This file lists open work only, most important first. What is
 
 ## Open, most important first
 
-1. **Photos grid: pinch to resize.** Levels: days (never fewer than 3 photos a row), pinch out to months, then to years (the top level), with an animation between levels. Month and year views are not in the mockup yet: design first.
-2. **Video compression.** No visible loss, not lossless. HEVC re-encode with Media3 Transformer and the hardware encoder: keep resolution and frame rate, lower the bitrate within a safe range. Keep date, GPS and rotation. Keep the original until the user approves the result (a preview with the size saved). Skip videos that are already small. Later: auto mode, compress new videos at night while charging (opt-in), AV1 where a hardware encoder exists.
-3. **Free text search** ("beach at sunset") with an on-device CLIP-style model (SigLIP2's text side; English and Russian).
-4. **Media file matrix** (planned 2026-11-13, not started): one tiny made-up file for every kind of photo and video a phone library can hold, each run through the app's real code on the emulator, so a format bug shows up without the phone. Kinds, checks and tools: `docs/media-matrix.md`.
-5. **R8 on release builds:** `isMinifyEnabled = true` in `buildTypes.release` (`app/build.gradle.kts`, beside the signing config). Release ships 24.6 MB of unshrunk dex, and Compose expects R8 (smaller APK, faster start). LiteRT calls Java from native code, so add keep rules and check an index run (CPU, GPU and NPU) on the phone. Keep each release's mapping file to read crash traces.
-6. **Open a photo from another app:** `ACTION_VIEW` filter in the manifest, the viewer takes a single URI. The test phone's camera sends its last-photo review tap straight to the phone maker's gallery, so a filter will not catch that one; other apps' `ACTION_VIEW` would reach us. Not tried. Later: be a photo picker for other apps (`ACTION_PICK` / `GET_CONTENT`).
-7. **Sound the phone cannot decode** (AC-3, E-AC-3, DTS, in some `.mkv` and camcorder files) plays silent with no word today. Tell the user; design first.
-8. **Load time in `make perf`:** ms from opening a screen until its data shows (People, Person, Details, the viewer's sharp photo), like the cold start's timeline time. Library is done (2026-11-05).
-9. **Strings in `res/values/strings.xml`,** with `pluralStringResource` for counts. All UI text is in Kotlin now and plurals are English only, so the app can't be translated. Cheaper before more screens are built.
-10. **Regenerate the baseline profile** on the emulator (the file is from 2026-10-23 and the code changed a lot), then check cold start with `make perf`.
-11. **Place name in the day header** (mockup "Photos": `Sun, 28 Sep` + the town, muted). Offline geocoding is done (`photo.town`), so this only reads it into the header. Photos only; videos have a town since 2026-11-07, so they could come later.
-12. **Sheets, menus and dialogs: smooth in and out.** The `Menu` part (`Ui.kt`) has no motion yet.
-13. **Search: two people at once, and a results grid** instead of one list of hits.
-14. **Updater without the "Open with" chooser:** install through a `PackageInstaller` session instead of an `ACTION_VIEW` intent. Not decided yet.
-15. **Play Protect warning:** say in the release notes and README that Play Protect may warn about the app (not registered with Google's developer verification) and how to check the APK with the signing certificate SHA-256. Not decided yet.
-16. **A file that breaks on a real phone gets a made-up copy of the same kind in the test files first,** then the fix. The real file is personal, so it never goes in the repo.
-17. **Place covers: small towns can still pick a portrait or a dull shot.** A selfie / group demotion is the next step if it bothers.
+1. **Locked folder** (designed 2026-11-23, mockup "Locked folder"): move a photo or video out of the gallery into encrypted app-private storage, opened by fingerprint or phone PIN. Steps: the container (AES-CTR + a MAC per 64 KiB chunk) and its unit tests, the store (encrypted manifest, lock, Move out, tmp clean-up), the screen with the info sheet and auto-lock, video playback through a Media3 `DataSource`, then the tests. Why each call: `decisions.md`, 2026-11-23.
+2. **Photos grid: pinch to resize.** Levels: days (never fewer than 3 photos a row), pinch out to months, then to years (the top level), with an animation between levels. Month and year views are not in the mockup yet: design first.
+3. **Video compression.** No visible loss, not lossless. HEVC re-encode with Media3 Transformer and the hardware encoder: keep resolution and frame rate, lower the bitrate within a safe range. Keep date, GPS and rotation. Keep the original until the user approves the result (a preview with the size saved). Skip videos that are already small. Later: auto mode, compress new videos at night while charging (opt-in), AV1 where a hardware encoder exists.
+4. **Free text search** ("beach at sunset") with an on-device CLIP-style model (SigLIP2's text side; English and Russian).
+5. **Media file matrix** (planned 2026-11-13, not started): one tiny made-up file for every kind of photo and video a phone library can hold, each run through the app's real code on the emulator, so a format bug shows up without the phone. Kinds, checks and tools: `docs/media-matrix.md`.
+6. **R8 on release builds:** `isMinifyEnabled = true` in `buildTypes.release` (`app/build.gradle.kts`, beside the signing config). Release ships 24.6 MB of unshrunk dex, and Compose expects R8 (smaller APK, faster start). LiteRT calls Java from native code, so add keep rules and check an index run (CPU, GPU and NPU) on the phone. Keep each release's mapping file to read crash traces.
+7. **Open a photo from another app:** `ACTION_VIEW` filter in the manifest, the viewer takes a single URI. The test phone's camera sends its last-photo review tap straight to the phone maker's gallery, so a filter will not catch that one; other apps' `ACTION_VIEW` would reach us. Not tried. Later: be a photo picker for other apps (`ACTION_PICK` / `GET_CONTENT`).
+8. **Sound the phone cannot decode** (AC-3, E-AC-3, DTS, in some `.mkv` and camcorder files) plays silent with no word today. Tell the user; design first.
+9. **Load time in `make perf`:** ms from opening a screen until its data shows (People, Person, Details, the viewer's sharp photo), like the cold start's timeline time. Library is done (2026-11-05).
+10. **Strings in `res/values/strings.xml`,** with `pluralStringResource` for counts. All UI text is in Kotlin now and plurals are English only, so the app can't be translated. Cheaper before more screens are built.
+11. **Regenerate the baseline profile** on the emulator (the file is from 2026-10-23 and the code changed a lot), then check cold start with `make perf`.
+12. **Place name in the day header** (mockup "Photos": `Sun, 28 Sep` + the town, muted). Offline geocoding is done (`photo.town`), so this only reads it into the header. Photos only; videos have a town since 2026-11-07, so they could come later.
+13. **Sheets, menus and dialogs: smooth in and out.** The `Menu` part (`Ui.kt`) has no motion yet.
+14. **Search: two people at once, and a results grid** instead of one list of hits.
+15. **Updater without the "Open with" chooser:** install through a `PackageInstaller` session instead of an `ACTION_VIEW` intent. Not decided yet.
+16. **Play Protect warning:** say in the release notes and README that Play Protect may warn about the app (not registered with Google's developer verification) and how to check the APK with the signing certificate SHA-256. Not decided yet.
+17. **A file that breaks on a real phone gets a made-up copy of the same kind in the test files first,** then the fix. The real file is personal, so it never goes in the repo.
+18. **Place covers: small towns can still pick a portrait or a dull shot.** A selfie / group demotion is the next step if it bothers.
 
 ## Later
 
@@ -34,7 +35,6 @@ Released (0.11.0). This file lists open work only, most important first. What is
 - Setting: change the app's fonts (today the two bundled ones). Pick a pair in Settings; mockup first.
 - First-run hint on Library about the models download.
 - Dark theme: a dark Honey palette that follows the system setting. Not in the mockup yet: design first.
-- Locked folder behind PIN or fingerprint (Library card in the mockup, no screen yet).
 - Simple edit: crop, rotate. Other edits open in another app (More > Edit in…).
 - Rename an album.
 - "On this day" memories.
