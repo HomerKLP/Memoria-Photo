@@ -73,6 +73,8 @@ dependencies {
     implementation("androidx.room:room-ktx:2.8.5")
     ksp("androidx.room:room-compiler:2.8.5")
     implementation("androidx.work:work-runtime:2.12.0")
+    // the fingerprint / phone PIN sheet for the locked folder
+    implementation("androidx.biometric:biometric:1.4.0-rc01")
     // the video player: hardware decode through the platform's MediaCodec, our own minimal controls
     implementation("androidx.media3:media3-exoplayer:1.11.1")
     // Installs baseline profiles (ours and the ones Compose/AndroidX ship) on first run

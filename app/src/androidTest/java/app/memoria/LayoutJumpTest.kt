@@ -329,6 +329,22 @@ class LayoutJumpTest {
         assertSame("note top", noteBefore, rule.onNodeWithText("Items are deleted for good after 30 days").top())
     }
 
+    @Test fun locked_selecting_keepsTopAndGrid() {
+        val items = listOf(
+            VaultItem(1, "IMG_1.jpg", "image/jpeg", 1, 1, 3_000_000, 4000, 3000, null, "DCIM/Camera/"),
+            VaultItem(2, "VID_1.mp4", "video/mp4", 2, 2, 9_000_000, 1920, 1080, 42_000, "DCIM/Camera/"),
+            VaultItem(3, "IMG_3.jpg", "image/jpeg", 3, 3, 1_500_000, 1080, 1080, null, "Pictures/Memoria/"),
+        )
+        var selected by mutableStateOf(emptySet<Long>())
+        rule.setContent { MemoriaTheme { Surface { LockedContent(items, selected = selected) } } }
+
+        val barBefore = rule.onNodeWithTag("topBar").height()
+        val firstBefore = rule.onNodeWithTag("vault-1").top()
+        rule.runOnIdle { selected = setOf(-1L) }
+        assertSame("top bar height", barBefore, rule.onNodeWithTag("topBar").height())
+        assertSame("first tile top", firstBefore, rule.onNodeWithTag("vault-1").top())
+    }
+
     @Test fun topBar_emptySubtitle_keepsHeight() {
         var subtitle by mutableStateOf<String?>(null)
         rule.setContent { MemoriaTheme { Surface { Column { TopBar("Trash", subtitle, onBack = {}) } } } }

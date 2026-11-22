@@ -19,7 +19,7 @@ import kotlin.math.min
 sealed interface TimelineItem
 
 /** A photo or video in the timeline. duration is set for videos only. favorite is MediaStore's own flag. ratio is width / height as shown, 0 if unknown. */
-data class Tile(val id: Long, val uri: Uri, val date: Long, val duration: Long?, val favorite: Boolean = false, val ratio: Float = 0f) : TimelineItem
+data class Tile(val id: Long, val uri: Uri, val date: Long, val duration: Long?, val favorite: Boolean = false, val ratio: Float = 0f, val vault: Boolean = false) : TimelineItem
 
 /** Width / height as shown: MediaStore keeps the stored size, so a 90 or 270 turn swaps it. */
 fun shownRatio(width: Int, height: Int, orientation: Int): Float = when {

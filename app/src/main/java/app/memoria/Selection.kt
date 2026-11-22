@@ -64,6 +64,7 @@ class Pick(
     val share: (List<Tile>) -> Unit = {},
     val favorite: (List<Tile>) -> Unit = {},
     val delete: (List<Tile>) -> Unit = {},
+    val lock: (List<Tile>) -> Unit = {},
     val confirm: (PendingIntent, suspend () -> Unit) -> Unit = { _, _ -> },
     val done: () -> Unit = {},
 )
@@ -86,6 +87,7 @@ fun rememberPick(): Pick {
     }
     fun confirm(request: PendingIntent, onOk: suspend () -> Unit) { then = onOk; ask.launch(IntentSenderRequest.Builder(request.intentSender).build()) }
     fun done() { ids = null; viewerEdits++ }
+    val lockTiles = rememberVaultLock { done() }
     return Pick(
         ids, size, viewerEdits, set = { ids = it },
         share = { picked ->
@@ -108,6 +110,7 @@ fun rememberPick(): Pick {
         delete = { picked ->
             if (picked.isNotEmpty()) confirm(MediaStore.createTrashRequest(context.contentResolver, picked.map { it.uri }, true)) { forgetTiles(picked.map { it.id }.toSet()) }
         },
+        lock = { picked -> lockTiles(picked) },
         confirm = ::confirm, done = ::done,
     )
 }

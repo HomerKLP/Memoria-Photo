@@ -73,6 +73,11 @@ class PhotoInfo(
 
 /** Reads MediaStore columns and the camera EXIF. Blocking: call from IO. */
 fun loadInfo(context: Context, tile: Tile): PhotoInfo {
+    // A locked photo is not in MediaStore: the vault's own record has everything the panel shows but EXIF
+    if (tile.vault) {
+        val item = VaultStore.item(context, tile.id) ?: error("no locked item for ${tile.id}")
+        return PhotoInfo(item.name, item.folder.trimEnd('/'), item.size, item.width, item.height, null, null, null, item.type)
+    }
     var name = ""
     var folder = ""
     var size = 0L

@@ -326,13 +326,15 @@ fun SelectBar(
     onFavorite: () -> Unit,
     onDelete: () -> Unit,
     onMove: (() -> Unit)? = null,
+    onLock: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
-    val four = onMove != null
+    val four = onMove != null || onLock != null
     FloatingBar(modifier) {
         SelectAction(R.drawable.ic_share, "Share", four, onShare)
         SelectAction(R.drawable.ic_favorite_border, if (favorite) "Unfavorite" else "Favorite", four, onFavorite)
         if (onMove != null) SelectAction(R.drawable.ic_move, "Move", four, onMove)
+        if (onLock != null) SelectAction(R.drawable.ic_lock, "Lock", four, onLock)
         SelectAction(R.drawable.ic_trash_line, "Delete", four, onDelete, danger = true)
     }
 }

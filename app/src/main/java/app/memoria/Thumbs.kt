@@ -106,6 +106,14 @@ fun Thumb(tile: Tile, modifier: Modifier) {
         // A tab-tap scroll to the top: a tile only flying by waits instead of decoding, so the fly-by
         // does not load (or drop frames on) photos you will scroll past anyway.
         if (fastScrolling) snapshotFlow { fastScrolling }.first { !it }
+        if (tile.vault) {
+            launch(thumbLoads) {
+                val bmp = VaultStore.thumb(context, tile.id) ?: return@launch
+                thumbs.put(tile.id, bmp)
+                value = bmp
+            }
+            return@produceState
+        }
         val signal = CancellationSignal()
         launch(thumbLoads) {
             val resolver = context.contentResolver

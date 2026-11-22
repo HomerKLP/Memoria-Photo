@@ -83,6 +83,8 @@ fun ViewerChrome(
     onMenu: (Boolean) -> Unit = {}, // the menu opened or closed: a video's controls stay while it is open
     trashed: Boolean = false, // a trashed file: no Share, Favorite or More; Restore sits before Delete
     onRestore: () -> Unit = {},
+    vault: Boolean = false, // a locked file: no Share, Favorite or More; Move out sits before Delete
+    onMoveOut: () -> Unit = {},
 ) {
     var menu by remember { mutableStateOf(false) }
     LaunchedEffect(menu) { onMenu(menu) }
@@ -123,8 +125,8 @@ fun ViewerChrome(
                 Text(title, color = onViewer, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 Text(subtitle, color = onViewer.copy(alpha = 0.7f), fontSize = 12.sp)
             }
-            // a trashed file has no More menu: its slot stays empty, so the date does not move
-            if (trashed) Box(Modifier.size(48.dp))
+            // a trashed or locked file has no More menu: its slot stays empty, so the date does not move
+            if (trashed || vault) Box(Modifier.size(48.dp))
             else IconButton({ if (menuItems.isNotEmpty()) menu = true }) {
                 Icon(painterResource(R.drawable.ic_more), "More", tint = onViewer)
             }
@@ -147,6 +149,9 @@ fun ViewerChrome(
                 if (trashed) {
                     IconButton(onInfo) { Icon(painterResource(R.drawable.ic_info), "Details", tint = onViewer) }
                     IconButton(onRestore) { Icon(painterResource(R.drawable.ic_restore), "Restore", tint = onViewer) }
+                } else if (vault) {
+                    IconButton(onInfo) { Icon(painterResource(R.drawable.ic_info), "Details", tint = onViewer) }
+                    IconButton(onMoveOut) { Icon(painterResource(R.drawable.ic_upload), "Move out", tint = onViewer) }
                 } else {
                     IconButton(onShare) { Icon(painterResource(R.drawable.ic_share), "Share", tint = onViewer) }
                     IconButton(onFavorite) {

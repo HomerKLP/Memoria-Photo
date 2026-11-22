@@ -297,6 +297,70 @@ class BehaviorTest {
         assertNull(opened)
     }
 
+    // --- Locked folder -------------------------------------------------------------------------
+
+    private val vaultItems = listOf(
+        VaultItem(1, "IMG_1.jpg", "image/jpeg", 1_700_000_000_000, 1_700_000_000_000, 3_000_000, 4000, 3000, null, "DCIM/Camera/"),
+        VaultItem(2, "VID_1.mp4", "video/mp4", 1_700_000_100_000, 1_700_000_100_000, 9_000_000, 1920, 1080, 42_000, "DCIM/Camera/"),
+        VaultItem(3, "IMG_3.jpg", "image/jpeg", 1_700_000_200_000, 1_700_000_200_000, 1_500_000, 1080, 1080, null, "Pictures/Memoria/"),
+    )
+
+    @Test fun locked_empty_showsTheHint() {
+        rule.setContent { MemoriaTheme { Surface { LockedContent(emptyList()) } } }
+
+        rule.onNodeWithText("Nothing locked yet").assertIsDisplayed()
+    }
+
+    @Test fun locked_longPress_selects() {
+        var toggled = 0L
+        rule.setContent { MemoriaTheme { Surface { LockedContent(vaultItems, onToggle = { toggled = it }) } } }
+
+        rule.onNodeWithTag("vault-2").performTouchInput { longClick() }
+        assertEquals(-2L, toggled)
+    }
+
+    @Test fun locked_tap_opensTheItem() {
+        var opened: VaultItem? = null
+        rule.setContent { MemoriaTheme { Surface { LockedContent(vaultItems, onOpen = { opened = it }) } } }
+
+        rule.onNodeWithTag("vault-3").performClick()
+        assertEquals(3L, opened?.n)
+    }
+
+    @Test fun locked_selectAll_fires() {
+        var all = false
+        rule.setContent { MemoriaTheme { Surface { LockedContent(vaultItems, selected = setOf(-1L), onSelectAll = { all = true }) } } }
+
+        rule.onNodeWithText("Select all").performClick()
+        assertTrue(all)
+    }
+
+    @Test fun locked_delete_asksBeforeItDeletes() {
+        var deleted = false
+        rule.setContent { MemoriaTheme { Surface { LockedContent(vaultItems, selected = setOf(-1L), onDelete = { deleted = true }) } } }
+
+        rule.onNodeWithText("Delete").performClick()
+        rule.onNodeWithText("Delete these photos?").assertIsDisplayed()
+        assertFalse(deleted)
+        rule.onAllNodesWithText("Delete").onLast().performClick()
+        assertTrue(deleted)
+    }
+
+    @Test fun locked_moveOut_fires() {
+        var moved = false
+        rule.setContent { MemoriaTheme { Surface { LockedContent(vaultItems, selected = setOf(-1L), onMoveOut = { moved = true }) } } }
+
+        rule.onNodeWithText("Move out").performClick()
+        assertTrue(moved)
+    }
+
+    @Test fun locked_info_saysWhatClearingDataDoes() {
+        rule.setContent { MemoriaTheme { Surface { LockedContent(vaultItems) } } }
+
+        rule.onNodeWithContentDescription("About the locked folder").performClick()
+        rule.onNodeWithText("Clearing Memoria's data or uninstalling it deletes them completely.").assertIsDisplayed()
+    }
+
     // --- Sheets --------------------------------------------------------------------------------
 
     @Test fun namePerson_typing_enablesSaveAndSaves() {
