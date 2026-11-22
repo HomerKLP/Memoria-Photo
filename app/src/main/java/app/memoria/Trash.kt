@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -94,6 +95,9 @@ fun TrashContent(
     val selecting = selected.isNotEmpty()
     // only while selecting: the app's own Back closes the screen, with the back swipe preview
     BackHandler(selecting) { onCancelSelect() }
+    // a swipe in the viewer scrolls this grid under it, so closing lands in the tile, like the Photos tab
+    val grid = rememberLazyGridState()
+    FollowViewer(grid, items.map { it.tile })
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         TopBar(
             title = if (selecting) "${selected.size} selected" else "Trash",
@@ -121,7 +125,7 @@ fun TrashContent(
                 "Deleted photos and videos stay here 30 days, then they are gone for good",
             )
             else -> LazyVerticalGrid(
-                GridCells.Fixed(3), Modifier.weight(1f),
+                GridCells.Fixed(3), Modifier.weight(1f), state = grid,
                 horizontalArrangement = Arrangement.spacedBy(1.dp), verticalArrangement = Arrangement.spacedBy(1.dp),
             ) {
                 items(items, key = { it.tile.id }) { t ->
