@@ -533,7 +533,7 @@ figure.land { width: calc(760px * var(--z)); }
 <header class="top">
   <h1>Memoria Photo</h1>
   <p class="lede">Light theme, Honey palette. Photos and faces are placeholders, names and places are made up.</p>
-  <p class="latest"><b>Latest, 22 Nov:</b> <a href="#trash-viewer">Trash, viewer</a> — a trashed photo or video opens in the viewer, read-only: no Share, Favorite or More; Details, Restore and Delete in the actions row, and the space of the three dots stays empty so the date does not move.</p>
+  <p class="latest"><b>Latest, 23 Nov:</b> <a href="#locked">Locked folder</a> — a new screen behind the phone's fingerprint or PIN, Lock in the viewer's More and a fourth button in the select bar. Its app-data warning is behind the info button in the top bar, not a note above the grid, and the first lock shows it once.</p>
 </header>
 
 <aside class="rail" aria-label="Contents">
@@ -546,6 +546,7 @@ figure.land { width: calc(760px * var(--z)); }
   <div class="sub">
     <a href="#favorites">Favorites</a>
     <a href="#videos-select">Videos</a>
+    <a href="#page-locked">Locked folder</a>
     <a href="#trash">Trash</a>
     <a href="#page-albums">Albums</a>
     <a href="#page-places">Places</a>
@@ -621,16 +622,17 @@ figure.land { width: calc(760px * var(--z)); }
           <div class="title"><b>6 selected</b><span>18.4 MB</span></div>
         </div>
         <div class="scroll" id="timeline-select"></div>
-        <div class="bottom picking">
+        <div class="bottom picking four">
           <nav>
             <button class="tab"><span class="pill"><svg class="i"><use href="#i-share"/></svg>Share</span></button>
             <button class="tab"><span class="pill"><svg class="i"><use href="#i-heart-line"/></svg>Favorite</span></button>
+            <button class="tab"><span class="pill"><svg class="i"><use href="#i-lock"/></svg>Lock</span></button>
             <button class="tab danger"><span class="pill"><svg class="i"><use href="#i-trash-line"/></svg>Delete</span></button>
           </nav>
           <div class="handle"></div>
         </div>
       </div>
-      <figcaption>Photos, selecting: long press a photo to start, a long press then drag adds the ones you pass, tap a day's circle for the whole day. A plain drag scrolls the grid instead, so a photo far down the list is reachable. The top bar swaps in place and the Select bar pill takes the tabs' spot; both float, so the grid never moves. Delete sends all to the phone's trash with one Android confirm. Favorite reads Unfavorite when all picked are favorites. The circle covers the heart while selecting. Back or X leaves</figcaption>
+      <figcaption>Photos, selecting: long press a photo to start, a long press then drag adds the ones you pass, tap a day's circle for the whole day. A plain drag scrolls the grid instead, so a photo far down the list is reachable. The top bar swaps in place and the Select bar pill takes the tabs' spot; both float, so the grid never moves. Delete sends all to the phone's trash with one Android confirm. Favorite reads Unfavorite when all picked are favorites. Lock moves them to the Locked folder (see Locked folder); Android asks to confirm the gallery copies, and locked photos leave the timeline. The circle covers the heart while selecting. Back or X leaves</figcaption>
     </figure>
     <figure id="photos-select-hidden">
       <div class="phone">
@@ -642,10 +644,11 @@ figure.land { width: calc(760px * var(--z)); }
             <div class="title"><b>6 selected</b><span>18.4 MB</span></div>
           </div>
         </div>
-        <div class="bottom picking">
+        <div class="bottom picking four">
           <nav>
             <button class="tab"><span class="pill"><svg class="i"><use href="#i-share"/></svg>Share</span></button>
             <button class="tab"><span class="pill"><svg class="i"><use href="#i-heart-line"/></svg>Favorite</span></button>
+            <button class="tab"><span class="pill"><svg class="i"><use href="#i-lock"/></svg>Lock</span></button>
             <button class="tab danger"><span class="pill"><svg class="i"><use href="#i-trash-line"/></svg>Delete</span></button>
           </nav>
           <div class="handle"></div>
@@ -726,9 +729,11 @@ figure.land { width: calc(760px * var(--z)); }
           <button class="mi" role="menuitem"><svg class="i"><use href="#i-folder"/></svg>Show in album</button>
           <hr>
           <button class="mi" role="menuitem"><svg class="i"><use href="#i-move"/></svg>Move to album</button>
+          <hr>
+          <button class="mi" role="menuitem"><svg class="i"><use href="#i-lock"/></svg>Lock</button>
         </div>
       </div>
-      <figcaption>Viewer, More: Edit in… and Use as… (wallpaper, contact photo) hand the photo to another app through Android's chooser. Show in album opens the photo's folder, hidden when the viewer came from that album. Move to album opens the album sheet. No Copy: albums are phone folders, so a copy is a second file. A video adds Compress video (phase 5). Tap outside or Back closes it</figcaption>
+      <figcaption>Viewer, More: Edit in… and Use as… (wallpaper, contact photo) hand the photo to another app through Android's chooser. Show in album opens the photo's folder, hidden when the viewer came from that album. Move to album opens the album sheet. No Copy: albums are phone folders, so a copy is a second file. Lock moves this one photo to the Locked folder (first time it asks what that means, see Lock, the first time). A video adds Compress video (phase 5). Tap outside or Back closes it</figcaption>
     </figure>
     <figure id="move-album">
       <div class="phone dark">
@@ -977,10 +982,12 @@ figure.land { width: calc(760px * var(--z)); }
           <button class="mi" role="menuitem"><svg class="i"><use href="#i-folder"/></svg>Show in album</button>
           <hr>
           <button class="mi" role="menuitem"><svg class="i"><use href="#i-move"/></svg>Move to album</button>
+          <hr>
+          <button class="mi" role="menuitem"><svg class="i"><use href="#i-lock"/></svg>Lock</button>
           <button class="mi off" role="menuitem" aria-disabled="true"><svg class="i"><use href="#i-video"/></svg>Compress video</button>
         </div>
       </div>
-      <figcaption>Video, More: the photo menu minus Edit in… and Use as…, which need a still photo, plus the video's own. Loop plays it again and again until it is turned off. Open in the phone's player is the manual form of the fallback. Compress video is Phase 5 and stays off until then, like the other unbuilt rows. Five items, no more: a speed picker, subtitles, audio tracks and picture-in-picture were left out to keep the player small. Tap outside or Back closes it</figcaption>
+      <figcaption>Video, More: the photo menu minus Edit in… and Use as…, which need a still photo, plus the video's own. Loop plays it again and again until it is turned off. Open in the phone's player is the manual form of the fallback. Lock moves the clip to the Locked folder, like a photo. Compress video is Phase 5 and stays off until then, like the other unbuilt rows. Six items, no more: a speed picker, subtitles, audio tracks and picture-in-picture were left out to keep the player small. Tap outside or Back closes it</figcaption>
     </figure>
     <figure id="player-landscape" class="land">
       <div class="phone dark viewer video land">
@@ -1080,16 +1087,17 @@ figure.land { width: calc(760px * var(--z)); }
           <button class="text-btn">Select all</button>
         </div>
         <div class="scroll vids" id="videos-picked"></div>
-        <div class="bottom picking">
+        <div class="bottom picking four">
           <nav>
             <button class="tab"><span class="pill"><svg class="i"><use href="#i-share"/></svg>Share</span></button>
             <button class="tab"><span class="pill"><svg class="i"><use href="#i-heart-line"/></svg>Favorite</span></button>
+            <button class="tab"><span class="pill"><svg class="i"><use href="#i-lock"/></svg>Lock</span></button>
             <button class="tab danger"><span class="pill"><svg class="i"><use href="#i-trash-line"/></svg>Delete</span></button>
           </nav>
           <div class="handle"></div>
         </div>
       </div>
-      <figcaption>Videos, selecting: same as an album, without Move</figcaption>
+      <figcaption>Videos, selecting: same as an album, without Move, plus Lock</figcaption>
     </figure>
     <figure id="favorites">
       <div class="phone has-slider">
@@ -1116,16 +1124,17 @@ figure.land { width: calc(760px * var(--z)); }
           <button class="text-btn">Select all</button>
         </div>
         <div class="scroll vids" id="favorites-picked"></div>
-        <div class="bottom picking">
+        <div class="bottom picking four">
           <nav>
             <button class="tab"><span class="pill"><svg class="i"><use href="#i-share"/></svg>Share</span></button>
             <button class="tab"><span class="pill"><svg class="i"><use href="#i-heart-line"/></svg>Unfavorite</span></button>
+            <button class="tab"><span class="pill"><svg class="i"><use href="#i-lock"/></svg>Lock</span></button>
             <button class="tab danger"><span class="pill"><svg class="i"><use href="#i-trash-line"/></svg>Delete</span></button>
           </nav>
           <div class="handle"></div>
         </div>
       </div>
-      <figcaption>Favorites, selecting: all picked are favorites, so the middle action is always Unfavorite. Unfavorited photos leave the grid</figcaption>
+      <figcaption>Favorites, selecting: all picked are favorites, so the second action is always Unfavorite. Unfavorited photos leave the grid, and so does a locked one</figcaption>
     </figure>
     <figure id="trash">
       <div class="phone">
@@ -1194,6 +1203,85 @@ figure.land { width: calc(760px * var(--z)); }
         <div class="gesture"><div class="handle"></div></div>
       </div>
       <figcaption>Trash, empty: no Empty button and no grid, just the hint</figcaption>
+    </figure>
+  </div>
+  <h3 id="page-locked">Locked folder</h3>
+  <div class="phones">
+    <figure id="locked">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="title"><b>Locked folder</b><span>12 items · 34.1 MB</span></div>
+          <button class="icon-btn" aria-label="About the locked folder"><svg class="i"><use href="#i-info"/></svg></button>
+        </div>
+        <div class="scroll">
+          <div class="grid big" id="locked-grid"></div>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Locked folder: opens from the Library card after the phone's own fingerprint or PIN sheet. No app PIN, so there is nothing to forget or type twice. The files have left the phone's gallery for the app's private storage, encrypted with a key only this phone's lock opens: no other app, file manager or photo picker can read them. While locked they leave People, Places, Search, Favorites and the Library counts, and no faces are indexed from them. Newest first, no month headings, like Trash. The app data warning is not a note here: it sits behind the info button in the top bar, and the first lock shows it once. Long press selects. A locked photo opens in the viewer like a trashed one: Details, Move out, Delete, no Share, Favorite or More</figcaption>
+    </figure>
+    <figure id="locked-select">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Close"><svg class="i"><use href="#i-close"/></svg></button>
+          <div class="title"><b>2 selected</b><span>12 items · 7.8 MB</span></div>
+          <button class="text-btn">Select all</button>
+        </div>
+        <div class="scroll">
+          <div class="grid big" id="locked-picked"></div>
+        </div>
+        <div class="answers selbar">
+          <button class="no danger"><svg class="i"><use href="#i-trash-line"/></svg>Delete</button>
+          <button class="yes"><svg class="i"><use href="#i-upload"/></svg>Move out</button>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Locked folder, selecting: the header swaps in place and only the bar appears, so nothing jumps. Move out puts each file back in the folder it came from, with its name, date and place, and the grid and index take it again. Delete asks once in the app and removes the file completely: a locked file is not in the phone's trash, and Android cannot delete it for us. Nothing else is here: no Share (a locked photo never leaves the app), no Favorite (MediaStore keeps favorites, and these are not in it), no Move (that is Move out)</figcaption>
+    </figure>
+    <figure id="locked-empty">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="title"><b>Locked folder</b><span>Empty</span></div>
+          <button class="icon-btn" aria-label="About the locked folder"><svg class="i"><use href="#i-info"/></svg></button>
+        </div>
+        <div class="scroll">
+          <div class="empty"><svg class="i"><use href="#i-lock"/></svg><b>Nothing locked yet</b><p>Pick photos or videos and tap Lock, or lock one from the viewer's More. They leave your gallery and only open here</p></div>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Locked folder, empty: no button, the hint says both ways in, like Trash empty. The info button is the same, so the way to the warning never changes</figcaption>
+    </figure>
+    <figure id="locked-info">
+      <div class="phone modal" id="locked-info-phone">
+        <div class="scrim">
+          <div class="dialog" role="dialog" aria-labelledby="locked-info-title">
+            <svg class="i calm"><use href="#i-info"/></svg>
+            <b id="locked-info-title">Locked folder</b>
+            <p>Locked photos and videos are kept encrypted inside the app. They are not in the phone's gallery, its trash or any backup.</p>
+            <p>Clearing Memoria's data or uninstalling it deletes them completely.</p>
+            <div class="dialog-btns"><button class="text-btn">Got it</button></div>
+          </div>
+        </div>
+      </div>
+      <figcaption>Locked folder, info: the info button in the top bar, on the grid and on the empty screen. Two facts only: where the files are (nowhere else, no backup) and what wipes them. No fingerprint line here, that is the phone's own sheet and it shows on every open. Got it closes; tap outside or Back too</figcaption>
+    </figure>
+    <figure id="locked-first">
+      <div class="phone modal" id="locked-first-phone">
+        <div class="scrim">
+          <div class="dialog" role="alertdialog" aria-labelledby="lock-title">
+            <svg class="i"><use href="#i-lock"/></svg>
+            <b id="lock-title">Lock 6 photos?</b>
+            <p>They leave the phone's gallery, so no other app can open them. Clearing the app's data or uninstalling Memoria deletes them completely.</p>
+            <div class="dialog-btns"><button class="text-btn">Cancel</button><button class="text-btn danger">Lock</button></div>
+          </div>
+        </div>
+      </div>
+      <figcaption>Lock, the first time only: one sheet, once, before the first lock; Android's own confirm for the gallery copies comes next. It says the two things nobody expects: the photos leave the gallery, and app data loss takes them with it. Later locks go straight to Android's confirm. A locked photo with no way back is the one mistake the app cannot fix, so this is a full stop, not a toast. It shows for a lock from the select bar and from the viewer's More</figcaption>
     </figure>
   </div>
   <h3 id="page-albums">Albums</h3>
@@ -1300,7 +1388,7 @@ figure.land { width: calc(760px * var(--z)); }
           <div class="handle"></div>
         </div>
       </div>
-      <figcaption>Album, selecting: long press a photo, or More > Select. The top bar swaps in place; the Select bar pill floats in at the bottom over the grid, so nothing moves. Select all picks the whole album. Move opens the Move to album sheet; moved photos leave this album. Delete sends all to the phone's trash with one Android confirm. Favorite reads Unfavorite when all picked are favorites. Back or X leaves. Select all picks what the filter shows; the select bar has no filter icon, the filter stays on (see Filter). Favorites, a Place, a person and Videos select the same way, without Move: only an album says which album its photos are in</figcaption>
+      <figcaption>Album, selecting: long press a photo, or More > Select. The top bar swaps in place; the Select bar pill floats in at the bottom over the grid, so nothing moves. Select all picks the whole album. Move opens the Move to album sheet; moved photos leave this album. Delete sends all to the phone's trash with one Android confirm. Favorite reads Unfavorite when all picked are favorites. No Lock here: four actions is the most that fits at 360 dp and Move already has the fourth spot, so an album locks one photo at a time from the viewer's More. Back or X leaves. Select all picks what the filter shows; the select bar has no filter icon, the filter stays on (see Filter). Favorites, a Place, a person and Videos select the same way, without Move: only an album says which album its photos are in</figcaption>
     </figure>
     <figure id="ignore">
       <div class="phone modal" id="ignore-phone">
@@ -1387,10 +1475,11 @@ figure.land { width: calc(760px * var(--z)); }
           <button class="text-btn">Select all</button>
         </div>
         <div class="scroll vids" id="place-picked"></div>
-        <div class="bottom picking">
+        <div class="bottom picking four">
           <nav>
             <button class="tab"><span class="pill"><svg class="i"><use href="#i-share"/></svg>Share</span></button>
             <button class="tab"><span class="pill"><svg class="i"><use href="#i-heart-line"/></svg>Favorite</span></button>
+            <button class="tab"><span class="pill"><svg class="i"><use href="#i-lock"/></svg>Lock</span></button>
             <button class="tab danger"><span class="pill"><svg class="i"><use href="#i-trash-line"/></svg>Delete</span></button>
           </nav>
           <div class="handle"></div>
@@ -1692,10 +1781,11 @@ figure.land { width: calc(760px * var(--z)); }
           <button class="text-btn">Select all</button>
         </div>
         <div class="scroll vids" id="person-picked"></div>
-        <div class="bottom picking">
+        <div class="bottom picking four">
           <nav>
             <button class="tab"><span class="pill"><svg class="i"><use href="#i-share"/></svg>Share</span></button>
             <button class="tab"><span class="pill"><svg class="i"><use href="#i-heart-line"/></svg>Favorite</span></button>
+            <button class="tab"><span class="pill"><svg class="i"><use href="#i-lock"/></svg>Lock</span></button>
             <button class="tab danger"><span class="pill"><svg class="i"><use href="#i-trash-line"/></svg>Delete</span></button>
           </nav>
           <div class="handle"></div>
@@ -2137,15 +2227,16 @@ Photos: …/files/test</div>
   <article class="part">
     <h3>Select bar</h3>
     <div style="border-radius:12px; background:linear-gradient(160deg,#9CC3E6,#E9D8B8); padding:16px 0">
-      <div class="bottom picking">
+      <div class="bottom picking four">
         <nav>
           <button class="tab"><span class="pill"><svg class="i"><use href="#i-share"/></svg>Share</span></button>
           <button class="tab"><span class="pill"><svg class="i"><use href="#i-heart-line"/></svg>Favorite</span></button>
+          <button class="tab"><span class="pill"><svg class="i"><use href="#i-lock"/></svg>Lock</span></button>
           <button class="tab danger"><span class="pill"><svg class="i"><use href="#i-trash-line"/></svg>Delete</span></button>
         </nav>
       </div>
     </div>
-    <p>A floating pill like the tabs, with icons, and a fixed width per action so Favorite / Unfavorite never moves it. Takes the tabs' spot while selecting on a tab screen. On a screen without tabs (Album, Favorites, Place, Person, Videos) it floats in at the bottom over the grid, so nothing moves. Move only in an album, the one screen that says where its photos are; four actions put the label under the icon. Delete goes last, in red. Trash has two actions and uses the Action bar.</p>
+    <p>A floating pill like the tabs, with icons, and a fixed width per action so Favorite / Unfavorite never moves it. Takes the tabs' spot while selecting on a tab screen. On a screen without tabs (Album, Favorites, Place, Person, Videos) it floats in at the bottom over the grid, so nothing moves. Move only in an album, the one screen that says where its photos are. Four is the most that fits at 360 dp: with four, the label goes under the icon. Delete goes last, in red. An album already has Move as its fourth, so it locks one photo at a time from the viewer's More. Trash and the Locked folder have two actions and use the Action bar.</p>
   </article>
 
   <article class="part">
@@ -2543,6 +2634,16 @@ fill("trash-grid", trashTiles());
 fill("trash-picked", trashTiles([1, 4]));
 // Photos, selecting: Today picked whole, plus a few from other days.
 const check = '<svg class="i"><use href="#i-check"/></svg>';
+// Locked folder: the Trash tiles without the days label, one video among the photos.
+const lockedBg = Array.from({ length: 12 }, () => photo());
+const lockedTiles = (on = []) => lockedBg.map((bg, i) => `<div class="tile${on.includes(i) ? " on" : ""}" style="background:${bg}">${
+  on.length ? `<span class="sel">${on.includes(i) ? check : ""}</span>` : ""}${
+  i == 5 ? `<span class="dur">1:05<svg class="i"><use href="#i-play"/></svg></span>` : ""}</div>`).join("");
+fill("locked-grid", lockedTiles());
+fill("locked-picked", lockedTiles([2, 5]));
+// Lock's first-time sheet and the info sheet sit on the real Locked folder
+const lockedBehind = [...document.querySelector("#locked .phone").children].map(n => n.cloneNode(true));
+for (const id of ["locked-first-phone", "locked-info-phone"]) document.getElementById(id).prepend(...lockedBehind.map(n => n.cloneNode(true)));
 const picked = { "Today": [0, 1, 2], "Yesterday": [4], "Sat, 11 Oct": [2, 6] };
 fill("timeline-select", `<section class="month-sec"><h3 class="month"><span>October 2026</span></h3>${days.slice(1, 4).map(x => {
   const on = picked[x.d] ?? [], all = on.length == x.n;
