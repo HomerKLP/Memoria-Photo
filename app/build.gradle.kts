@@ -18,8 +18,8 @@ android {
         applicationId = "app.memoria"
         minSdk = 33
         targetSdk = 36
-        versionCode = 14
-        versionName = "0.11.0"
+        versionCode = 15
+        versionName = "0.12.0"
         manifestPlaceholders["appName"] = "Memoria"
         ndk { abiFilters += "arm64-v8a" } // Android 13+ phones and the Mac emulator are arm64
     }

@@ -2,30 +2,29 @@
 
 Open-source Android gallery. All photo processing and AI runs on the phone: photos and face data never leave it, the face models download once on first run, no accounts, ads, trackers or analytics. The internet is used only for optional comfort features — map tiles for the photo map, update checks, and that one-time model download — never to upload or analyze photos. Face data stays in a local DB, with export and import for backup.
 
-Released (0.11.0). This file lists open work only, most important first. What is done and why each call was made: `decisions.md` and git.
+Released (0.12.0). This file lists open work only, most important first. What is done and why each call was made: `decisions.md` and git.
 
 **Index upgrades:** a new index step (search labels, OCR, video towns) fills in only what an existing index is missing (the catch-up pass in `IndexWorker`). Never re-index from scratch, so names, merges, hidden people, covers and answers stay.
 
 ## Open, most important first
 
-1. **Locked folder** (built 2026-11-23, mockup "Locked folder"): a photo or video moves out of the gallery into encrypted app-private storage, opened by fingerprint or phone PIN. Done and checked on the emulator: the container, the store, the screen, Lock in the viewer and the select bar, video playback, Move out, delete, tests. Auto-lock checked on the emulator, the phone's sheet on the phone; the key survives the screen lock turned off (2026-11-23). Left: a release build. Why each call: `decisions.md`, 2026-11-23.
-2. **Photos grid: pinch to resize.** Levels: days (never fewer than 3 photos a row), pinch out to months, then to years (the top level), with an animation between levels. Month and year views are not in the mockup yet: design first.
-3. **Video compression.** No visible loss, not lossless. HEVC re-encode with Media3 Transformer and the hardware encoder: keep resolution and frame rate, lower the bitrate within a safe range. Keep date, GPS and rotation. Keep the original until the user approves the result (a preview with the size saved). Skip videos that are already small. Later: auto mode, compress new videos at night while charging (opt-in), AV1 where a hardware encoder exists.
-4. **Free text search** ("beach at sunset") with an on-device CLIP-style model (SigLIP2's text side; English and Russian).
-5. **Media file matrix** (planned 2026-11-13, not started): one tiny made-up file for every kind of photo and video a phone library can hold, each run through the app's real code on the emulator, so a format bug shows up without the phone. Kinds, checks and tools: `docs/media-matrix.md`.
-6. **R8 on release builds:** `isMinifyEnabled = true` in `buildTypes.release` (`app/build.gradle.kts`, beside the signing config). Release ships 24.6 MB of unshrunk dex, and Compose expects R8 (smaller APK, faster start). LiteRT calls Java from native code, so add keep rules and check an index run (CPU, GPU and NPU) on the phone. Keep each release's mapping file to read crash traces.
-7. **Open a photo from another app:** `ACTION_VIEW` filter in the manifest, the viewer takes a single URI. The test phone's camera sends its last-photo review tap straight to the phone maker's gallery, so a filter will not catch that one; other apps' `ACTION_VIEW` would reach us. Not tried. Later: be a photo picker for other apps (`ACTION_PICK` / `GET_CONTENT`).
-8. **Sound the phone cannot decode** (AC-3, E-AC-3, DTS, in some `.mkv` and camcorder files) plays silent with no word today. Tell the user; design first.
-9. **Load time in `make perf`:** ms from opening a screen until its data shows (People, Person, Details, the viewer's sharp photo), like the cold start's timeline time. Library is done (2026-11-05).
-10. **Strings in `res/values/strings.xml`,** with `pluralStringResource` for counts. All UI text is in Kotlin now and plurals are English only, so the app can't be translated. Cheaper before more screens are built.
-11. **Regenerate the baseline profile** on the emulator (the file is from 2026-10-23 and the code changed a lot), then check cold start with `make perf`.
-12. **Place name in the day header** (mockup "Photos": `Sun, 28 Sep` + the town, muted). Offline geocoding is done (`photo.town`), so this only reads it into the header. Photos only; videos have a town since 2026-11-07, so they could come later.
-13. **Sheets, menus and dialogs: smooth in and out.** The `Menu` part (`Ui.kt`) has no motion yet.
-14. **Search: two people at once, and a results grid** instead of one list of hits.
-15. **Check the session updater on the phone** with the first release after 0.11.0: Install shows no chooser and no screen, the app closes and updates, data kept. Built 2026-11-23, see `decisions.md`.
-16. **Play Protect warning:** say in the release notes and README that Play Protect may warn about the app (not registered with Google's developer verification) and how to check the APK with the signing certificate SHA-256. Not decided yet.
-17. **A file that breaks on a real phone gets a made-up copy of the same kind in the test files first,** then the fix. The real file is personal, so it never goes in the repo.
-18. **Place covers: small towns can still pick a portrait or a dull shot.** A selfie / group demotion is the next step if it bothers.
+1. **Photos grid: pinch to resize.** Levels: days (never fewer than 3 photos a row), pinch out to months, then to years (the top level), with an animation between levels. Month and year views are not in the mockup yet: design first.
+2. **Video compression.** No visible loss, not lossless. HEVC re-encode with Media3 Transformer and the hardware encoder: keep resolution and frame rate, lower the bitrate within a safe range. Keep date, GPS and rotation. Keep the original until the user approves the result (a preview with the size saved). Skip videos that are already small. Later: auto mode, compress new videos at night while charging (opt-in), AV1 where a hardware encoder exists.
+3. **Free text search** ("beach at sunset") with an on-device CLIP-style model (SigLIP2's text side; English and Russian).
+4. **Media file matrix** (planned 2026-11-13, not started): one tiny made-up file for every kind of photo and video a phone library can hold, each run through the app's real code on the emulator, so a format bug shows up without the phone. Kinds, checks and tools: `docs/media-matrix.md`.
+5. **R8 on release builds:** `isMinifyEnabled = true` in `buildTypes.release` (`app/build.gradle.kts`, beside the signing config). Release ships 24.6 MB of unshrunk dex, and Compose expects R8 (smaller APK, faster start). LiteRT calls Java from native code, so add keep rules and check an index run (CPU, GPU and NPU) on the phone. Keep each release's mapping file to read crash traces.
+6. **Open a photo from another app:** `ACTION_VIEW` filter in the manifest, the viewer takes a single URI. The test phone's camera sends its last-photo review tap straight to the phone maker's gallery, so a filter will not catch that one; other apps' `ACTION_VIEW` would reach us. Not tried. Later: be a photo picker for other apps (`ACTION_PICK` / `GET_CONTENT`).
+7. **Sound the phone cannot decode** (AC-3, E-AC-3, DTS, in some `.mkv` and camcorder files) plays silent with no word today. Tell the user; design first.
+8. **Load time in `make perf`:** ms from opening a screen until its data shows (People, Person, Details, the viewer's sharp photo), like the cold start's timeline time. Library is done (2026-11-05).
+9. **Strings in `res/values/strings.xml`,** with `pluralStringResource` for counts. All UI text is in Kotlin now and plurals are English only, so the app can't be translated. Cheaper before more screens are built.
+10. **Regenerate the baseline profile** on the emulator (the file is from 2026-10-23 and the code changed a lot), then check cold start with `make perf`.
+11. **Place name in the day header** (mockup "Photos": `Sun, 28 Sep` + the town, muted). Offline geocoding is done (`photo.town`), so this only reads it into the header. Photos only; videos have a town since 2026-11-07, so they could come later.
+12. **Sheets, menus and dialogs: smooth in and out.** The `Menu` part (`Ui.kt`) has no motion yet.
+13. **Search: two people at once, and a results grid** instead of one list of hits.
+14. **Check the session updater on the phone** with the first release after 0.11.0: Install shows no chooser and no screen, the app closes and updates, data kept. Built 2026-11-23, see `decisions.md`.
+15. **Play Protect warning:** say in the release notes and README that Play Protect may warn about the app (not registered with Google's developer verification) and how to check the APK with the signing certificate SHA-256. Not decided yet.
+16. **A file that breaks on a real phone gets a made-up copy of the same kind in the test files first,** then the fix. The real file is personal, so it never goes in the repo.
+17. **Place covers: small towns can still pick a portrait or a dull shot.** A selfie / group demotion is the next step if it bothers.
 
 ## Later
 
