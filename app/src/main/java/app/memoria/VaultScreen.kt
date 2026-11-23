@@ -1,6 +1,7 @@
 package app.memoria
 
 import android.app.Activity
+import android.content.Context
 import android.provider.MediaStore
 import android.view.WindowManager
 import androidx.activity.compose.BackHandler
@@ -66,6 +67,8 @@ fun rememberVaultLock(onLocked: (List<Tile>) -> Unit = {}): (List<Tile>) -> Unit
     val activity = context.findActivity()
     val scope = rememberCoroutineScope()
     var batch by remember { mutableStateOf<VaultStore.Batch?>(null) }
+    var first by remember { mutableStateOf<List<Tile>?>(null) } // waiting on the first-lock sheet
+    val prefs = remember { context.getSharedPreferences("vault", Context.MODE_PRIVATE) }
     val ask = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         val b = batch ?: return@rememberLauncherForActivityResult
         batch = null
@@ -82,8 +85,8 @@ fun rememberVaultLock(onLocked: (List<Tile>) -> Unit = {}): (List<Tile>) -> Unit
             viewerEdits++
         }
     }
-    return { tiles ->
-        if (tiles.isNotEmpty() && activity != null) scope.launch {
+    fun lock(tiles: List<Tile>) {
+        if (activity != null) scope.launch {
             if (vaultKeys == null) vaultKeys = unlockVault(activity)
             if (vaultKeys != null) {
                 val b = runCatching { VaultStore.lock(context, tiles) }
@@ -97,6 +100,37 @@ fun rememberVaultLock(onLocked: (List<Tile>) -> Unit = {}): (List<Tile>) -> Unit
             }
         }
     }
+    first?.let { tiles ->
+        FirstLockDialog(tiles, onCancel = { first = null }, onLock = {
+            first = null
+            prefs.edit().putBoolean("introSeen", true).apply()
+            lock(tiles)
+        })
+    }
+    return { tiles ->
+        if (tiles.isNotEmpty()) {
+            if (prefs.getBoolean("introSeen", false)) lock(tiles) else first = tiles
+        }
+    }
+}
+
+/** Lock, the first time only (mockup "Lock, the first time"): the two things nobody expects, once, before Android's confirm. */
+@Composable
+fun FirstLockDialog(tiles: List<Tile>, onCancel: () -> Unit, onLock: () -> Unit) {
+    val word = when {
+        tiles.all { it.duration == null } -> "photo"
+        tiles.all { it.duration != null } -> "video"
+        else -> "item"
+    }
+    val (they, them) = if (tiles.size == 1) "It leaves" to "it" else "They leave" to "them"
+    AlertDialog(
+        onDismissRequest = onCancel,
+        icon = { Icon(painterResource(R.drawable.ic_lock), null) },
+        title = { Text("Lock ${count(tiles.size, word)}?") },
+        text = { Text("$they the phone's gallery, so no other app can open $them. Clearing the app's data or uninstalling Memoria deletes $them completely.") },
+        confirmButton = { TextButton(onLock) { Text("Lock", color = MaterialTheme.colorScheme.error) } },
+        dismissButton = { TextButton(onCancel) { Text("Cancel") } },
+    )
 }
 
 /** The Locked folder (mockup "Locked folder"): the phone's own sheet, then the grid, select mode and the info. */

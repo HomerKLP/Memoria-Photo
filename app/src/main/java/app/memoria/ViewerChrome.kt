@@ -167,7 +167,11 @@ fun ViewerChrome(
             }
         }
         // Sideways the bar is shorter (no status bar), so the menu drops from the button's own bottom
-        Menu(menu, onDismiss = { menu = false }, items = menuItems, top = viewerMenuTop(land))
+        // A tap on an item closes the menu, as every other menu does, so no sheet opens over it
+        Menu(
+            menu, onDismiss = { menu = false }, top = viewerMenuTop(land),
+            items = menuItems.map { i -> MenuItem(i.icon, i.label, i.dividerBefore, i.checked, i.enabled) { menu = false; i.onClick() } },
+        )
     }
 }
 

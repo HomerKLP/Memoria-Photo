@@ -8,7 +8,7 @@ Released (0.11.0). This file lists open work only, most important first. What is
 
 ## Open, most important first
 
-1. **Locked folder** (built 2026-11-23, mockup "Locked folder"): a photo or video moves out of the gallery into encrypted app-private storage, opened by fingerprint or phone PIN. Done and checked on the emulator: the container, the store, the screen, Lock in the viewer and the select bar, video playback, Move out, delete, tests. Auto-lock checked on the emulator, the phone's sheet on the phone; the key survives the screen lock turned off (2026-11-23). Left: a release build, and a note for a phone with no screen lock (today the folder just closes; design first). Why each call: `decisions.md`, 2026-11-23.
+1. **Locked folder** (built 2026-11-23, mockup "Locked folder"): a photo or video moves out of the gallery into encrypted app-private storage, opened by fingerprint or phone PIN. Done and checked on the emulator: the container, the store, the screen, Lock in the viewer and the select bar, video playback, Move out, delete, tests. Auto-lock checked on the emulator, the phone's sheet on the phone; the key survives the screen lock turned off (2026-11-23). Left: a release build; the no-screen-lock screen and dialog and the Move out question are designed (mockup, 2026-11-23), not built. Why each call: `decisions.md`, 2026-11-23.
 2. **Photos grid: pinch to resize.** Levels: days (never fewer than 3 photos a row), pinch out to months, then to years (the top level), with an animation between levels. Month and year views are not in the mockup yet: design first.
 3. **Video compression.** No visible loss, not lossless. HEVC re-encode with Media3 Transformer and the hardware encoder: keep resolution and frame rate, lower the bitrate within a safe range. Keep date, GPS and rotation. Keep the original until the user approves the result (a preview with the size saved). Skip videos that are already small. Later: auto mode, compress new videos at night while charging (opt-in), AV1 where a hardware encoder exists.
 4. **Free text search** ("beach at sunset") with an on-device CLIP-style model (SigLIP2's text side; English and Russian).
@@ -29,6 +29,7 @@ Released (0.11.0). This file lists open work only, most important first. What is
 
 ## Later
 
+- Media management access (`MANAGE_MEDIA`): one switch in Android's Settings, so Android's own "Allow Memoria to delete this photo?" stops showing on Lock, and its dialogs for Delete, Restore and Move too. Memoria then asks itself where something is lost for good (Delete for good). Without the switch, Android's dialogs stay. Mockup first: how the app asks for the switch.
 - Google Takeout import: copy photos not already on the phone, dates from the JSON, skip duplicates. Plan: `docs/library-unification.md`.
 - Names from Takeout: match Google's people tags to our people (photos with one tag and one face, then a majority vote per person, like `bench.py eval`).
 - Setting: photos needed to make a person (today 6, hardcoded in `groupFaces` and `groupPets`). Easy: a `minPhotos` parameter, a change runs one full regroup, no re-index. Open: does a named person under a raised number keep its name; one number for people and pets, or two. Mockup first.

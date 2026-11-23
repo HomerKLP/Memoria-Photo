@@ -574,14 +574,14 @@ fun Viewer(
                     add(MenuItem(R.drawable.ic_play, "Open in the phone's player") { openInPlayer(context, tile) })
                     if (showInAlbum) add(MenuItem(R.drawable.ic_folder, "Show in album") { onShowInAlbum(tile) })
                     add(MenuItem(R.drawable.ic_move, "Move to album", dividerBefore = true) { moving = true })
-                    add(MenuItem(R.drawable.ic_lock, "Lock", dividerBefore = true) { onLock(tile) })
-                    add(MenuItem(R.drawable.ic_video, "Compress video", enabled = false) {}) // Phase 5
+                    add(MenuItem(R.drawable.ic_lock, "Move to Locked folder") { onLock(tile) })
+                    add(MenuItem(R.drawable.ic_video, "Compress video", dividerBefore = true, enabled = false) {}) // Phase 5
                 } else buildList {
                     add(MenuItem(R.drawable.ic_edit, "Edit in…") { editedIn = true; editIn(context, tile) })
                     add(MenuItem(R.drawable.ic_wallpaper, "Use as…") { useAs(context, tile) })
                     if (showInAlbum) add(MenuItem(R.drawable.ic_folder, "Show in album") { onShowInAlbum(tile) })
                     add(MenuItem(R.drawable.ic_move, "Move to album", dividerBefore = true) { moving = true })
-                    add(MenuItem(R.drawable.ic_lock, "Lock", dividerBefore = true) { onLock(tile) })
+                    add(MenuItem(R.drawable.ic_lock, "Move to Locked folder") { onLock(tile) })
                 },
                 onMenu = { menuOpen = it },
                 playerBar = if (video) ({

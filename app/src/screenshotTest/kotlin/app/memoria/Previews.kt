@@ -928,6 +928,8 @@ fun ViewerMore() = MemoriaTheme {
                     MenuItem(R.drawable.ic_edit, "Edit in…") {},
                     MenuItem(R.drawable.ic_wallpaper, "Use as…") {},
                     MenuItem(R.drawable.ic_folder, "Show in album") {},
+                    MenuItem(R.drawable.ic_move, "Move to album", dividerBefore = true) {},
+                    MenuItem(R.drawable.ic_lock, "Move to Locked folder") {},
                 ),
             )
         }
@@ -950,7 +952,8 @@ fun ViewerMoreLandscape() = MemoriaTheme {
                     MenuItem(R.drawable.ic_play, "Open in the phone's player") {},
                     MenuItem(R.drawable.ic_folder, "Show in album") {},
                     MenuItem(R.drawable.ic_move, "Move to album", dividerBefore = true) {},
-                    MenuItem(R.drawable.ic_video, "Compress video", enabled = false) {},
+                    MenuItem(R.drawable.ic_lock, "Move to Locked folder") {},
+                    MenuItem(R.drawable.ic_video, "Compress video", dividerBefore = true, enabled = false) {},
                 ),
             )
         }

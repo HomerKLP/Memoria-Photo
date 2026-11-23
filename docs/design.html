@@ -533,7 +533,7 @@ figure.land { width: calc(760px * var(--z)); }
 <header class="top">
   <h1>Memoria Photo</h1>
   <p class="lede">Light theme, Honey palette. Photos and faces are placeholders, names and places are made up.</p>
-  <p class="latest"><b>Latest, 23 Nov:</b> <a href="#locked">Locked folder</a> — a new screen behind the phone's fingerprint or PIN, Lock in the viewer's More and a fourth button in the select bar. Its app-data warning is behind the info button in the top bar, not a note above the grid, and the first lock shows it once.</p>
+  <p class="latest"><b>Latest, 23 Nov:</b> <a href="#locked-nolock">Locked folder, no screen lock</a> — a screen and a Lock dialog that send you to set a screen lock, <a href="#locked-moveout">Move out</a> now asks first, and the viewer's More says <a href="#viewer-more">Move to Locked folder</a>, under Move to album.</p>
 </header>
 
 <aside class="rail" aria-label="Contents">
@@ -729,11 +729,10 @@ figure.land { width: calc(760px * var(--z)); }
           <button class="mi" role="menuitem"><svg class="i"><use href="#i-folder"/></svg>Show in album</button>
           <hr>
           <button class="mi" role="menuitem"><svg class="i"><use href="#i-move"/></svg>Move to album</button>
-          <hr>
-          <button class="mi" role="menuitem"><svg class="i"><use href="#i-lock"/></svg>Lock</button>
+          <button class="mi" role="menuitem"><svg class="i"><use href="#i-lock"/></svg>Move to Locked folder</button>
         </div>
       </div>
-      <figcaption>Viewer, More: Edit in… and Use as… (wallpaper, contact photo) hand the photo to another app through Android's chooser. Show in album opens the photo's folder, hidden when the viewer came from that album. Move to album opens the album sheet. No Copy: albums are phone folders, so a copy is a second file. Lock moves this one photo to the Locked folder (first time it asks what that means, see Lock, the first time). A video adds Compress video (phase 5). Tap outside or Back closes it</figcaption>
+      <figcaption>Viewer, More: Edit in… and Use as… (wallpaper, contact photo) hand the photo to another app through Android's chooser. Show in album opens the photo's folder, hidden when the viewer came from that album. Move to album opens the album sheet. No Copy: albums are phone folders, so a copy is a second file. Move to Locked folder takes this one photo there, next to Move to album since both move the file (first time it asks what that means, see Lock, the first time). A video adds Compress video (phase 5). Tap outside or Back closes it</figcaption>
     </figure>
     <figure id="move-album">
       <div class="phone dark">
@@ -982,12 +981,12 @@ figure.land { width: calc(760px * var(--z)); }
           <button class="mi" role="menuitem"><svg class="i"><use href="#i-folder"/></svg>Show in album</button>
           <hr>
           <button class="mi" role="menuitem"><svg class="i"><use href="#i-move"/></svg>Move to album</button>
+          <button class="mi" role="menuitem"><svg class="i"><use href="#i-lock"/></svg>Move to Locked folder</button>
           <hr>
-          <button class="mi" role="menuitem"><svg class="i"><use href="#i-lock"/></svg>Lock</button>
           <button class="mi off" role="menuitem" aria-disabled="true"><svg class="i"><use href="#i-video"/></svg>Compress video</button>
         </div>
       </div>
-      <figcaption>Video, More: the photo menu minus Edit in… and Use as…, which need a still photo, plus the video's own. Loop plays it again and again until it is turned off. Open in the phone's player is the manual form of the fallback. Lock moves the clip to the Locked folder, like a photo. Compress video is Phase 5 and stays off until then, like the other unbuilt rows. Six items, no more: a speed picker, subtitles, audio tracks and picture-in-picture were left out to keep the player small. Tap outside or Back closes it</figcaption>
+      <figcaption>Video, More: the photo menu minus Edit in… and Use as…, which need a still photo, plus the video's own. Loop plays it again and again until it is turned off. Open in the phone's player is the manual form of the fallback. Move to Locked folder takes the clip there, like a photo. Compress video is Phase 5 and stays off until then, like the other unbuilt rows. Six items, no more: a speed picker, subtitles, audio tracks and picture-in-picture were left out to keep the player small. Tap outside or Back closes it</figcaption>
     </figure>
     <figure id="player-landscape" class="land">
       <div class="phone dark viewer video land">
@@ -1239,7 +1238,7 @@ figure.land { width: calc(760px * var(--z)); }
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Locked folder, selecting: the header swaps in place and only the bar appears, so nothing jumps. Move out puts each file back in the folder it came from, with its name, date and place, and the grid and index take it again. Delete asks once in the app and removes the file completely: a locked file is not in the phone's trash, and Android cannot delete it for us. Nothing else is here: no Share (a locked photo never leaves the app), no Favorite (MediaStore keeps favorites, and these are not in it), no Move (that is Move out)</figcaption>
+      <figcaption>Locked folder, selecting: the header swaps in place and only the bar appears, so nothing jumps. Move out asks first (see Move out, every time), then puts each file back in the folder it came from, with its name, date and place, and the grid and index take it again. Delete asks once in the app and removes the file completely: a locked file is not in the phone's trash, and Android cannot delete it for us. Nothing else is here: no Share (a locked photo never leaves the app), no Favorite (MediaStore keeps favorites, and these are not in it), no Move (that is Move out)</figcaption>
     </figure>
     <figure id="locked-empty">
       <div class="phone">
@@ -1282,6 +1281,47 @@ figure.land { width: calc(760px * var(--z)); }
         </div>
       </div>
       <figcaption>Lock, the first time only: one sheet, once, before the first lock; Android's own confirm for the gallery copies comes next. It says the two things nobody expects: the photos leave the gallery, and app data loss takes them with it. Later locks go straight to Android's confirm. A locked photo with no way back is the one mistake the app cannot fix, so this is a full stop, not a toast. It shows for a lock from the select bar and from the viewer's More</figcaption>
+    </figure>
+    <figure id="locked-nolock">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="subbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="title"><b>Locked folder</b><span>&nbsp;</span></div>
+          <button class="icon-btn" aria-label="About the locked folder"><svg class="i"><use href="#i-info"/></svg></button>
+        </div>
+        <div class="scroll">
+          <div class="empty"><svg class="i"><use href="#i-lock"/></svg><b>Set a screen lock first</b><p>The folder opens with this phone's own fingerprint or PIN, and it has none now. Anything already locked stays safe</p><button class="pill-btn">Open settings</button></div>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Locked folder, no screen lock: the phone has no fingerprint, PIN, pattern or password, so its sheet cannot show. It happens when a lock was never set or was turned off later; locked items stay, since their key does not depend on the lock. No count under the title: the folder is still shut, and the empty line keeps the bar's height. Open settings goes to Android's screen lock settings; back in the app with a lock set, the phone's sheet shows at once</figcaption>
+    </figure>
+    <figure id="lock-nolock">
+      <div class="phone modal" id="lock-nolock-phone">
+        <div class="scrim">
+          <div class="dialog" role="alertdialog" aria-labelledby="lock-nolock-title">
+            <svg class="i"><use href="#i-lock"/></svg>
+            <b id="lock-nolock-title">Set a screen lock first</b>
+            <p>Locked photos open with this phone's own fingerprint or PIN, and it has none now.</p>
+            <div class="dialog-btns"><button class="text-btn">Cancel</button><button class="text-btn">Open settings</button></div>
+          </div>
+        </div>
+      </div>
+      <figcaption>Lock, no screen lock: Move to Locked folder in the viewer's More, or Lock in the select bar, stops here instead of doing nothing. Same words as the folder's own screen. Open settings goes to Android's screen lock settings; Lock is tapped again after, nothing is waiting</figcaption>
+    </figure>
+    <figure id="locked-moveout">
+      <div class="phone modal" id="locked-moveout-phone">
+        <div class="scrim">
+          <div class="dialog" role="alertdialog" aria-labelledby="moveout-title">
+            <svg class="i"><use href="#i-upload"/></svg>
+            <b id="moveout-title">Move 2 photos out?</b>
+            <p>They go back to the phone's gallery, in the folders they came from. Any app that can see your photos can open them again.</p>
+            <div class="dialog-btns"><button class="text-btn">Cancel</button><button class="text-btn">Move out</button></div>
+          </div>
+        </div>
+      </div>
+      <figcaption>Move out, every time: Move out in the select bar and in the viewer asks first, since the files become visible to the gallery and other apps again. Not red: nothing is lost, and they can be locked again. The title counts like Lock's: "Move 1 video out?", "Move 3 items out?" for photos and videos mixed. A folder Android no longer takes new files in (Download, another app's folder) becomes Pictures/ plus its name</figcaption>
     </figure>
   </div>
   <h3 id="page-albums">Albums</h3>
@@ -2643,7 +2683,10 @@ fill("locked-grid", lockedTiles());
 fill("locked-picked", lockedTiles([2, 5]));
 // Lock's first-time sheet and the info sheet sit on the real Locked folder
 const lockedBehind = [...document.querySelector("#locked .phone").children].map(n => n.cloneNode(true));
-for (const id of ["locked-first-phone", "locked-info-phone"]) document.getElementById(id).prepend(...lockedBehind.map(n => n.cloneNode(true)));
+for (const id of ["locked-first-phone", "locked-info-phone", "lock-nolock-phone"]) document.getElementById(id).prepend(...lockedBehind.map(n => n.cloneNode(true)));
+// Move out's question sits on the selecting folder it comes from
+const pickedBehind = [...document.querySelector("#locked-select .phone").children];
+document.getElementById("locked-moveout-phone").prepend(...pickedBehind.map(n => n.cloneNode(true)));
 const picked = { "Today": [0, 1, 2], "Yesterday": [4], "Sat, 11 Oct": [2, 6] };
 fill("timeline-select", `<section class="month-sec"><h3 class="month"><span>October 2026</span></h3>${days.slice(1, 4).map(x => {
   const on = picked[x.d] ?? [], all = on.length == x.n;

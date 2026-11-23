@@ -361,6 +361,31 @@ class BehaviorTest {
         rule.onNodeWithText("Clearing Memoria's data or uninstalling it deletes them completely.").assertIsDisplayed()
     }
 
+    // The first lock stops once to say what locking means (mockup "Lock, the first time"); Cancel keeps it for next time
+    @Test fun lock_firstTime_asksOnce() {
+        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
+            .getSharedPreferences("vault", 0).edit().clear().commit()
+        val photo = Tile(1, Uri.parse("content://media/external/images/media/1"), 0L, null)
+        rule.setContent {
+            MemoriaTheme { Surface {
+                val lock = rememberVaultLock()
+                androidx.compose.material3.TextButton({ lock(listOf(photo)) }) { Text("Lock it") }
+            } }
+        }
+
+        rule.onNodeWithText("Lock it").performClick()
+        rule.onNodeWithText("Lock 1 photo?").assertIsDisplayed()
+        rule.onNodeWithText("Cancel").performClick()
+        rule.onNodeWithText("Lock 1 photo?").assertDoesNotExist()
+
+        rule.onNodeWithText("Lock it").performClick()
+        rule.onNodeWithText("Lock").performClick()
+        rule.onNodeWithText("Lock 1 photo?").assertDoesNotExist()
+
+        rule.onNodeWithText("Lock it").performClick()
+        rule.onNodeWithText("Lock 1 photo?").assertDoesNotExist()
+    }
+
     // --- Sheets --------------------------------------------------------------------------------
 
     @Test fun namePerson_typing_enablesSaveAndSaves() {
@@ -518,7 +543,8 @@ class BehaviorTest {
 
     // --- Viewer --------------------------------------------------------------------------------
 
-    @Test fun viewer_more_opensMenuAndFiresItem() {
+    // Like every other menu, a tap closes it: Lock's sheet or the album sheet must not sit over an open menu
+    @Test fun viewer_more_firesItemAndCloses() {
         var fired: String? = null
         rule.setContent {
             MemoriaTheme { Surface { Box(Modifier.fillMaxSize()) {
@@ -532,6 +558,7 @@ class BehaviorTest {
         rule.onNodeWithContentDescription("More").performClick()
         rule.onNodeWithText("Edit in…").performClick()
         assertEquals("edit", fired)
+        rule.onNodeWithText("Edit in…").assertDoesNotExist()
     }
 
     /** A trashed file cannot be shared, favorited or moved: Details, Restore and Delete are its row. */
