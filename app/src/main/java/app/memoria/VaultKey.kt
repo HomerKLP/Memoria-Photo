@@ -33,7 +33,7 @@ object VaultKey {
 
     fun exists(context: Context) = file(context).exists()
 
-    /** The keys, or null when the key file or its Keystore key is gone. Only after the phone's sheet said yes. */
+    /** The keys, or null when the key file or its Keystore key is gone. No sheet: locking asks for nothing. */
     fun keys(context: Context): VaultKeys? = runCatching { VaultKeys(unwrap(context)) }.getOrNull()
 
     /** Makes the master on first use. */

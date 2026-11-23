@@ -11,6 +11,8 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -38,6 +40,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -91,6 +94,13 @@ fun rememberVaultLock(onLocked: (List<Tile>) -> Unit = {}): (List<Tile>) -> Unit
     }
     fun lock(tiles: List<Tile>) {
         if (activity != null) scope.launch {
+            // Locking asks for nothing: the phone's sheet is for opening the folder, never for locking into it
+            if (vaultKeys == null) vaultKeys = runCatching {
+                withContext(Dispatchers.IO) {
+                    VaultKey.keys(context) ?: if (!VaultKey.exists(context)) VaultKey.create(context) else null
+                }
+            }.getOrNull()
+            // The first builds' key opened only through the sheet, so a vault made by them still needs it, once
             if (vaultKeys == null) vaultKeys = unlockVault(activity)
             if (vaultKeys != null) {
                 val b = runCatching { VaultStore.lock(context, tiles) }
@@ -178,7 +188,8 @@ fun LockedScreen(onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit = { _, _
     var items by remember { mutableStateOf(lastVault.orEmpty()) }
     var selected by remember { mutableStateOf(emptySet<Long>()) }
     var reload by remember { mutableIntStateOf(0) }
-    val ready = vaultKeys != null
+    var loaded by remember { mutableStateOf(false) } // the first read is done: the fade starts with the photos in hand
+    val ready = vaultKeys != null && loaded
     var noLock by remember { mutableStateOf(false) }
     // No screen of its own for the lock: the phone's sheet is the screen. Cancelled, the folder closes.
     // With no screen lock the sheet cannot show: the folder says so, and back from Settings this runs again.
@@ -213,6 +224,7 @@ fun LockedScreen(onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit = { _, _
         if (vaultKeys == null) return@LaunchedEffect
         items = runCatching { VaultStore.items(context) }.getOrDefault(emptyList())
         lastVault = items
+        loaded = true
     }
     LockedContent(
         items = items,
@@ -263,6 +275,8 @@ fun LockedContent(
     onOpenSettings: () -> Unit = {},
 ) {
     val selecting = selected.isNotEmpty()
+    // Unlocking never pops (mockup "Locked folder"): the grid fades and settles in under the top bar
+    val show by animateFloatAsState(if (ready) 1f else 0f, tween(200), label = "unlock")
     var info by remember { mutableStateOf(false) }
     var asking by remember { mutableStateOf(false) }
     var movingOut by remember { mutableStateOf(false) }
@@ -297,7 +311,11 @@ fun LockedContent(
                 "Pick photos or videos and tap Lock, or lock one from the viewer's More. They leave your gallery and only open here",
             )
             else -> LazyVerticalGrid(
-                GridCells.Fixed(3), Modifier.weight(1f).testTag("lockedGrid"), state = grid,
+                GridCells.Fixed(3), Modifier.weight(1f).graphicsLayer {
+                    alpha = show
+                    scaleX = 0.96f + 0.04f * show
+                    scaleY = 0.96f + 0.04f * show
+                }.testTag("lockedGrid"), state = grid,
                 horizontalArrangement = Arrangement.spacedBy(1.dp), verticalArrangement = Arrangement.spacedBy(1.dp),
             ) {
                 items(items, key = { it.id }) { item ->

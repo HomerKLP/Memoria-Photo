@@ -533,7 +533,7 @@ figure.land { width: calc(760px * var(--z)); }
 <header class="top">
   <h1>Memoria Photo</h1>
   <p class="lede">Light theme, Honey palette. Photos and faces are placeholders, names and places are made up.</p>
-  <p class="latest"><b>Latest, 23 Nov:</b> <a href="#locked-nolock">Locked folder, no screen lock</a> — a screen and a Lock dialog that send you to set a screen lock, <a href="#locked-moveout">Move out</a> now asks first, and the viewer's More says <a href="#viewer-more">Move to Locked folder</a>, under Move to album.</p>
+  <p class="latest"><b>Latest, 23 Nov:</b> <a href="#page-locked">Locked folder</a> — unlocking fades and settles the grid in, so the photos no longer pop; and <a href="#locked-first">locking</a> never asks for the phone's fingerprint or PIN sheet, even the first time.</p>
 </header>
 
 <aside class="rail" aria-label="Contents">
@@ -1219,7 +1219,7 @@ figure.land { width: calc(760px * var(--z)); }
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Locked folder: opens from the Library card after the phone's own fingerprint or PIN sheet. No app PIN, so there is nothing to forget or type twice. The files have left the phone's gallery for the app's private storage, encrypted with a key kept in this phone's security chip, used only after the phone's own fingerprint or PIN sheet: no other app, file manager or photo picker can read them. Turning the phone's screen lock off keeps them; the folder opens again once a lock is set. While locked they leave People, Places, Search, Favorites and the Library counts, and no faces are indexed from them. Newest first, no month headings, like Trash. The app data warning is not a note here: it sits behind the info button in the top bar, and the first lock shows it once. Long press selects. A locked photo opens in the viewer like a trashed one: Details, Move out, Delete, no Share, Favorite or More</figcaption>
+      <figcaption>Locked folder: opens from the Library card after the phone's own fingerprint or PIN sheet. No app PIN, so there is nothing to forget or type twice. The files have left the phone's gallery for the app's private storage, encrypted with a key kept in this phone's security chip, used only after the phone's own fingerprint or PIN sheet: no other app, file manager or photo picker can read them. Turning the phone's screen lock off keeps them; the folder opens again once a lock is set. While locked they leave People, Places, Search, Favorites and the Library counts, and no faces are indexed from them. Newest first, no month headings, like Trash. Unlocking never pops: under the top bar the grid fades in and settles from 96% of its size in 200 ms, so the photos arrive as one piece after the phone's sheet. The app data warning is not a note here: it sits behind the info button in the top bar, and the first lock shows it once. Long press selects. A locked photo opens in the viewer like a trashed one: Details, Move out, Delete, no Share, Favorite or More</figcaption>
     </figure>
     <figure id="locked-select">
       <div class="phone">
@@ -1280,7 +1280,7 @@ figure.land { width: calc(760px * var(--z)); }
           </div>
         </div>
       </div>
-      <figcaption>Lock, the first time only: one sheet, once, before the first lock; Android's own confirm for the gallery copies comes next. It says the two things nobody expects: the photos leave the gallery, and app data loss takes them with it. Later locks go straight to Android's confirm. A locked photo with no way back is the one mistake the app cannot fix, so this is a full stop, not a toast. It shows for a lock from the select bar and from the viewer's More</figcaption>
+      <figcaption>Lock, the first time only: this sheet, once, before the first lock; Android's own confirm for the gallery copies comes next. It says the two things nobody expects: the photos leave the gallery, and app data loss takes them with it. No lock asks for the phone's own sheet: the fingerprint or PIN sheet is for opening the folder only, so every lock goes straight to Android's confirm. A locked photo with no way back is the one mistake the app cannot fix, so this is a full stop, not a toast. It shows for a lock from the select bar and from the viewer's More</figcaption>
     </figure>
     <figure id="locked-nolock">
       <div class="phone">
