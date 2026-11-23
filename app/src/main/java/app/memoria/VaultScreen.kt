@@ -77,7 +77,8 @@ fun rememberVaultLock(onLocked: (List<Tile>) -> Unit = {}): (List<Tile>) -> Unit
     var noLock by remember { mutableStateOf(false) }
     val prefs = remember { context.getSharedPreferences("vault", Context.MODE_PRIVATE) }
     val ask = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
-        val b = batch ?: return@rememberLauncherForActivityResult
+        // The app was made again while Android asked: the batch is gone, but the keys must not stay
+        val b = batch ?: run { if (!vaultOpen) lockVault(); return@rememberLauncherForActivityResult }
         batch = null
         scope.launch {
             if (result.resultCode == Activity.RESULT_OK) {
@@ -210,6 +211,7 @@ fun LockedScreen(onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit = { _, _
         onStopOrDispose {
             gone = true
             vaultOpen = false
+            loaded = false // back here, blank until the list is read again
             lockVault()
             items = emptyList()
             selected = emptySet()

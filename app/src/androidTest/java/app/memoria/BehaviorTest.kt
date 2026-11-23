@@ -412,6 +412,84 @@ class BehaviorTest {
         rule.onNodeWithText("Lock 1 photo?").assertDoesNotExist()
     }
 
+    // Android's delete confirm answered after the app was made again (dark mode, font size): the keys must go anyway
+    @Test fun lock_answeredAfterRestart_dropsTheKeys() {
+        val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
+        context.getSharedPreferences("vault", 0).edit().putBoolean("introSeen", true).commit()
+        VaultStore.dir(context).run { deleteRecursively(); mkdirs() }
+        val values = android.content.ContentValues().apply {
+            put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, "behaviortest-${System.nanoTime()}.jpg")
+            put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+            put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, "Pictures/BehaviorTest")
+        }
+        val uri = context.contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)!!
+        context.contentResolver.openOutputStream(uri)!!.use {
+            android.graphics.Bitmap.createBitmap(8, 8, android.graphics.Bitmap.Config.ARGB_8888).compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, it)
+        }
+        val photo = Tile(android.content.ContentUris.parseId(uri), uri, 0L, null)
+        var asked: Int? = null
+        val registry = object : androidx.activity.result.ActivityResultRegistry() {
+            override fun <I, O> onLaunch(
+                requestCode: Int, contract: androidx.activity.result.contract.ActivityResultContract<I, O>, input: I,
+                options: androidx.core.app.ActivityOptionsCompat?,
+            ) { asked = requestCode }
+        }
+        val owner = object : androidx.activity.result.ActivityResultRegistryOwner { override val activityResultRegistry = registry }
+        val restore = androidx.compose.ui.test.junit4.StateRestorationTester(rule)
+        try {
+            restore.setContent {
+                MemoriaTheme { Surface {
+                    androidx.compose.runtime.CompositionLocalProvider(androidx.activity.compose.LocalActivityResultRegistryOwner provides owner) {
+                        val lock = rememberVaultLock()
+                        androidx.compose.material3.TextButton({ lock(listOf(photo)) }) { Text("Lock it") }
+                    }
+                } }
+            }
+            rule.onNodeWithText("Lock it").performClick()
+            rule.waitUntil(5_000) { asked != null }
+            restore.emulateSavedInstanceStateRestore()
+            rule.runOnIdle { registry.dispatchResult(asked!!, android.app.Activity.RESULT_CANCELED, android.content.Intent()) }
+            rule.waitForIdle()
+            assertNull(vaultKeys)
+        } finally {
+            context.contentResolver.delete(uri, null, null)
+            VaultStore.dir(context).deleteRecursively()
+            vaultKeys = null
+        }
+    }
+
+    // Back to an open folder after the app was away: blank until the list is read, never "Nothing locked yet" first
+    @Test fun locked_comingBack_waitsForTheList() {
+        val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
+        VaultStore.dir(context).run { deleteRecursively(); mkdirs() }
+        val keys = VaultKeys(VaultKeys.random())
+        val app = object : androidx.lifecycle.LifecycleOwner {
+            override val lifecycle = androidx.lifecycle.LifecycleRegistry.createUnsafe(this)
+        }
+        app.lifecycle.currentState = androidx.lifecycle.Lifecycle.State.RESUMED
+        vaultKeys = keys
+        try {
+            rule.setContent {
+                MemoriaTheme { androidx.compose.runtime.CompositionLocalProvider(androidx.lifecycle.compose.LocalLifecycleOwner provides app) {
+                    LockedScreen(onBack = {})
+                } }
+            }
+            rule.waitUntil(5_000) { rule.onAllNodesWithText("Nothing locked yet").fetchSemanticsNodes().isNotEmpty() }
+            rule.runOnIdle { app.lifecycle.currentState = androidx.lifecycle.Lifecycle.State.CREATED }
+            rule.onNodeWithText("Nothing locked yet").assertDoesNotExist()
+
+            rule.mainClock.autoAdvance = false
+            vaultKeys = keys // the phone's sheet said yes
+            rule.runOnUiThread { app.lifecycle.currentState = androidx.lifecycle.Lifecycle.State.RESUMED }
+            rule.mainClock.advanceTimeByFrame()
+            rule.onNodeWithText("Nothing locked yet").assertDoesNotExist()
+        } finally {
+            rule.mainClock.autoAdvance = true
+            VaultStore.dir(context).deleteRecursively()
+            vaultKeys = null
+        }
+    }
+
     // --- Sheets --------------------------------------------------------------------------------
 
     @Test fun namePerson_typing_enablesSaveAndSaves() {
