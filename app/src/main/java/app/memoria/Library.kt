@@ -142,6 +142,7 @@ fun LibraryScreen(
     onOpenFavorites: () -> Unit,
     onOpenVideos: () -> Unit,
     onOpenTrash: () -> Unit,
+    onOpenLocked: () -> Unit,
     onHelpRecognize: () -> Unit,
     onOpenSettings: () -> Unit,
     reload: Int = 0,
@@ -168,6 +169,7 @@ fun LibraryScreen(
         onOpenFavorites = onOpenFavorites,
         onOpenVideos = onOpenVideos,
         onOpenTrash = onOpenTrash,
+        onOpenLocked = onOpenLocked,
         onHelpRecognize = onHelpRecognize,
         onOpenSettings = onOpenSettings,
     )
@@ -191,6 +193,7 @@ fun LibraryContent(
     onOpenFavorites: () -> Unit = {},
     onOpenVideos: () -> Unit = {},
     onOpenTrash: () -> Unit = {},
+    onOpenLocked: () -> Unit = {},
     onHelpRecognize: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
 ) {
@@ -215,7 +218,7 @@ fun LibraryContent(
         SectionHead("Categories", "See all", onOpenCategories)
         CategoryRow(data?.categories, onOpenCategory)
 
-        Shortcuts(onOpenFavorites, onOpenVideos, onOpenTrash, data?.favorites ?: 0, data?.videos ?: 0, data?.trash ?: 0)
+        Shortcuts(onOpenFavorites, onOpenVideos, onOpenTrash, onOpenLocked, data?.favorites ?: 0, data?.videos ?: 0, data?.trash ?: 0)
         // room for the floating tabs, so the last row can scroll above them
         Spacer(Modifier.windowInsetsPadding(WindowInsets.navigationBarsIgnoringVisibility).height(72.dp))
     }
@@ -395,14 +398,14 @@ fun CoverTile(cover: Tile?, label: String, note: String, modifier: Modifier = Mo
 
 /** Favorites, Videos, Locked folder, Trash. */
 @Composable
-fun Shortcuts(onOpenFavorites: () -> Unit, onOpenVideos: () -> Unit, onOpenTrash: () -> Unit, favorites: Int, videos: Int, trash: Int) {
+fun Shortcuts(onOpenFavorites: () -> Unit, onOpenVideos: () -> Unit, onOpenTrash: () -> Unit, onOpenLocked: () -> Unit, favorites: Int, videos: Int, trash: Int) {
     Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 28.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Shortcut(R.drawable.ic_favorite, "Favorites", favorites.toString(), Modifier.weight(1f), onOpenFavorites)
             Shortcut(R.drawable.ic_video, "Videos", videos.toString(), Modifier.weight(1f), onOpenVideos)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Shortcut(R.drawable.ic_lock, "Locked folder", "Private", Modifier.weight(1f), null) // not built yet
+            Shortcut(R.drawable.ic_lock, "Locked folder", "Private", Modifier.weight(1f), onOpenLocked)
             Shortcut(R.drawable.ic_trash, "Trash", if (trash == 0) "Empty" else trash.toString(), Modifier.weight(1f), onOpenTrash)
         }
     }

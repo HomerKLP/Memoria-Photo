@@ -19,6 +19,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.Parameterized
 import java.io.IOException
 import kotlin.math.min
+import kotlinx.coroutines.runBlocking
 
 /**
  * `assets/media.tsv`: one row per test photo and video, with what the app must do with it. Columns:
@@ -109,6 +110,19 @@ class PhotoFileTest(private val name: String, private val row: Map<String, Strin
     @Test fun grid_showsThePhotoTurned() = assertUpright("grid tile", gridBitmap(tile()))
 
     @Test fun viewer_showsThePhotoTurned() = assertUpright("viewer", viewerPhoto(context, tile()))
+
+    // A locked photo decodes from the vault's bytes, not from MediaStore, and must come out turned the same
+    @Test fun lockedViewer_showsThePhotoTurned() {
+        VaultStore.dir(context).run { deleteRecursively(); mkdirs() } // the key's first save makes it in the app
+        vaultKeys = VaultKeys(VaultKeys.random())
+        try {
+            val item = runBlocking { VaultStore.lock(context, listOf(tile())) }.items.single()
+            assertUpright("locked viewer", viewerPhoto(context, item.tile))
+        } finally {
+            VaultStore.dir(context).deleteRecursively()
+            vaultKeys = null
+        }
+    }
 
     @Test fun index_seesThePhotoTurned() {
         val t = tile()

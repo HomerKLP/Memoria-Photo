@@ -232,7 +232,7 @@ fun PlaceContent(
                 }
                 if (sel != null) {
                     val picked = shown.filter { it.id in sel }
-                    SelectBar(picked.isNotEmpty() && picked.all { it.favorite }, { pick.share(picked) }, { pick.favorite(picked) }, { pick.delete(picked) }, modifier = Modifier.align(Alignment.BottomCenter))
+                    SelectBar(picked.isNotEmpty() && picked.all { it.favorite }, { pick.share(picked) }, { pick.favorite(picked) }, { pick.delete(picked) }, onLock = { pick.lock(picked) }, modifier = Modifier.align(Alignment.BottomCenter))
                 }
             }
         }

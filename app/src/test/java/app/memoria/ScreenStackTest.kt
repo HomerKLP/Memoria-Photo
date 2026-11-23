@@ -16,7 +16,7 @@ class ScreenStackTest {
         val stack = listOf(
             Screen.Settings(atUpdates = true), Screen.Licenses, Screen.Skip, Screen.Dev, Screen.Hidden(3), Screen.People(5, direct = true), Screen.Recognize(5),
             Screen.Favorites, Screen.Albums(naming = "Trip"), Screen.NewAlbum("Trip"), Screen.Album(7), Screen.Places, Screen.Place(9),
-            Screen.Categories, Screen.Category("pet"), Screen.Videos, Screen.Search, Screen.Trash,
+            Screen.Categories, Screen.Category("pet"), Screen.Videos, Screen.Search, Screen.Trash, Screen.Locked,
         )
         val bytes = ByteArrayOutputStream().also { ObjectOutputStream(it).use { o -> o.writeObject(ArrayList(stack)) } }.toByteArray()
         assertEquals(stack, ObjectInputStream(ByteArrayInputStream(bytes)).readObject())
@@ -31,7 +31,7 @@ class ScreenStackTest {
 
     // every screen the debug shortcut can open (`make jump`), and a name that means nothing gives no screen
     @Test fun screenNamed_knowsEveryScreenKind_andNothingElse() {
-        val names = listOf("settings", "dev", "licenses", "skip", "hidden", "people", "albums", "places", "categories", "favorites", "videos", "search", "trash")
+        val names = listOf("settings", "dev", "licenses", "skip", "hidden", "people", "albums", "places", "categories", "favorites", "videos", "search", "trash", "locked")
         val screens = names.map { screenNamed(it) }
         assertEquals(names.size, screens.filterNotNull().distinct().size)
         assertEquals(null, screenNamed("person42"))

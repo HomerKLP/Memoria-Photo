@@ -61,6 +61,7 @@ import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -276,6 +277,141 @@ class BehaviorTest {
         assertTrue(emptied)
     }
 
+    @Test fun trash_tap_opensTheItem() {
+        var opened: Trashed? = null
+        rule.setContent { MemoriaTheme { Surface { TrashContent(trashed, onOpen = { opened = it }) } } }
+
+        rule.onNodeWithText("3 days").performClick()
+        assertEquals(3L, opened?.tile?.id)
+    }
+
+    @Test fun trash_tapWhileSelecting_onlySelects() {
+        var opened: Trashed? = null
+        var toggled = -1L
+        rule.setContent {
+            MemoriaTheme { Surface { TrashContent(trashed, selected = setOf(1L), onOpen = { opened = it }, onToggle = { toggled = it }) } }
+        }
+
+        rule.onNodeWithText("3 days").performClick()
+        assertEquals(3L, toggled)
+        assertNull(opened)
+    }
+
+    // --- Locked folder -------------------------------------------------------------------------
+
+    private val vaultItems = listOf(
+        VaultItem(1, "IMG_1.jpg", "image/jpeg", 1_700_000_000_000, 1_700_000_000_000, 3_000_000, 4000, 3000, null, "DCIM/Camera/"),
+        VaultItem(2, "VID_1.mp4", "video/mp4", 1_700_000_100_000, 1_700_000_100_000, 9_000_000, 1920, 1080, 42_000, "DCIM/Camera/"),
+        VaultItem(3, "IMG_3.jpg", "image/jpeg", 1_700_000_200_000, 1_700_000_200_000, 1_500_000, 1080, 1080, null, "Pictures/Memoria/"),
+    )
+
+    @Test fun locked_empty_showsTheHint() {
+        rule.setContent { MemoriaTheme { Surface { LockedContent(emptyList()) } } }
+
+        rule.onNodeWithText("Nothing locked yet").assertIsDisplayed()
+    }
+
+    @Test fun locked_longPress_selects() {
+        var toggled = 0L
+        rule.setContent { MemoriaTheme { Surface { LockedContent(vaultItems, onToggle = { toggled = it }) } } }
+
+        rule.onNodeWithTag("vault-2").performTouchInput { longClick() }
+        assertEquals(-2L, toggled)
+    }
+
+    @Test fun locked_tap_opensTheItem() {
+        var opened: VaultItem? = null
+        rule.setContent { MemoriaTheme { Surface { LockedContent(vaultItems, onOpen = { opened = it }) } } }
+
+        rule.onNodeWithTag("vault-3").performClick()
+        assertEquals(3L, opened?.n)
+    }
+
+    @Test fun locked_selectAll_fires() {
+        var all = false
+        rule.setContent { MemoriaTheme { Surface { LockedContent(vaultItems, selected = setOf(-1L), onSelectAll = { all = true }) } } }
+
+        rule.onNodeWithText("Select all").performClick()
+        assertTrue(all)
+    }
+
+    @Test fun locked_delete_asksBeforeItDeletes() {
+        var deleted = false
+        rule.setContent { MemoriaTheme { Surface { LockedContent(vaultItems, selected = setOf(-1L), onDelete = { deleted = true }) } } }
+
+        rule.onNodeWithText("Delete").performClick()
+        rule.onNodeWithText("Delete these photos?").assertIsDisplayed()
+        assertFalse(deleted)
+        rule.onAllNodesWithText("Delete").onLast().performClick()
+        assertTrue(deleted)
+    }
+
+    // Moving out shows the files to the gallery and other apps again, so it asks first (mockup "Move out, every time")
+    @Test fun locked_moveOut_asksFirst() {
+        var moved = false
+        rule.setContent { MemoriaTheme { Surface { LockedContent(vaultItems, selected = setOf(-1L), onMoveOut = { moved = true }) } } }
+
+        rule.onNodeWithText("Move out").performClick()
+        rule.onNodeWithText("Move 1 photo out?").assertIsDisplayed()
+        assertFalse(moved)
+        rule.onAllNodesWithText("Move out").onLast().performClick()
+        assertTrue(moved)
+    }
+
+    // No screen lock: the phone's sheet cannot show, so the folder says why (mockup "Locked folder, no screen lock")
+    @Test fun locked_noLock_opensSettings() {
+        var settings = false
+        rule.setContent { MemoriaTheme { Surface { LockedContent(emptyList(), ready = false, noLock = true, onOpenSettings = { settings = true }) } } }
+
+        rule.onNodeWithText("Set a screen lock first").assertIsDisplayed()
+        rule.onNodeWithText("Open settings").performClick()
+        assertTrue(settings)
+    }
+
+    // Lock with no screen lock stops here instead of doing nothing (mockup "Lock, no screen lock")
+    @Test fun lock_noScreenLock_offersSettings() {
+        var settings = false
+        var cancelled = false
+        rule.setContent { MemoriaTheme { Surface { NoScreenLockDialog(onCancel = { cancelled = true }, onSettings = { settings = true }) } } }
+
+        rule.onNodeWithText("Set a screen lock first").assertIsDisplayed()
+        rule.onNodeWithText("Open settings").performClick()
+        assertTrue(settings)
+        assertFalse(cancelled)
+    }
+
+    @Test fun locked_info_saysWhatClearingDataDoes() {
+        rule.setContent { MemoriaTheme { Surface { LockedContent(vaultItems) } } }
+
+        rule.onNodeWithContentDescription("About the locked folder").performClick()
+        rule.onNodeWithText("Clearing Memoria's data or uninstalling it deletes them completely.").assertIsDisplayed()
+    }
+
+    // The first lock stops once to say what locking means (mockup "Lock, the first time"); Cancel keeps it for next time
+    @Test fun lock_firstTime_asksOnce() {
+        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
+            .getSharedPreferences("vault", 0).edit().clear().commit()
+        val photo = Tile(1, Uri.parse("content://media/external/images/media/1"), 0L, null)
+        rule.setContent {
+            MemoriaTheme { Surface {
+                val lock = rememberVaultLock()
+                androidx.compose.material3.TextButton({ lock(listOf(photo)) }) { Text("Lock it") }
+            } }
+        }
+
+        rule.onNodeWithText("Lock it").performClick()
+        rule.onNodeWithText("Lock 1 photo?").assertIsDisplayed()
+        rule.onNodeWithText("Cancel").performClick()
+        rule.onNodeWithText("Lock 1 photo?").assertDoesNotExist()
+
+        rule.onNodeWithText("Lock it").performClick()
+        rule.onNodeWithText("Lock").performClick()
+        rule.onNodeWithText("Lock 1 photo?").assertDoesNotExist()
+
+        rule.onNodeWithText("Lock it").performClick()
+        rule.onNodeWithText("Lock 1 photo?").assertDoesNotExist()
+    }
+
     // --- Sheets --------------------------------------------------------------------------------
 
     @Test fun namePerson_typing_enablesSaveAndSaves() {
@@ -433,7 +569,8 @@ class BehaviorTest {
 
     // --- Viewer --------------------------------------------------------------------------------
 
-    @Test fun viewer_more_opensMenuAndFiresItem() {
+    // Like every other menu, a tap closes it: Lock's sheet or the album sheet must not sit over an open menu
+    @Test fun viewer_more_firesItemAndCloses() {
         var fired: String? = null
         rule.setContent {
             MemoriaTheme { Surface { Box(Modifier.fillMaxSize()) {
@@ -447,6 +584,24 @@ class BehaviorTest {
         rule.onNodeWithContentDescription("More").performClick()
         rule.onNodeWithText("Edit in…").performClick()
         assertEquals("edit", fired)
+        rule.onNodeWithText("Edit in…").assertDoesNotExist()
+    }
+
+    /** A trashed file cannot be shared, favorited or moved: Details, Restore and Delete are its row. */
+    @Test fun viewer_trashed_showsRestoreAndDeleteOnly() {
+        var restored = 0
+        rule.setContent {
+            MemoriaTheme { Surface { Box(Modifier.fillMaxSize()) {
+                ViewerChrome(true, "Sat, 11 Oct", "14:32", false, {}, {}, {}, {}, {}, trashed = true, onRestore = { restored++ })
+            } } }
+        }
+
+        rule.onNodeWithContentDescription("Restore").performClick()
+        assertEquals(1, restored)
+        rule.onNodeWithContentDescription("Share").assertDoesNotExist()
+        rule.onNodeWithContentDescription("Add to favorites").assertDoesNotExist()
+        rule.onNodeWithContentDescription("More").assertDoesNotExist()
+        rule.onNodeWithContentDescription("Delete").assertExists()
     }
 
     /** Hidden bars stay composed (no dropped frame when they show), so a tap where Back was must reach the photo. */

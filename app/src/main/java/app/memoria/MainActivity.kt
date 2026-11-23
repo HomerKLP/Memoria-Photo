@@ -10,7 +10,6 @@ import android.graphics.ImageDecoder
 import android.net.ConnectivityManager
 import android.os.Bundle
 import android.provider.MediaStore
-import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -47,6 +46,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.fragment.app.FragmentActivity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -90,7 +90,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
     // bumped by a tap on the index or update notification, so App opens Settings; the update one scrolls to Updates
     private var openSettings by mutableIntStateOf(0)
     private var atUpdates by mutableStateOf(false)
@@ -253,7 +253,10 @@ fun App(dir: File, openSettings: Int = 0, atUpdates: Boolean = false, jump: Jump
             selectAsk.launch(IntentSenderRequest.Builder(ask.intentSender).build())
         }
     }
-    val open: (List<Tile>, Tile) -> Unit = { list, tile -> viewTiles = list; viewing = tile.id }
+    val open: (List<Tile>, Tile) -> Unit = { list, tile -> viewTiles = list; viewing = tile.id; viewTrashed = false; viewVault = false }
+    // Lock from the viewer or the select bar: the viewer closes on the grid, which reloads without the photo
+    val lockOne = rememberVaultLock { locked -> forgetTiles(locked.map { it.id }.toSet()); viewing = null; photosReload++ }
+    val lockSelected = rememberVaultLock { locked -> forgetTiles(locked.map { it.id }.toSet()); selection.clear(); photosReload++ }
     // The viewer sits on top of the screen, so the grid stays under it: the photo grows out of its tile
     // and shrinks back in. The screen under is hidden from TalkBack while the viewer is open.
     // A screen opened from a tab sits on top of it too, so the tab stays composed and back only slides the
@@ -292,6 +295,7 @@ fun App(dir: File, openSettings: Int = 0, atUpdates: Boolean = false, jump: Jump
                                 onOpenFavorites = { push(Screen.Favorites) },
                                 onOpenVideos = { push(Screen.Videos) },
                                 onOpenTrash = { push(Screen.Trash) },
+                                onOpenLocked = { push(Screen.Locked) },
                                 onHelpRecognize = { push(Screen.Recognize()) },
                                 onOpenSettings = { push(Screen.Settings()) },
                                 reload = returns,
@@ -306,6 +310,7 @@ fun App(dir: File, openSettings: Int = 0, atUpdates: Boolean = false, jump: Jump
                                 onShare = shareSelected,
                                 onFavorite = { favoriteSelected(!selection.allFavorite) },
                                 onDelete = deleteSelected,
+                                onLock = { lockSelected(selectedTiles()) },
                             )
                             else Tabs(tab, onPhotos = { if (tab == "photos") photosScrollTop++ else tab = "photos" }, onLibrary = { tab = "library" })
                         }
@@ -404,7 +409,14 @@ fun App(dir: File, openSettings: Int = 0, atUpdates: Boolean = false, jump: Jump
                                 },
                                 onSeeAllPeople = { push(Screen.People()) },
                             )
-                            Screen.Trash -> TrashScreen(back)
+                            Screen.Trash -> TrashScreen(
+                                back,
+                                onOpen = { list, tile -> viewTiles = list; viewing = tile.id; viewTrashed = true; viewVault = false },
+                            )
+                            Screen.Locked -> LockedScreen(
+                                back,
+                                onOpen = { list, tile -> viewTiles = list; viewing = tile.id; viewTrashed = false; viewVault = true },
+                            )
                         }
                     }
                 }
@@ -416,12 +428,19 @@ fun App(dir: File, openSettings: Int = 0, atUpdates: Boolean = false, jump: Jump
                 // the viewer never opened an album from inside an album, so Show in album is hidden there
                 showInAlbum = stack.lastOrNull() !is Screen.Album,
                 onShowInAlbum = { t -> albumOf(context, t.id)?.let { b -> viewing = null; push(Screen.Album(b.id)) } },
+                trashed = viewTrashed,
+                vault = viewVault,
+                onLock = { t -> lockOne(listOf(t)) },
             )
         }
     }
 }
 
 private var viewTiles by mutableStateOf<List<Tile>>(emptyList())
+// the viewer was opened from the trash: read-only, with Restore in place of the trash icon
+private var viewTrashed by mutableStateOf(false)
+// the viewer was opened from the locked folder: read-only, with Move out, and nothing goes to another app
+private var viewVault by mutableStateOf(false)
 
 /** A screen opened over the tabs, with what it shows. Serializable, so the stack survives the app being restarted. */
 sealed interface Screen : Serializable {
@@ -447,6 +466,7 @@ sealed interface Screen : Serializable {
     data object Videos : Screen
     data object Search : Screen
     data object Trash : Screen
+    data object Locked : Screen
 }
 
 /** A stack entry's id for its saved state: the kind and the depth, not the arguments, so [Screen.People] keeps its state as a person opens. */
@@ -467,6 +487,7 @@ internal fun screenNamed(name: String?): Screen? = when (name) {
     "videos" -> Screen.Videos
     "search" -> Screen.Search
     "trash" -> Screen.Trash
+    "locked" -> Screen.Locked
     else -> null
 }
 

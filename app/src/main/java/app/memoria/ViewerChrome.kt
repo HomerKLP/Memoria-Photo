@@ -81,6 +81,10 @@ fun ViewerChrome(
     bottom: Boolean = true, // false: the details panel is up and covers the bottom bar
     playerBar: (@Composable () -> Unit)? = null, // a video's controls, above the action row
     onMenu: (Boolean) -> Unit = {}, // the menu opened or closed: a video's controls stay while it is open
+    trashed: Boolean = false, // a trashed file: no Share, Favorite or More; Restore sits before Delete
+    onRestore: () -> Unit = {},
+    vault: Boolean = false, // a locked file: no Share, Favorite or More; Move out sits before Delete
+    onMoveOut: () -> Unit = {},
 ) {
     var menu by remember { mutableStateOf(false) }
     LaunchedEffect(menu) { onMenu(menu) }
@@ -121,7 +125,9 @@ fun ViewerChrome(
                 Text(title, color = onViewer, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 Text(subtitle, color = onViewer.copy(alpha = 0.7f), fontSize = 12.sp)
             }
-            IconButton({ if (menuItems.isNotEmpty()) menu = true }) {
+            // a trashed or locked file has no More menu: its slot stays empty, so the date does not move
+            if (trashed || vault) Box(Modifier.size(48.dp))
+            else IconButton({ if (menuItems.isNotEmpty()) menu = true }) {
                 Icon(painterResource(R.drawable.ic_more), "More", tint = onViewer)
             }
         }
@@ -140,20 +146,32 @@ fun ViewerChrome(
                 Modifier.fillMaxWidth().padding(horizontal = actionsPad),
                 horizontalArrangement = if (land) Arrangement.spacedBy(24.dp, Alignment.CenterHorizontally) else Arrangement.SpaceAround,
             ) {
-                IconButton(onShare) { Icon(painterResource(R.drawable.ic_share), "Share", tint = onViewer) }
-                IconButton(onFavorite) {
-                    Icon(
-                        painterResource(if (favorite) R.drawable.ic_favorite else R.drawable.ic_favorite_border),
-                        if (favorite) "Remove from favorites" else "Add to favorites",
-                        tint = if (favorite) Color(0xFFE9A23B) else onViewer,
-                    )
+                if (trashed) {
+                    IconButton(onInfo) { Icon(painterResource(R.drawable.ic_info), "Details", tint = onViewer) }
+                    IconButton(onRestore) { Icon(painterResource(R.drawable.ic_restore), "Restore", tint = onViewer) }
+                } else if (vault) {
+                    IconButton(onInfo) { Icon(painterResource(R.drawable.ic_info), "Details", tint = onViewer) }
+                    IconButton(onMoveOut) { Icon(painterResource(R.drawable.ic_upload), "Move out", tint = onViewer) }
+                } else {
+                    IconButton(onShare) { Icon(painterResource(R.drawable.ic_share), "Share", tint = onViewer) }
+                    IconButton(onFavorite) {
+                        Icon(
+                            painterResource(if (favorite) R.drawable.ic_favorite else R.drawable.ic_favorite_border),
+                            if (favorite) "Remove from favorites" else "Add to favorites",
+                            tint = if (favorite) Color(0xFFE9A23B) else onViewer,
+                        )
+                    }
+                    IconButton(onInfo) { Icon(painterResource(R.drawable.ic_info), "Details", tint = onViewer) }
                 }
-                IconButton(onInfo) { Icon(painterResource(R.drawable.ic_info), "Details", tint = onViewer) }
                 IconButton(onDelete) { Icon(painterResource(R.drawable.ic_trash_line), "Delete", tint = onViewer) }
             }
         }
         // Sideways the bar is shorter (no status bar), so the menu drops from the button's own bottom
-        Menu(menu, onDismiss = { menu = false }, items = menuItems, top = viewerMenuTop(land))
+        // A tap on an item closes the menu, as every other menu does, so no sheet opens over it
+        Menu(
+            menu, onDismiss = { menu = false }, top = viewerMenuTop(land),
+            items = menuItems.map { i -> MenuItem(i.icon, i.label, i.dividerBefore, i.checked, i.enabled) { menu = false; i.onClick() } },
+        )
     }
 }
 

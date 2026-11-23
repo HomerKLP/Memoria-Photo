@@ -119,7 +119,7 @@ fun FavoritesContent(
             // everything here is a favorite, so the middle action always reads Unfavorite
             if (sel != null) {
                 val picked = f?.all.orEmpty().filter { it.id in sel }
-                SelectBar(true, { pick.share(picked) }, { pick.favorite(picked) }, { pick.delete(picked) }, modifier = Modifier.align(Alignment.BottomCenter))
+                SelectBar(true, { pick.share(picked) }, { pick.favorite(picked) }, { pick.delete(picked) }, onLock = { pick.lock(picked) }, modifier = Modifier.align(Alignment.BottomCenter))
             }
         }
     }

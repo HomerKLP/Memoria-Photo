@@ -211,6 +211,39 @@ fun TrashSelect() = MemoriaTheme {
 @Composable
 fun TrashEmpty() = MemoriaTheme { Surface { TrashContent(emptyList()) } }
 
+// Locked folder (mockup "Locked folder"): 12 tiles like the mockup, one video among the photos
+private val lockedItems = (1L..12L).map { n ->
+    val video = n == 4L
+    VaultItem(n, "IMG_$n.jpg", if (video) "video/mp4" else "image/jpeg", n, n, 2_841_000, 4000, 3000, if (video) 42_000L else null, "DCIM/Camera/")
+}
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 800)
+@Composable
+fun LockedGrid() = MemoriaTheme { Surface { LockedContent(lockedItems) } }
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 800)
+@Composable
+fun LockedSelect() = MemoriaTheme { Surface { LockedContent(lockedItems, selected = setOf(lockedItems[2].id, lockedItems[5].id)) } }
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 800)
+@Composable
+fun LockedEmpty() = MemoriaTheme { Surface { LockedContent(emptyList()) } }
+
+/** Behind the phone's unlock sheet: the bar keeps its two lines, the grid waits. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 800)
+@Composable
+fun LockedLoading() = MemoriaTheme { Surface { LockedContent(emptyList(), ready = false) } }
+
+/** No screen lock (mockup "Locked folder, no screen lock"): the phone's sheet cannot show, so the folder says why. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 800)
+@Composable
+fun LockedNoLock() = MemoriaTheme { Surface { LockedContent(emptyList(), ready = false, noLock = true) } }
+
 /** The shared parts, in one place: keeps code and the mockup's "Shared parts" section in step. */
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 620)
@@ -848,6 +881,32 @@ fun ViewerBars() = MemoriaTheme {
     }
 }
 
+/** Trash, viewer (mockup "Trash, viewer"): read-only, Details / Restore / Delete, no three dots slot. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 800)
+@Composable
+fun ViewerTrashed() = MemoriaTheme {
+    Surface {
+        Box(Modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxSize().background(viewerPhoto))
+            ViewerChrome(true, "Sat, 11 Oct", "14:32", favorite = false, {}, {}, {}, {}, {}, trashed = true)
+        }
+    }
+}
+
+/** Locked folder, viewer (mockup "Locked folder"): Details / Move out / Delete, no Share, Favorite or More. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 800)
+@Composable
+fun ViewerLocked() = MemoriaTheme {
+    Surface {
+        Box(Modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxSize().background(viewerPhoto))
+            ViewerChrome(true, "Sat, 11 Oct", "14:32", favorite = false, {}, {}, {}, {}, {}, vault = true)
+        }
+    }
+}
+
 /** Viewer, tapped: the bars are gone, only the photo is left. */
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 800)
@@ -875,6 +934,8 @@ fun ViewerMore() = MemoriaTheme {
                     MenuItem(R.drawable.ic_edit, "Edit in…") {},
                     MenuItem(R.drawable.ic_wallpaper, "Use as…") {},
                     MenuItem(R.drawable.ic_folder, "Show in album") {},
+                    MenuItem(R.drawable.ic_move, "Move to album", dividerBefore = true) {},
+                    MenuItem(R.drawable.ic_lock, "Move to Locked folder") {},
                 ),
             )
         }
@@ -897,7 +958,8 @@ fun ViewerMoreLandscape() = MemoriaTheme {
                     MenuItem(R.drawable.ic_play, "Open in the phone's player") {},
                     MenuItem(R.drawable.ic_folder, "Show in album") {},
                     MenuItem(R.drawable.ic_move, "Move to album", dividerBefore = true) {},
-                    MenuItem(R.drawable.ic_video, "Compress video", enabled = false) {},
+                    MenuItem(R.drawable.ic_lock, "Move to Locked folder") {},
+                    MenuItem(R.drawable.ic_video, "Compress video", dividerBefore = true, enabled = false) {},
                 ),
             )
         }

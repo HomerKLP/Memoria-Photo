@@ -105,6 +105,7 @@ internal fun viewerSample(w: Int, h: Int, screen: Int): Int {
  * Halving lets the JPEG decoder skip work; the old exact 2560 px decoded a 12 MP photo whole (250 ms).
  */
 internal fun viewerPhoto(context: Context, tile: Tile): Bitmap {
+    if (tile.vault) return VaultStore.photo(context, tile.id) ?: error("no locked photo for ${tile.id}")
     val (source, turn) = plainSource(context.contentResolver, tile.uri)
     return ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
         val screen = context.resources.displayMetrics.let { minOf(it.widthPixels, it.heightPixels) }
@@ -118,7 +119,10 @@ internal fun viewerPhoto(context: Context, tile: Tile): Bitmap {
  */
 internal fun videoPoster(context: Context, tile: Tile): Bitmap? = runCatching {
     MediaMetadataRetriever().use {
-        it.setDataSource(context, tile.uri)
+        if (tile.vault) {
+            val keys = vaultKeys ?: error("the locked folder is locked")
+            it.setDataSource(VaultMediaSource(Vault.open(VaultStore.file(context, -tile.id), keys)))
+        } else it.setDataSource(context, tile.uri)
         it.getScaledFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 1440, 1440)
     }
 }.getOrNull()

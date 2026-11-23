@@ -44,7 +44,7 @@ internal fun ownsTexture(surface: VideoSurface?, id: Long) = surface == null || 
 
 /** A file the decoder refuses (mockup "Video, cannot play"): a scrim over the frame, and the phone's player as the way out. */
 @Composable
-fun PlayerFailed(tile: Tile, onOpen: () -> Unit) {
+fun PlayerFailed(tile: Tile, onOpen: (() -> Unit)?) {
     val context = LocalContext.current
     // "1:24 · MP4 · 48 MB": the length at once, the file's type and size once Android tells them
     val facts by produceState(clock(tile.duration ?: 0L), tile.id) {
@@ -66,10 +66,10 @@ fun PlayerFailed(tile: Tile, onOpen: () -> Unit) {
             Icon(painterResource(R.drawable.ic_video), null, Modifier.size(48.dp), tint = onViewer.copy(alpha = 0.3f))
             Text("This video can't play here", color = onViewer, style = MaterialTheme.typography.titleLarge)
             Text(
-                "$facts\nThe phone's own player may still open it",
+                if (onOpen == null) facts else "$facts\nThe phone's own player may still open it",
                 color = onViewer.copy(alpha = 0.65f), fontSize = 13.sp, textAlign = TextAlign.Center,
             )
-            PillButton("Open in the phone's player", onOpen)
+            onOpen?.let { PillButton("Open in the phone's player", it) }
         }
     }
 }

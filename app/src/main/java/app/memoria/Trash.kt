@@ -7,8 +7,6 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,12 +15,10 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Icon
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -34,12 +30,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -52,12 +46,13 @@ import kotlinx.coroutines.withContext
  * requests, so the system asks the user to confirm and nothing is copied into our own trash.
  */
 @Composable
-fun TrashScreen(onBack: () -> Unit) {
+fun TrashScreen(onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit = { _, _ -> }) {
     val context = LocalContext.current
     var items by remember { mutableStateOf<List<Trashed>?>(null) }
     var selected by remember { mutableStateOf(emptySet<Long>()) }
     var reload by remember { mutableStateOf(0) }
-    LaunchedEffect(reload) { items = withContext(Dispatchers.IO) { runCatching { trash(context) }.getOrDefault(emptyList()) } }
+    // viewerEdits: a restore or a delete for good in the viewer, reloaded when it closes
+    LaunchedEffect(reload, viewerEdits) { items = withContext(Dispatchers.IO) { runCatching { trash(context) }.getOrDefault(emptyList()) } }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) { selected = emptySet(); reload++ }
     }
@@ -78,6 +73,7 @@ fun TrashScreen(onBack: () -> Unit) {
         onRestore = { ask(items.orEmpty().filter { it.tile.id in selected }.map { it.tile.uri }, restore = true) },
         onDelete = { ask(items.orEmpty().filter { it.tile.id in selected }.map { it.tile.uri }, restore = false) },
         onEmpty = { ask(items.orEmpty().map { it.tile.uri }, restore = false) },
+        onOpen = { t -> onOpen(items.orEmpty().map { it.tile }, t.tile) },
     )
 }
 
@@ -94,10 +90,14 @@ fun TrashContent(
     onRestore: () -> Unit = {},
     onDelete: () -> Unit = {},
     onEmpty: () -> Unit = {},
+    onOpen: (Trashed) -> Unit = {},
 ) {
     val selecting = selected.isNotEmpty()
     // only while selecting: the app's own Back closes the screen, with the back swipe preview
     BackHandler(selecting) { onCancelSelect() }
+    // a swipe in the viewer scrolls this grid under it, so closing lands in the tile, like the Photos tab
+    val grid = rememberLazyGridState()
+    FollowViewer(grid, items.map { it.tile })
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         TopBar(
             title = if (selecting) "${selected.size} selected" else "Trash",
@@ -125,13 +125,13 @@ fun TrashContent(
                 "Deleted photos and videos stay here 30 days, then they are gone for good",
             )
             else -> LazyVerticalGrid(
-                GridCells.Fixed(3), Modifier.weight(1f),
+                GridCells.Fixed(3), Modifier.weight(1f), state = grid,
                 horizontalArrangement = Arrangement.spacedBy(1.dp), verticalArrangement = Arrangement.spacedBy(1.dp),
             ) {
                 items(items, key = { it.tile.id }) { t ->
                     TrashTile(
                         t, selecting, t.tile.id in selected, Modifier.animateItem(fadeInSpec = null), // no fade in: a first load shows at once
-                        onClick = { if (selecting) onToggle(t.tile.id) },
+                        onClick = { if (selecting) onToggle(t.tile.id) else onOpen(t) },
                         onLongClick = { onToggle(t.tile.id) },
                     )
                 }
@@ -154,20 +154,9 @@ fun TrashTile(
     onClick: () -> Unit = {},
     onLongClick: () -> Unit = onClick,
 ) {
-    Box(
-        modifier.aspectRatio(1f)
-            .then(if (on) Modifier.border(3.dp, MaterialTheme.colorScheme.primary) else Modifier)
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
-    ) {
-        Thumb(t.tile, Modifier.fillMaxSize())
-        if (selecting) Box(
-            Modifier.align(Alignment.TopStart).padding(6.dp).size(22.dp).clip(CircleShape)
-                .then(
-                    if (on) Modifier.background(MaterialTheme.colorScheme.primary)
-                    else Modifier.border(2.dp, Color.White, CircleShape),
-                ),
-            contentAlignment = Alignment.Center,
-        ) { if (on) Icon(painterResource(R.drawable.ic_check), null, Modifier.size(16.dp), tint = Color.White) }
+    Box(modifier.aspectRatio(1f).combinedClickable(onClick = onClick, onLongClick = onLongClick)) {
+        // TileImage, not Thumb: it records the tile's spot, so the viewer grows out of it and shrinks back
+        TileImage(t.tile, Modifier.fillMaxSize(), selecting = selecting, selected = on, heart = false)
         val shadow = TextStyle(color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium, shadow = Shadow(Color.Black.copy(alpha = 0.5f), Offset(0f, 1f), 2f))
         Text("${t.daysLeft} days", Modifier.align(Alignment.BottomStart).padding(start = 6.dp, bottom = 5.dp), style = shadow)
     }

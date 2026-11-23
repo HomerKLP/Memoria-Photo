@@ -1,6 +1,7 @@
 package app.memoria
 
 import android.app.Activity
+import android.app.PendingIntent
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.provider.MediaStore
@@ -60,6 +61,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -68,6 +73,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.Tracks
@@ -103,8 +109,15 @@ internal fun viewerUp(width: Int, height: Int, overlap: Float): Float =
 /** Full-screen photos, swipe sideways for the next one. Opens on the tile with id start. */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class]) // the player's scrubbing mode
 @Composable
-fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Boolean = true, onShowInAlbum: (Tile) -> Unit = {}) {
+fun Viewer(
+    start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Boolean = true,
+    onShowInAlbum: (Tile) -> Unit = {}, trashed: Boolean = false, // a trashed item: read-only, with Restore
+    vault: Boolean = false, // a locked item: read from the vault, read-only, with Move out
+    onLock: (Tile) -> Unit = {}, // More > Lock
+) {
     val context = LocalContext.current
+    // The folder locked (the app went to the background): a locked photo never stays on screen behind the unlock sheet
+    if (vault && vaultKeys == null) LaunchedEffect(Unit) { onBack() }
     // One player for the screen: the video on the page plays, a photo stops it. Media3 runs on the
     // phone's own hardware decoder, the same one the system player uses, so the usual codecs play fast.
     // Audio focus is asked for, so a call or another app's music owns the sound like in a real player.
@@ -294,7 +307,12 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
         } else if (prepared != tile.id) {
             videoAspect = 0f // the last video's shape must not size this one
             failed = null
-            player.setMediaItem(MediaItem.fromUri(tile.uri))
+            if (tile.vault) {
+                // A locked clip plays from the container: the data source decrypts the chunks the player asks for
+                player.setMediaSource(
+                    ProgressiveMediaSource.Factory(VaultDataSource.Factory(context)).createMediaSource(MediaItem.fromUri(tile.uri)),
+                )
+            } else player.setMediaItem(MediaItem.fromUri(tile.uri))
             player.prepare()
             player.play()
             prepared = tile.id
@@ -373,17 +391,30 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
         }
     }
     val favorite = favorites[tile.id] ?: tile.favorite
-    // Trash: Android asks the user, then the next photo slides in
-    var trashing by remember { mutableStateOf<Long?>(null) }
-    val trashAsk = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
-        trashing?.let { id ->
+    // Trash: Android asks the user, then the next photo slides in. In the trash, Restore and Delete for good
+    var leaving by remember { mutableStateOf<Long?>(null) }
+    val leaveAsk = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        leaving?.let { id ->
             if (result.resultCode == Activity.RESULT_OK) { list = list.filterNot { it.id == id }; forgetTiles(setOf(id)); viewerEdits++ }
-            trashing = null
+            leaving = null
         }
+    }
+    fun askLeave(id: Long, request: PendingIntent) {
+        leaving = id
+        leaveAsk.launch(IntentSenderRequest.Builder(request.intentSender).build())
     }
     // Move to album: the sheet picks a folder, Android asks for consent when the file belongs to another app.
     // A photo opened from an album leaves it on a move, so the viewer shows the next one (same as trashing).
     var moving by remember { mutableStateOf(false) }
+    // A locked item: deleting or moving it out is the app's own work, so the app asks (the mockup says so)
+    var vaultAsking by remember { mutableStateOf(false) }
+    var vaultMovingOut by remember { mutableStateOf(false) }
+    fun vaultLeaving(id: Long) {
+        list = list.filterNot { it.id == id }
+        forgetTiles(setOf(id))
+        viewerEdits++
+        if (list.isEmpty()) close()
+    }
     fun afterMove(id: Long) { if (!showInAlbum) list = list.filterNot { it.id == id }; viewerEdits++ }
     var movePending by remember { mutableStateOf<Pair<Long, String>?>(null) }
     val moveAsk = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
@@ -493,7 +524,8 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
             val covered by remember { derivedStateOf { view.width > view.height && up.value > viewerUp(view.width, view.height, overlap) + 1f } }
             val video = tile.duration != null && failed != tile.id
             // A file the decoder refuses: the card replaces the player line; the bars stay over its scrim
-            if (tile.duration != null && failed == tile.id) PlayerFailed(tile) { openInPlayer(context, tile) }
+            // A locked clip never goes to another app, so its card has no such button
+            if (tile.duration != null && failed == tile.id) PlayerFailed(tile, if (vault) null else { { openInPlayer(context, tile) } })
             ViewerChrome(
                 visible = (barsVisible || details) && still && !covered,
                 bottom = !details,
@@ -521,23 +553,30 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
                     }
                 },
                 onInfo = { settle(true) },
+                onMoveOut = { vaultMovingOut = true },
+                vault = vault,
+                // in the trash the trash icon deletes for good; Restore puts the item back
                 onDelete = {
-                    trashing = tile.id
-                    val ask = MediaStore.createTrashRequest(context.contentResolver, listOf(tile.uri), true)
-                    trashAsk.launch(IntentSenderRequest.Builder(ask.intentSender).build())
+                    if (vault) vaultAsking = true
+                    else askLeave(tile.id, if (trashed) MediaStore.createDeleteRequest(context.contentResolver, listOf(tile.uri))
+                    else MediaStore.createTrashRequest(context.contentResolver, listOf(tile.uri), true))
                 },
-                menuItems = if (tile.duration != null) buildList {
+                trashed = trashed,
+                onRestore = { askLeave(tile.id, MediaStore.createTrashRequest(context.contentResolver, listOf(tile.uri), false)) },
+                menuItems = if (trashed || vault) emptyList() else if (tile.duration != null) buildList {
                     // a video: the photo menu minus Edit in… and Use as…, which need a still photo (mockup "Video, More")
                     add(MenuItem(R.drawable.ic_refresh, "Loop", checked = loop) { loop = !loop })
                     add(MenuItem(R.drawable.ic_play, "Open in the phone's player") { openInPlayer(context, tile) })
                     if (showInAlbum) add(MenuItem(R.drawable.ic_folder, "Show in album") { onShowInAlbum(tile) })
                     add(MenuItem(R.drawable.ic_move, "Move to album", dividerBefore = true) { moving = true })
-                    add(MenuItem(R.drawable.ic_video, "Compress video", enabled = false) {}) // Phase 5
+                    add(MenuItem(R.drawable.ic_lock, "Move to Locked folder") { onLock(tile) })
+                    add(MenuItem(R.drawable.ic_video, "Compress video", dividerBefore = true, enabled = false) {}) // Phase 5
                 } else buildList {
                     add(MenuItem(R.drawable.ic_edit, "Edit in…") { editedIn = true; editIn(context, tile) })
                     add(MenuItem(R.drawable.ic_wallpaper, "Use as…") { useAs(context, tile) })
                     if (showInAlbum) add(MenuItem(R.drawable.ic_folder, "Show in album") { onShowInAlbum(tile) })
                     add(MenuItem(R.drawable.ic_move, "Move to album", dividerBefore = true) { moving = true })
+                    add(MenuItem(R.drawable.ic_lock, "Move to Locked folder") { onLock(tile) })
                 },
                 onMenu = { menuOpen = it },
                 playerBar = if (video) ({
@@ -589,5 +628,29 @@ fun Viewer(start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Bool
             }
         }
     }
+    if (vaultMovingOut) MoveOutDialog(1, if (tile.duration != null) 1 else 0, onCancel = { vaultMovingOut = false }) {
+        vaultMovingOut = false
+        scope.launch {
+            val item = VaultStore.item(context, tile.id) ?: return@launch
+            val done = runCatching { VaultStore.moveOut(context, listOf(item)) }.getOrDefault(0)
+            if (done > 0) vaultLeaving(tile.id)
+        }
+    }
+    if (vaultAsking) AlertDialog(
+        onDismissRequest = { vaultAsking = false },
+        title = { Text("Delete these photos?") },
+        text = { Text("A locked file is not in the phone's trash. It is gone completely.") },
+        confirmButton = {
+            TextButton({
+                vaultAsking = false
+                scope.launch {
+                    val item = VaultStore.item(context, tile.id) ?: return@launch
+                    runCatching { VaultStore.delete(context, listOf(item)) }
+                    vaultLeaving(tile.id)
+                }
+            }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+        },
+        dismissButton = { TextButton({ vaultAsking = false }) { Text("Cancel") } },
+    )
     if (moving) MoveToAlbumSheet(tile, onDismiss = { moving = false }, onMove = { path -> moving = false; applyMove(tile.id, path) })
 }

@@ -18,8 +18,8 @@ android {
         applicationId = "app.memoria"
         minSdk = 33
         targetSdk = 36
-        versionCode = 14
-        versionName = "0.11.0"
+        versionCode = 15
+        versionName = "0.12.0"
         manifestPlaceholders["appName"] = "Memoria"
         ndk { abiFilters += "arm64-v8a" } // Android 13+ phones and the Mac emulator are arm64
     }
@@ -53,10 +53,11 @@ ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
 
-// On CI (Linux) a few text-edge pixels come out 1/255 off the Mac's baselines: up to 0.03% by the plugin's similarity score.
-// The Mac still compares exactly. The plugin's DSL has no setting for it with AGP 9, so it goes on the task.
+// On CI (Linux) a few text-edge pixels come out 1/255 off the Mac's baselines: up to 0.03% by the plugin's similarity score,
+// and 0.2% on ViewerMoreLandscape's greyed label. The Mac still compares exactly. The plugin's DSL has no setting for it with AGP 9,
+// so it goes on the task.
 tasks.withType<com.android.compose.screenshot.tasks.PreviewScreenshotValidationTask>().configureEach {
-    testEngineInput.threshold.set(if (providers.environmentVariable("CI").isPresent) 0.001f else 0f)
+    testEngineInput.threshold.set(if (providers.environmentVariable("CI").isPresent) 0.003f else 0f)
 }
 
 dependencies {
@@ -72,6 +73,8 @@ dependencies {
     implementation("androidx.room:room-ktx:2.8.5")
     ksp("androidx.room:room-compiler:2.8.5")
     implementation("androidx.work:work-runtime:2.12.0")
+    // the fingerprint / phone PIN sheet for the locked folder
+    implementation("androidx.biometric:biometric:1.4.0-rc01")
     // the video player: hardware decode through the platform's MediaCodec, our own minimal controls
     implementation("androidx.media3:media3-exoplayer:1.11.1")
     // Installs baseline profiles (ours and the ones Compose/AndroidX ship) on first run

@@ -19,7 +19,7 @@ import kotlin.math.min
 sealed interface TimelineItem
 
 /** A photo or video in the timeline. duration is set for videos only. favorite is MediaStore's own flag. ratio is width / height as shown, 0 if unknown. */
-data class Tile(val id: Long, val uri: Uri, val date: Long, val duration: Long?, val favorite: Boolean = false, val ratio: Float = 0f) : TimelineItem
+data class Tile(val id: Long, val uri: Uri, val date: Long, val duration: Long?, val favorite: Boolean = false, val ratio: Float = 0f, val vault: Boolean = false) : TimelineItem
 
 /** Width / height as shown: MediaStore keeps the stored size, so a 90 or 270 turn swaps it. */
 fun shownRatio(width: Int, height: Int, orientation: Int): Float = when {
@@ -92,7 +92,7 @@ class Trashed(val tile: Tile, val daysLeft: Int)
 fun trash(context: Context): List<Trashed> {
     val cols = arrayOf(FileColumns._ID, FileColumns.MEDIA_TYPE, FileColumns.DURATION, FileColumns.DATE_TAKEN, MediaStore.MediaColumns.DATE_EXPIRES, FileColumns.WIDTH, FileColumns.HEIGHT, FileColumns.ORIENTATION)
     val args = Bundle().apply { putInt(MediaStore.QUERY_ARG_MATCH_TRASHED, MediaStore.MATCH_ONLY) }
-    val out = mutableListOf<Trashed>()
+    val out = mutableListOf<Pair<Long, Trashed>>()
     val now = System.currentTimeMillis()
     context.contentResolver.query(MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL), cols, args, null)?.use { c ->
         while (c.moveToNext()) {
@@ -100,11 +100,13 @@ fun trash(context: Context): List<Trashed> {
             val base = if (video) MediaStore.Video.Media.EXTERNAL_CONTENT_URI else MediaStore.Images.Media.EXTERNAL_CONTENT_URI
             val id = c.getLong(0)
             // DATE_EXPIRES is in seconds, every other MediaStore date is in milliseconds
-            val daysLeft = if (c.isNull(4)) 0 else ((c.getLong(4) * 1000 - now).coerceAtLeast(0) / 86_400_000L).toInt()
-            out += Trashed(Tile(id, ContentUris.withAppendedId(base, id), c.getLong(3), if (video) c.getLong(2) else null, ratio = shownRatio(c.getInt(5), c.getInt(6), c.getInt(7))), daysLeft)
+            val expires = if (c.isNull(4)) 0L else c.getLong(4)
+            val daysLeft = ((expires * 1000 - now).coerceAtLeast(0) / 86_400_000L).toInt()
+            out += expires to Trashed(Tile(id, ContentUris.withAppendedId(base, id), c.getLong(3), if (video) c.getLong(2) else null, ratio = shownRatio(c.getInt(5), c.getInt(6), c.getInt(7))), daysLeft)
         }
     }
-    return out.sortedByDescending { it.daysLeft }
+    // whole days tie for a day of deletes, so the exact expiry breaks the tie: the newest delete first
+    return out.sortedByDescending { it.first }.map { it.second }
 }
 
 /** The given MediaStore ids as tiles, photos and videos, newest first, with the same date rules as the timeline. Ids MediaStore no longer has are dropped. */
