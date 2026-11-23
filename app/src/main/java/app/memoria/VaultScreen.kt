@@ -1,7 +1,10 @@
 package app.memoria
 
 import android.app.Activity
+import android.app.admin.DevicePolicyManager
 import android.content.Context
+import android.content.Intent
+import android.provider.Settings
 import android.provider.MediaStore
 import android.view.WindowManager
 import androidx.activity.compose.BackHandler
@@ -68,6 +71,7 @@ fun rememberVaultLock(onLocked: (List<Tile>) -> Unit = {}): (List<Tile>) -> Unit
     val scope = rememberCoroutineScope()
     var batch by remember { mutableStateOf<VaultStore.Batch?>(null) }
     var first by remember { mutableStateOf<List<Tile>?>(null) } // waiting on the first-lock sheet
+    var noLock by remember { mutableStateOf(false) }
     val prefs = remember { context.getSharedPreferences("vault", Context.MODE_PRIVATE) }
     val ask = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         val b = batch ?: return@rememberLauncherForActivityResult
@@ -107,26 +111,58 @@ fun rememberVaultLock(onLocked: (List<Tile>) -> Unit = {}): (List<Tile>) -> Unit
             lock(tiles)
         })
     }
+    if (noLock) NoScreenLockDialog(onCancel = { noLock = false }, onSettings = { noLock = false; openLockSettings(context) })
     return { tiles ->
-        if (tiles.isNotEmpty()) {
-            if (prefs.getBoolean("introSeen", false)) lock(tiles) else first = tiles
+        if (tiles.isNotEmpty()) when {
+            vaultKeys == null && !canUnlockVault(context) -> noLock = true
+            prefs.getBoolean("introSeen", false) -> lock(tiles)
+            else -> first = tiles
         }
     }
+}
+
+/** Android's own screen lock settings: "Choose a screen lock" where the phone has it, else Security. */
+private fun openLockSettings(context: Context) {
+    runCatching { context.startActivity(Intent(DevicePolicyManager.ACTION_SET_NEW_PASSWORD)) }
+        .onFailure { runCatching { context.startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS)) } }
+}
+
+/** "6 photos", "1 video", or "3 items" when both kinds are in. */
+private fun countWord(n: Int, videos: Int) = count(n, if (videos == 0) "photo" else if (videos == n) "video" else "item")
+
+/** Lock with no screen lock (mockup "Lock, no screen lock"): the phone's sheet cannot show, so this says why. */
+@Composable
+fun NoScreenLockDialog(onCancel: () -> Unit, onSettings: () -> Unit) = AlertDialog(
+    onDismissRequest = onCancel,
+    icon = { Icon(painterResource(R.drawable.ic_lock), null) },
+    title = { Text("Set a screen lock first") },
+    text = { Text("Locked photos open with this phone's own fingerprint or PIN, and it has none now.") },
+    confirmButton = { TextButton(onSettings) { Text("Open settings") } },
+    dismissButton = { TextButton(onCancel) { Text("Cancel") } },
+)
+
+/** Move out, every time (mockup): the files show in the gallery and other apps again. Not red: nothing is lost. */
+@Composable
+fun MoveOutDialog(n: Int, videos: Int, onCancel: () -> Unit, onMove: () -> Unit) {
+    val (go, came, them) = if (n == 1) Triple("It goes", "the folder it", "it") else Triple("They go", "the folders they", "them")
+    AlertDialog(
+        onDismissRequest = onCancel,
+        icon = { Icon(painterResource(R.drawable.ic_upload), null) },
+        title = { Text("Move ${countWord(n, videos)} out?") },
+        text = { Text("$go back to the phone's gallery, in $came came from. Any app that can see your photos can open $them again.") },
+        confirmButton = { TextButton(onMove) { Text("Move out") } },
+        dismissButton = { TextButton(onCancel) { Text("Cancel") } },
+    )
 }
 
 /** Lock, the first time only (mockup "Lock, the first time"): the two things nobody expects, once, before Android's confirm. */
 @Composable
 fun FirstLockDialog(tiles: List<Tile>, onCancel: () -> Unit, onLock: () -> Unit) {
-    val word = when {
-        tiles.all { it.duration == null } -> "photo"
-        tiles.all { it.duration != null } -> "video"
-        else -> "item"
-    }
     val (they, them) = if (tiles.size == 1) "It leaves" to "it" else "They leave" to "them"
     AlertDialog(
         onDismissRequest = onCancel,
         icon = { Icon(painterResource(R.drawable.ic_lock), null) },
-        title = { Text("Lock ${count(tiles.size, word)}?") },
+        title = { Text("Lock ${countWord(tiles.size, tiles.count { it.duration != null })}?") },
         text = { Text("$they the phone's gallery, so no other app can open $them. Clearing the app's data or uninstalling Memoria deletes $them completely.") },
         confirmButton = { TextButton(onLock) { Text("Lock", color = MaterialTheme.colorScheme.error) } },
         dismissButton = { TextButton(onCancel) { Text("Cancel") } },
@@ -143,10 +179,14 @@ fun LockedScreen(onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit = { _, _
     var selected by remember { mutableStateOf(emptySet<Long>()) }
     var reload by remember { mutableIntStateOf(0) }
     val ready = vaultKeys != null
+    var noLock by remember { mutableStateOf(false) }
     // No screen of its own for the lock: the phone's sheet is the screen. Cancelled, the folder closes.
+    // With no screen lock the sheet cannot show: the folder says so, and back from Settings this runs again.
     LifecycleStartEffect(Unit) {
         var gone = false
         scope.launch {
+            noLock = vaultKeys == null && !canUnlockVault(context)
+            if (noLock) return@launch
             if (vaultKeys == null) vaultKeys = unlockVault(activity ?: return@launch)
             if (vaultKeys == null) {
                 if (!gone) onBack()
@@ -177,6 +217,8 @@ fun LockedScreen(onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit = { _, _
     LockedContent(
         items = items,
         ready = ready,
+        noLock = noLock,
+        onOpenSettings = { openLockSettings(context) },
         selected = selected,
         onBack = onBack,
         onToggle = { id -> selected = if (id in selected) selected - id else selected + id },
@@ -217,10 +259,13 @@ fun LockedContent(
     onMoveOut: () -> Unit = {},
     onDelete: () -> Unit = {},
     onOpen: (VaultItem) -> Unit = {},
+    noLock: Boolean = false, // the phone has no screen lock, so its sheet cannot open the folder
+    onOpenSettings: () -> Unit = {},
 ) {
     val selecting = selected.isNotEmpty()
     var info by remember { mutableStateOf(false) }
     var asking by remember { mutableStateOf(false) }
+    var movingOut by remember { mutableStateOf(false) }
     BackHandler(selecting) { onCancelSelect() }
     val grid = rememberLazyGridState()
     FollowViewer(grid, items.map { it.tile })
@@ -241,6 +286,11 @@ fun LockedContent(
             else if (!selecting) IconButton({ info = true }) { Icon(painterResource(R.drawable.ic_info), "About the locked folder") }
         }
         when {
+            noLock -> EmptyState(
+                R.drawable.ic_lock, "Set a screen lock first",
+                "The folder opens with this phone's own fingerprint or PIN, and it has none now. Anything already locked stays safe",
+                button = "Open settings", onButton = onOpenSettings,
+            )
             !ready -> Box(Modifier.weight(1f).fillMaxWidth())
             items.isEmpty() -> EmptyState(
                 R.drawable.ic_lock, "Nothing locked yet",
@@ -262,7 +312,7 @@ fun LockedContent(
         }
         if (selecting) ActionBar(
             "Delete", R.drawable.ic_trash_line, { asking = true },
-            "Move out", R.drawable.ic_upload, onMoveOut,
+            "Move out", R.drawable.ic_upload, { movingOut = true },
         )
     }
     if (info) AlertDialog(
@@ -276,6 +326,9 @@ fun LockedContent(
         },
         confirmButton = { TextButton({ info = false }) { Text("Got it") } },
     )
+    if (movingOut) items.filter { it.id in selected }.let { picked ->
+        MoveOutDialog(picked.size, picked.count { it.duration != null }, onCancel = { movingOut = false }) { movingOut = false; onMoveOut() }
+    }
     if (asking) AlertDialog(
         onDismissRequest = { asking = false },
         title = { Text("Delete these photos?") },

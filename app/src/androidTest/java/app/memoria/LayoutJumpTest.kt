@@ -345,6 +345,18 @@ class LayoutJumpTest {
         assertSame("first tile top", firstBefore, rule.onNodeWithTag("vault-1").top())
     }
 
+    // Back from Settings with a lock set, the no-lock screen gives way to the phone's sheet: the bar stays put
+    @Test fun locked_noLock_keepsTopBar() {
+        var noLock by mutableStateOf(true)
+        rule.setContent { MemoriaTheme { Surface { LockedContent(emptyList(), ready = false, noLock = noLock) } } }
+
+        val barBefore = rule.onNodeWithTag("topBar").height()
+        val titleBefore = rule.onNodeWithText("Locked folder").top()
+        rule.runOnIdle { noLock = false }
+        assertSame("top bar height", barBefore, rule.onNodeWithTag("topBar").height())
+        assertSame("title top", titleBefore, rule.onNodeWithText("Locked folder").top())
+    }
+
     @Test fun topBar_emptySubtitle_keepsHeight() {
         var subtitle by mutableStateOf<String?>(null)
         rule.setContent { MemoriaTheme { Surface { Column { TopBar("Trash", subtitle, onBack = {}) } } } }

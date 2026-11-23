@@ -346,12 +346,38 @@ class BehaviorTest {
         assertTrue(deleted)
     }
 
-    @Test fun locked_moveOut_fires() {
+    // Moving out shows the files to the gallery and other apps again, so it asks first (mockup "Move out, every time")
+    @Test fun locked_moveOut_asksFirst() {
         var moved = false
         rule.setContent { MemoriaTheme { Surface { LockedContent(vaultItems, selected = setOf(-1L), onMoveOut = { moved = true }) } } }
 
         rule.onNodeWithText("Move out").performClick()
+        rule.onNodeWithText("Move 1 photo out?").assertIsDisplayed()
+        assertFalse(moved)
+        rule.onAllNodesWithText("Move out").onLast().performClick()
         assertTrue(moved)
+    }
+
+    // No screen lock: the phone's sheet cannot show, so the folder says why (mockup "Locked folder, no screen lock")
+    @Test fun locked_noLock_opensSettings() {
+        var settings = false
+        rule.setContent { MemoriaTheme { Surface { LockedContent(emptyList(), ready = false, noLock = true, onOpenSettings = { settings = true }) } } }
+
+        rule.onNodeWithText("Set a screen lock first").assertIsDisplayed()
+        rule.onNodeWithText("Open settings").performClick()
+        assertTrue(settings)
+    }
+
+    // Lock with no screen lock stops here instead of doing nothing (mockup "Lock, no screen lock")
+    @Test fun lock_noScreenLock_offersSettings() {
+        var settings = false
+        var cancelled = false
+        rule.setContent { MemoriaTheme { Surface { NoScreenLockDialog(onCancel = { cancelled = true }, onSettings = { settings = true }) } } }
+
+        rule.onNodeWithText("Set a screen lock first").assertIsDisplayed()
+        rule.onNodeWithText("Open settings").performClick()
+        assertTrue(settings)
+        assertFalse(cancelled)
     }
 
     @Test fun locked_info_saysWhatClearingDataDoes() {

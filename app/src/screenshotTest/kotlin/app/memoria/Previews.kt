@@ -238,6 +238,12 @@ fun LockedEmpty() = MemoriaTheme { Surface { LockedContent(emptyList()) } }
 @Composable
 fun LockedLoading() = MemoriaTheme { Surface { LockedContent(emptyList(), ready = false) } }
 
+/** No screen lock (mockup "Locked folder, no screen lock"): the phone's sheet cannot show, so the folder says why. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 800)
+@Composable
+fun LockedNoLock() = MemoriaTheme { Surface { LockedContent(emptyList(), ready = false, noLock = true) } }
+
 /** The shared parts, in one place: keeps code and the mockup's "Shared parts" section in step. */
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 620)

@@ -355,7 +355,7 @@ private fun SelectAction(icon: Int, label: String, four: Boolean, onClick: () ->
 }
 
 /** Icon, one line, one sentence. For a list that is really empty, never for a list that is still loading. */@Composable
-fun EmptyState(icon: Int, title: String, text: String, modifier: Modifier = Modifier) {
+fun EmptyState(icon: Int, title: String, text: String, modifier: Modifier = Modifier, button: String? = null, onButton: () -> Unit = {}) {
     Column(
         modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 72.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -363,6 +363,7 @@ fun EmptyState(icon: Int, title: String, text: String, modifier: Modifier = Modi
         Icon(painterResource(icon), null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.surfaceVariant)
         Text(title, Modifier.padding(top = 10.dp), style = MaterialTheme.typography.titleMedium, fontSize = 20.sp)
         Text(text, Modifier.padding(top = 10.dp), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+        if (button != null) PillButton(button, onButton, modifier = Modifier.padding(top = 10.dp))
     }
 }
 

@@ -408,6 +408,7 @@ fun Viewer(
     var moving by remember { mutableStateOf(false) }
     // A locked item: deleting or moving it out is the app's own work, so the app asks (the mockup says so)
     var vaultAsking by remember { mutableStateOf(false) }
+    var vaultMovingOut by remember { mutableStateOf(false) }
     fun vaultLeaving(id: Long) {
         list = list.filterNot { it.id == id }
         forgetTiles(setOf(id))
@@ -552,13 +553,7 @@ fun Viewer(
                     }
                 },
                 onInfo = { settle(true) },
-                onMoveOut = {
-                    scope.launch {
-                        val item = VaultStore.item(context, tile.id) ?: return@launch
-                        val done = runCatching { VaultStore.moveOut(context, listOf(item)) }.getOrDefault(0)
-                        if (done > 0) vaultLeaving(tile.id)
-                    }
-                },
+                onMoveOut = { vaultMovingOut = true },
                 vault = vault,
                 // in the trash the trash icon deletes for good; Restore puts the item back
                 onDelete = {
@@ -631,6 +626,14 @@ fun Viewer(
                         .graphicsLayer { translationY = -listY.value },
                 )
             }
+        }
+    }
+    if (vaultMovingOut) MoveOutDialog(1, if (tile.duration != null) 1 else 0, onCancel = { vaultMovingOut = false }) {
+        vaultMovingOut = false
+        scope.launch {
+            val item = VaultStore.item(context, tile.id) ?: return@launch
+            val done = runCatching { VaultStore.moveOut(context, listOf(item)) }.getOrDefault(0)
+            if (done > 0) vaultLeaving(tile.id)
         }
     }
     if (vaultAsking) AlertDialog(

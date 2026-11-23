@@ -19,6 +19,7 @@ import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
@@ -86,6 +87,21 @@ class ViewerTest {
     @Test fun trash_secondToLastPhoto_showsTheLastOne() {
         trash(tiles[1])
         assertEquals(tiles[2].id, viewerTile)
+    }
+
+    // Move out in the vault viewer asks first, like the folder's select bar (mockup "Move out, every time")
+    @Test fun vault_moveOut_asksFirst() {
+        val locked = VaultItem(1, "a.mp4", "video/mp4", 0, 0, 1, 8, 8, 1_000, "Pictures/").tile
+        vaultKeys = VaultKeys(VaultKeys.random())
+        try {
+            rule.setContent { MemoriaTheme { Viewer(locked.id, listOf(locked), onBack = {}, vault = true) } }
+            rule.onNodeWithContentDescription("Move out").performClick()
+            rule.onNodeWithText("Move 1 video out?").assertIsDisplayed()
+            rule.onNodeWithText("Cancel").performClick()
+            rule.onNodeWithText("Move 1 video out?").assertDoesNotExist()
+        } finally {
+            vaultKeys = null
+        }
     }
 
     // The folder locks when the app goes to the background: a locked photo must not stay on screen after
