@@ -176,7 +176,8 @@ object Updates {
             setSize(file.length())
             setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
         }
-        val id = installer.createSession(params)
+        val id = runCatching { installer.createSession(params) }
+            .onFailure { AppLog.w("update install failed", it) }.getOrNull() ?: return@withContext
         runCatching {
             installer.openSession(id).use { session ->
                 session.openWrite("base.apk", 0, file.length()).use { out ->

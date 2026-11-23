@@ -2,7 +2,7 @@
 
 Open-source Android gallery. All photo processing and AI runs on the phone: photos and face data never leave it, the face models download once on first run, no accounts, ads, trackers or analytics. The internet is used only for optional comfort features — map tiles for the photo map, update checks, and that one-time model download — never to upload or analyze photos. Face data stays in a local DB, with export and import for backup.
 
-Released (0.12.0). This file lists open work only, most important first. What is done and why each call was made: `decisions.md` and git.
+Released (0.12.1). This file lists open work only, most important first. What is done and why each call was made: `decisions.md` and git.
 
 **Index upgrades:** a new index step (search labels, OCR, video towns) fills in only what an existing index is missing (the catch-up pass in `IndexWorker`). Never re-index from scratch, so names, merges, hidden people, covers and answers stay.
 
@@ -21,7 +21,7 @@ Released (0.12.0). This file lists open work only, most important first. What is
 11. **Place name in the day header** (mockup "Photos": `Sun, 28 Sep` + the town, muted). Offline geocoding is done (`photo.town`), so this only reads it into the header. Photos only; videos have a town since 2026-11-07, so they could come later.
 12. **Sheets, menus and dialogs: smooth in and out.** The `Menu` part (`Ui.kt`) has no motion yet.
 13. **Search: two people at once, and a results grid** instead of one list of hits.
-14. **Check the session updater on the phone** with the first release after 0.11.0: Install shows no chooser and no screen, the app closes and updates, data kept. Built 2026-11-23, see `decisions.md`.
+14. **Check the session updater on the phone:** it ships in 0.12.0, so only an update from 0.12.0 or later tests it. Install shows no chooser and no screen, the app closes and updates, data kept. Built 2026-11-23, see `decisions.md`.
 15. **Play Protect warning:** say in the release notes and README that Play Protect may warn about the app (not registered with Google's developer verification) and how to check the APK with the signing certificate SHA-256. Not decided yet.
 16. **A file that breaks on a real phone gets a made-up copy of the same kind in the test files first,** then the fix. The real file is personal, so it never goes in the repo.
 17. **Place covers: small towns can still pick a portrait or a dull shot.** A selfie / group demotion is the next step if it bothers.
