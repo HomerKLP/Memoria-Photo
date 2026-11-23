@@ -5,10 +5,12 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageInstaller
 import android.net.Uri
-import androidx.core.content.FileProvider
+import androidx.core.content.IntentCompat
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -26,7 +28,7 @@ import java.util.concurrent.TimeUnit
 
 /**
  * App updates from the latest GitHub release (`releases/latest` skips the `models-v1` pre-release). Release builds
- * only. DownloadManager fetches the APK, Android's installer puts it in and refuses one with another signing key.
+ * only. DownloadManager fetches the APK, an installer session puts it in; Android refuses one with another signing key.
  */
 object Updates {
     enum class Status { UpToDate, Checking, Failed, New, Downloading, Stopped, Ready }
@@ -161,11 +163,32 @@ object Updates {
         prefs(context).edit().remove("id").apply()
     }
 
-    /** Hands the APK to Android's installer. The first time, Android asks to allow installs from Memoria. */
-    fun install(context: Context) {
-        val version = prefs(context).getString("version", null) ?: return
-        val uri = FileProvider.getUriForFile(context, "${context.packageName}.updates", apk(context, version))
-        context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri, "application/vnd.android.package-archive").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+    /**
+     * Writes the APK into an installer session. Once installs from Memoria are allowed, the app updates itself
+     * with no screen; before that, [UpdateInstallReceiver] opens Android's confirm screen.
+     */
+    suspend fun install(context: Context) = withContext(Dispatchers.IO) {
+        val version = prefs(context).getString("version", null) ?: return@withContext
+        val file = apk(context, version)
+        val installer = context.packageManager.packageInstaller
+        val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
+            setAppPackageName(context.packageName)
+            setSize(file.length())
+            setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
+        }
+        val id = installer.createSession(params)
+        runCatching {
+            installer.openSession(id).use { session ->
+                session.openWrite("base.apk", 0, file.length()).use { out ->
+                    file.inputStream().use { it.copyTo(out) }
+                    session.fsync(out)
+                }
+                // mutable: the installer adds its result to the intent
+                val result = PendingIntent.getBroadcast(context, 0, Intent(context, UpdateInstallReceiver::class.java),
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE)
+                session.commit(result.intentSender)
+            }
+        }.onFailure { installer.abandonSession(id); AppLog.w("update install failed", it) }
     }
 
     /** The release's GitHub page: what's new. */
@@ -178,6 +201,19 @@ object Updates {
     fun tidy(context: Context) {
         val version = prefs(context).getString("version", null)
         if (version == null || !newer(version, installed(context))) dir(context)?.listFiles()?.forEach { it.delete() }
+    }
+}
+
+/** The installer's answer. If it needs a tap, Android's confirm screen opens; a failure only goes to the log. */
+class UpdateInstallReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        when (val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)) {
+            PackageInstaller.STATUS_PENDING_USER_ACTION ->
+                IntentCompat.getParcelableExtra(intent, Intent.EXTRA_INTENT, Intent::class.java)
+                    ?.let { context.startActivity(it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+            PackageInstaller.STATUS_SUCCESS -> {}
+            else -> AppLog.w("update install failed ($status): ${intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)}")
+        }
     }
 }
 
