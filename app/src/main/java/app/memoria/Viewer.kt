@@ -116,6 +116,8 @@ fun Viewer(
     onLock: (Tile) -> Unit = {}, // More > Lock
 ) {
     val context = LocalContext.current
+    // The folder locked (the app went to the background): a locked photo never stays on screen behind the unlock sheet
+    if (vault && vaultKeys == null) LaunchedEffect(Unit) { onBack() }
     // One player for the screen: the video on the page plays, a photo stops it. Media3 runs on the
     // phone's own hardware decoder, the same one the system player uses, so the usual codecs play fast.
     // Audio focus is asked for, so a call or another app's music owns the sound like in a real player.

@@ -10,6 +10,8 @@ EMULATOR := $(HOME)/Library/Android/sdk/emulator/emulator
 AVD ?= Medium_Phone_API_37.0
 SERIAL ?= emulator-5554
 DENSITY ?= 480
+# The AVD's screen lock, set for the locked folder. After a boot Android keeps app storage shut until it is typed.
+PIN ?= 1234
 # CI swaps in the coverage report task, which runs the same tests first
 TASK ?= :app:connectedDebugAndroidTest
 KEYSTORE ?= $(HOME)/keys/memoria-release.jks
@@ -102,6 +104,8 @@ layout:
 	$(ADB) -s $(SERIAL) wait-for-device; \
 	until [ "$$($(ADB) -s $(SERIAL) shell getprop sys.boot_completed | tr -d '\r')" = "1" ]; do sleep 2; done; \
 	$(ADB) -s $(SERIAL) shell wm density $(DENSITY); \
+	for i in 1 2 3; do $(ADB) -s $(SERIAL) shell dumpsys window | grep -q isKeyguardShowing=false && break; \
+		$(ADB) -s $(SERIAL) shell 'input keyevent KEYCODE_WAKEUP; wm dismiss-keyguard; sleep 2; dumpsys window | grep -q isKeyguardShowing=true && { input text $(PIN); input keyevent 66; }'; sleep 3; done; \
 	ANDROID_SERIAL=$(SERIAL) ./gradlew $(TASK) $(UI_FILTER) $(if $(T),'-Pandroid.testInstrumentationRunnerArguments.tests_regex=.*($(T)).*')
 
 # Just BehaviorTest, on the same emulator as `make layout`. `make layout` runs both.

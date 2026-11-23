@@ -211,6 +211,33 @@ fun TrashSelect() = MemoriaTheme {
 @Composable
 fun TrashEmpty() = MemoriaTheme { Surface { TrashContent(emptyList()) } }
 
+// Locked folder (mockup "Locked folder"): 12 tiles like the mockup, one video among the photos
+private val lockedItems = (1L..12L).map { n ->
+    val video = n == 4L
+    VaultItem(n, "IMG_$n.jpg", if (video) "video/mp4" else "image/jpeg", n, n, 2_841_000, 4000, 3000, if (video) 42_000L else null, "DCIM/Camera/")
+}
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 800)
+@Composable
+fun LockedGrid() = MemoriaTheme { Surface { LockedContent(lockedItems) } }
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 800)
+@Composable
+fun LockedSelect() = MemoriaTheme { Surface { LockedContent(lockedItems, selected = setOf(lockedItems[2].id, lockedItems[5].id)) } }
+
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 800)
+@Composable
+fun LockedEmpty() = MemoriaTheme { Surface { LockedContent(emptyList()) } }
+
+/** Behind the phone's unlock sheet: the bar keeps its two lines, the grid waits. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 800)
+@Composable
+fun LockedLoading() = MemoriaTheme { Surface { LockedContent(emptyList(), ready = false) } }
+
 /** The shared parts, in one place: keeps code and the mockup's "Shared parts" section in step. */
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 620)
@@ -857,6 +884,19 @@ fun ViewerTrashed() = MemoriaTheme {
         Box(Modifier.fillMaxSize()) {
             Box(Modifier.fillMaxSize().background(viewerPhoto))
             ViewerChrome(true, "Sat, 11 Oct", "14:32", favorite = false, {}, {}, {}, {}, {}, trashed = true)
+        }
+    }
+}
+
+/** Locked folder, viewer (mockup "Locked folder"): Details / Move out / Delete, no Share, Favorite or More. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 800)
+@Composable
+fun ViewerLocked() = MemoriaTheme {
+    Surface {
+        Box(Modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxSize().background(viewerPhoto))
+            ViewerChrome(true, "Sat, 11 Oct", "14:32", favorite = false, {}, {}, {}, {}, {}, vault = true)
         }
     }
 }

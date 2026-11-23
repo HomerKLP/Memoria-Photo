@@ -161,7 +161,7 @@ fun LockedScreen(onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit = { _, _
             val picked = items.filter { it.id in selected }
             selected = emptySet()
             scope.launch {
-                VaultStore.delete(context, picked)
+                runCatching { VaultStore.delete(context, picked) }
                 reload++
                 viewerEdits++
             }
@@ -194,9 +194,10 @@ fun LockedContent(
         TopBar(
             title = if (selecting) "${selected.size} selected" else "Locked folder",
             subtitle = when {
-                selecting -> "${items.size} items · ${formatBytes(items.filter { it.id in selected }.sumOf { i -> i.size })}"
-                items.isEmpty() && ready -> "Empty"
-                else -> "${items.size} items · ${formatBytes(items.sumOf { it.size })}"
+                selecting -> "${count(items.size, "item")} · ${formatBytes(items.filter { it.id in selected }.sumOf { i -> i.size })}"
+                !ready -> null // behind the unlock sheet: the count is not known yet
+                items.isEmpty() -> "Empty"
+                else -> "${count(items.size, "item")} · ${formatBytes(items.sumOf { it.size })}"
             },
             onBack = if (selecting) ({ onCancelSelect() }) else onBack,
             backIcon = if (selecting) R.drawable.ic_close else R.drawable.ic_back,

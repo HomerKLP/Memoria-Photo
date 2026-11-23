@@ -28,6 +28,8 @@ import androidx.test.platform.app.InstrumentationRegistry
 import java.io.File
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -84,6 +86,23 @@ class ViewerTest {
     @Test fun trash_secondToLastPhoto_showsTheLastOne() {
         trash(tiles[1])
         assertEquals(tiles[2].id, viewerTile)
+    }
+
+    // The folder locks when the app goes to the background: a locked photo must not stay on screen after
+    @Test fun vault_locks_closesTheViewer() {
+        val locked = VaultItem(1, "a.jpg", "image/jpeg", 0, 0, 1, 8, 8, null, "Pictures/").tile
+        var closed = false
+        vaultKeys = VaultKeys(VaultKeys.random())
+        try {
+            rule.setContent { MemoriaTheme { Viewer(locked.id, listOf(locked), onBack = { closed = true }, vault = true) } }
+            rule.waitForIdle()
+            assertFalse(closed)
+            vaultKeys = null
+            rule.waitForIdle()
+            assertTrue(closed)
+        } finally {
+            vaultKeys = null
+        }
     }
 
     /** A real clip from the test APK (the one `VideoFileTest` uses), copied out, so the viewer's player has a file it can prepare. */

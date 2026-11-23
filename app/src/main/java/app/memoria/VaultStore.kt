@@ -5,6 +5,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
+import android.media.ExifInterface
 import android.net.Uri
 import android.provider.MediaStore
 import android.provider.MediaStore.MediaColumns
@@ -19,6 +20,8 @@ import java.net.URLDecoder
 import java.net.URLEncoder
 import java.nio.ByteBuffer
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /** The vault's keys while it is unlocked: in memory only, cleared when the folder closes or the app stops. */
@@ -65,6 +68,8 @@ object VaultStore {
     private const val manifestName = "manifest"
     private const val thumbPx = 384
     private const val maxPhoto = 128L * 1024 * 1024 // a photo bigger than this is not decoded into memory
+    // One change at a time: a sweep or a second lock mid-lock would drop files the manifest does not list yet
+    private val busy = Mutex()
 
     /** What [lock] made: the tiles taken and their new items, until Android's confirm settles it. */
     class Batch(val tiles: List<Tile>, val items: List<VaultItem>)
@@ -81,7 +86,7 @@ object VaultStore {
     fun item(context: Context, id: Long): VaultItem? = runCatching { read(context).firstOrNull { it.id == id } }.getOrNull()
 
     /** Encrypts every tile into the vault and commits the manifest: a crash now leaves a duplicate, not a gap. */
-    suspend fun lock(context: Context, tiles: List<Tile>): Batch = withContext(Dispatchers.IO) {
+    suspend fun lock(context: Context, tiles: List<Tile>): Batch = withContext(Dispatchers.IO) { busy.withLock {
         val keys = vaultKeys ?: throw VaultLocked()
         val all = read(context)
         var next = (all.maxOfOrNull { it.n } ?: 0L) + 1
@@ -97,7 +102,7 @@ object VaultStore {
             made.forEach { drop(context, it) }
             throw e
         }
-    }
+    } }
 
     /** The gallery copies are gone: the index rows for them go too, so People and Search forget the photo. */
     suspend fun commit(context: Context, batch: Batch) = withContext(Dispatchers.IO) {
@@ -108,38 +113,36 @@ object VaultStore {
     }
 
     /** Android refused the delete: take the encrypted copies back out, so nothing is left in two places. */
-    suspend fun undo(context: Context, batch: Batch) = withContext(Dispatchers.IO) {
-        val n = batch.items.map { it.n }.toSet()
-        write(context, read(context).filterNot { it.n in n })
-        batch.items.forEach { drop(context, it) }
-    }
+    suspend fun undo(context: Context, batch: Batch) = delete(context, batch.items)
 
-    suspend fun delete(context: Context, items: List<VaultItem>) = withContext(Dispatchers.IO) {
+    suspend fun delete(context: Context, items: List<VaultItem>) = withContext(Dispatchers.IO) { busy.withLock {
         val n = items.map { it.n }.toSet()
         write(context, read(context).filterNot { it.n in n })
         items.forEach { drop(context, it) }
-    }
+    } }
 
     /** Decrypts each item back into the gallery, in its first folder, then drops the vault copy. Returns how many moved. */
-    suspend fun moveOut(context: Context, items: List<VaultItem>): Int = withContext(Dispatchers.IO) {
+    suspend fun moveOut(context: Context, items: List<VaultItem>): Int = withContext(Dispatchers.IO) { busy.withLock {
         val keys = vaultKeys ?: throw VaultLocked()
         var moved = 0
         for (item in items) {
+            // A second tap on Move out: the first one already took it, and a second copy would land in the gallery
+            if (read(context).none { it.n == item.n }) continue
             writeBack(context, keys, item)
             write(context, read(context).filterNot { it.n == item.n })
             drop(context, item)
             moved++
         }
         moved
-    }
+    } }
 
     /** Deletes crash leftovers and files the manifest does not list: the first thing after an unlock. */
-    fun sweep(context: Context) {
+    suspend fun sweep(context: Context) = withContext(Dispatchers.IO) { busy.withLock {
         val dir = dir(context)
-        val items = runCatching { read(context) }.getOrNull() ?: return
+        val items = runCatching { read(context) }.getOrNull() ?: return@withLock
         val keep = items.flatMap { listOf("f${it.n}", "t${it.n}") }.toSet() + setOf(manifestName, "key")
         dir.listFiles()?.forEach { if (it.name !in keep) it.delete() }
-    }
+    } }
 
     fun thumb(context: Context, id: Long): Bitmap? {
         val keys = vaultKeys ?: return null
@@ -155,10 +158,16 @@ object VaultStore {
         val item = item(context, id) ?: return null
         if (item.size > maxPhoto) return null
         val bytes = bytes(keys, file(context, item.n)) ?: return null
+        // The turn `plainSource` reads for a gallery photo: Android skips a DNG's and mishandles a HEIC's
+        val turn = when (item.type) {
+            "image/heic", "image/heif" -> blankHeicTurn(bytes)
+            "image/x-adobe-dng" -> runCatching { ExifInterface(bytes.inputStream()).getAttributeInt(ExifInterface.TAG_ORIENTATION, 1) }.getOrDefault(1)
+            else -> 1
+        }
         return ImageDecoder.decodeBitmap(ImageDecoder.createSource(ByteBuffer.wrap(bytes))) { decoder, info, _ ->
             val screen = context.resources.displayMetrics.let { minOf(it.widthPixels, it.heightPixels) }
             decoder.setTargetSampleSize(viewerSample(info.size.width, info.size.height, screen))
-        }
+        }.turnedBy(turn)
     }
 
     private fun take(context: Context, keys: VaultKeys, t: Tile, n: Long): VaultItem {
@@ -168,7 +177,10 @@ object VaultStore {
                 n, info.name, info.type, t.date, System.currentTimeMillis(), info.size,
                 info.width, info.height, t.duration, info.folder,
             )
-            val written = context.contentResolver.openInputStream(t.uri)?.use { src -> Vault.encrypt(src, file(context, n), keys) }
+            // The original bytes: the plain URI hides the GPS (bugs.md 2026-11-06), and this copy replaces the file
+            val src = runCatching { context.contentResolver.openInputStream(MediaStore.setRequireOriginal(t.uri)) }.getOrNull()
+                ?: context.contentResolver.openInputStream(t.uri)
+            val written = src?.use { Vault.encrypt(it, file(context, n), keys) }
                 ?: throw IOException("cannot read ${t.uri}")
             // A stale MediaStore row whose file is gone reads as an empty stream: never a 0-byte locked photo
             if (written == 0L) throw IOException("empty file ${t.uri}")
@@ -186,7 +198,7 @@ object VaultStore {
 
     private fun writeBack(context: Context, keys: VaultKeys, item: VaultItem) {
         val resolver = context.contentResolver
-        val collection = if (item.duration != null) MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+        val collection = if (item.type.startsWith("video/")) MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
         else MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
         val values = ContentValues().apply {
             put(MediaColumns.DISPLAY_NAME, item.name)
@@ -197,7 +209,13 @@ object VaultStore {
             put(MediaColumns.DATE_MODIFIED, item.date / 1000)
             put(MediaColumns.IS_PENDING, 1)
         }
-        val uri = resolver.insert(collection, values) ?: throw IOException("cannot insert ${item.name}")
+        val uri = try {
+            resolver.insert(collection, values)
+        } catch (e: IllegalArgumentException) {
+            // Download/ or another app's Android/media/: new photos and videos may go only in DCIM, Pictures or Movies
+            values.put(MediaColumns.RELATIVE_PATH, "Pictures/${item.folder.trimEnd('/').substringAfterLast('/')}/")
+            resolver.insert(collection, values)
+        } ?: throw IOException("cannot insert ${item.name}")
         try {
             resolver.openOutputStream(uri)?.use { out ->
                 Vault.open(file(context, item.n), keys).use { vin ->
@@ -211,6 +229,8 @@ object VaultStore {
                     }
                 }
             } ?: throw IOException("cannot write ${item.name}")
+            // Publishing rescans the file and drops an app's date_taken, so a photo with no EXIF date keeps its date by the file time
+            runCatching { resolver.query(uri, arrayOf(MediaColumns.DATA), null, null, null)?.use { c -> if (c.moveToFirst()) File(c.getString(0)).setLastModified(item.date) } }
             resolver.update(uri, ContentValues().apply { put(MediaColumns.IS_PENDING, 0) }, null, null)
         } catch (e: Throwable) {
             runCatching { resolver.delete(uri, null, null) }
