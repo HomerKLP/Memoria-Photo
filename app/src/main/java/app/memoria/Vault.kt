@@ -79,6 +79,8 @@ object Vault {
                 out.seek(0)
                 out.write(header)
                 out.write(macOf(mac, header))
+                // On the disk before the manifest names it: a power loss must not leave a listed file half written
+                out.fd.sync()
                 return total
             }
         } catch (e: Throwable) {

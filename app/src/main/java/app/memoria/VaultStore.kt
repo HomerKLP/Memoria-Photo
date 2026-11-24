@@ -298,6 +298,7 @@ object VaultStore {
         val tmp = File(f.parentFile, "$manifestName.tmp")
         Vault.encrypt(text.toByteArray().inputStream(), tmp, keys)
         // A fresh inode, so a crash never leaves half a manifest at the real name
+        // shortcut: the folder's own entry is not synced (Java cannot open a folder), so a power loss can still drop the rename; what is left is whole
         if (!tmp.renameTo(f)) throw IOException("cannot write the vault manifest")
     }
 }

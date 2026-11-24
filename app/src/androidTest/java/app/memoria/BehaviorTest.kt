@@ -380,6 +380,16 @@ class BehaviorTest {
         assertFalse(cancelled)
     }
 
+    // The key is gone: the folder says so and closes on Close, instead of closing on nothing (mockup "Locked folder, key lost")
+    @Test fun locked_keyLost_saysWhyAndCloses() {
+        var closed = false
+        rule.setContent { MemoriaTheme { Surface { LockedContent(emptyList(), ready = false, keyLost = true, onBack = { closed = true }) } } }
+
+        rule.onNodeWithText("The locked folder can't open").assertIsDisplayed()
+        rule.onNodeWithText("Close").performClick()
+        assertTrue(closed)
+    }
+
     @Test fun locked_info_saysWhatClearingDataDoes() {
         rule.setContent { MemoriaTheme { Surface { LockedContent(vaultItems) } } }
 

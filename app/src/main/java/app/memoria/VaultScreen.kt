@@ -75,6 +75,7 @@ fun rememberVaultLock(onLocked: (List<Tile>) -> Unit = {}): (List<Tile>) -> Unit
     var batch by remember { mutableStateOf<VaultStore.Batch?>(null) }
     var first by remember { mutableStateOf<List<Tile>?>(null) } // waiting on the first-lock sheet
     var noLock by remember { mutableStateOf(false) }
+    var keyLost by remember { mutableStateOf(false) }
     val prefs = remember { context.getSharedPreferences("vault", Context.MODE_PRIVATE) }
     val ask = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         // The app was made again while Android asked: the batch is gone, but the keys must not stay
@@ -112,6 +113,10 @@ fun rememberVaultLock(onLocked: (List<Tile>) -> Unit = {}): (List<Tile>) -> Unit
                     val request = MediaStore.createDeleteRequest(context.contentResolver, b.tiles.map { it.uri })
                     ask.launch(IntentSenderRequest.Builder(request.intentSender).build())
                 } else if (!vaultOpen) lockVault()
+            } else {
+                // The sheet said yes and the key did not open: the folder can never open, so say it, not nothing
+                keyLost = vaultKeyLost
+                if (!vaultOpen) lockVault()
             }
         }
     }
@@ -123,6 +128,7 @@ fun rememberVaultLock(onLocked: (List<Tile>) -> Unit = {}): (List<Tile>) -> Unit
         })
     }
     if (noLock) NoScreenLockDialog(onCancel = { noLock = false }, onSettings = { noLock = false; openLockSettings(context) })
+    if (keyLost) VaultKeyLostDialog(onClose = { keyLost = false })
     return { tiles ->
         if (tiles.isNotEmpty()) when {
             vaultKeys == null && !canUnlockVault(context) -> noLock = true
@@ -150,6 +156,19 @@ fun NoScreenLockDialog(onCancel: () -> Unit, onSettings: () -> Unit) = AlertDial
     text = { Text("Locked photos open with this phone's own fingerprint or PIN, and it has none now.") },
     confirmButton = { TextButton(onSettings) { Text("Open settings") } },
     dismissButton = { TextButton(onCancel) { Text("Cancel") } },
+)
+
+/**
+ * The file is on the phone but this phone's key no longer opens it (mockup "Locked folder, key lost"):
+ * the one state with no way back, so it is said, not skipped.
+ */
+@Composable
+fun VaultKeyLostDialog(onClose: () -> Unit) = AlertDialog(
+    onDismissRequest = onClose,
+    icon = { Icon(painterResource(R.drawable.ic_lock), null) },
+    title = { Text("The locked folder can't open") },
+    text = { Text("The key that opens it is gone from this phone. Locked photos cannot be opened again. They stay encrypted until the app's data is cleared.") },
+    confirmButton = { TextButton(onClose) { Text("Close") } },
 )
 
 /** Move out, every time (mockup): the files show in the gallery and other apps again. Not red: nothing is lost. */
@@ -192,6 +211,7 @@ fun LockedScreen(onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit = { _, _
     var loaded by remember { mutableStateOf(false) } // the first read is done: the fade starts with the photos in hand
     val ready = vaultKeys != null && loaded
     var noLock by remember { mutableStateOf(false) }
+    var keyLost by remember { mutableStateOf(false) }
     // No screen of its own for the lock: the phone's sheet is the screen. Cancelled, the folder closes.
     // With no screen lock the sheet cannot show: the folder says so, and back from Settings this runs again.
     LifecycleStartEffect(Unit) {
@@ -201,7 +221,9 @@ fun LockedScreen(onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit = { _, _
             if (noLock) return@launch
             if (vaultKeys == null) vaultKeys = unlockVault(activity ?: return@launch)
             if (vaultKeys == null) {
-                if (!gone) onBack()
+                // The sheet said yes and the key did not open: the folder can never open again, so say why
+                keyLost = vaultKeyLost
+                if (!keyLost && !gone) onBack()
                 return@launch
             }
             withContext(Dispatchers.IO) { VaultStore.sweep(context) }
@@ -232,6 +254,7 @@ fun LockedScreen(onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit = { _, _
         items = items,
         ready = ready,
         noLock = noLock,
+        keyLost = keyLost,
         onOpenSettings = { openLockSettings(context) },
         selected = selected,
         onBack = onBack,
@@ -274,6 +297,7 @@ fun LockedContent(
     onDelete: () -> Unit = {},
     onOpen: (VaultItem) -> Unit = {},
     noLock: Boolean = false, // the phone has no screen lock, so its sheet cannot open the folder
+    keyLost: Boolean = false, // the phone's key is gone: the folder can never open again
     onOpenSettings: () -> Unit = {},
 ) {
     val selecting = selected.isNotEmpty()
@@ -356,4 +380,5 @@ fun LockedContent(
         confirmButton = { TextButton({ asking = false; onDelete() }) { Text("Delete", color = MaterialTheme.colorScheme.error) } },
         dismissButton = { TextButton({ asking = false }) { Text("Cancel") } },
     )
+    if (keyLost) VaultKeyLostDialog(onClose = onBack)
 }

@@ -533,7 +533,7 @@ figure.land { width: calc(760px * var(--z)); }
 <header class="top">
   <h1>Memoria Photo</h1>
   <p class="lede">Light theme, Honey palette. Photos and faces are placeholders, names and places are made up.</p>
-  <p class="latest"><b>Latest, 23 Nov:</b> <a href="#update-ready">Updates, Install</a> — updates the app with no chooser and no installer screen; only the first install asks Android's OK.</p>
+  <p class="latest"><b>Latest, 24 Nov:</b> <a href="#page-media">Media management</a> — asked once at first open; with it on, Memoria's own questions replace Android's for delete, restore, move and lock.</p>
 </header>
 
 <aside class="rail" aria-label="Contents">
@@ -565,6 +565,7 @@ figure.land { width: calc(760px * var(--z)); }
     <a href="#update-new">Updates</a>
     <a href="#rescan">Find faces again</a>
     <a href="#skip">Folders to skip</a>
+    <a href="#page-media">Media management</a>
     <a href="#hidden">Hidden people &amp; pets</a>
     <a href="#licenses">Licenses</a>
     <a href="#devtools">Dev tools</a>
@@ -632,7 +633,7 @@ figure.land { width: calc(760px * var(--z)); }
           <div class="handle"></div>
         </div>
       </div>
-      <figcaption>Photos, selecting: long press a photo to start, a long press then drag adds the ones you pass, tap a day's circle for the whole day. A plain drag scrolls the grid instead, so a photo far down the list is reachable. The top bar swaps in place and the Select bar pill takes the tabs' spot; both float, so the grid never moves. Delete sends all to the phone's trash with one Android confirm. Favorite reads Unfavorite when all picked are favorites. Lock moves them to the Locked folder (see Locked folder); Android asks to confirm the gallery copies, and locked photos leave the timeline. The circle covers the heart while selecting. Back or X leaves</figcaption>
+      <figcaption>Photos, selecting: long press a photo to start, a long press then drag adds the ones you pass, tap a day's circle for the whole day. A plain drag scrolls the grid instead, so a photo far down the list is reachable. The top bar swaps in place and the Select bar pill takes the tabs' spot; both float, so the grid never moves. Delete sends all to the phone's trash with one Android confirm, or Memoria's own with Media management on. Favorite reads Unfavorite when all picked are favorites. Lock moves them to the Locked folder (see Locked folder); Android asks to confirm the gallery copies, and locked photos leave the timeline. The circle covers the heart while selecting. Back or X leaves</figcaption>
     </figure>
     <figure id="photos-select-hidden">
       <div class="phone">
@@ -746,7 +747,7 @@ figure.land { width: calc(760px * var(--z)); }
           <div class="gesture light"><div class="handle"></div></div>
         </div>
       </div>
-      <figcaption>Move to album: opens from the viewer's More. Same order as Albums, minus the photo's own album (named in the head). Only folders under DCIM and Pictures are listed: Android allows a move only there, so WhatsApp's folder is left out. Tap one to move; Android asks to confirm. New album opens the New album sheet, its button reads Move. Opened from an album, the moved photo leaves it, so the viewer shows the next one. Album select uses it too</figcaption>
+      <figcaption>Move to album: opens from the viewer's More. Same order as Albums, minus the photo's own album (named in the head). Only folders under DCIM and Pictures are listed: Android allows a move only there, so WhatsApp's folder is left out. Tap one to move; Android asks to confirm, or Memoria with Media management on. New album opens the New album sheet, its button reads Move. Opened from an album, the moved photo leaves it, so the viewer shows the next one. Album select uses it too</figcaption>
     </figure>
     <figure id="viewer-tap">
       <div class="phone dark">
@@ -1169,7 +1170,7 @@ figure.land { width: calc(760px * var(--z)); }
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Trash, selecting: header and note stay put, only the bar at the bottom appears, so nothing jumps. Tap more items, then Restore or Delete. Android asks to confirm, so we add no dialog</figcaption>
+      <figcaption>Trash, selecting: header and note stay put, only the bar at the bottom appears, so nothing jumps. Tap more items, then Restore or Delete. Android asks to confirm, so we add no dialog. With Media management on, Memoria asks instead (see Media management)</figcaption>
     </figure>
     <figure id="trash-viewer">
       <div class="phone dark viewer">
@@ -1187,7 +1188,7 @@ figure.land { width: calc(760px * var(--z)); }
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Trash, viewer: a tap on a trashed item opens it like any other photo or video: swipe, zoom, tap for the bars, pull down, a video plays. Share, Favorite and More are hidden: a trashed file cannot be shared, favorited or moved, so its row is Details, Restore, Delete. Restore puts the item back where it was; Delete removes it for good. Android asks to confirm both. The item leaves the viewer and the next one slides in</figcaption>
+      <figcaption>Trash, viewer: a tap on a trashed item opens it like any other photo or video: swipe, zoom, tap for the bars, pull down, a video plays. Share, Favorite and More are hidden: a trashed file cannot be shared, favorited or moved, so its row is Details, Restore, Delete. Restore puts the item back where it was; Delete removes it for good. Android asks to confirm both, or Memoria with Media management on. The item leaves the viewer and the next one slides in</figcaption>
     </figure>
     <figure id="trash-empty">
       <div class="phone">
@@ -1280,7 +1281,7 @@ figure.land { width: calc(760px * var(--z)); }
           </div>
         </div>
       </div>
-      <figcaption>Lock, the first time only: this sheet, once, before the first lock; Android's own confirm for the gallery copies comes next. It says the two things nobody expects: the photos leave the gallery, and app data loss takes them with it. No lock asks for the phone's own sheet: the fingerprint or PIN sheet is for opening the folder only, so every lock goes straight to Android's confirm. A locked photo with no way back is the one mistake the app cannot fix, so this is a full stop, not a toast. It shows for a lock from the select bar and from the viewer's More</figcaption>
+      <figcaption>Lock, the first time only: this sheet, once, before the first lock; Android's own confirm for the gallery copies comes next. With Media management on, it shows on every lock and nothing follows it. It says the two things nobody expects: the photos leave the gallery, and app data loss takes them with it. No lock asks for the phone's own sheet: the fingerprint or PIN sheet is for opening the folder only, so every lock goes straight to Android's confirm. A locked photo with no way back is the one mistake the app cannot fix, so this is a full stop, not a toast. It shows for a lock from the select bar and from the viewer's More</figcaption>
     </figure>
     <figure id="locked-nolock">
       <div class="phone">
@@ -1322,6 +1323,19 @@ figure.land { width: calc(760px * var(--z)); }
         </div>
       </div>
       <figcaption>Move out, every time: Move out in the select bar and in the viewer asks first, since the files become visible to the gallery and other apps again. Not red: nothing is lost, and they can be locked again. The title counts like Lock's: "Move 1 video out?", "Move 3 items out?" for photos and videos mixed. A folder Android no longer takes new files in (Download, another app's folder) becomes Pictures/ plus its name</figcaption>
+    </figure>
+    <figure id="locked-keylost">
+      <div class="phone modal" id="locked-keylost-phone">
+        <div class="scrim">
+          <div class="dialog" role="alertdialog" aria-labelledby="locked-keylost-title">
+            <svg class="i"><use href="#i-lock"/></svg>
+            <b id="locked-keylost-title">The locked folder can't open</b>
+            <p>The key that opens it is gone from this phone. Locked photos cannot be opened again. They stay encrypted until the app's data is cleared.</p>
+            <div class="dialog-btns"><button class="text-btn">Close</button></div>
+          </div>
+        </div>
+      </div>
+      <figcaption>Locked folder, key lost: the phone's sheet said yes, but this phone no longer holds the key it made, so the folder stops here. Before, it opened on nothing or closed on nothing, with no word. Rare: the security chip was reset, or a power loss cut the key file short. Opening asks for the phone's sheet first, so this shows only after the user said yes. No recovery: no key export by design. Close leaves the folder; the encrypted files stay on the phone until the app's data is cleared, which gives the space back</figcaption>
     </figure>
   </div>
   <h3 id="page-albums">Albums</h3>
@@ -1428,7 +1442,7 @@ figure.land { width: calc(760px * var(--z)); }
           <div class="handle"></div>
         </div>
       </div>
-      <figcaption>Album, selecting: long press a photo, or More > Select. The top bar swaps in place; the Select bar pill floats in at the bottom over the grid, so nothing moves. Select all picks the whole album. Move opens the Move to album sheet; moved photos leave this album. Delete sends all to the phone's trash with one Android confirm. Favorite reads Unfavorite when all picked are favorites. No Lock here: four actions is the most that fits at 360 dp and Move already has the fourth spot, so an album locks one photo at a time from the viewer's More. Back or X leaves. Select all picks what the filter shows; the select bar has no filter icon, the filter stays on (see Filter). Favorites, a Place, a person and Videos select the same way, without Move: only an album says which album its photos are in</figcaption>
+      <figcaption>Album, selecting: long press a photo, or More > Select. The top bar swaps in place; the Select bar pill floats in at the bottom over the grid, so nothing moves. Select all picks the whole album. Move opens the Move to album sheet; moved photos leave this album. Delete sends all to the phone's trash with one Android confirm, or Memoria's own with Media management on. Favorite reads Unfavorite when all picked are favorites. No Lock here: four actions is the most that fits at 360 dp and Move already has the fourth spot, so an album locks one photo at a time from the viewer's More. Back or X leaves. Select all picks what the filter shows; the select bar has no filter icon, the filter stays on (see Filter). Favorites, a Place, a person and Videos select the same way, without Move: only an album says which album its photos are in</figcaption>
     </figure>
     <figure id="ignore">
       <div class="phone modal" id="ignore-phone">
@@ -1474,7 +1488,7 @@ figure.land { width: calc(760px * var(--z)); }
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>New album, pick photos: the whole timeline; tap photos or a day's circle, a long press then drag to add, a plain drag scrolls. The bar is there from the start, so nothing jumps; Move here is off until something is picked. Picked photos move out of their old album (Camera too). Android asks to confirm, then the new album opens. Back fixes the name, Cancel makes nothing</figcaption>
+      <figcaption>New album, pick photos: the whole timeline; tap photos or a day's circle, a long press then drag to add, a plain drag scrolls. The bar is there from the start, so nothing jumps; Move here is off until something is picked. Picked photos move out of their old album (Camera too). Android asks to confirm, then the new album opens; with Media management on, nothing asks. Back fixes the name, Cancel makes nothing</figcaption>
     </figure>
   </div>
   <h3 id="page-places">Places</h3>
@@ -2023,6 +2037,8 @@ figure.land { width: calc(760px * var(--z)); }
           <div class="set"><svg class="i"><use href="#i-battery"/></svg><div><b>Background work</b><span>Not allowed. The phone may stop the scan</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
           <div class="set"><svg class="i"><use href="#i-folder"/></svg><div><b>Folders to skip</b><span>None, all photos are indexed</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
           <div class="set"><svg class="i"><use href="#i-refresh"/></svg><div><b>Find faces again</b><span>Deletes faces and names, scans all photos again</span></div></div>
+          <div class="head"><h3>Gallery</h3></div>
+          <div class="set media"><svg class="i"><use href="#i-photo"/></svg><div><b>Media management</b><span>Off · Android asks before each change</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
           <div class="head"><h3>People &amp; pets</h3></div>
           <div class="set"><svg class="i"><use href="#i-block"/></svg><div><b>Hidden people &amp; pets</b><span>3 hidden</span></div><svg class="i"><use href="#i-chevron"/></svg></div>
           <div class="head"><h3>Backup</h3><span class="hint">Names and faces, not photos</span></div>
@@ -2037,7 +2053,7 @@ figure.land { width: calc(760px * var(--z)); }
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Settings: opens from the gear on Library, and from a tap on the scan notification. Models (the face models and the photo tagger; shown ready, see the next three), then Scan: the only place that shows a run, with photos done, time left and Pause. A photo is done once every step is: its faces, and its tag vector when the tagger is on the phone; a new tagger fills the bar again from the start. Paused, it reads "Paused · 412 of 1,706" with Resume; with "Only while charging" on battery, "Waiting for charger" and keeps Pause. One line, cut with … if long. Then scan options, hidden people, face data backup, about: the version row opens Licenses, then Updates (see the update states below) and the daily check switch, both in release builds only. The Developer section is last and only in debug builds; a release build has no such section</figcaption>
+      <figcaption>Settings: opens from the gear on Library, and from a tap on the scan notification. Models (the face models and the photo tagger; shown ready, see the next three), then Scan: the only place that shows a run, with photos done, time left and Pause. A photo is done once every step is: its faces, and its tag vector when the tagger is on the phone; a new tagger fills the bar again from the start. Paused, it reads "Paused · 412 of 1,706" with Resume; with "Only while charging" on battery, "Waiting for charger" and keeps Pause. One line, cut with … if long. Then scan options, Gallery (Media management, see below), hidden people, face data backup, about: the version row opens Licenses, then Updates (see the update states below) and the daily check switch, both in release builds only. The Developer section is last and only in debug builds; a release build has no such section</figcaption>
     </figure>
     <figure id="search-done">
       <div class="phone" id="search-done-phone"></div>
@@ -2192,6 +2208,79 @@ Photos: …/files/test</div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
       <figcaption>Dev tools: opens from Settings > Developer, debug builds only. Only what no other screen does: the model speed test, indexing the test folder and the media check. Check media files opens each made-up file in <code>files/media/</code> the way the gallery does (tile, viewer, a few seconds of video, a seek), never the user's photos, and writes the report for the Mac. Its three lines are always there (Not run yet, Checking 23 of 62…, the result), so nothing moves. Clear index, Index all photos, Pause / Resume and People are gone (Settings, auto-index and Library have them). Numbers are read-only text, always four lines (… while loading), so nothing moves when they fill in. The Run rows grey out while a run is going. The log and, after a run, the test photo with face boxes sit last, so they never move what is above</figcaption>
+    </figure>
+  </div>
+  <h3 id="page-media">Media management</h3>
+  <div class="phones">
+    <figure id="media-ask">
+      <div class="phone modal" id="media-ask-phone">
+        <div class="scrim">
+          <div class="dialog" role="dialog" aria-labelledby="media-ask-title">
+            <svg class="i calm"><use href="#i-photo"/></svg>
+            <b id="media-ask-title">Use Memoria's own questions?</b>
+            <p>Android asks its own question before every delete, restore, move or lock.</p>
+            <p>Turn on Media management for Memoria, and Memoria asks you instead. Android then lets it change photos without its check.</p>
+            <div class="dialog-btns"><button class="text-btn">Not now</button><button class="text-btn">Open settings</button></div>
+          </div>
+        </div>
+      </div>
+      <figcaption>Media management, first open: shows once, right after Android's photos and notifications questions. An install that updates to this version sees it once on its next open. Not shown if the switch is already on. Open settings goes to Android's Media management apps page for Memoria, one switch there; back in the app, nothing else shows. Not now, Back and a tap outside close it for good; the Settings row stays the way in. Off, the app works as before: Android keeps asking and Memoria adds no questions, so nobody answers twice</figcaption>
+    </figure>
+    <figure id="media-on">
+      <div class="phone" id="media-on-phone"></div>
+      <figcaption>Settings, Media management on: the row under Gallery reads On. Off, it reads "Off · Android asks before each change". A tap opens the same Android page as the first-open question, in both states, since only Android can turn it off. The app checks the switch on every action, so turning it off in Android's settings brings Android's questions back at once</figcaption>
+    </figure>
+    <figure id="ask-trash">
+      <div class="phone modal" id="ask-trash-phone">
+        <div class="scrim">
+          <div class="dialog" role="alertdialog" aria-labelledby="ask-trash-title">
+            <svg class="i"><use href="#i-trash-line"/></svg>
+            <b id="ask-trash-title">Move 6 photos to trash?</b>
+            <p>They stay in Trash for 30 days, then they are deleted for good.</p>
+            <div class="dialog-btns"><button class="text-btn">Cancel</button><button class="text-btn danger">Move to trash</button></div>
+          </div>
+        </div>
+      </div>
+      <figcaption>Delete, with Media management on: the select bar's Delete on every screen that has it, and the viewer's trash icon. Counts like Lock's: "Move 1 video to trash?", "Move 3 items to trash?" for photos and videos mixed. Red: the files leave the gallery, though Trash keeps them 30 days</figcaption>
+    </figure>
+    <figure id="ask-delete">
+      <div class="phone modal" id="ask-delete-phone">
+        <div class="scrim">
+          <div class="dialog" role="alertdialog" aria-labelledby="ask-delete-title">
+            <svg class="i"><use href="#i-trash-line"/></svg>
+            <b id="ask-delete-title">Delete 2 items for good?</b>
+            <p>They can't be restored.</p>
+            <div class="dialog-btns"><button class="text-btn">Cancel</button><button class="text-btn danger">Delete</button></div>
+          </div>
+        </div>
+      </div>
+      <figcaption>Delete for good, with Media management on: Delete in Trash's select bar and in the trash viewer. Empty asks the same, with every item: "Delete all 7 items for good?". This one matters most: with the switch on, nothing else stops a file from being lost</figcaption>
+    </figure>
+    <figure id="ask-restore">
+      <div class="phone modal" id="ask-restore-phone">
+        <div class="scrim">
+          <div class="dialog" role="alertdialog" aria-labelledby="ask-restore-title">
+            <svg class="i calm"><use href="#i-restore"/></svg>
+            <b id="ask-restore-title">Restore 2 items?</b>
+            <p>They go back to the folders they came from.</p>
+            <div class="dialog-btns"><button class="text-btn">Cancel</button><button class="text-btn">Restore</button></div>
+          </div>
+        </div>
+      </div>
+      <figcaption>Restore, with Media management on: Restore in Trash's select bar and in the trash viewer. Not red: nothing is lost</figcaption>
+    </figure>
+    <figure id="ask-move">
+      <div class="phone modal" id="ask-move-phone">
+        <div class="scrim">
+          <div class="dialog" role="alertdialog" aria-labelledby="ask-move-title">
+            <svg class="i calm"><use href="#i-move"/></svg>
+            <b id="ask-move-title">Move 1 photo to Holidays 2024?</b>
+            <p>It leaves Camera and shows in Holidays 2024.</p>
+            <div class="dialog-btns"><button class="text-btn">Cancel</button><button class="text-btn">Move</button></div>
+          </div>
+        </div>
+      </div>
+      <figcaption>Move to album, with Media management on: a tap on an album in the sheet, from the viewer's More or a select bar's Move. Picked from several albums, the body reads "They leave their albums and show in Holidays 2024". Not red: they can be moved back. New album's Move here asks nothing: that button is already the answer. Lock asks with its own dialog (see Lock in Locked folder) on every lock, not only the first</figcaption>
     </figure>
   </div>
 </section>
@@ -2749,6 +2838,15 @@ for (const id of ["album-photos", "person-scrolled-list", "videos", "favorites-g
   const list = document.getElementById(id), secs = list.querySelectorAll(".month-sec");
   list.scrollTop = secs[1].offsetTop - list.offsetTop + 120; // one tile row gone: the next row starts right under the pinned month
 }
+// Media management: each question sits on the screen it comes from.
+const behind = (sel, id) => document.getElementById(id).prepend(...[...document.querySelector(sel).children].map(n => n.cloneNode(true)));
+behind("#page-photos .phone", "media-ask-phone");
+behind("#settings .phone", "media-on-phone");
+document.querySelector("#media-on-phone .set.media span").textContent = "On · Memoria asks instead of Android";
+behind("#photos-select .phone", "ask-trash-phone");
+behind("#trash-select .phone", "ask-delete-phone");
+behind("#trash-select .phone", "ask-restore-phone");
+behind("#move-album .phone", "ask-move-phone");
 </script>
 
 <script>
