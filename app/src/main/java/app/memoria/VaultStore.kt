@@ -85,16 +85,33 @@ object VaultStore {
 
     fun item(context: Context, id: Long): VaultItem? = runCatching { read(context).firstOrNull { it.id == id } }.getOrNull()
 
-    /** Encrypts every tile into the vault and commits the manifest: a crash now leaves a duplicate, not a gap. */
-    suspend fun lock(context: Context, tiles: List<Tile>): Batch = withContext(Dispatchers.IO) { busy.withLock {
+    /**
+     * Encrypts every tile into the vault and commits the manifest: a crash now leaves a duplicate, not a gap.
+     * [progress] gets the bytes done and the total; [cancelled] is checked per chunk, until the manifest is written.
+     */
+    suspend fun lock(
+        context: Context, tiles: List<Tile>,
+        progress: (Long, Long) -> Unit = { _, _ -> }, cancelled: () -> Boolean = { false },
+    ): Batch = withContext(Dispatchers.IO) { busy.withLock {
         val keys = vaultKeys ?: throw VaultLocked()
         val all = read(context)
         var next = (all.maxOfOrNull { it.n } ?: 0L) + 1
         val made = mutableListOf<VaultItem>()
         try {
-            for (t in tiles) {
-                made += take(context, keys, t, next++)
+            val infos = tiles.map { info(context, it.uri) }
+            val total = infos.sumOf { it.size }
+            var done = 0L
+            progress(0, total) // the dialog never reads "0.0 of 0.0 MB"
+            val chunk = { n: Int ->
+                if (cancelled()) throw IOException("lock cancelled")
+                done += n
+                progress(done, total)
             }
+            for ((t, info) in tiles.zip(infos)) {
+                if (cancelled()) throw IOException("lock cancelled")
+                made += take(context, keys, t, info, next++, chunk)
+            }
+            if (cancelled()) throw IOException("lock cancelled")
             // The manifest goes last: until it says so, the files are orphans and the sweep deletes them
             write(context, all + made)
             Batch(tiles, made)
@@ -121,14 +138,30 @@ object VaultStore {
         items.forEach { drop(context, it) }
     } }
 
-    /** Decrypts each item back into the gallery, in its first folder, then drops the vault copy. Returns how many moved. */
-    suspend fun moveOut(context: Context, items: List<VaultItem>): Int = withContext(Dispatchers.IO) { busy.withLock {
+    /**
+     * Decrypts each item back into the gallery, in its first folder, then drops the vault copy. Returns how many moved.
+     * [progress] gets the bytes done and the total. [cancelled] is checked per chunk: the file in progress is deleted
+     * from the gallery, the ones already out stay out, the rest stay locked.
+     */
+    suspend fun moveOut(
+        context: Context, items: List<VaultItem>,
+        progress: (Long, Long) -> Unit = { _, _ -> }, cancelled: () -> Boolean = { false },
+    ): Int = withContext(Dispatchers.IO) { busy.withLock {
         val keys = vaultKeys ?: throw VaultLocked()
+        val total = items.sumOf { runCatching { Vault.open(file(context, it.n), keys).use { v -> v.size } }.getOrDefault(0L) }
+        var done = 0L
+        progress(0, total)
+        val chunk = { n: Int ->
+            if (cancelled()) throw IOException("move out cancelled")
+            done += n
+            progress(done, total)
+        }
         var moved = 0
         for (item in items) {
+            if (cancelled()) throw IOException("move out cancelled")
             // A second tap on Move out: the first one already took it, and a second copy would land in the gallery
             if (read(context).none { it.n == item.n }) continue
-            writeBack(context, keys, item)
+            writeBack(context, keys, item, chunk)
             write(context, read(context).filterNot { it.n == item.n })
             drop(context, item)
             moved++
@@ -170,9 +203,8 @@ object VaultStore {
         }.turnedBy(turn)
     }
 
-    private fun take(context: Context, keys: VaultKeys, t: Tile, n: Long): VaultItem {
+    private fun take(context: Context, keys: VaultKeys, t: Tile, info: Info, n: Long, onChunk: (Int) -> Unit): VaultItem {
         try {
-            val info = info(context, t.uri)
             val item = VaultItem(
                 n, info.name, info.type, t.date, System.currentTimeMillis(), info.size,
                 info.width, info.height, t.duration, info.folder,
@@ -180,7 +212,7 @@ object VaultStore {
             // The original bytes: the plain URI hides the GPS (bugs.md 2026-11-06), and this copy replaces the file
             val src = runCatching { context.contentResolver.openInputStream(MediaStore.setRequireOriginal(t.uri)) }.getOrNull()
                 ?: context.contentResolver.openInputStream(t.uri)
-            val written = src?.use { Vault.encrypt(it, file(context, n), keys) }
+            val written = src?.use { Vault.encrypt(it, file(context, n), keys, onChunk) }
                 ?: throw IOException("cannot read ${t.uri}")
             // A stale MediaStore row whose file is gone reads as an empty stream: never a 0-byte locked photo
             if (written == 0L) throw IOException("empty file ${t.uri}")
@@ -196,7 +228,7 @@ object VaultStore {
         }
     }
 
-    private fun writeBack(context: Context, keys: VaultKeys, item: VaultItem) {
+    private fun writeBack(context: Context, keys: VaultKeys, item: VaultItem, onChunk: (Int) -> Unit) {
         val resolver = context.contentResolver
         val collection = if (item.type.startsWith("video/")) MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
         else MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
@@ -226,6 +258,7 @@ object VaultStore {
                         if (n <= 0) break
                         out.write(buf, 0, n)
                         at += n
+                        onChunk(n)
                     }
                 }
             } ?: throw IOException("cannot write ${item.name}")
@@ -266,7 +299,9 @@ object VaultStore {
         )?.use { c ->
             if (!c.moveToFirst()) throw IOException("no media row for $uri")
             Info(
-                c.getString(0) ?: "photo", c.getString(1) ?: "image/jpeg", c.getLong(2),
+                c.getString(0) ?: "photo", c.getString(1) ?: "image/jpeg",
+                // A file not scanned yet has size 0 in MediaStore; the file itself knows
+                c.getLong(2).takeIf { it > 0 } ?: runCatching { context.contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize } }.getOrNull() ?: 0L,
                 c.getInt(3), c.getInt(4),
                 c.getString(5)?.takeIf { it.endsWith("/") } ?: "Pictures/Memoria/",
             )

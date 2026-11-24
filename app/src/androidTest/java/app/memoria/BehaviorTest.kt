@@ -397,10 +397,10 @@ class BehaviorTest {
         rule.onNodeWithText("Clearing Memoria's data or uninstalling it deletes them completely.").assertIsDisplayed()
     }
 
-    // The first lock stops once to say what locking means (mockup "Lock, the first time"); Cancel keeps it for next time
-    @Test fun lock_firstTime_asksOnce() {
+    // Every lock stops to say what locking means (mockup "Lock"), not only the first; Cancel locks nothing
+    @Test fun lock_asksEveryTime() {
         androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
-            .getSharedPreferences("vault", 0).edit().clear().commit()
+            .getSharedPreferences("vault", 0).edit().putBoolean("introSeen", true).commit()
         val photo = Tile(1, Uri.parse("content://media/external/images/media/1"), 0L, null)
         rule.setContent {
             MemoriaTheme { Surface {
@@ -419,7 +419,7 @@ class BehaviorTest {
         rule.onNodeWithText("Lock 1 photo?").assertDoesNotExist()
 
         rule.onNodeWithText("Lock it").performClick()
-        rule.onNodeWithText("Lock 1 photo?").assertDoesNotExist()
+        rule.onNodeWithText("Lock 1 photo?").assertIsDisplayed()
     }
 
     // Android's delete confirm answered after the app was made again (dark mode, font size): the keys must go anyway
@@ -456,6 +456,7 @@ class BehaviorTest {
                 } }
             }
             rule.onNodeWithText("Lock it").performClick()
+            rule.onNodeWithText("Lock").performClick()
             rule.waitUntil(5_000) { asked != null }
             restore.emulateSavedInstanceStateRestore()
             rule.runOnIdle { registry.dispatchResult(asked!!, android.app.Activity.RESULT_CANCELED, android.content.Intent()) }
@@ -463,6 +464,167 @@ class BehaviorTest {
             assertNull(vaultKeys)
         } finally {
             context.contentResolver.delete(uri, null, null)
+            VaultStore.dir(context).deleteRecursively()
+            vaultKeys = null
+        }
+    }
+
+    // Cancel while the files are encrypted: no copy stays, Android is never asked, the photo stays in the gallery (mockup "Locking")
+    @Test fun lock_cancelWhileLocking_leavesTheGalleryAsIs() {
+        val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
+        context.getSharedPreferences("vault", 0).edit().putBoolean("introSeen", true).commit()
+        VaultStore.dir(context).run { deleteRecursively(); mkdirs() }
+        vaultKeys = VaultKeys(VaultKeys.random())
+        val values = android.content.ContentValues().apply {
+            put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, "behaviortest-${System.nanoTime()}.jpg")
+            put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+            put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, "Pictures/BehaviorTest")
+        }
+        val uri = context.contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)!!
+        // 64 MiB: encrypting it takes far longer than the two taps below
+        context.contentResolver.openOutputStream(uri)!!.use { out -> val mb = ByteArray(1 shl 20); repeat(64) { out.write(mb) } }
+        val photo = Tile(android.content.ContentUris.parseId(uri), uri, 0L, null)
+        var asked: Int? = null
+        val registry = object : androidx.activity.result.ActivityResultRegistry() {
+            override fun <I, O> onLaunch(
+                requestCode: Int, contract: androidx.activity.result.contract.ActivityResultContract<I, O>, input: I,
+                options: androidx.core.app.ActivityOptionsCompat?,
+            ) { asked = requestCode }
+        }
+        val owner = object : androidx.activity.result.ActivityResultRegistryOwner { override val activityResultRegistry = registry }
+        try {
+            rule.setContent {
+                MemoriaTheme { Surface {
+                    androidx.compose.runtime.CompositionLocalProvider(androidx.activity.compose.LocalActivityResultRegistryOwner provides owner) {
+                        val lock = rememberVaultLock()
+                        androidx.compose.material3.TextButton({ lock(listOf(photo)) }) { Text("Lock it") }
+                    }
+                } }
+            }
+            rule.onNodeWithText("Lock it").performClick()
+            rule.onNodeWithText("Lock 1 photo?").assertIsDisplayed()
+            rule.mainClock.autoAdvance = false
+            rule.onNodeWithText("Lock").performClick()
+            rule.mainClock.advanceTimeBy(400)
+            rule.onNodeWithText("Locking 1 photo").assertIsDisplayed()
+            rule.onNodeWithText("Cancel").performClick()
+            rule.mainClock.autoAdvance = true
+            rule.waitUntil(10_000) { vaultKeys == null } // the lock has ended: a folder that is not open drops its keys
+            rule.onNodeWithText("Locking 1 photo").assertDoesNotExist()
+            assertNull(asked)
+            assertEquals(emptyList<String>(), VaultStore.dir(context).list()!!.toList())
+            context.contentResolver.query(uri, null, null, null, null)!!.use { assertEquals(1, it.count) }
+        } finally {
+            rule.mainClock.autoAdvance = true
+            context.contentResolver.delete(uri, null, null)
+            VaultStore.dir(context).deleteRecursively()
+            vaultKeys = null
+        }
+    }
+
+    // A slow lock shows how far it is, then closes and Android asks (mockup "Locking")
+    @Test fun lock_slow_showsBytesThenAndroidAsks() {
+        val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
+        context.getSharedPreferences("vault", 0).edit().putBoolean("introSeen", true).commit()
+        VaultStore.dir(context).run { deleteRecursively(); mkdirs() }
+        vaultKeys = VaultKeys(VaultKeys.random())
+        val values = android.content.ContentValues().apply {
+            put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, "behaviortest-${System.nanoTime()}.jpg")
+            put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+            put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, "Pictures/BehaviorTest")
+        }
+        val uri = context.contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)!!
+        context.contentResolver.openOutputStream(uri)!!.use { out -> val mb = ByteArray(1 shl 20); repeat(64) { out.write(mb) } }
+        val photo = Tile(android.content.ContentUris.parseId(uri), uri, 0L, null)
+        var asked: Int? = null
+        val registry = object : androidx.activity.result.ActivityResultRegistry() {
+            override fun <I, O> onLaunch(
+                requestCode: Int, contract: androidx.activity.result.contract.ActivityResultContract<I, O>, input: I,
+                options: androidx.core.app.ActivityOptionsCompat?,
+            ) { asked = requestCode }
+        }
+        val owner = object : androidx.activity.result.ActivityResultRegistryOwner { override val activityResultRegistry = registry }
+        try {
+            rule.setContent {
+                MemoriaTheme { Surface {
+                    androidx.compose.runtime.CompositionLocalProvider(androidx.activity.compose.LocalActivityResultRegistryOwner provides owner) {
+                        val lock = rememberVaultLock()
+                        androidx.compose.material3.TextButton({ lock(listOf(photo)) }) { Text("Lock it") }
+                    }
+                } }
+            }
+            rule.onNodeWithText("Lock it").performClick()
+            rule.onNodeWithText("Lock 1 photo?").assertIsDisplayed()
+            rule.mainClock.autoAdvance = false
+            rule.onNodeWithText("Lock").performClick()
+            rule.mainClock.advanceTimeBy(400)
+            rule.onNodeWithText("Locking 1 photo").assertIsDisplayed()
+            // the total comes from the IO thread in real time, and the frozen clock needs a frame to show it
+            rule.waitUntil(5_000) {
+                rule.mainClock.advanceTimeByFrame()
+                rule.onAllNodesWithText("of 67.1 MB", substring = true).fetchSemanticsNodes().isNotEmpty()
+            }
+            rule.mainClock.autoAdvance = true
+            rule.waitUntil(10_000) { asked != null }
+            rule.onNodeWithText("Locking 1 photo").assertDoesNotExist()
+            rule.runOnIdle { registry.dispatchResult(asked!!, android.app.Activity.RESULT_CANCELED, android.content.Intent()) }
+            rule.waitUntil(10_000) { vaultKeys == null }
+        } finally {
+            rule.mainClock.autoAdvance = true
+            context.contentResolver.delete(uri, null, null)
+            VaultStore.dir(context).deleteRecursively()
+            vaultKeys = null
+        }
+    }
+
+    // Cancel while moving out: the file stays locked, and no copy, whole or half, is left in the gallery (mockup "Moving out")
+    @Test fun moveOut_cancelWhileMoving_keepsItLocked() {
+        val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
+        VaultStore.dir(context).run { deleteRecursively(); mkdirs() }
+        vaultKeys = VaultKeys(VaultKeys.random())
+        val name = "behaviortest-${System.nanoTime()}.jpg"
+        val values = android.content.ContentValues().apply {
+            put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, name)
+            put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+            put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, "Pictures/BehaviorTest")
+        }
+        val uri = context.contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)!!
+        // 64 MiB: moving it out takes far longer than the taps below
+        context.contentResolver.openOutputStream(uri)!!.use { out -> val mb = ByteArray(1 shl 20); repeat(64) { out.write(mb) } }
+        val inGallery = android.os.Bundle().apply {
+            putString(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION, "${android.provider.MediaStore.MediaColumns.DISPLAY_NAME} = ?")
+            putStringArray(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, arrayOf(name))
+            putInt(android.provider.MediaStore.QUERY_ARG_MATCH_PENDING, android.provider.MediaStore.MATCH_INCLUDE)
+        }
+        try {
+            // Locked, and Android said yes: the vault holds it, the gallery does not
+            kotlinx.coroutines.runBlocking { VaultStore.lock(context, listOf(Tile(android.content.ContentUris.parseId(uri), uri, 0L, null))) }
+            context.contentResolver.delete(uri, null, null)
+            rule.setContent { MemoriaTheme { LockedScreen(onBack = {}) } }
+            rule.waitUntil(5_000) { rule.onAllNodesWithTag("vault-1").fetchSemanticsNodes().isNotEmpty() }
+            rule.onNodeWithTag("vault-1").performTouchInput { longClick() }
+            rule.onNodeWithText("Move out").performClick()
+            rule.onNodeWithText("Move 1 photo out?").assertIsDisplayed()
+            rule.mainClock.autoAdvance = false
+            rule.onAllNodesWithText("Move out").onLast().performClick()
+            rule.mainClock.advanceTimeBy(400)
+            rule.onNodeWithText("Moving 1 photo out").assertIsDisplayed()
+            // the bytes come from the IO thread once the move holds the vault; the frozen clock needs a frame to show them
+            rule.waitUntil(5_000) {
+                rule.mainClock.advanceTimeByFrame()
+                rule.onAllNodesWithText("of 67.1 MB", substring = true).fetchSemanticsNodes().isNotEmpty()
+            }
+            rule.onNodeWithText("Cancel").performClick()
+            rule.mainClock.autoAdvance = true
+            kotlinx.coroutines.runBlocking { VaultStore.sweep(context) } // waits until the move lets go of the vault
+            rule.onNodeWithText("Moving 1 photo out").assertDoesNotExist()
+            assertEquals(1, kotlinx.coroutines.runBlocking { VaultStore.items(context) }.size)
+            context.contentResolver.query(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, null, inGallery, null)!!.use { assertEquals(0, it.count) }
+        } finally {
+            rule.mainClock.autoAdvance = true
+            context.contentResolver.query(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, arrayOf(android.provider.MediaStore.MediaColumns._ID), inGallery, null)?.use { c ->
+                while (c.moveToNext()) context.contentResolver.delete(android.content.ContentUris.withAppendedId(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, c.getLong(0)), null, null)
+            }
             VaultStore.dir(context).deleteRecursively()
             vaultKeys = null
         }

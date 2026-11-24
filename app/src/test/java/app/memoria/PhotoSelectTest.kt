@@ -15,4 +15,8 @@ class PhotoSelectTest {
     @Test fun formatBytes_gigabytes() = assertEquals("2.5 GB", formatBytes(2_500_000_000))
 
     @Test fun formatBytes_zero() = assertEquals("0 B", formatBytes(0))
+
+    @Test fun bytesOf_gigabytes() = assertEquals("1.2 of 4.8 GB", bytesOf(1_200_000_000, 4_800_000_000))
+
+    @Test fun bytesOf_underAGigabyte_readsMegabytes() = assertEquals("0.3 of 67.1 MB", bytesOf(300_000, 67_108_864))
 }

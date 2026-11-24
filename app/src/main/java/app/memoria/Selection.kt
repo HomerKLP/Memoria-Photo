@@ -136,6 +136,12 @@ fun formatBytes(bytes: Long): String {
     return "%.1f %s".format(v, units[unit])
 }
 
+/** "1.2 of 4.8 GB" for Locking (mockup): both in the total's unit, MB under 1 GB. */
+fun bytesOf(done: Long, total: Long): String {
+    val (d, unit) = if (total >= 1_000_000_000) 1e9 to "GB" else 1e6 to "MB"
+    return "%.1f of %.1f %s".format(done / d, total / d, unit)
+}
+
 /**
  * Drag-select for the timeline (mockup "Photos, selecting"): a long press starts it and the drag adds
  * the tiles it passes. It sits on the tile, not on the grid: the tile is deeper than the grid's

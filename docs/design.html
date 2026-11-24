@@ -533,7 +533,7 @@ figure.land { width: calc(760px * var(--z)); }
 <header class="top">
   <h1>Memoria Photo</h1>
   <p class="lede">Light theme, Honey palette. Photos and faces are placeholders, names and places are made up.</p>
-  <p class="latest"><b>Latest, 24 Nov:</b> <a href="#page-settings">Settings, Updates</a> — the row re-checks on open when the last check is over an hour old, and Update re-checks before it downloads.</p>
+  <p class="latest"><b>Latest, 24 Nov:</b> <a href="#locked-first">Lock</a> asks on every lock now, and <a href="#locked-movingout">Moving out</a> shows progress like Locking.</p>
 </header>
 
 <aside class="rail" aria-label="Contents">
@@ -1220,7 +1220,7 @@ figure.land { width: calc(760px * var(--z)); }
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Locked folder: opens from the Library card after the phone's own fingerprint or PIN sheet. No app PIN, so there is nothing to forget or type twice. The files have left the phone's gallery for the app's private storage, encrypted with a key kept in this phone's security chip, used only after the phone's own fingerprint or PIN sheet: no other app, file manager or photo picker can read them. Turning the phone's screen lock off keeps them; the folder opens again once a lock is set. While locked they leave People, Places, Search, Favorites and the Library counts, and no faces are indexed from them. Newest first, no month headings, like Trash. Unlocking never pops: under the top bar the grid fades in and settles from 96% of its size in 200 ms, so the photos arrive as one piece after the phone's sheet. The app data warning is not a note here: it sits behind the info button in the top bar, and the first lock shows it once. Long press selects. A locked photo opens in the viewer like a trashed one: Details, Move out, Delete, no Share, Favorite or More</figcaption>
+      <figcaption>Locked folder: opens from the Library card after the phone's own fingerprint or PIN sheet. No app PIN, so there is nothing to forget or type twice. The files have left the phone's gallery for the app's private storage, encrypted with a key kept in this phone's security chip, used only after the phone's own fingerprint or PIN sheet: no other app, file manager or photo picker can read them. Turning the phone's screen lock off keeps them; the folder opens again once a lock is set. While locked they leave People, Places, Search, Favorites and the Library counts, and no faces are indexed from them. Newest first, no month headings, like Trash. Unlocking never pops: under the top bar the grid fades in and settles from 96% of its size in 200 ms, so the photos arrive as one piece after the phone's sheet. The app data warning is not a note here: it sits behind the info button in the top bar, and every lock says it too. Long press selects. A locked photo opens in the viewer like a trashed one: Details, Move out, Delete, no Share, Favorite or More</figcaption>
     </figure>
     <figure id="locked-select">
       <div class="phone">
@@ -1281,7 +1281,21 @@ figure.land { width: calc(760px * var(--z)); }
           </div>
         </div>
       </div>
-      <figcaption>Lock, the first time only: this sheet, once, before the first lock; Android's own confirm for the gallery copies comes next. With Media management on, it shows on every lock and nothing follows it. It says the two things nobody expects: the photos leave the gallery, and app data loss takes them with it. No lock asks for the phone's own sheet: the fingerprint or PIN sheet is for opening the folder only, so every lock goes straight to Android's confirm. A locked photo with no way back is the one mistake the app cannot fix, so this is a full stop, not a toast. It shows for a lock from the select bar and from the viewer's More</figcaption>
+      <figcaption>Lock: this question on every lock, not only the first (the user's call, 24 Nov). Then Locking, then Android's own confirm for the gallery copies, so a lock asks twice; with Media management on, nothing follows it. It says the two things nobody expects: the photos leave the gallery, and app data loss takes them with it. No lock asks for the phone's own sheet: the fingerprint or PIN sheet is for opening the folder only, so every lock goes straight to Locking (below), then Android's confirm. A locked photo with no way back is the one mistake the app cannot fix, so this is a full stop, not a toast. It shows for a lock from the select bar and from the viewer's More</figcaption>
+    </figure>
+    <figure id="locking">
+      <div class="phone modal" id="locking-phone">
+        <div class="scrim">
+          <div class="dialog" role="dialog" aria-labelledby="locking-title">
+            <svg class="i calm"><use href="#i-lock"/></svg>
+            <b id="locking-title">Locking 6 photos</b>
+            <div class="track"><div style="width:25%"></div></div>
+            <p style="font-variant-numeric: tabular-nums">1.2 of 4.8 GB</p>
+            <div class="dialog-btns"><button class="text-btn">Cancel</button></div>
+          </div>
+        </div>
+      </div>
+      <figcaption>Locking: the files are encrypted before anything else asks, and big videos take a while. It shows only if that takes over 300 ms, so a few photos never flash it. The bar fills by bytes; under 1 GB the line reads MB. Cancel and Back stop it and take the copies made so far back out, so nothing changes; a tap outside does nothing. Done, it closes and Android's question shows, or with Media management on the files leave the gallery at once. Same from the select bar and the viewer's More</figcaption>
     </figure>
     <figure id="locked-nolock">
       <div class="phone">
@@ -1323,6 +1337,20 @@ figure.land { width: calc(760px * var(--z)); }
         </div>
       </div>
       <figcaption>Move out, every time: Move out in the select bar and in the viewer asks first, since the files become visible to the gallery and other apps again. Not red: nothing is lost, and they can be locked again. The title counts like Lock's: "Move 1 video out?", "Move 3 items out?" for photos and videos mixed. A folder Android no longer takes new files in (Download, another app's folder) becomes Pictures/ plus its name</figcaption>
+    </figure>
+    <figure id="locked-movingout">
+      <div class="phone modal" id="locked-movingout-phone">
+        <div class="scrim">
+          <div class="dialog" role="dialog" aria-labelledby="movingout-title">
+            <svg class="i calm"><use href="#i-upload"/></svg>
+            <b id="movingout-title">Moving 2 photos out</b>
+            <div class="track"><div style="width:40%"></div></div>
+            <p style="font-variant-numeric: tabular-nums">0.8 of 2.1 GB</p>
+            <div class="dialog-btns"><button class="text-btn">Cancel</button></div>
+          </div>
+        </div>
+      </div>
+      <figcaption>Moving out: after Move out's question, the files are decrypted back to the gallery, and big videos take a while. Like Locking: it shows only if that takes over 300 ms, the bar fills by bytes, a tap outside does nothing. Cancel and Back stop at the file in progress and delete its half-written gallery copy. Files already moved out stay out, the rest stay locked, so nothing is lost or in two places. Same from the select bar and the locked viewer</figcaption>
     </figure>
     <figure id="locked-keylost">
       <div class="phone modal" id="locked-keylost-phone">
@@ -2224,7 +2252,7 @@ Photos: …/files/test</div>
           </div>
         </div>
       </div>
-      <figcaption>Media management, first open: shows once, right after Android's photos and notifications questions. An install that updates to this version sees it once on its next open. Not shown if the switch is already on. Open settings goes to Android's Media management apps page for Memoria, one switch there; back in the app, nothing else shows. Not now, Back and a tap outside close it for good; the Settings row stays the way in. Off, the app works as before: Android keeps asking and Memoria adds no questions, so nobody answers twice</figcaption>
+      <figcaption>Media management, first open: shows once, right after Android's photos and notifications questions. An install that updates to this version sees it once on its next open. Not shown if the switch is already on. Open settings goes to Android's Media management apps page for Memoria, one switch there; back in the app, nothing else shows. Not now, Back and a tap outside close it for good; the Settings row stays the way in. Off, the app works as before: Android keeps asking and Memoria adds no questions, so nobody answers twice. Lock is the one exception: its own question always shows</figcaption>
     </figure>
     <figure id="media-on">
       <div class="phone" id="media-on-phone"></div>
@@ -2280,7 +2308,7 @@ Photos: …/files/test</div>
           </div>
         </div>
       </div>
-      <figcaption>Move to album, with Media management on: a tap on an album in the sheet, from the viewer's More or a select bar's Move. Picked from several albums, the body reads "They leave their albums and show in Holidays 2024". Not red: they can be moved back. New album's Move here asks nothing: that button is already the answer. Lock asks with its own dialog (see Lock in Locked folder) on every lock, not only the first</figcaption>
+      <figcaption>Move to album, with Media management on: a tap on an album in the sheet, from the viewer's More or a select bar's Move. Picked from several albums, the body reads "They leave their albums and show in Holidays 2024". Not red: they can be moved back. New album's Move here asks nothing: that button is already the answer. Lock asks with its own dialog (see Lock in Locked folder) on every lock, with the switch on or off</figcaption>
     </figure>
   </div>
 </section>
@@ -2847,6 +2875,8 @@ behind("#photos-select .phone", "ask-trash-phone");
 behind("#trash-select .phone", "ask-delete-phone");
 behind("#trash-select .phone", "ask-restore-phone");
 behind("#move-album .phone", "ask-move-phone");
+behind("#photos-select .phone", "locking-phone");
+behind("#locked-select .phone", "locked-movingout-phone");
 </script>
 
 <script>
