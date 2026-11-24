@@ -24,7 +24,7 @@ Released (0.12.1). This file lists open work only, most important first. What is
 14. **Place name in the day header** (mockup "Photos": `Sun, 28 Sep` + the town, muted). Offline geocoding is done (`photo.town`), so this only reads it into the header. Photos only; videos have a town since 2026-11-07, so they could come later.
 15. **Sheets, menus and dialogs: smooth in and out.** The `Menu` part (`Ui.kt`) has no motion yet.
 16. **Search: two people at once, and a results grid** instead of one list of hits.
-17. **Check the session updater on the phone:** it ships in 0.12.0, so only an update from 0.12.0 or later tests it. Install shows no chooser and no screen, the app closes and updates, data kept. Built 2026-11-23, see `decisions.md`.
+17. **Check the session updater on the phone:** it ships in 0.12.0, so only an update from 0.12.0 or later tests it. Install shows no chooser and no screen, the app closes and updates, data kept. Built 2026-11-23, see `decisions.md`. With it: a Settings open an hour after installing finds a release newer than the installed one.
 18. **Play Protect warning:** say in the release notes and README that Play Protect may warn about the app (not registered with Google's developer verification) and how to check the APK with the signing certificate SHA-256. Not decided yet.
 19. **A file that breaks on a real phone gets a made-up copy of the same kind in the test files first,** then the fix. The real file is personal, so it never goes in the repo.
 20. **Place covers: small towns can still pick a portrait or a dull shot.** A selfie / group demotion is the next step if it bothers.

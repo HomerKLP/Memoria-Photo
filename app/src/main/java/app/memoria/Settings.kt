@@ -100,7 +100,17 @@ fun SettingsScreen(onBack: () -> Unit, onHidden: () -> Unit, onSkip: () -> Unit,
     var autoUpdate by remember { mutableStateOf(Updates.auto(context)) }
     // the update notification: About is at the bottom
     val scroll = rememberScrollState()
-    LaunchedEffect(Unit) { if (atUpdates) scroll.scrollTo(Int.MAX_VALUE) }
+    suspend fun checkNow() {
+        update = update.copy(status = Updates.Status.Checking)
+        val ok = Updates.check(context, notify = false)
+        // a failed check keeps a version found before
+        update = Updates.status(context).let { if (!ok && it.status == Updates.Status.UpToDate) it.copy(status = Updates.Status.Failed) else it }
+    }
+    LaunchedEffect(Unit) {
+        if (atUpdates) scroll.scrollTo(Int.MAX_VALUE)
+        // the daily worker may be a day away, and the row then shows the version found before
+        if (update.status == Updates.Status.UpToDate && Updates.stale(update.checkedAt)) checkNow()
+    }
     val setCharging = { on: Boolean ->
         charging = on
         IndexProgress.setChargingOnly(context, on)
@@ -137,15 +147,14 @@ fun SettingsScreen(onBack: () -> Unit, onHidden: () -> Unit, onSkip: () -> Unit,
         onDev = onDev.takeIf { debug },
         update = update.takeUnless { debug },
         autoUpdate = autoUpdate,
-        onCheck = {
-            update = update.copy(status = Updates.Status.Checking)
+        onCheck = { scope.launch { checkNow() } },
+        onUpdate = {
             scope.launch {
-                val ok = Updates.check(context, notify = false)
-                // a failed check keeps a version found before
-                update = Updates.status(context).let { if (!ok && it.status == Updates.Status.UpToDate) it.copy(status = Updates.Status.Failed) else it }
+                update = update.copy(status = Updates.Status.Checking)
+                Updates.download(context)
+                update = Updates.status(context)
             }
         },
-        onUpdate = { Updates.download(context); update = Updates.status(context) },
         onCancelUpdate = { Updates.cancel(context); update = Updates.status(context) },
         onInstall = { scope.launch { Updates.install(context) } },
         onReleasePage = { Updates.openPage(context) },

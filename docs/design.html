@@ -533,7 +533,7 @@ figure.land { width: calc(760px * var(--z)); }
 <header class="top">
   <h1>Memoria Photo</h1>
   <p class="lede">Light theme, Honey palette. Photos and faces are placeholders, names and places are made up.</p>
-  <p class="latest"><b>Latest, 24 Nov:</b> <a href="#page-media">Media management</a> — asked once at first open; with it on, Memoria's own questions replace Android's for delete, restore, move and lock.</p>
+  <p class="latest"><b>Latest, 24 Nov:</b> <a href="#page-settings">Settings, Updates</a> — the row re-checks on open when the last check is over an hour old, and Update re-checks before it downloads.</p>
 </header>
 
 <aside class="rail" aria-label="Contents">
@@ -2542,7 +2542,7 @@ Photos: …/files/test</div>
         </div>
       </div>
       <p>Scan notification: "Finding faces" while new photos get their faces, "Tagging photos" while older photos only get their tag vector. Same count as Settings, Scan.</p>
-      <p>Update notification: from the daily check, once per version, in its own "Updates" channel so it can be muted alone. A tap opens Settings at Updates. Swiping it away is fine: the row still shows the new version.</p>
+      <p>Update notification: from the daily check, once per version, in its own "Updates" channel so it can be muted alone. A tap opens Settings at Updates. Swiping it away is fine: the row still shows the new version. The row checks again by itself when Settings opens and the last check is over an hour old, and Update checks again before it downloads, so a version found yesterday is not the one downloaded today.</p>
     </div>
   </article>
 </section>
