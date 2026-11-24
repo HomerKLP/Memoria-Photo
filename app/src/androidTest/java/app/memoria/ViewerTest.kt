@@ -90,6 +90,73 @@ class ViewerTest {
         assertEquals(tiles[2].id, viewerTile)
     }
 
+    private fun mediaSwitch(on: Boolean) {
+        val ui = InstrumentationRegistry.getInstrumentation().uiAutomation
+        val pkg = InstrumentationRegistry.getInstrumentation().targetContext.packageName
+        android.os.ParcelFileDescriptor.AutoCloseInputStream(ui.executeShellCommand("appops set $pkg MANAGE_MEDIA ${if (on) "allow" else "default"}")).use { it.readBytes() }
+    }
+
+    // Media management on: the trash icon asks ours first (mockup "Delete, with Media management on"); Cancel keeps the photo
+    @Test fun mediaOn_delete_asksOurs() {
+        rule.setContent { MemoriaTheme { Viewer(tiles[0].id, tiles, onBack = {}) } }
+        try {
+            mediaSwitch(on = true)
+            rule.onNodeWithContentDescription("Delete").performClick()
+            rule.onNodeWithText("Move 1 photo to trash?").assertIsDisplayed()
+            rule.onNodeWithText("It stays in Trash for 30 days, then it is deleted for good.").assertIsDisplayed()
+            rule.onNodeWithText("Cancel").performClick()
+            rule.onNodeWithText("Move 1 photo to trash?").assertDoesNotExist()
+            assertEquals(tiles[0].id, viewerTile)
+        } finally {
+            mediaSwitch(on = false)
+        }
+    }
+
+    // The trash viewer: Delete for good and Restore ask ours (mockup "Delete for good", "Restore")
+    @Test fun mediaOn_trashed_deleteForGoodAndRestore_askOurs() {
+        rule.setContent { MemoriaTheme { Viewer(tiles[0].id, tiles, onBack = {}, trashed = true) } }
+        try {
+            mediaSwitch(on = true)
+            rule.onNodeWithContentDescription("Delete").performClick()
+            rule.onNodeWithText("Delete 1 photo for good?").assertIsDisplayed()
+            rule.onNodeWithText("Cancel").performClick()
+            rule.onNodeWithContentDescription("Restore").performClick()
+            rule.onNodeWithText("Restore 1 photo?").assertIsDisplayed()
+            rule.onNodeWithText("Cancel").performClick()
+            rule.onNodeWithText("Restore 1 photo?").assertDoesNotExist()
+            assertEquals(tiles[0].id, viewerTile)
+        } finally {
+            mediaSwitch(on = false)
+        }
+    }
+
+    // Move to album: a tap on an album asks ours, naming where it leaves and where it goes (mockup "Move to album, with Media management on")
+    @Test fun mediaOn_move_asksOurs() {
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, "viewertestto-${System.nanoTime()}.jpg")
+            put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+            put(MediaStore.MediaColumns.RELATIVE_PATH, "Pictures/ViewerTestTo")
+        }
+        val other = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)!!
+        resolver.openOutputStream(other)!!.use { Bitmap.createBitmap(8, 8, Bitmap.Config.ARGB_8888).compress(Bitmap.CompressFormat.JPEG, 90, it) }
+        rule.setContent { MemoriaTheme { Viewer(tiles[0].id, tiles, onBack = {}) } }
+        try {
+            mediaSwitch(on = true)
+            rule.onNodeWithContentDescription("More").performClick()
+            rule.onNodeWithText("Move to album").performClick()
+            rule.waitUntil(5_000) { rule.onAllNodesWithText("ViewerTestTo").fetchSemanticsNodes().isNotEmpty() }
+            rule.onNodeWithText("ViewerTestTo").performClick()
+            rule.onNodeWithText("Move 1 photo to ViewerTestTo?").assertIsDisplayed()
+            rule.onNodeWithText("It leaves ViewerTest and shows in ViewerTestTo.").assertIsDisplayed()
+            rule.onNodeWithText("Cancel").performClick()
+            rule.onNodeWithText("Move 1 photo to ViewerTestTo?").assertDoesNotExist()
+            assertEquals(tiles[0].id, viewerTile)
+        } finally {
+            mediaSwitch(on = false)
+            resolver.delete(other, null, null)
+        }
+    }
+
     // Move out in the vault viewer asks first, like the folder's select bar (mockup "Move out, every time")
     @Test fun vault_moveOut_asksFirst() {
         val locked = VaultItem(1, "a.mp4", "video/mp4", 0, 0, 1, 8, 8, 1_000, "Pictures/").tile

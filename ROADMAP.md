@@ -31,7 +31,6 @@ Released (0.12.1). This file lists open work only, most important first. What is
 
 ## Later
 
-- Media management access (`MANAGE_MEDIA`): one switch in Android's Settings, so Android's own "Allow Memoria to delete this photo?" stops showing on Lock, and its dialogs for Delete, Restore and Move too. Memoria then asks its own questions. Without the switch, Android's dialogs stay. Designed and approved 2026-11-24 (mockup "Media management", calls in `decisions.md`), not built. Build in two parts, red tests first: (1) `MANAGE_MEDIA` in the manifest, the first-open question, the Settings row under Gallery, the check with `MediaStore.canManageMedia`; (2) with the switch on, our questions before Delete to trash, Delete for good and Empty, Restore, Move to album. Android's requests stay in the code: with the switch on they finish with no dialog. Lock needs nothing: it asks every time already.
 - Google Takeout import: copy photos not already on the phone, dates from the JSON, skip duplicates. Plan: `docs/library-unification.md`.
 - Names from Takeout: match Google's people tags to our people (photos with one tag and one face, then a majority vote per person, like `bench.py eval`).
 - Setting: photos needed to make a person (today 6, hardcoded in `groupFaces` and `groupPets`). Easy: a `minPhotos` parameter, a change runs one full regroup, no re-index. Open: does a named person under a raised number keep its name; one number for people and pets, or two. Mockup first.

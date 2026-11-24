@@ -67,6 +67,7 @@ The models were picked on real family photos, not only on paper: 3 face finders 
 - **Places:** photos by town, names found offline.
 - **Pets:** cats and dogs, found and grouped like people, with names.
 - **Favorites, Videos, Trash:** use the phone's own favorites and trash.
+- **Media management (optional):** one switch in Android's settings, and Memoria asks its own questions before a delete, restore or move instead of Android's.
 - **Locked folder:** photos and videos move into encrypted storage that only the phone's fingerprint or PIN opens. Clearing the app's data deletes them.
 - **Categories:** pets, documents, food, sunsets and 10 more, sorted on the phone.
 - **Search:** people, places, months, categories.

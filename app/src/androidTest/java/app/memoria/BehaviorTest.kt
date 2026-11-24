@@ -1343,6 +1343,195 @@ class BehaviorTest {
         assertTrue(skip)
     }
 
+    // Gallery > Media management (mockup "Settings, Media management on"): says the switch, opens Android's page in both states
+    @Test fun settings_mediaRow_saysTheSwitch_opensAndroidsPage() {
+        var media by mutableStateOf(false)
+        var opened = 0
+        rule.setContent {
+            MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", media = media, onMedia = { opened++ }) } }
+        }
+
+        rule.onNodeWithText("Off · Android asks before each change").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("Media management").performClick()
+        assertEquals(1, opened)
+        rule.runOnIdle { media = true }
+        rule.onNodeWithText("On · Memoria asks instead of Android").assertIsDisplayed()
+        rule.onNodeWithText("Media management").performClick()
+        assertEquals(2, opened)
+    }
+
+    // --- Media management (mockup "Media management") ------------------------------------------
+
+    private fun mediaSwitch(on: Boolean) {
+        val ui = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation
+        val pkg = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext.packageName
+        android.os.ParcelFileDescriptor.AutoCloseInputStream(ui.executeShellCommand("appops set $pkg MANAGE_MEDIA ${if (on) "allow" else "default"}")).use { it.readBytes() }
+    }
+
+    private fun mediaAskReset() = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
+        .getSharedPreferences("media", 0).edit().clear().commit()
+
+    // First open: asked once. Not now closes it for good; the Settings row stays the way in
+    @Test fun mediaAsk_notNow_closesForGood() {
+        mediaAskReset()
+        rule.setContent {
+            MemoriaTheme { Surface {
+                val ask = rememberMediaAsk()
+                androidx.compose.material3.TextButton({ ask() }) { Text("Open app") }
+            } }
+        }
+
+        rule.onNodeWithText("Open app").performClick()
+        rule.onNodeWithText("Use Memoria's own questions?").assertIsDisplayed()
+        rule.onNodeWithText("Not now").performClick()
+        rule.onNodeWithText("Use Memoria's own questions?").assertDoesNotExist()
+        rule.onNodeWithText("Open app").performClick()
+        rule.onNodeWithText("Use Memoria's own questions?").assertDoesNotExist()
+    }
+
+    // Open settings goes to Android's page; back in the app, nothing else shows
+    @Test fun mediaAsk_openSettings_opensAndroidsPageOnce() {
+        mediaAskReset()
+        var opened = 0
+        rule.setContent {
+            MemoriaTheme { Surface {
+                val ask = rememberMediaAsk(openSettings = { opened++ })
+                androidx.compose.material3.TextButton({ ask() }) { Text("Open app") }
+            } }
+        }
+
+        rule.onNodeWithText("Open app").performClick()
+        rule.onNodeWithText("Open settings").performClick()
+        assertEquals(1, opened)
+        rule.onNodeWithText("Use Memoria's own questions?").assertDoesNotExist()
+        rule.onNodeWithText("Open app").performClick()
+        rule.onNodeWithText("Use Memoria's own questions?").assertDoesNotExist()
+    }
+
+    // Not shown if the switch is already on
+    @Test fun mediaAsk_switchOn_asksNothing() {
+        mediaAskReset()
+        rule.setContent {
+            MemoriaTheme { Surface {
+                val ask = rememberMediaAsk()
+                androidx.compose.material3.TextButton({ ask() }) { Text("Open app") }
+            } }
+        }
+        try {
+            mediaSwitch(on = true)
+            rule.onNodeWithText("Open app").performClick()
+            rule.onNodeWithText("Use Memoria's own questions?").assertDoesNotExist()
+            mediaSwitch(on = false)
+            rule.onNodeWithText("Open app").performClick()
+            rule.onNodeWithText("Use Memoria's own questions?").assertIsDisplayed()
+        } finally {
+            mediaSwitch(on = false)
+        }
+    }
+
+    // Switch on: Memoria asks before the change (mockup "Delete, with Media management on"); Cancel changes nothing
+    @Test fun mediaOn_asksBeforeTheChange_cancelKeepsIt() {
+        var ran = 0
+        rule.setContent {
+            MemoriaTheme { Surface {
+                val confirm = rememberMediaConfirm()
+                androidx.compose.material3.TextButton({ confirm(trashQuestion((1L..6L).map { tile(it) })) { ran++ } }) { Text("Delete them") }
+            } }
+        }
+        try {
+            mediaSwitch(on = true)
+            rule.onNodeWithText("Delete them").performClick()
+            rule.onNodeWithText("Move 6 photos to trash?").assertIsDisplayed()
+            rule.onNodeWithText("They stay in Trash for 30 days, then they are deleted for good.").assertIsDisplayed()
+            rule.onNodeWithText("Cancel").performClick()
+            rule.onNodeWithText("Move 6 photos to trash?").assertDoesNotExist()
+            assertEquals(0, ran)
+            rule.onNodeWithText("Delete them").performClick()
+            rule.onNodeWithText("Move to trash").performClick()
+            assertEquals(1, ran)
+        } finally {
+            mediaSwitch(on = false)
+        }
+    }
+
+    // Switch off: Android's own dialog stays and Memoria adds none, so nobody answers twice
+    @Test fun mediaOff_goesStraightToAndroid() {
+        mediaSwitch(on = false)
+        var ran = 0
+        rule.setContent {
+            MemoriaTheme { Surface {
+                val confirm = rememberMediaConfirm()
+                androidx.compose.material3.TextButton({ confirm(trashQuestion((1L..6L).map { tile(it) })) { ran++ } }) { Text("Delete them") }
+            } }
+        }
+
+        rule.onNodeWithText("Delete them").performClick()
+        assertEquals(1, ran)
+        rule.onNodeWithText("Move 6 photos to trash?").assertDoesNotExist()
+    }
+
+    // Delete in Album, Favorites, Place, Person and Videos select (rememberPick): ours first, photos and videos mixed read "items"
+    @Test fun mediaOn_pickDelete_asksOurs() {
+        rule.setContent {
+            MemoriaTheme { Surface {
+                val pick = rememberPick()
+                androidx.compose.material3.TextButton({ pick.delete(listOf(tile(1), videoTile(2))) }) { Text("Delete them") }
+            } }
+        }
+        try {
+            mediaSwitch(on = true)
+            rule.onNodeWithText("Delete them").performClick()
+            rule.onNodeWithText("Move 2 items to trash?").assertIsDisplayed()
+            rule.onNodeWithText("Cancel").performClick()
+            rule.onNodeWithText("Move 2 items to trash?").assertDoesNotExist()
+        } finally {
+            mediaSwitch(on = false)
+        }
+    }
+
+    // Trash's Empty, Restore and Delete ask ours (mockup "Delete for good", "Restore"); every answer here is Cancel
+    @Test fun mediaOn_trash_emptyRestoreDelete_askOurs() {
+        val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
+        val values = android.content.ContentValues().apply {
+            put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, "trashtest-${System.nanoTime()}.jpg")
+            put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+            put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, "Pictures/TrashTest")
+        }
+        val uri = context.contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)!!
+        context.contentResolver.openOutputStream(uri)!!.use {
+            android.graphics.Bitmap.createBitmap(8, 8, android.graphics.Bitmap.Config.ARGB_8888).compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, it)
+        }
+        val trashed = context.contentResolver.update(uri, android.content.ContentValues().apply { put(android.provider.MediaStore.MediaColumns.IS_TRASHED, 1) }, null, null)
+        val id = android.content.ContentUris.parseId(uri)
+        assertEquals("trashed rows", 1, trashed)
+        assertTrue("in trash()", trash(context).any { it.tile.id == id })
+        rule.setContent { MemoriaTheme { Surface { TrashScreen(onBack = {}) } } }
+        try {
+            mediaSwitch(on = true)
+            rule.waitUntil(10_000) { rule.onAllNodesWithTag("tile-$id").fetchSemanticsNodes().isNotEmpty() }
+            rule.onNodeWithText("Empty").performClick()
+            rule.onNodeWithText("for good?", substring = true).assertIsDisplayed() // the emulator's trash may hold more than ours
+            rule.onNodeWithText("Cancel").performClick()
+            rule.onNodeWithText("for good?", substring = true).assertDoesNotExist()
+
+            rule.onNodeWithTag("tile-$id").performTouchInput { longClick() }
+            rule.onNodeWithText("Restore").performClick()
+            rule.onNodeWithText("Restore 1 photo?").assertIsDisplayed()
+            rule.onNodeWithText("It goes back to the folder it came from.").assertIsDisplayed()
+            rule.onNodeWithText("Cancel").performClick()
+            rule.onNodeWithText("Delete").performClick()
+            rule.onNodeWithText("Delete 1 photo for good?").assertIsDisplayed()
+            rule.onNodeWithText("It can't be restored.").assertIsDisplayed()
+            rule.onNodeWithText("Cancel").performClick()
+            rule.onNodeWithText("Delete 1 photo for good?").assertDoesNotExist()
+            rule.onNodeWithTag("tile-$id").assertExists()
+        } finally {
+            mediaSwitch(on = false)
+            // trashed rows are skipped by default, even by id
+            context.contentResolver.delete(uri, android.os.Bundle().apply { putInt(android.provider.MediaStore.QUERY_ARG_MATCH_TRASHED, android.provider.MediaStore.MATCH_INCLUDE) })
+        }
+    }
+
     // --- Search --------------------------------------------------------------------------------
 
     private val search = SearchData(

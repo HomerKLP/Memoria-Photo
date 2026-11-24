@@ -1,7 +1,6 @@
 package app.memoria
 
 import android.app.Activity
-import android.net.Uri
 import android.provider.MediaStore
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -34,6 +33,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -56,11 +56,17 @@ fun TrashScreen(onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit = { _, _ 
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) { selected = emptySet(); reload++ }
     }
-    fun ask(uris: List<Uri>, restore: Boolean) {
-        if (uris.isEmpty()) return
-        val request = if (restore) MediaStore.createTrashRequest(context.contentResolver, uris, false)
-        else MediaStore.createDeleteRequest(context.contentResolver, uris)
-        launcher.launch(IntentSenderRequest.Builder(request.intentSender).build())
+    val mediaConfirm = rememberMediaConfirm()
+    // [all]: Empty
+    fun ask(picked: List<Trashed>, restore: Boolean, all: Boolean = false) {
+        if (picked.isEmpty()) return
+        val tiles = picked.map { it.tile }
+        mediaConfirm(if (restore) restoreQuestion(tiles) else deleteQuestion(tiles, all)) {
+            val uris = tiles.map { it.uri }
+            val request = if (restore) MediaStore.createTrashRequest(context.contentResolver, uris, false)
+            else MediaStore.createDeleteRequest(context.contentResolver, uris)
+            launcher.launch(IntentSenderRequest.Builder(request.intentSender).build())
+        }
     }
     TrashContent(
         items = items.orEmpty(),
@@ -70,9 +76,9 @@ fun TrashScreen(onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit = { _, _ 
         onToggle = { id -> selected = if (id in selected) selected - id else selected + id },
         onCancelSelect = { selected = emptySet() },
         onSelectAll = { selected = items.orEmpty().map { it.tile.id }.toSet() },
-        onRestore = { ask(items.orEmpty().filter { it.tile.id in selected }.map { it.tile.uri }, restore = true) },
-        onDelete = { ask(items.orEmpty().filter { it.tile.id in selected }.map { it.tile.uri }, restore = false) },
-        onEmpty = { ask(items.orEmpty().map { it.tile.uri }, restore = false) },
+        onRestore = { ask(items.orEmpty().filter { it.tile.id in selected }, restore = true) },
+        onDelete = { ask(items.orEmpty().filter { it.tile.id in selected }, restore = false) },
+        onEmpty = { ask(items.orEmpty(), restore = false, all = true) },
         onOpen = { t -> onOpen(items.orEmpty().map { it.tile }, t.tile) },
     )
 }
@@ -130,7 +136,7 @@ fun TrashContent(
             ) {
                 items(items, key = { it.tile.id }) { t ->
                     TrashTile(
-                        t, selecting, t.tile.id in selected, Modifier.animateItem(fadeInSpec = null), // no fade in: a first load shows at once
+                        t, selecting, t.tile.id in selected, Modifier.animateItem(fadeInSpec = null).testTag("tile-${t.tile.id}"), // no fade in: a first load shows at once
                         onClick = { if (selecting) onToggle(t.tile.id) else onOpen(t) },
                         onLongClick = { onToggle(t.tile.id) },
                     )

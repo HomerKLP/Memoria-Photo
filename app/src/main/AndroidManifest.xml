@@ -16,6 +16,8 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- an update of the app itself needs no confirm screen -->
     <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
+    <!-- Settings > Media management: with the user's switch on, Memoria asks its own questions instead of Android's -->
+    <uses-permission android:name="android.permission.MANAGE_MEDIA" tools:ignore="ProtectedPermissions" />
     <application
         android:name=".MemoriaApp"
         android:allowBackup="false"

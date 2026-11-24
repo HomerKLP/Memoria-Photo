@@ -399,6 +399,7 @@ fun Viewer(
             leaving = null
         }
     }
+    val mediaConfirm = rememberMediaConfirm()
     fun askLeave(id: Long, request: PendingIntent) {
         leaving = id
         leaveAsk.launch(IntentSenderRequest.Builder(request.intentSender).build())
@@ -559,11 +560,11 @@ fun Viewer(
                 // in the trash the trash icon deletes for good; Restore puts the item back
                 onDelete = {
                     if (vault) vaultAsking = true
-                    else askLeave(tile.id, if (trashed) MediaStore.createDeleteRequest(context.contentResolver, listOf(tile.uri))
-                    else MediaStore.createTrashRequest(context.contentResolver, listOf(tile.uri), true))
+                    else if (trashed) mediaConfirm(deleteQuestion(listOf(tile))) { askLeave(tile.id, MediaStore.createDeleteRequest(context.contentResolver, listOf(tile.uri))) }
+                    else mediaConfirm(trashQuestion(listOf(tile))) { askLeave(tile.id, MediaStore.createTrashRequest(context.contentResolver, listOf(tile.uri), true)) }
                 },
                 trashed = trashed,
-                onRestore = { askLeave(tile.id, MediaStore.createTrashRequest(context.contentResolver, listOf(tile.uri), false)) },
+                onRestore = { mediaConfirm(restoreQuestion(listOf(tile))) { askLeave(tile.id, MediaStore.createTrashRequest(context.contentResolver, listOf(tile.uri), false)) } },
                 menuItems = if (trashed || vault) emptyList() else if (tile.duration != null) buildList {
                     // a video: the photo menu minus Edit in… and Use as…, which need a still photo (mockup "Video, More")
                     add(MenuItem(R.drawable.ic_refresh, "Loop", checked = loop) { loop = !loop })
@@ -659,5 +660,5 @@ fun Viewer(
         },
         dismissButton = { TextButton({ vaultAsking = false }) { Text("Cancel") } },
     )
-    if (moving) MoveToAlbumSheet(tile, onDismiss = { moving = false }, onMove = { path -> moving = false; applyMove(tile.id, path) })
+    if (moving) MoveToAlbumSheet(listOf(tile), onDismiss = { moving = false }, onMove = { path -> moving = false; applyMove(tile.id, path) })
 }

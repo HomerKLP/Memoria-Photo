@@ -4,6 +4,7 @@ import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.net.Uri
 import android.os.PowerManager
+import android.provider.MediaStore
 import android.provider.Settings
 import android.text.format.DateUtils
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -87,6 +88,8 @@ fun SettingsScreen(onBack: () -> Unit, onHidden: () -> Unit, onSkip: () -> Unit,
     val battery = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         allowed = power.isIgnoringBatteryOptimizations(context.packageName)
     }
+    var media by remember { mutableStateOf(MediaStore.canManageMedia(context)) }
+    val mediaPage = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { media = MediaStore.canManageMedia(context) }
     val version = remember { context.packageManager.getPackageInfo(context.packageName, 0).versionName }
     var rescan by remember { mutableStateOf(false) }
     var models by remember { mutableStateOf(Models.status(context)) }
@@ -159,6 +162,8 @@ fun SettingsScreen(onBack: () -> Unit, onHidden: () -> Unit, onSkip: () -> Unit,
         onInstall = { scope.launch { Updates.install(context) } },
         onReleasePage = { Updates.openPage(context) },
         onAutoUpdate = { on -> autoUpdate = on; Updates.setAuto(context, on) },
+        media = media,
+        onMedia = { runCatching { mediaPage.launch(mediaSettingsIntent(context)) } },
         scroll = scroll,
     )
 
@@ -253,6 +258,8 @@ fun SettingsContent(
     onInstall: () -> Unit = {},
     onReleasePage: () -> Unit = {},
     onAutoUpdate: (Boolean) -> Unit = {},
+    media: Boolean = false,
+    onMedia: () -> Unit = {},
     scroll: ScrollState = rememberScrollState(),
 ) {
     Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(scroll).padding(bottom = 16.dp)) {
@@ -281,6 +288,12 @@ fun SettingsContent(
             onSkip,
         ) { Chevron() }
         SettingRow(R.drawable.ic_refresh, "Find faces again", "Deletes faces and names, scans all photos again", onRescan)
+        SectionHead("Gallery")
+        SettingRow(
+            R.drawable.ic_photo, "Media management",
+            if (media) "On · Memoria asks instead of Android" else "Off · Android asks before each change",
+            onMedia,
+        ) { Chevron() }
         SectionHead("People & pets")
         SettingRow(
             R.drawable.ic_block, "Hidden people & pets",

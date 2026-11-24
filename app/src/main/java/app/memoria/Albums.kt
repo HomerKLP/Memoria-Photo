@@ -340,7 +340,7 @@ fun AlbumScreen(id: Long, onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit
         onDelete = { pick.delete(picked) },
     )
     // moved photos leave this album; the sheet's head shows the first picked
-    if (moving) MoveToAlbumSheet(picked.first(), onDismiss = { moving = false }) { path ->
+    if (moving) MoveToAlbumSheet(picked, onDismiss = { moving = false }) { path ->
         moving = false
         // one MediaStore write per photo: off the main thread, a few hundred take seconds
         scope.launch {
