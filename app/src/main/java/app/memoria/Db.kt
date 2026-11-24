@@ -14,7 +14,6 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverter
 import androidx.room.TypeConverters
-import androidx.room.Update
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import java.nio.ByteBuffer
@@ -50,12 +49,6 @@ class FaceRow(
     // a cat or dog box (`docs/objects.md`): DINOv2 vector, quality = box score, no landmarks; grouped by groupPets, never by groupFaces
     val pet: Boolean = false,
 )
-
-/** A face's id and box, for [IndexDao.faceBoxes]. */
-class FaceBox(val id: Long, val box: FloatArray)
-
-/** What the mirror fix writes into an old face row; the rest (person, Not a face) stays. */
-class FaceUpdate(val id: Long, val box: FloatArray, val score: Float, val landmarks: FloatArray, val vector: FloatArray, val quality: Float, val thumb: ByteArray)
 
 /**
  * People saved by the last index run, see savePeople. `name`, `hidden`, `coverFaceId` and `pos` are the user's; kept across re-index runs.
@@ -204,11 +197,6 @@ interface IndexDao {
     @Query("DELETE FROM face WHERE id IN (:ids)") suspend fun deleteFaceIds(ids: List<Long>)
     @Insert suspend fun insertFaces(faces: List<FaceRow>)
     @Query("DELETE FROM face WHERE photoId = :photoId AND pet") suspend fun deletePets(photoId: Long)
-    /** A photo's face boxes: the mirror fix matches them to the faces found again, so a match keeps its row. */
-    @Query("SELECT id, box FROM face WHERE photoId = :photoId AND NOT pet") suspend fun faceBoxes(photoId: Long): List<FaceBox>
-    // @Update, not a @Query: Room expands an array parameter of a query into a list
-    @Update(entity = FaceRow::class) suspend fun updateFace(face: FaceUpdate)
-    @Query("UPDATE photo SET kind = :kind, objects = :objects WHERE id = :id") suspend fun updatePhoto(id: Long, kind: PhotoKind, objects: Int?)
     /** Photos with a cat or dog box 0.5+ and their surest box: the Pets category. */
     @Query("SELECT photoId, MAX(score) AS score FROM object_box WHERE cls IN (15, 16) AND score >= 0.5 GROUP BY photoId")
     suspend fun petPhotos(): Map<@MapColumn("photoId") Long, @MapColumn("score") Float>

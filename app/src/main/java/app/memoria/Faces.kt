@@ -163,51 +163,6 @@ fun blankHeic(bytes: ByteArray): Pair<Int, Int> {
 
 fun blankHeicTurn(bytes: ByteArray): Int = blankHeic(bytes).first
 
-/** The mirror axis of a HEIC's own boxes (0 or 1), and -1 when it has none or the file can't be read. */
-fun heicMirrorAxis(resolver: ContentResolver, uri: Uri): Int =
-    runCatching { resolver.openInputStream(uri)!!.use { blankHeic(it.readNBytes(65536)).second } }.getOrDefault(-1)
-
-/** True when this phone's HEIC decoder shows the probe file (EXIF 5) without its mirror. */
-fun decoderDropsMirror(context: Context): Boolean = try {
-    val bitmap = ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.assets, "mirror_probe.heic")) { decoder, _, _ ->
-        decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
-        decoder.setTargetSampleSize(4)
-    }
-    val p = bitmap.getPixel(bitmap.width / 4, bitmap.height / 4) // upright: the red top-left corner
-    !(Color.red(p) > 150 && Color.green(p) < 120 && Color.blue(p) < 120)
-} catch (e: Exception) {
-    false // can't tell, so leave the user's data alone
-}
-
-/**
- * Index in [new] -> the id of the old face found at the same place. An old box is also tried mirrored by [axis],
- * as an old decode on a phone that dropped a HEIC's mirror found it. Boxes are in pixels of a [width] x [height] picture.
- */
-fun matchFaces(old: List<Pair<Long, FloatArray>>, new: List<FloatArray>, axis: Int, width: Int, height: Int): Map<Int, Long> {
-    // every pair at 0.5 IoU or better, highest first, then each old face goes to one new face only
-    val pairs = new.withIndex().flatMap { (n, box) ->
-        old.withIndex().mapNotNull { (o, face) ->
-            val score = max(iou(box, face.second), iou(box, mirrored(face.second, axis, width, height)))
-            if (score >= 0.5f) Triple(n, o, score) else null
-        }
-    }.sortedByDescending { it.third }
-    val out = HashMap<Int, Long>()
-    val taken = HashSet<Int>()
-    for ((n, o, _) in pairs) {
-        if (n in out || o in taken) continue
-        out[n] = old[o].first
-        taken += o
-    }
-    return out
-}
-
-/** [b] turned into the same picture as its mirror: axis 0 top-bottom, axis 1 left-right, -1 as it is. */
-private fun mirrored(b: FloatArray, axis: Int, width: Int, height: Int): FloatArray = when (axis) {
-    0 -> floatArrayOf(b[0], height - b[3], b[2], height - b[1])
-    1 -> floatArrayOf(width - b[2], b[1], width - b[0], b[3])
-    else -> b
-}
-
 /** The start offsets of the boxes of [type] in the first [end] bytes of [bytes]. */
 private fun boxesOf(bytes: ByteArray, end: Int, type: String): List<Int> {
     val t = type.toByteArray(Charsets.US_ASCII)

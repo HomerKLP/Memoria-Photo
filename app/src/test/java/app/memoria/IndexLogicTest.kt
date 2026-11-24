@@ -1,11 +1,23 @@
 package app.memoria
 
+import java.io.File
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class IndexLogicTest {
+
+    @Test fun aModelThatWontLoad_countsNoWorkUntilItsFileChanges() {
+        val file = File.createTempFile("tagger", ".tflite").apply { writeText("model"); deleteOnExit() }
+        val broken = setOf(modelStamp(listOf(file)))
+        assertFalse(modelsUsable(listOf(file), broken))
+        assertTrue(modelsUsable(listOf(file), emptySet()))
+        file.setLastModified(file.lastModified() - 60_000) // a new download
+        assertTrue(modelsUsable(listOf(file), broken))
+        assertFalse(modelsUsable(listOf(File(file.path + ".gone")), emptySet()))
+    }
 
     @Test fun etaIsNullBeforeOnePhotoIsDone() {
         assertNull(etaMillis(started = 0L, done = 0, total = 100))

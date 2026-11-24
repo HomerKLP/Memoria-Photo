@@ -73,5 +73,9 @@ internal fun kindOf(photo: MediaPhoto, hasCameraMake: Boolean): PhotoKind = when
     else -> PhotoKind.other
 }
 
-fun kindOf(context: Context, photo: MediaPhoto, uri: Uri): PhotoKind =
-    kindOf(photo, context.contentResolver.openInputStream(uri)!!.use { ExifInterface(it).getAttribute(ExifInterface.TAG_MAKE) } != null)
+/** [kindOf] and the GPS from one EXIF read. Without ACCESS_MEDIA_LOCATION the original won't open: the plain file gives the kind, no GPS. */
+fun kindAndGps(context: Context, photo: MediaPhoto, uri: Uri): Pair<PhotoKind, Pair<Double, Double>?> {
+    val original = runCatching { context.contentResolver.openInputStream(MediaStore.setRequireOriginal(uri))!!.use { ExifInterface(it) } }.getOrNull()
+    val exif = original ?: context.contentResolver.openInputStream(uri)!!.use { ExifInterface(it) }
+    return kindOf(photo, exif.getAttribute(ExifInterface.TAG_MAKE) != null) to original?.let { photoGps(it) }
+}

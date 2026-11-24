@@ -125,11 +125,11 @@ private fun indexBusy(context: Context): Boolean = runCatching {
 /** The work a run would do ([indexPlan], like the worker), plus photos and videos with no GPS read yet. Videos count too, so a new video starts its own run. */
 private suspend fun changedPhotos(context: Context): Int {
     val dao = Db.get(context).index()
+    // a model that won't load (IndexWorker marks it) would start an empty run on every open
+    val broken = context.getSharedPreferences("index", Context.MODE_PRIVATE).getStringSet("brokenModels", null).orEmpty()
     val plan = indexPlan(
         libraryPhotos(context) + libraryVideos(context), dao.photoIds().toHashSet(), dao.taggedIds(Tagger.VERSION).toHashSet(), dao.boxedIds(ObjectDetector.VERSION).toHashSet(),
-        tagging = taggerFile(context).exists(), boxing = objectsFiles(context).all { it.exists() },
+        tagging = modelsUsable(listOf(taggerFile(context)), broken), boxing = modelsUsable(objectsFiles(context), broken),
     )
-    // the one-time mirror fix (see IndexWorker) counts as work until it has run
-    val mirrorFix = if (context.getSharedPreferences("index", Context.MODE_PRIVATE).getBoolean("mirrorFixed", false)) 0 else 1
-    return plan.gone.size + plan.todo.size + plan.catchUp.size + dao.unplaced().size + dao.unplacedVideos().size + mirrorFix
+    return plan.gone.size + plan.todo.size + plan.catchUp.size + dao.unplaced().size + dao.unplacedVideos().size
 }
