@@ -2,6 +2,17 @@
 
 Style: one-line description, steps to reproduce, fix ideas. Code paths only when they help. Open bugs in full; a fixed bug becomes one line under Fixed at the bottom (the full write-up stays in git history).
 
+## A WhatsApp photo shows 00:00
+
+WhatsApp strips EXIF, so MediaStore has `date_taken = NULL`. The name `IMG-20261123-WA0010.jpg` carries a date only, and `fallbackDate` (`Timeline.kt:37`) fills the missing time with `000000`, so the viewer shows 00:00 and the photo sorts first in "Today". The real file time (23:21 today, checked on the phone) is dropped.
+
+Steps:
+1. Download a photo from WhatsApp to `Pictures/WhatsApp`.
+2. Open Photos, then the photo's Details.
+3. The time is 00:00.
+
+Fix idea: when the name has a date but no time, keep the name's day and take the time of day from `DATE_ADDED`/`DATE_MODIFIED`. Immich does not read names at all: it uses the earliest of file birth and modified time. Update `PhotosDateTest.dateFromNameWithoutTime` with the change.
+
 ## VideoPlayTest flakes on the 10-bit HEVC clip
 
 `make layout` on the API 37 emulator once failed `plays_asItsRowSays[videos/video_hevc10.mp4]` with `ERROR_CODE_FAILED_RUNTIME_CHECK` (1004); the rerun of `VideoPlayTest` was 11/11 green. The row (`plays or card`) allows only 4000-4999 as "the decoder refused it", and the emulator's 10-bit HEVC path sometimes reports 1004 instead.
