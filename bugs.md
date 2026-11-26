@@ -2,17 +2,6 @@
 
 Style: one-line description, steps to reproduce, fix ideas. Code paths only when they help. Open bugs in full; a fixed bug becomes one line under Fixed at the bottom (the full write-up stays in git history).
 
-## A WhatsApp photo shows 00:00
-
-WhatsApp strips EXIF, so MediaStore has `date_taken = NULL`. The name `IMG-20261123-WA0010.jpg` carries a date only, and `fallbackDate` (`Timeline.kt:37`) fills the missing time with `000000`, so the viewer shows 00:00 and the photo sorts first in "Today". The real file time (23:21 today, checked on the phone) is dropped.
-
-Steps:
-1. Download a photo from WhatsApp to `Pictures/WhatsApp`.
-2. Open Photos, then the photo's Details.
-3. The time is 00:00.
-
-Fix idea: when the name has a date but no time, keep the name's day and take the time of day from `DATE_ADDED`/`DATE_MODIFIED`. Immich does not read names at all: it uses the earliest of file birth and modified time. Update `PhotosDateTest.dateFromNameWithoutTime` with the change.
-
 ## VideoPlayTest flakes on the 10-bit HEVC clip
 
 `make layout` on the API 37 emulator once failed `plays_asItsRowSays[videos/video_hevc10.mp4]` with `ERROR_CODE_FAILED_RUNTIME_CHECK` (1004); the rerun of `VideoPlayTest` was 11/11 green. The row (`plays or card`) allows only 4000-4999 as "the decoder refused it", and the emulator's 10-bit HEVC path sometimes reports 1004 instead.
@@ -241,3 +230,4 @@ Found while reading the code, not seen on the phone yet. No steps, just the risk
 - 2026-11-24 Updates could stay on an old version (the user's report): after installing the found release, the row said "Up to date" until the next daily check (up to a day, longer under Doze), and Update / Retry downloaded the version saved at the last check. Settings now checks silently when the row is up to date and the last check is over an hour old (`Updates.stale`), and `Updates.download` checks again before it enqueues (`UpdatesCheckTest`).
 - 2026-11-24 Locking big files looked frozen: Lock encrypted every file before Android's question, with nothing on screen. Now a "Locking" dialog shows after 300 ms with a bar by bytes; Cancel and Back stop it and take the copies back out (`BehaviorTest#lock_cancelWhileLocking_leavesTheGalleryAsIs`, `#lock_slow_showsBytesThenAndroidAsks`, red first). Move out got the same dialog ("Moving out"). Checked on the phone by the user: Lock and Move out both show the progress.
 - 2026-11-25 A model file that would not load started an empty run on each app open: its photos stayed in the catch-up plan. The worker now marks that copy of the file, and auto-start counts no catch-up work for it until it loads again or a new download replaces it (`modelsUsable`, `IndexLogicTest`).
+- 2026-11-26 A WhatsApp photo showed 00:00: its name has a date only, and `fallbackDate` filled the time with `000000`. Now the day comes from the name and the time from the file (`PhotosDateTest#dateFromNameWithoutTime`, red first). Checked on the phone: Details shows 23:21, the file time. On the test phone about a third of the files have no `date_taken`; most are Takeout imports whose file time is the import day, so names stay a date source.

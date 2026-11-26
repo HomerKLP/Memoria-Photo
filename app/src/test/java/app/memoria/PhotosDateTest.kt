@@ -16,9 +16,11 @@ class PhotosDateTest {
     }
 
     @Test fun dateFromNameWithoutTime() {
-        // WA0005 style: date only, time defaults to midnight
-        val got = fallbackDate("IMG-20250308-WA0005.jpg", added = 999L, modified = 888L, zone = utc)
-        assertEquals(Instant.parse("2025-03-08T00:00:00Z").toEpochMilli(), got)
+        // WhatsApp name: the day from the name, the time of day from the file
+        val saved = Instant.parse("2026-11-23T23:21:05Z").epochSecond
+        assertEquals(Instant.parse("2026-11-23T23:21:05Z").toEpochMilli(), fallbackDate("IMG-20261123-WA0010.jpg", added = saved, modified = saved, zone = utc))
+        val copiedLater = Instant.parse("2026-12-01T08:15:00Z").epochSecond
+        assertEquals(Instant.parse("2026-11-23T08:15:00Z").toEpochMilli(), fallbackDate("IMG-20261123-WA0010.jpg", added = copiedLater, modified = copiedLater, zone = utc))
     }
 
     @Test fun noDateInNameUsesOlderOfAddedAndModified() {
