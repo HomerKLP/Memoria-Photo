@@ -10,8 +10,11 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import androidx.test.ext.junit.runners.AndroidJUnit4
 
 /** The join, group and EXISTS queries of [IndexDao] on an in-memory DB. */
+@RunWith(AndroidJUnit4::class)
 class DaoTest {
     private lateinit var db: Db
     private lateinit var dao: IndexDao

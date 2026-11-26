@@ -34,8 +34,8 @@ help:
 	@echo "make screenshots refresh screenshot baselines (no device)"
 	@echo "make shot-check  validate screenshots against the baselines (no device)"
 	@echo "make emulator    boot $(AVD) and set $(DENSITY) density (360 dp wide)"
-	@echo "make layout      every androidTest on a headless emulator (boots it if needed, closes it after); some: make layout T='BehaviorTest#search_|DaoTest'"
-	@echo "make behavior    BehaviorTest on the same emulator (boots it if needed, closes it after)"
+	@echo "make layout      every androidTest on a headless emulator (boots it if needed, closes it after); some: make layout T='ViewerTest|MigrationTest'"
+	@echo "make behavior    BehaviorTest and PhotoSelectionTest on the JVM (Robolectric, no emulator); BehaviorDeviceTest runs with make layout"
 	@echo "make perf        cold start + janky frames per screen on the phone's release build (make release first; keeps the data)"
 	@echo "make check       unit + shot-check, no device (the quick gate)"
 
@@ -93,7 +93,7 @@ emulator:
 
 # Boots a headless emulator if none is up and closes it again at the end, even on failure or Ctrl-C.
 # The close waits until it is gone, or a run right after sees it still up and waits for it forever.
-# UI_FILTER narrows the run to one class; `make behavior` sets it (target-specific, inherited here).
+# UI_FILTER adds runner arguments; CI sets it to split the run over 4 emulators.
 # T is a regex on "Class#method"; a comma list in `class` runs only its first item.
 layout:
 	@if ! $(ADB) -s $(SERIAL) get-state >/dev/null 2>&1; then \
@@ -108,9 +108,9 @@ layout:
 		$(ADB) -s $(SERIAL) shell 'input keyevent KEYCODE_WAKEUP; wm dismiss-keyguard; sleep 2; dumpsys window | grep -q isKeyguardShowing=true && { input text $(PIN); input keyevent 66; }'; sleep 3; done; \
 	ANDROID_SERIAL=$(SERIAL) ./gradlew $(TASK) $(UI_FILTER) $(if $(T),'-Pandroid.testInstrumentationRunnerArguments.tests_regex=.*($(T)).*')
 
-# Just BehaviorTest, on the same emulator as `make layout`. `make layout` runs both.
-behavior: UI_FILTER = -Pandroid.testInstrumentationRunnerArguments.class=app.memoria.BehaviorTest
-behavior: layout
+# The behavior tests that need no device run on the JVM; `make test` runs them too.
+behavior:
+	./gradlew :app:testDebugUnitTest --tests 'app.memoria.BehaviorTest' --tests 'app.memoria.PhotoSelectionTest'
 
 # Taps and dumpsys on the installed app, so its data stays (a Gradle device run uninstalls the app).
 perf:

@@ -5,11 +5,14 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import androidx.test.ext.junit.runners.AndroidJUnit4
 
 /**
  * The select state itself (`PhotoSelection`), which the drag-select and the day circle drive.
- * Instrumented only because `Tile` needs a real `Uri` to build; the class is otherwise pure.
+ * Robolectric only because `Tile` needs a real `Uri` to build; the class is otherwise pure.
  */
+@RunWith(AndroidJUnit4::class)
 class PhotoSelectionTest {
 
     private fun tile(id: Long, favorite: Boolean = false) =

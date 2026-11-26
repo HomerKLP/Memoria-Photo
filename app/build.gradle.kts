@@ -39,6 +39,7 @@ android {
     experimentalProperties["android.experimental.enableScreenshotTest"] = true
     testOptions {
         unitTests.isReturnDefaultValues = true // android.jar stubs (LruCache in Photos.kt) return defaults instead of throwing
+        unitTests.isIncludeAndroidResources = true // Robolectric tests read the app's strings and fonts
     }
     // Room writes schemas/app.memoria.Db/<version>.json; MigrationTest builds old databases from them
     sourceSets.getByName("androidTest").assets.srcDir("$projectDir/schemas")
@@ -58,6 +59,16 @@ ksp {
 // so it goes on the task.
 tasks.withType<com.android.compose.screenshot.tasks.PreviewScreenshotValidationTask>().configureEach {
     testEngineInput.threshold.set(if (providers.environmentVariable("CI").isPresent) 0.003f else 0f)
+}
+
+// AGP adds JaCoCo only with -Pcoverage. Robolectric loads the app's classes itself, and JaCoCo counts them only with this.
+plugins.withId("jacoco") {
+    tasks.withType<Test>().configureEach {
+        extensions.configure<JacocoTaskExtension> {
+            isIncludeNoLocationClasses = true
+            excludes = listOf("jdk.internal.*")
+        }
+    }
 }
 
 dependencies {
@@ -89,6 +100,11 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     // the real org.json in unit tests: android.jar's copy is a stub and would read nothing
     testImplementation("org.json:json:20260814")
+    // Android on the JVM: DAO and behavior tests run without an emulator
+    testImplementation("org.robolectric:robolectric:4.18.1")
+    testImplementation(platform("androidx.compose:compose-bom:2026.09.00"))
+    testImplementation("androidx.compose.ui:ui-test-junit4")
+    testImplementation("androidx.test.ext:junit:1.3.0")
     // Compose UI tests on a device or emulator (./gradlew connectedDebugAndroidTest)
     androidTestImplementation(platform("androidx.compose:compose-bom:2026.09.00"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
