@@ -110,6 +110,8 @@ The NPU is used on Snapdragon 8 Gen 1 to 8 Elite Gen 5. Other phones use the GPU
 2. Open the app on Wi-Fi. It downloads the models by itself (about 425 MB, once). On mobile data, tap **Download** in **Settings › Photo scan › Models**.
 3. Done. The photo scan starts on its own when the models are ready.
 
+> **Google Play Protect may call Memoria harmful** when you install or update it. The warning is Google's, not caused by the app. Google warns about every app from outside the Play Store whose developer is not registered with Google's developer verification. Memoria is not registered. The app has no SMS, accessibility or notification access, and all its code is in this repo. Tap **Install anyway**. To be sure the file is ours, check its certificate below.
+
 To check the APK is ours, its signing certificate SHA-256 must be:
 
 ```
