@@ -3,8 +3,11 @@ package app.memoria
 import android.net.Uri
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import org.junit.runner.RunWith
+import androidx.test.ext.junit.runners.AndroidJUnit4
 
-/** A town's cover: the photo the tagger finds nicest, else the newest. On a device: [Tile] needs a real Uri. */
+/** A town's cover: the photo the tagger finds nicest, else the newest. Robolectric: [Tile] needs a real Uri. */
+@RunWith(AndroidJUnit4::class)
 class PlacesTest {
 
     private fun tile(id: Long, date: Long) = Tile(id, Uri.parse("content://media/external/images/media/$id"), date, null)

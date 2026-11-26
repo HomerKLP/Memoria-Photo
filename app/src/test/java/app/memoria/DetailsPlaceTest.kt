@@ -7,8 +7,11 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import org.junit.Rule
 import org.junit.Test
+import org.junit.runner.RunWith
+import androidx.test.ext.junit.runners.AndroidJUnit4
 
 /** Viewer details: Place names the nearest town and never shows coordinates (mockup "Viewer, swiped up"). */
+@RunWith(AndroidJUnit4::class)
 class DetailsPlaceTest {
 
     @get:Rule val rule = createComposeRule()
