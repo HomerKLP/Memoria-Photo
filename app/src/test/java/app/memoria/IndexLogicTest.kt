@@ -30,10 +30,30 @@ class IndexLogicTest {
     }
 
     @Test fun etaScalesElapsedTimeByPhotosLeft() {
+        IndexSpeed.clear()
         val started = System.currentTimeMillis() - 10_000
         // 10s for 5 photos -> 2s each -> 5 left -> ~10s
         val eta = etaMillis(started, done = 5, total = 10)!!
         assertTrue("eta was $eta", eta in 9_000..11_000)
+    }
+
+    @Test fun theTimeLeftFollowsTheRecentSpeedNotTheWholeRun() {
+        IndexSpeed.clear()
+        IndexSpeed.add(10, 0)
+        IndexSpeed.add(20, 60_000) // 10 photos in 60 s: 6 s each
+        assertEquals(6_000.0, IndexSpeed.msPerPhoto()!!, 0.1)
+        IndexSpeed.add(70, 120_000) // then 50 photos in the next 60 s
+        assertEquals(2_000.0, IndexSpeed.msPerPhoto()!!, 0.1) // the window now reads 60 photos in 120 s
+    }
+
+    @Test fun aLockedPhoneIsNotCountedAsSlowWork() {
+        IndexSpeed.clear()
+        IndexSpeed.add(10, 0)
+        IndexSpeed.add(20, 60_000)
+        IndexSpeed.add(21, 1_260_000) // the phone sat locked for 20 min
+        assertNull(IndexSpeed.msPerPhoto()) // too few samples to say
+        IndexSpeed.add(31, 1_320_000)
+        assertEquals(6_000.0, IndexSpeed.msPerPhoto()!!, 0.1)
     }
 
     @Test fun carryKeepsTheIdOfThePersonTheGroupMostlyHolds() {

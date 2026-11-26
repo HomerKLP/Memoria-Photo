@@ -221,6 +221,7 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                 vector?.let { dao.insertVector(PhotoVectorRow(photo.id, Tagger.VERSION, it)); tagCount++ }
                 times.lap(Step.Database)
                 count++
+                IndexSpeed.add(base + count)
                 if (count % 100 == 0) AppLog.i("per photo ms (n=$count): ${times.perPhoto(count)}")
                 if (foreground && count % 10 == 0) notifications.notify(1, notice(base + count, total))
                 // people show up while indexing; saves stay 10x their own time apart, so they never take more than ~10% of the run
@@ -254,6 +255,7 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                 }
                 times.lap(Step.Database)
                 count++
+                IndexSpeed.add(base + count)
                 if (foreground && count % 10 == 0) notifications.notify(1, notice(base + count, total, "Scanning videos"))
                 if (System.nanoTime() > nextSave) {
                     val t = System.nanoTime()
@@ -297,6 +299,7 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                 catchUp(photo.id, small, w, h, tag, objects?.takeIf { photo.id !in boxed }, kept)
                 if (tag != null) tagCount++
                 catchUpCount++
+                IndexSpeed.add(base + count + i + 1)
             }
         }
 
