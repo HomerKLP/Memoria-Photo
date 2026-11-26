@@ -22,6 +22,8 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.longClick
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.File
 import kotlin.math.abs
@@ -53,6 +55,7 @@ class NavigationTest {
             ui.grantRuntimePermission(context.packageName, p)
         }
         IndexControl.pause(context)
+        context.getSharedPreferences("media", 0).edit().putBoolean("asked", true).commit() // the first-open question would cover every screen
         val values = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, "navtest.jpg")
             put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
@@ -110,6 +113,37 @@ class NavigationTest {
 
     // the Photos tab is the only one with a Search button
     private fun assertOnPhotos() = rule.onNodeWithContentDescription("Search").assertIsDisplayed()
+
+    // Media management, first open (mockup): the photos are allowed already, so the question shows at once; Not now closes it
+    @Test fun firstOpen_asksMediaManagement_notNowCloses() {
+        context.getSharedPreferences("media", 0).edit().clear().commit()
+        start()
+        waitFor("Use Memoria's own questions?")
+        rule.onNodeWithText("Not now").performClick()
+        rule.onNodeWithText("Use Memoria's own questions?").assertDoesNotExist()
+        assertOnPhotos()
+    }
+
+    // Photos tab select bar: Delete asks ours with Media management on (mockup "Photos, selecting"); Cancel keeps the photo
+    @Test fun mediaOn_photosSelectDelete_asksOurs() {
+        val ui = InstrumentationRegistry.getInstrumentation().uiAutomation
+        fun mediaSwitch(on: Boolean) = android.os.ParcelFileDescriptor.AutoCloseInputStream(
+            ui.executeShellCommand("appops set ${context.packageName} MANAGE_MEDIA ${if (on) "allow" else "default"}"),
+        ).use { it.readBytes() }
+        start()
+        try {
+            mediaSwitch(on = true)
+            rule.waitUntil(5_000) { rule.onAllNodesWithTag("tile-$photo").fetchSemanticsNodes().isNotEmpty() }
+            rule.onNodeWithTag("tile-$photo").performTouchInput { longClick() }
+            rule.onNodeWithText("Delete").performClick()
+            rule.onNodeWithText("Move 1 photo to trash?").assertIsDisplayed()
+            rule.onNodeWithText("Cancel").performClick()
+            rule.onNodeWithText("Move 1 photo to trash?").assertDoesNotExist()
+            rule.onNodeWithTag("tile-$photo").assertExists()
+        } finally {
+            mediaSwitch(on = false)
+        }
+    }
 
     @Test fun updateNotification_opensSettingsAtTheBottom_backGoesToLibrary() {
         rule.setContent { MemoriaTheme { Surface { App(dir, openSettings = 1, atUpdates = true) } } }

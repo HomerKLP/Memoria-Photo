@@ -81,8 +81,11 @@ class Towns(val id: IntArray, val name: Array<String>, val lat: FloatArray, val 
 }
 
 /** Photo GPS from the original file (MediaStore hides it since Android 10), null if it has none. Blocking. */
-fun photoGps(context: Context, uri: Uri): Pair<Double, Double>? {
-    val exif = runCatching { context.contentResolver.openInputStream(MediaStore.setRequireOriginal(uri))!!.use { ExifInterface(it) } }.getOrNull() ?: return null
+fun photoGps(context: Context, uri: Uri): Pair<Double, Double>? =
+    runCatching { context.contentResolver.openInputStream(MediaStore.setRequireOriginal(uri))!!.use { ExifInterface(it) } }.getOrNull()?.let { photoGps(it) }
+
+/** GPS from [exif], null if it has none. */
+fun photoGps(exif: ExifInterface): Pair<Double, Double>? {
     val ll = FloatArray(2)
     if (!exif.getLatLong(ll) || ll[0] == 0f && ll[1] == 0f) return null // some cameras write 0,0 when they have no GPS
     return ll[0].toDouble() to ll[1].toDouble()

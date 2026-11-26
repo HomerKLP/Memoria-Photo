@@ -245,11 +245,12 @@ fun App(dir: File, openSettings: Int = 0, atUpdates: Boolean = false, jump: Jump
             }
         }
     }
+    val mediaConfirm = rememberMediaConfirm()
     val deleteSelected = {
-        val uris = selectedTiles().map { it.uri }
-        if (uris.isNotEmpty()) {
+        val picked = selectedTiles()
+        if (picked.isNotEmpty()) mediaConfirm(trashQuestion(picked)) {
             pendingTrash = true
-            val ask = MediaStore.createTrashRequest(context.contentResolver, uris, true)
+            val ask = MediaStore.createTrashRequest(context.contentResolver, picked.map { it.uri }, true)
             selectAsk.launch(IntentSenderRequest.Builder(ask.intentSender).build())
         }
     }

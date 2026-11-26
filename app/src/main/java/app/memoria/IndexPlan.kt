@@ -1,5 +1,13 @@
 package app.memoria
 
+import java.io.File
+
+/** Model files the app may count work for: all there, and not [broken] (failed to load) in this exact copy. A new download tries again. */
+fun modelsUsable(files: List<File>, broken: Set<String>): Boolean = files.all { it.exists() } && modelStamp(files) !in broken
+
+/** One copy of [files]: names, sizes and dates. */
+fun modelStamp(files: List<File>): String = files.joinToString(";") { "${it.name}:${it.length()}:${it.lastModified()}" }
+
 /** A run's work: [gone] indexed photos no longer on the phone, [todo] new photos, [catchUp] indexed photos missing a vector or boxes. */
 class IndexPlan(val gone: Set<Long>, val todo: List<MediaPhoto>, val catchUp: List<MediaPhoto>)
 

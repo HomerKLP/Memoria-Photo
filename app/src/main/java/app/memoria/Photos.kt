@@ -188,13 +188,16 @@ fun PhotosScreen(
     val perms = media + Manifest.permission.ACCESS_MEDIA_LOCATION // photo GPS, optional
     fun has(p: String) = context.checkSelfPermission(p) == PackageManager.PERMISSION_GRANTED
     var granted by remember { mutableStateOf(media.all(::has)) }
+    // Media management, last of the first-open questions; with no photos allowed there is nothing to change yet
+    val mediaAsk = rememberMediaAsk()
+    val askMedia = { if (!favoritesOnly && granted) mediaAsk() }
     // the face search notification, optional: asked once, after the photos dialog, so a no is never asked again
-    val notify = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+    val notify = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { askMedia() }
     val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         granted = media.all(::has)
-        if (!has(Manifest.permission.POST_NOTIFICATIONS)) notify.launch(Manifest.permission.POST_NOTIFICATIONS)
+        if (!has(Manifest.permission.POST_NOTIFICATIONS)) notify.launch(Manifest.permission.POST_NOTIFICATIONS) else askMedia()
     }
-    LaunchedEffect(Unit) { if (!perms.all(::has)) ask.launch(perms) }
+    LaunchedEffect(Unit) { if (!perms.all(::has)) ask.launch(perms) else askMedia() }
     val pick = rememberPick() // Favorites only, the timeline has its own select mode
     // New photos while the tab is open: reload once the burst of changes has been quiet.
     // In the background only note it, and reload once on return.

@@ -530,6 +530,12 @@ fun SkipFolders() = MemoriaTheme {
 @Composable
 fun SettingsPage() = MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", indexing = true, indexed = 412, total = 1706) } }
 
+/** Media management on (mockup "Settings, Media management on"); pairs with settings_mediaOnOff_rowsBelowStayPut. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 900)
+@Composable
+fun SettingsMediaOn() = MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", media = true) } }
+
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 900)
 @Composable

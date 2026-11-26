@@ -399,6 +399,7 @@ fun Viewer(
             leaving = null
         }
     }
+    val mediaConfirm = rememberMediaConfirm()
     fun askLeave(id: Long, request: PendingIntent) {
         leaving = id
         leaveAsk.launch(IntentSenderRequest.Builder(request.intentSender).build())
@@ -409,6 +410,7 @@ fun Viewer(
     // A locked item: deleting or moving it out is the app's own work, so the app asks (the mockup says so)
     var vaultAsking by remember { mutableStateOf(false) }
     var vaultMovingOut by remember { mutableStateOf(false) }
+    var vaultMoving by remember { mutableStateOf<VaultJob?>(null) } // decrypting back to the gallery
     fun vaultLeaving(id: Long) {
         list = list.filterNot { it.id == id }
         forgetTiles(setOf(id))
@@ -558,11 +560,11 @@ fun Viewer(
                 // in the trash the trash icon deletes for good; Restore puts the item back
                 onDelete = {
                     if (vault) vaultAsking = true
-                    else askLeave(tile.id, if (trashed) MediaStore.createDeleteRequest(context.contentResolver, listOf(tile.uri))
-                    else MediaStore.createTrashRequest(context.contentResolver, listOf(tile.uri), true))
+                    else if (trashed) mediaConfirm(deleteQuestion(listOf(tile))) { askLeave(tile.id, MediaStore.createDeleteRequest(context.contentResolver, listOf(tile.uri))) }
+                    else mediaConfirm(trashQuestion(listOf(tile))) { askLeave(tile.id, MediaStore.createTrashRequest(context.contentResolver, listOf(tile.uri), true)) }
                 },
                 trashed = trashed,
-                onRestore = { askLeave(tile.id, MediaStore.createTrashRequest(context.contentResolver, listOf(tile.uri), false)) },
+                onRestore = { mediaConfirm(restoreQuestion(listOf(tile))) { askLeave(tile.id, MediaStore.createTrashRequest(context.contentResolver, listOf(tile.uri), false)) } },
                 menuItems = if (trashed || vault) emptyList() else if (tile.duration != null) buildList {
                     // a video: the photo menu minus Edit in… and Use as…, which need a still photo (mockup "Video, More")
                     add(MenuItem(R.drawable.ic_refresh, "Loop", checked = loop) { loop = !loop })
@@ -630,12 +632,18 @@ fun Viewer(
     }
     if (vaultMovingOut) MoveOutDialog(1, if (tile.duration != null) 1 else 0, onCancel = { vaultMovingOut = false }) {
         vaultMovingOut = false
+        val j = VaultJob("Moving ${countWord(1, if (tile.duration != null) 1 else 0)} out", R.drawable.ic_upload)
+        vaultMoving = j
         scope.launch {
-            val item = VaultStore.item(context, tile.id) ?: return@launch
-            val done = runCatching { VaultStore.moveOut(context, listOf(item)) }.getOrDefault(0)
+            val item = VaultStore.item(context, tile.id)
+            val done = if (item == null) 0 else runCatching {
+                VaultStore.moveOut(context, listOf(item), progress = { d, t -> j.done = d; j.total = t }, cancelled = { j.cancelled })
+            }.onFailure { AppLog.i(if (j.cancelled) "vault: move out cancelled" else "vault: move out failed: $it") }.getOrDefault(0)
+            if (vaultMoving === j) vaultMoving = null
             if (done > 0) vaultLeaving(tile.id)
         }
     }
+    VaultJobDialog(vaultMoving) { vaultMoving?.cancelled = true; vaultMoving = null }
     if (vaultAsking) AlertDialog(
         onDismissRequest = { vaultAsking = false },
         title = { Text("Delete these photos?") },
@@ -652,5 +660,5 @@ fun Viewer(
         },
         dismissButton = { TextButton({ vaultAsking = false }) { Text("Cancel") } },
     )
-    if (moving) MoveToAlbumSheet(tile, onDismiss = { moving = false }, onMove = { path -> moving = false; applyMove(tile.id, path) })
+    if (moving) MoveToAlbumSheet(listOf(tile), onDismiss = { moving = false }, onMove = { path -> moving = false; applyMove(tile.id, path) })
 }

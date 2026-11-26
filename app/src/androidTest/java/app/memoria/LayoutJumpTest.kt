@@ -149,6 +149,17 @@ class LayoutJumpTest {
         assertSame("Export face data", exportBefore, rule.onNodeWithText("Export face data").top())
     }
 
+    // Media management turned on in Android's settings: the row's line changes, the rows below stay
+    @Test fun settings_mediaOnOff_rowsBelowStayPut() {
+        var media by mutableStateOf(false)
+        rule.setContent { MemoriaTheme { Surface { SettingsContent(charging = false, allowed = false, hidden = 2, version = "0.1", media = media) } } }
+
+        val hiddenBefore = rule.onNodeWithText("Hidden people & pets").top()
+        rule.runOnIdle { media = true }
+        rule.onNodeWithText("On · Memoria asks instead of Android").assertExists()
+        assertSame("Hidden people & pets", hiddenBefore, rule.onNodeWithText("Hidden people & pets").top())
+    }
+
     /** Models row (mockup "Models"): every state keeps the row, its button width, its bar and the rows below in place. */
     @Test fun settings_modelsStates_rowsStayPut() {
         var status by mutableStateOf(Models.Status.Missing)

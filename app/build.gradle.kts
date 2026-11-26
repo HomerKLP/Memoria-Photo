@@ -18,8 +18,8 @@ android {
         applicationId = "app.memoria"
         minSdk = 33
         targetSdk = 36
-        versionCode = 16
-        versionName = "0.12.1"
+        versionCode = 17
+        versionName = "0.13.0"
         manifestPlaceholders["appName"] = "Memoria"
         ndk { abiFilters += "arm64-v8a" } // Android 13+ phones and the Mac emulator are arm64
     }
@@ -87,6 +87,8 @@ dependencies {
 
     // pure logic, no device (./gradlew test)
     testImplementation("junit:junit:4.13.2")
+    // the real org.json in unit tests: android.jar's copy is a stub and would read nothing
+    testImplementation("org.json:json:20260814")
     // Compose UI tests on a device or emulator (./gradlew connectedDebugAndroidTest)
     androidTestImplementation(platform("androidx.compose:compose-bom:2026.09.00"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")

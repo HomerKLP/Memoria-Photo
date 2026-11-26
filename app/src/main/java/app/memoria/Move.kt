@@ -165,9 +165,11 @@ fun PickRow(cover: Tile? = null, icon: Int? = null, label: String, note: String?
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MoveToAlbumSheet(photo: Tile, onDismiss: () -> Unit, onMove: (String) -> Unit) {
+fun MoveToAlbumSheet(photos: List<Tile>, onDismiss: () -> Unit, onMove: (String) -> Unit) {
     val context = LocalContext.current
+    val photo = photos.first() // the head shows the first; all come from its album (viewer, album select)
     val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val mediaConfirm = rememberMediaConfirm()
     val current by produceState<TileAlbum?>(null, photo.id) { value = withContext(Dispatchers.IO) { albumOf(context, photo.id) } }
     val targets by cachedProduceState("moveTo", current?.id) { withContext(Dispatchers.IO) { moveTargets(context, current?.id ?: -1L) } }
     var naming by remember { mutableStateOf(false) }
@@ -176,8 +178,8 @@ fun MoveToAlbumSheet(photo: Tile, onDismiss: () -> Unit, onMove: (String) -> Uni
         MoveToAlbumContent(
             photo, current?.name ?: "Other", targets, naming, name, { name = it }, onDismiss,
             onNewAlbum = { naming = true },
-            onMove = { onMove(it.path) },
-            onMoveNew = { onMove("Pictures/${it.trim()}/") },
+            onMove = { t -> mediaConfirm(moveQuestion(photos, current?.name ?: "Other", t.name)) { onMove(t.path) } },
+            onMoveNew = { onMove("Pictures/${it.trim()}/") }, // its Move button is the answer, like New album's Move here
             taken = targets?.any { it.name.equals(name.trim(), ignoreCase = true) } == true,
         )
     }

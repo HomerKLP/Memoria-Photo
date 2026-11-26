@@ -32,12 +32,14 @@ class Header(val key: String, val text: String, val month: Boolean) : TimelineIt
 
 private val nameDate = Regex("(?<!\\d)((?:19|20)\\d{6})(?:[_-](\\d{6}))?(?!\\d)")
 private val nameFormat = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
+private val timeFormat = DateTimeFormatter.ofPattern("HHmmss")
 
-/** No EXIF date: the date in the file name (IMG_20250901_003222, IMG-20250308-WA0005), else the older of added and modified. */
+/** No EXIF date: the day from the file name, the time from the name (IMG_20250901_003222) or else from the file (IMG-20250308-WA0005). No date in the name: the older of added and modified. */
 fun fallbackDate(name: String, added: Long, modified: Long, zone: ZoneId): Long {
     val file = min(added, modified) * 1000
     val m = nameDate.find(name) ?: return file
-    return runCatching { LocalDateTime.parse(m.groupValues[1] + m.groupValues[2].ifEmpty { "000000" }, nameFormat).atZone(zone).toInstant().toEpochMilli() }
+    val time = m.groupValues[2].ifEmpty { timeFormat.format(Instant.ofEpochMilli(file).atZone(zone)) }
+    return runCatching { LocalDateTime.parse(m.groupValues[1] + time, nameFormat).atZone(zone).toInstant().toEpochMilli() }
         .getOrDefault(file)
 }
 

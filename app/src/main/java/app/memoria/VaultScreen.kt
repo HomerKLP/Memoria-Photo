@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -28,6 +29,7 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -35,6 +37,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -45,8 +48,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.LifecycleStartEffect
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -73,9 +78,10 @@ fun rememberVaultLock(onLocked: (List<Tile>) -> Unit = {}): (List<Tile>) -> Unit
     val activity = context.findActivity()
     val scope = rememberCoroutineScope()
     var batch by remember { mutableStateOf<VaultStore.Batch?>(null) }
-    var first by remember { mutableStateOf<List<Tile>?>(null) } // waiting on the first-lock sheet
+    var asking by remember { mutableStateOf<List<Tile>?>(null) } // waiting on "Lock N photos?"
     var noLock by remember { mutableStateOf(false) }
-    val prefs = remember { context.getSharedPreferences("vault", Context.MODE_PRIVATE) }
+    var keyLost by remember { mutableStateOf(false) }
+    var locking by remember { mutableStateOf<VaultJob?>(null) } // encrypting, before Android asks
     val ask = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         // The app was made again while Android asked: the batch is gone, but the keys must not stay
         val b = batch ?: run { if (!vaultOpen) lockVault(); return@rememberLauncherForActivityResult }
@@ -104,32 +110,80 @@ fun rememberVaultLock(onLocked: (List<Tile>) -> Unit = {}): (List<Tile>) -> Unit
             // The first builds' key opened only through the sheet, so a vault made by them still needs it, once
             if (vaultKeys == null) vaultKeys = unlockVault(activity)
             if (vaultKeys != null) {
-                val b = runCatching { VaultStore.lock(context, tiles) }
-                    .onFailure { AppLog.i("vault: lock failed on ${tiles.size} tiles: $it") }
+                val l = VaultJob("Locking ${countWord(tiles.size, tiles.count { it.duration != null })}", R.drawable.ic_lock)
+                locking = l
+                var b = runCatching {
+                    VaultStore.lock(context, tiles, progress = { d, t -> l.done = d; l.total = t }, cancelled = { l.cancelled })
+                }.onFailure { AppLog.i(if (l.cancelled) "vault: lock cancelled while encrypting" else "vault: lock failed on ${tiles.size} tiles: $it") }
                     .getOrNull()
+                if (locking === l) locking = null
+                // Cancel came after the last chunk: the copies are listed, so take them back out before Android asks
+                if (b != null && l.cancelled) {
+                    runCatching { VaultStore.undo(context, b) }
+                    AppLog.i("vault: lock cancelled, took ${b.items.size} copies back out")
+                    b = null
+                }
                 if (b != null) {
                     batch = b
                     val request = MediaStore.createDeleteRequest(context.contentResolver, b.tiles.map { it.uri })
                     ask.launch(IntentSenderRequest.Builder(request.intentSender).build())
                 } else if (!vaultOpen) lockVault()
+            } else {
+                // The sheet said yes and the key did not open: the folder can never open, so say it, not nothing
+                keyLost = vaultKeyLost
+                if (!vaultOpen) lockVault()
             }
         }
     }
-    first?.let { tiles ->
-        FirstLockDialog(tiles, onCancel = { first = null }, onLock = {
-            first = null
-            prefs.edit().putBoolean("introSeen", true).apply()
+    asking?.let { tiles ->
+        LockDialog(tiles, onCancel = { asking = null }, onLock = {
+            asking = null
             lock(tiles)
         })
     }
     if (noLock) NoScreenLockDialog(onCancel = { noLock = false }, onSettings = { noLock = false; openLockSettings(context) })
+    if (keyLost) VaultKeyLostDialog(onClose = { keyLost = false })
+    VaultJobDialog(locking) { locking?.cancelled = true; locking = null }
     return { tiles ->
         if (tiles.isNotEmpty()) when {
             vaultKeys == null && !canUnlockVault(context) -> noLock = true
-            prefs.getBoolean("introSeen", false) -> lock(tiles)
-            else -> first = tiles
+            else -> asking = tiles
         }
     }
+}
+
+/** A long vault job, Locking or Moving out: written from the IO thread, read by [VaultJobDialog]. */
+class VaultJob(val title: String, val icon: Int) {
+    var done by mutableLongStateOf(0L)
+    var total by mutableLongStateOf(0L)
+    @Volatile var cancelled = false
+}
+
+/**
+ * Locking and Moving out (mockup): shows after 300 ms, so a few photos never flash it. The bar fills by bytes.
+ * Cancel and Back stop it; a tap outside does nothing.
+ */
+@Composable
+fun VaultJobDialog(job: VaultJob?, onCancel: () -> Unit) {
+    if (job == null) return
+    var shown by remember(job) { mutableStateOf(false) }
+    LaunchedEffect(job) { delay(300); shown = true }
+    if (shown) AlertDialog(
+        onDismissRequest = onCancel,
+        properties = DialogProperties(dismissOnClickOutside = false),
+        icon = { Icon(painterResource(job.icon), null) },
+        title = { Text(job.title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                LinearProgressIndicator(
+                    { if (job.total > 0) (job.done.toFloat() / job.total).coerceIn(0f, 1f) else 0f },
+                    Modifier.fillMaxWidth().height(4.dp), color = MaterialTheme.colorScheme.primary,
+                )
+                Text(bytesOf(job.done, job.total))
+            }
+        },
+        confirmButton = { TextButton(onCancel) { Text("Cancel") } },
+    )
 }
 
 /** Android's own screen lock settings: "Choose a screen lock" where the phone has it, else Security. */
@@ -139,7 +193,7 @@ private fun openLockSettings(context: Context) {
 }
 
 /** "6 photos", "1 video", or "3 items" when both kinds are in. */
-private fun countWord(n: Int, videos: Int) = count(n, if (videos == 0) "photo" else if (videos == n) "video" else "item")
+fun countWord(n: Int, videos: Int) = count(n, if (videos == 0) "photo" else if (videos == n) "video" else "item")
 
 /** Lock with no screen lock (mockup "Lock, no screen lock"): the phone's sheet cannot show, so this says why. */
 @Composable
@@ -150,6 +204,19 @@ fun NoScreenLockDialog(onCancel: () -> Unit, onSettings: () -> Unit) = AlertDial
     text = { Text("Locked photos open with this phone's own fingerprint or PIN, and it has none now.") },
     confirmButton = { TextButton(onSettings) { Text("Open settings") } },
     dismissButton = { TextButton(onCancel) { Text("Cancel") } },
+)
+
+/**
+ * The file is on the phone but this phone's key no longer opens it (mockup "Locked folder, key lost"):
+ * the one state with no way back, so it is said, not skipped.
+ */
+@Composable
+fun VaultKeyLostDialog(onClose: () -> Unit) = AlertDialog(
+    onDismissRequest = onClose,
+    icon = { Icon(painterResource(R.drawable.ic_lock), null) },
+    title = { Text("The locked folder can't open") },
+    text = { Text("The key that opens it is gone from this phone. Locked photos cannot be opened again. They stay encrypted until the app's data is cleared.") },
+    confirmButton = { TextButton(onClose) { Text("Close") } },
 )
 
 /** Move out, every time (mockup): the files show in the gallery and other apps again. Not red: nothing is lost. */
@@ -166,9 +233,9 @@ fun MoveOutDialog(n: Int, videos: Int, onCancel: () -> Unit, onMove: () -> Unit)
     )
 }
 
-/** Lock, the first time only (mockup "Lock, the first time"): the two things nobody expects, once, before Android's confirm. */
+/** Lock (mockup): the two things nobody expects, on every lock, before Android's confirm. */
 @Composable
-fun FirstLockDialog(tiles: List<Tile>, onCancel: () -> Unit, onLock: () -> Unit) {
+fun LockDialog(tiles: List<Tile>, onCancel: () -> Unit, onLock: () -> Unit) {
     val (they, them) = if (tiles.size == 1) "It leaves" to "it" else "They leave" to "them"
     AlertDialog(
         onDismissRequest = onCancel,
@@ -190,8 +257,10 @@ fun LockedScreen(onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit = { _, _
     var selected by remember { mutableStateOf(emptySet<Long>()) }
     var reload by remember { mutableIntStateOf(0) }
     var loaded by remember { mutableStateOf(false) } // the first read is done: the fade starts with the photos in hand
+    var moving by remember { mutableStateOf<VaultJob?>(null) } // decrypting back to the gallery
     val ready = vaultKeys != null && loaded
     var noLock by remember { mutableStateOf(false) }
+    var keyLost by remember { mutableStateOf(false) }
     // No screen of its own for the lock: the phone's sheet is the screen. Cancelled, the folder closes.
     // With no screen lock the sheet cannot show: the folder says so, and back from Settings this runs again.
     LifecycleStartEffect(Unit) {
@@ -201,7 +270,9 @@ fun LockedScreen(onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit = { _, _
             if (noLock) return@launch
             if (vaultKeys == null) vaultKeys = unlockVault(activity ?: return@launch)
             if (vaultKeys == null) {
-                if (!gone) onBack()
+                // The sheet said yes and the key did not open: the folder can never open again, so say why
+                keyLost = vaultKeyLost
+                if (!keyLost && !gone) onBack()
                 return@launch
             }
             withContext(Dispatchers.IO) { VaultStore.sweep(context) }
@@ -232,6 +303,7 @@ fun LockedScreen(onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit = { _, _
         items = items,
         ready = ready,
         noLock = noLock,
+        keyLost = keyLost,
         onOpenSettings = { openLockSettings(context) },
         selected = selected,
         onBack = onBack,
@@ -241,8 +313,12 @@ fun LockedScreen(onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit = { _, _
         onMoveOut = {
             val picked = items.filter { it.id in selected }
             selected = emptySet()
+            val j = VaultJob("Moving ${countWord(picked.size, picked.count { it.duration != null })} out", R.drawable.ic_upload)
+            moving = j
             scope.launch {
-                runCatching { VaultStore.moveOut(context, picked) }
+                runCatching { VaultStore.moveOut(context, picked, progress = { d, t -> j.done = d; j.total = t }, cancelled = { j.cancelled }) }
+                    .onFailure { AppLog.i(if (j.cancelled) "vault: move out cancelled" else "vault: move out failed: $it") }
+                if (moving === j) moving = null
                 reload++
                 viewerEdits++
             }
@@ -258,6 +334,7 @@ fun LockedScreen(onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit = { _, _
         },
         onOpen = { item -> onOpen(items.map { it.tile }, item.tile) },
     )
+    VaultJobDialog(moving) { moving?.cancelled = true; moving = null }
 }
 
 /** The folder's layout per docs/design.html: grid, select mode, empty state, info and the delete question. */
@@ -274,6 +351,7 @@ fun LockedContent(
     onDelete: () -> Unit = {},
     onOpen: (VaultItem) -> Unit = {},
     noLock: Boolean = false, // the phone has no screen lock, so its sheet cannot open the folder
+    keyLost: Boolean = false, // the phone's key is gone: the folder can never open again
     onOpenSettings: () -> Unit = {},
 ) {
     val selecting = selected.isNotEmpty()
@@ -356,4 +434,5 @@ fun LockedContent(
         confirmButton = { TextButton({ asking = false; onDelete() }) { Text("Delete", color = MaterialTheme.colorScheme.error) } },
         dismissButton = { TextButton({ asking = false }) { Text("Cancel") } },
     )
+    if (keyLost) VaultKeyLostDialog(onClose = onBack)
 }

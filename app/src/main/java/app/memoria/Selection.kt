@@ -88,6 +88,7 @@ fun rememberPick(): Pick {
     fun confirm(request: PendingIntent, onOk: suspend () -> Unit) { then = onOk; ask.launch(IntentSenderRequest.Builder(request.intentSender).build()) }
     fun done() { ids = null; viewerEdits++ }
     val lockTiles = rememberVaultLock { done() }
+    val mediaConfirm = rememberMediaConfirm()
     return Pick(
         ids, size, viewerEdits, set = { ids = it },
         share = { picked ->
@@ -108,7 +109,9 @@ fun rememberPick(): Pick {
             }
         },
         delete = { picked ->
-            if (picked.isNotEmpty()) confirm(MediaStore.createTrashRequest(context.contentResolver, picked.map { it.uri }, true)) { forgetTiles(picked.map { it.id }.toSet()) }
+            if (picked.isNotEmpty()) mediaConfirm(trashQuestion(picked)) {
+                confirm(MediaStore.createTrashRequest(context.contentResolver, picked.map { it.uri }, true)) { forgetTiles(picked.map { it.id }.toSet()) }
+            }
         },
         lock = { picked -> lockTiles(picked) },
         confirm = ::confirm, done = ::done,
@@ -134,6 +137,12 @@ fun formatBytes(bytes: Long): String {
     var unit = -1
     while (v >= 1000 && unit < units.lastIndex) { v /= 1000; unit++ }
     return "%.1f %s".format(v, units[unit])
+}
+
+/** "1.2 of 4.8 GB" for Locking (mockup): both in the total's unit, MB under 1 GB. */
+fun bytesOf(done: Long, total: Long): String {
+    val (d, unit) = if (total >= 1_000_000_000) 1e9 to "GB" else 1e6 to "MB"
+    return "%.1f of %.1f %s".format(done / d, total / d, unit)
 }
 
 /**

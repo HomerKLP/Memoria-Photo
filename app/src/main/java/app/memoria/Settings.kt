@@ -4,6 +4,7 @@ import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.net.Uri
 import android.os.PowerManager
+import android.provider.MediaStore
 import android.provider.Settings
 import android.text.format.DateUtils
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -87,6 +88,8 @@ fun SettingsScreen(onBack: () -> Unit, onHidden: () -> Unit, onSkip: () -> Unit,
     val battery = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         allowed = power.isIgnoringBatteryOptimizations(context.packageName)
     }
+    var media by remember { mutableStateOf(MediaStore.canManageMedia(context)) }
+    val mediaPage = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { media = MediaStore.canManageMedia(context) }
     val version = remember { context.packageManager.getPackageInfo(context.packageName, 0).versionName }
     var rescan by remember { mutableStateOf(false) }
     var models by remember { mutableStateOf(Models.status(context)) }
@@ -100,7 +103,17 @@ fun SettingsScreen(onBack: () -> Unit, onHidden: () -> Unit, onSkip: () -> Unit,
     var autoUpdate by remember { mutableStateOf(Updates.auto(context)) }
     // the update notification: About is at the bottom
     val scroll = rememberScrollState()
-    LaunchedEffect(Unit) { if (atUpdates) scroll.scrollTo(Int.MAX_VALUE) }
+    suspend fun checkNow() {
+        update = update.copy(status = Updates.Status.Checking)
+        val ok = Updates.check(context, notify = false)
+        // a failed check keeps a version found before
+        update = Updates.status(context).let { if (!ok && it.status == Updates.Status.UpToDate) it.copy(status = Updates.Status.Failed) else it }
+    }
+    LaunchedEffect(Unit) {
+        if (atUpdates) scroll.scrollTo(Int.MAX_VALUE)
+        // the daily worker may be a day away, and the row then shows the version found before
+        if (update.status == Updates.Status.UpToDate && Updates.stale(update.checkedAt)) checkNow()
+    }
     val setCharging = { on: Boolean ->
         charging = on
         IndexProgress.setChargingOnly(context, on)
@@ -137,19 +150,20 @@ fun SettingsScreen(onBack: () -> Unit, onHidden: () -> Unit, onSkip: () -> Unit,
         onDev = onDev.takeIf { debug },
         update = update.takeUnless { debug },
         autoUpdate = autoUpdate,
-        onCheck = {
-            update = update.copy(status = Updates.Status.Checking)
+        onCheck = { scope.launch { checkNow() } },
+        onUpdate = {
             scope.launch {
-                val ok = Updates.check(context, notify = false)
-                // a failed check keeps a version found before
-                update = Updates.status(context).let { if (!ok && it.status == Updates.Status.UpToDate) it.copy(status = Updates.Status.Failed) else it }
+                update = update.copy(status = Updates.Status.Checking)
+                Updates.download(context)
+                update = Updates.status(context)
             }
         },
-        onUpdate = { Updates.download(context); update = Updates.status(context) },
         onCancelUpdate = { Updates.cancel(context); update = Updates.status(context) },
         onInstall = { scope.launch { Updates.install(context) } },
         onReleasePage = { Updates.openPage(context) },
         onAutoUpdate = { on -> autoUpdate = on; Updates.setAuto(context, on) },
+        media = media,
+        onMedia = { runCatching { mediaPage.launch(mediaSettingsIntent(context)) } },
         scroll = scroll,
     )
 
@@ -244,6 +258,8 @@ fun SettingsContent(
     onInstall: () -> Unit = {},
     onReleasePage: () -> Unit = {},
     onAutoUpdate: (Boolean) -> Unit = {},
+    media: Boolean = false,
+    onMedia: () -> Unit = {},
     scroll: ScrollState = rememberScrollState(),
 ) {
     Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(scroll).padding(bottom = 16.dp)) {
@@ -272,6 +288,12 @@ fun SettingsContent(
             onSkip,
         ) { Chevron() }
         SettingRow(R.drawable.ic_refresh, "Find faces again", "Deletes faces and names, scans all photos again", onRescan)
+        SectionHead("Gallery")
+        SettingRow(
+            R.drawable.ic_photo, "Media management",
+            if (media) "On · Memoria asks instead of Android" else "Off · Android asks before each change",
+            onMedia,
+        ) { Chevron() }
         SectionHead("People & pets")
         SettingRow(
             R.drawable.ic_block, "Hidden people & pets",

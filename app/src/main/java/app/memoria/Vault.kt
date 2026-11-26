@@ -47,9 +47,10 @@ object Vault {
 
     /**
      * Writes [src] into [dst] and returns its plain size. [dst] is a file the caller made for this:
-     * on any error it is deleted, so a half file never looks valid.
+     * on any error it is deleted, so a half file never looks valid. [onChunk] gets each chunk's plain size,
+     * and may throw to stop.
      */
-    fun encrypt(src: InputStream, dst: File, keys: VaultKeys): Long {
+    fun encrypt(src: InputStream, dst: File, keys: VaultKeys, onChunk: (Int) -> Unit = {}): Long {
         val nonce = ByteArray(8).also { SecureRandom().nextBytes(it) }
         val cipher = Cipher.getInstance("AES/CTR/NoPadding")
         val mac = Mac.getInstance("HmacSHA256").apply { init(keys.mac) }
@@ -70,6 +71,7 @@ object Vault {
                     out.write(ct)
                     total += n
                     index++
+                    onChunk(n)
                 }
                 val header = ByteArray(headerSize - macSize)
                 magic.toByteArray().copyInto(header)
@@ -79,6 +81,8 @@ object Vault {
                 out.seek(0)
                 out.write(header)
                 out.write(macOf(mac, header))
+                // On the disk before the manifest names it: a power loss must not leave a listed file half written
+                out.fd.sync()
                 return total
             }
         } catch (e: Throwable) {

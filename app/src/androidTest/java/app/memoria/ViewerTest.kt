@@ -18,6 +18,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
@@ -89,6 +90,73 @@ class ViewerTest {
         assertEquals(tiles[2].id, viewerTile)
     }
 
+    private fun mediaSwitch(on: Boolean) {
+        val ui = InstrumentationRegistry.getInstrumentation().uiAutomation
+        val pkg = InstrumentationRegistry.getInstrumentation().targetContext.packageName
+        android.os.ParcelFileDescriptor.AutoCloseInputStream(ui.executeShellCommand("appops set $pkg MANAGE_MEDIA ${if (on) "allow" else "default"}")).use { it.readBytes() }
+    }
+
+    // Media management on: the trash icon asks ours first (mockup "Delete, with Media management on"); Cancel keeps the photo
+    @Test fun mediaOn_delete_asksOurs() {
+        rule.setContent { MemoriaTheme { Viewer(tiles[0].id, tiles, onBack = {}) } }
+        try {
+            mediaSwitch(on = true)
+            rule.onNodeWithContentDescription("Delete").performClick()
+            rule.onNodeWithText("Move 1 photo to trash?").assertIsDisplayed()
+            rule.onNodeWithText("It stays in Trash for 30 days, then it is deleted for good.").assertIsDisplayed()
+            rule.onNodeWithText("Cancel").performClick()
+            rule.onNodeWithText("Move 1 photo to trash?").assertDoesNotExist()
+            assertEquals(tiles[0].id, viewerTile)
+        } finally {
+            mediaSwitch(on = false)
+        }
+    }
+
+    // The trash viewer: Delete for good and Restore ask ours (mockup "Delete for good", "Restore")
+    @Test fun mediaOn_trashed_deleteForGoodAndRestore_askOurs() {
+        rule.setContent { MemoriaTheme { Viewer(tiles[0].id, tiles, onBack = {}, trashed = true) } }
+        try {
+            mediaSwitch(on = true)
+            rule.onNodeWithContentDescription("Delete").performClick()
+            rule.onNodeWithText("Delete 1 photo for good?").assertIsDisplayed()
+            rule.onNodeWithText("Cancel").performClick()
+            rule.onNodeWithContentDescription("Restore").performClick()
+            rule.onNodeWithText("Restore 1 photo?").assertIsDisplayed()
+            rule.onNodeWithText("Cancel").performClick()
+            rule.onNodeWithText("Restore 1 photo?").assertDoesNotExist()
+            assertEquals(tiles[0].id, viewerTile)
+        } finally {
+            mediaSwitch(on = false)
+        }
+    }
+
+    // Move to album: a tap on an album asks ours, naming where it leaves and where it goes (mockup "Move to album, with Media management on")
+    @Test fun mediaOn_move_asksOurs() {
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, "viewertestto-${System.nanoTime()}.jpg")
+            put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+            put(MediaStore.MediaColumns.RELATIVE_PATH, "Pictures/ViewerTestTo")
+        }
+        val other = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)!!
+        resolver.openOutputStream(other)!!.use { Bitmap.createBitmap(8, 8, Bitmap.Config.ARGB_8888).compress(Bitmap.CompressFormat.JPEG, 90, it) }
+        rule.setContent { MemoriaTheme { Viewer(tiles[0].id, tiles, onBack = {}) } }
+        try {
+            mediaSwitch(on = true)
+            rule.onNodeWithContentDescription("More").performClick()
+            rule.onNodeWithText("Move to album").performClick()
+            rule.waitUntil(5_000) { rule.onAllNodesWithText("ViewerTestTo").fetchSemanticsNodes().isNotEmpty() }
+            rule.onNodeWithText("ViewerTestTo").performClick()
+            rule.onNodeWithText("Move 1 photo to ViewerTestTo?").assertIsDisplayed()
+            rule.onNodeWithText("It leaves ViewerTest and shows in ViewerTestTo.").assertIsDisplayed()
+            rule.onNodeWithText("Cancel").performClick()
+            rule.onNodeWithText("Move 1 photo to ViewerTestTo?").assertDoesNotExist()
+            assertEquals(tiles[0].id, viewerTile)
+        } finally {
+            mediaSwitch(on = false)
+            resolver.delete(other, null, null)
+        }
+    }
+
     // Move out in the vault viewer asks first, like the folder's select bar (mockup "Move out, every time")
     @Test fun vault_moveOut_asksFirst() {
         val locked = VaultItem(1, "a.mp4", "video/mp4", 0, 0, 1, 8, 8, 1_000, "Pictures/").tile
@@ -100,6 +168,58 @@ class ViewerTest {
             rule.onNodeWithText("Cancel").performClick()
             rule.onNodeWithText("Move 1 video out?").assertDoesNotExist()
         } finally {
+            vaultKeys = null
+        }
+    }
+
+    // Cancel while the viewer moves a locked photo out: it stays locked, and no copy is left in the gallery (mockup "Moving out")
+    @Test fun vault_moveOut_cancelWhileMoving_keepsItLocked() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        VaultStore.dir(context).run { deleteRecursively(); mkdirs() }
+        vaultKeys = VaultKeys(VaultKeys.random())
+        val name = "viewertest-${System.nanoTime()}.jpg"
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+            put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+            put(MediaStore.MediaColumns.RELATIVE_PATH, "Pictures/ViewerTest")
+        }
+        val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)!!
+        // 64 MiB: moving it out takes far longer than the taps below
+        context.contentResolver.openOutputStream(uri)!!.use { out -> val mb = ByteArray(1 shl 20); repeat(64) { out.write(mb) } }
+        val inGallery = android.os.Bundle().apply {
+            putString(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION, "${MediaStore.MediaColumns.DISPLAY_NAME} = ?")
+            putStringArray(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, arrayOf(name))
+            putInt(MediaStore.QUERY_ARG_MATCH_PENDING, MediaStore.MATCH_INCLUDE)
+        }
+        try {
+            // Locked, and Android said yes: the vault holds it, the gallery does not
+            kotlinx.coroutines.runBlocking { VaultStore.lock(context, listOf(Tile(ContentUris.parseId(uri), uri, 0L, null))) }
+            context.contentResolver.delete(uri, null, null)
+            val locked = kotlinx.coroutines.runBlocking { VaultStore.items(context) }.single().tile
+            rule.setContent { MemoriaTheme { Viewer(locked.id, listOf(locked), onBack = {}, vault = true) } }
+            rule.onNodeWithContentDescription("Move out").performClick()
+            rule.onNodeWithText("Move 1 photo out?").assertIsDisplayed()
+            rule.mainClock.autoAdvance = false
+            rule.onNodeWithText("Move out").performClick()
+            rule.mainClock.advanceTimeBy(400)
+            rule.onNodeWithText("Moving 1 photo out").assertIsDisplayed()
+            // the bytes come from the IO thread once the move holds the vault; the frozen clock needs a frame to show them
+            rule.waitUntil(5_000) {
+                rule.mainClock.advanceTimeByFrame()
+                rule.onAllNodesWithText("of 67.1 MB", substring = true).fetchSemanticsNodes().isNotEmpty()
+            }
+            rule.onNodeWithText("Cancel").performClick()
+            rule.mainClock.autoAdvance = true
+            kotlinx.coroutines.runBlocking { VaultStore.sweep(context) } // waits until the move lets go of the vault
+            rule.onNodeWithText("Moving 1 photo out").assertDoesNotExist()
+            assertEquals(1, kotlinx.coroutines.runBlocking { VaultStore.items(context) }.size)
+            context.contentResolver.query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, null, inGallery, null)!!.use { assertEquals(0, it.count) }
+        } finally {
+            rule.mainClock.autoAdvance = true
+            context.contentResolver.query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, arrayOf(MediaStore.MediaColumns._ID), inGallery, null)?.use { c ->
+                while (c.moveToNext()) context.contentResolver.delete(ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, c.getLong(0)), null, null)
+            }
+            VaultStore.dir(context).deleteRecursively()
             vaultKeys = null
         }
     }

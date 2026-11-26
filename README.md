@@ -67,6 +67,8 @@ The models were picked on real family photos, not only on paper: 3 face finders 
 - **Places:** photos by town, names found offline.
 - **Pets:** cats and dogs, found and grouped like people, with names.
 - **Favorites, Videos, Trash:** use the phone's own favorites and trash.
+- **Media management (optional):** one switch in Android's settings, and Memoria asks its own questions before a delete, restore or move instead of Android's.
+- **Locked folder:** photos and videos move into encrypted storage that only the phone's fingerprint or PIN opens. Clearing the app's data deletes them.
 - **Categories:** pets, documents, food, sunsets and 10 more, sorted on the phone.
 - **Search:** people, places, months, categories.
 - **Folders to skip:** keep some folders out of the index (faces, pets, search, places).
@@ -86,7 +88,7 @@ Known gap: sound in AC-3, E-AC-3 or DTS (some `.mkv` and camcorder files) plays 
 - All AI runs on the phone. No photo is ever uploaded or analyzed elsewhere.
 - No account, no ads, no analytics, no trackers.
 - Faces and names stay in a local database. Android's cloud backup is off, so it never reaches your Google account.
-- The app never copies your library. It works on the phone's own photos.
+- The app never copies your library. It works on the phone's own photos. Locked photos are the one exception: they move into the app's encrypted folder.
 - The internet is used only to download the models once and to check this repo's releases for app updates (daily, can be turned off).
 
 ## Speed

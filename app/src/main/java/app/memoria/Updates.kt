@@ -38,6 +38,9 @@ object Updates {
 
     private const val API = "https://api.github.com/repos/HomerKLP/Memoria-Photo/releases/latest"
 
+    /** A check repeated without a tap, when Settings opens, only after this. */
+    private const val FRESH = 60 * 60 * 1000L
+
     private fun prefs(context: Context) = context.getSharedPreferences("updates", Context.MODE_PRIVATE)
     private fun dir(context: Context) = context.getExternalFilesDir("updates")
     private fun manager(context: Context) = context.getSystemService(DownloadManager::class.java)
@@ -54,6 +57,9 @@ object Updates {
         }
         return false
     }
+
+    /** True when the last check is old enough to repeat without a tap: the daily worker may be a day away. */
+    fun stale(checkedAt: Long, now: Long = System.currentTimeMillis()) = now - checkedAt >= FRESH
 
     /** The "Check for updates" switch, on by default. */
     fun auto(context: Context) = prefs(context).getBoolean("auto", true)
@@ -72,7 +78,8 @@ object Updates {
 
     /**
      * Asks GitHub for the latest release and keeps its version, page and APK. A newer version is marked seen,
-     * with a notification when [notify] (the daily check), without one after a tap on Check. False on failure.
+     * with a notification when [notify] (the daily check), without one after a tap on Check,
+     * a Settings open ([stale]) or a download. False on failure.
      */
     suspend fun check(context: Context, notify: Boolean): Boolean = withContext(Dispatchers.IO) {
         runCatching {
@@ -80,23 +87,45 @@ object Updates {
             connection.connectTimeout = 15_000
             connection.readTimeout = 15_000
             connection.setRequestProperty("Accept", "application/vnd.github+json")
-            val release = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
-            val assets = release.getJSONArray("assets")
-            val apk = (0 until assets.length()).map { assets.getJSONObject(it) }.first { it.getString("name").endsWith(".apk") }
-            val version = release.getString("tag_name").removePrefix("v")
+            val r = release(connection.inputStream.bufferedReader().use { it.readText() })
             val p = prefs(context)
+            val f = found(r, installed(context), p.getString("version", null), p.getBoolean("stopped", false), p.getString("notified", null))
             val edit = p.edit()
-                .putString("version", version).putString("page", release.getString("html_url"))
-                .putString("url", apk.getString("browser_download_url")).putLong("size", apk.getLong("size"))
+                .putString("version", f.version).putString("page", f.page)
+                .putString("url", f.url).putLong("size", f.size)
                 .putLong("checkedAt", System.currentTimeMillis())
-            if (version != p.getString("version", null)) edit.putBoolean("stopped", false)
-            if (newer(version, installed(context)) && p.getString("notified", null) != version) {
-                if (notify) notifyNew(context, version)
-                edit.putString("notified", version)
+                .putBoolean("stopped", f.stopped)
+            if (f.announce) {
+                if (notify) notifyNew(context, f.version)
+                edit.putString("notified", f.version)
             }
             edit.apply()
         }.onFailure { AppLog.w("update check failed", it) }.isSuccess
     }
+
+    /** GitHub's latest release: the APK to fetch and its page. */
+    internal class Release(val version: String, val page: String, val url: String, val size: Long)
+
+    /** Reads the `releases/latest` answer: the tag without its `v`, and the first asset that ends in `.apk`. */
+    internal fun release(json: String): Release {
+        val r = JSONObject(json)
+        val assets = r.getJSONArray("assets")
+        val apk = (0 until assets.length()).map { assets.getJSONObject(it) }.first { it.getString("name").endsWith(".apk") }
+        return Release(r.getString("tag_name").removePrefix("v"), r.getString("html_url"), apk.getString("browser_download_url"), apk.getLong("size"))
+    }
+
+    /** What a check writes: the release, whether a stopped download still belongs to it, and whether to announce it. */
+    internal class Found(val version: String, val page: String, val url: String, val size: Long, val stopped: Boolean, val announce: Boolean)
+
+    /**
+     * The check's rules, pure: GitHub's latest always replaces the stored version, so a version found before is
+     * never kept; a version is announced once; a stopped download stays only on its own version.
+     */
+    internal fun found(r: Release, installed: String, stored: String?, stopped: Boolean, notified: String?) = Found(
+        r.version, r.page, r.url, r.size,
+        stopped = stopped && r.version == stored,
+        announce = newer(r.version, installed) && notified != r.version,
+    )
 
     private fun notifyNew(context: Context, version: String) {
         val notifications = context.getSystemService(NotificationManager::class.java)
@@ -146,10 +175,14 @@ object Updates {
         }
     }
 
-    /** Update and Retry. Any older APK goes first, DownloadManager will not write over a file. */
-    fun download(context: Context) {
+    /**
+     * Update and Retry: checks GitHub again first, so the download is the newest release and not the one a
+     * check found hours ago. Any older APK goes first, DownloadManager will not write over a file.
+     */
+    suspend fun download(context: Context) = withContext(Dispatchers.IO) {
+        check(context, notify = false)
         val p = prefs(context)
-        val version = p.getString("version", null) ?: return
+        val version = p.getString("version", null) ?: return@withContext
         dir(context)?.listFiles()?.forEach { it.delete() }
         val request = DownloadManager.Request(Uri.parse(p.getString("url", null)))
             .setTitle("Memoria $version").setDestinationInExternalFilesDir(context, "updates", "memoria-$version.apk")

@@ -6,6 +6,7 @@ import android.content.ContextWrapper
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import java.io.File
+import java.io.FileOutputStream
 import java.io.IOException
 import java.security.GeneralSecurityException
 import java.security.KeyStore
@@ -14,11 +15,20 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import javax.crypto.spec.GCMParameterSpec
 import kotlin.coroutines.resume
 import kotlinx.coroutines.suspendCancellableCoroutine
+
+/**
+ * True when the key file is on the phone but this phone's key no longer opens it: nothing opens the vault
+ * again. [VaultKey.keys] sets it, so a cancelled sheet, which never reads the key, does not raise it.
+ */
+var vaultKeyLost by mutableStateOf(false)
 
 /**
  * The vault's master key: 64 random bytes, wrapped by an Android Keystore key that never leaves the phone's chip.
@@ -34,7 +44,10 @@ object VaultKey {
     fun exists(context: Context) = file(context).exists()
 
     /** The keys, or null when the key file or its Keystore key is gone. No sheet: locking asks for nothing. */
-    fun keys(context: Context): VaultKeys? = runCatching { VaultKeys(unwrap(context)) }.getOrNull()
+    fun keys(context: Context): VaultKeys? = runCatching { VaultKeys(unwrap(context)) }
+        .onSuccess { vaultKeyLost = false }
+        .onFailure { vaultKeyLost = file(context).exists() } // the file is there, this phone's key will not open it
+        .getOrNull()
 
     /** Makes the master on first use. */
     fun create(context: Context): VaultKeys = VaultKeys.random().let { save(context, it); VaultKeys(it) }
@@ -61,7 +74,12 @@ object VaultKey {
         val cipher = Cipher.getInstance("AES/GCM/NoPadding").apply { init(Cipher.ENCRYPT_MODE, secret()) }
         val wrapped = cipher.iv + cipher.doFinal(master)
         val f = file(context).apply { parentFile?.mkdirs() }
-        val tmp = File(f.parentFile, "key.tmp").apply { writeBytes(wrapped) }
+        val tmp = File(f.parentFile, "key.tmp")
+        // On the disk before the rename: a power loss must not leave an empty key at the real name
+        FileOutputStream(tmp).use { out ->
+            out.write(wrapped)
+            out.fd.sync()
+        }
         if (!tmp.renameTo(f)) throw IOException("cannot save the vault key")
     }
 
