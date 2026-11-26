@@ -267,6 +267,9 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .phone.viewer > .pbadge.right { left: 74%; }
 .phone.viewer > .pbadge.left { left: 26%; }
 .phone.viewer > .pbadge.speed { top: 66px; }
+/* Viewer, motion photo: a small tag under the top bar, part of it, so it hides with the bars */
+.phone.viewer > .mtag { align-self: center; display: flex; align-items: center; gap: 4px; margin-top: 14px; padding: 3px 10px 3px 7px; border-radius: 999px; background: rgba(18, 14, 10, .45); font-size: 11px; font-weight: 500; }
+.mtag svg.i { width: 14px; height: 14px; }
 /* The failed video: the frame stays behind a scrim, so the card reads on any photo */
 .phone.viewer > .viewer-dim { position: absolute; inset: 0; z-index: 1; background: rgba(18, 14, 10, .55); }
 /* Viewer, sideways: the viewer turns with the phone, the grids and every other screen stay portrait.
@@ -490,6 +493,7 @@ figure.land { width: calc(760px * var(--z)); }
   <symbol id="i-photo" viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></symbol>
   <symbol id="i-library" viewBox="0 0 24 24"><path d="M22 16V4c0-1.1-.9-2-2-2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2zm-11-4 2.03 2.71L16 11l4 5H8l3-4zM2 6v14c0 1.1.9 2 2 2h14v-2H4V6H2z"/></symbol>
   <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></symbol>
+  <symbol id="i-motion" viewBox="0 0 24 24"><path d="M20.92 13.17A9 9 0 0 1 19.14 17.48M17.48 19.14A9 9 0 0 1 13.17 20.92M10.83 20.92A9 9 0 0 1 6.52 19.14M4.86 17.48A9 9 0 0 1 3.08 13.17M3.08 10.83A9 9 0 0 1 4.86 6.52M6.52 4.86A9 9 0 0 1 10.83 3.08M13.17 3.08A9 9 0 0 1 17.48 4.86M19.14 6.52A9 9 0 0 1 20.92 10.83" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M10 8.5v7l5.5-3.5z"/></symbol>
   <symbol id="i-pause" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></symbol>
   <symbol id="i-chevron" viewBox="0 0 24 24"><path d="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></symbol>
   <symbol id="i-person" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></symbol>
@@ -533,7 +537,7 @@ figure.land { width: calc(760px * var(--z)); }
 <header class="top">
   <h1>Memoria Photo</h1>
   <p class="lede">Light theme, Honey palette. Photos and faces are placeholders, names and places are made up.</p>
-  <p class="latest"><b>Latest, 26 Nov:</b> the viewer opened from another app: <a href="#viewer-outside">a library file</a> and <a href="#viewer-foreign">another app's file</a>, read-only.</p>
+  <p class="latest"><b>Latest, 27 Nov:</b> <a href="#viewer-motion">motion photo</a> tag: small, under the top bar, just the icon and "Motion photo" (was a long pill over the actions).</p>
 </header>
 
 <aside class="rail" aria-label="Contents">
@@ -721,6 +725,26 @@ figure.land { width: calc(760px * var(--z)); }
         <div class="gesture"><div class="handle"></div></div>
       </div>
       <figcaption>Viewer: the photo fills the phone; the top and bottom bars float on it, transparent (a soft gradient keeps the icons readable), so they never hide the photo. Swipe sideways for next photo, swipe up for details, tap to hide the bars</figcaption>
+    </figure>
+    <figure id="viewer-motion">
+      <div class="phone dark viewer">
+        <div class="viewer-full" data-shot></div>
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="vbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="when">Sat, 11 Oct<span>14:32</span></div>
+          <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
+        </div>
+        <div class="mtag"><svg class="i"><use href="#i-motion"/></svg>Motion photo</div>
+        <div class="actions">
+          <button class="icon-btn" aria-label="Share"><svg class="i"><use href="#i-share"/></svg></button>
+          <button class="icon-btn" aria-label="Favorite"><svg class="i"><use href="#i-heart-line"/></svg></button>
+          <button class="icon-btn" aria-label="Info"><svg class="i"><use href="#i-info"/></svg></button>
+          <button class="icon-btn" aria-label="Delete"><svg class="i"><use href="#i-trash-line"/></svg></button>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Viewer, motion photo: a photo with a short clip inside, as phone cameras take them (Live or Motion photo). A small tag under the top bar says so: the motion icon and "Motion photo", no more. It belongs to the top bar, so a tap hides it with the bars, and the date never moves for it. Hold the photo: the clip plays over it from the start, muted (a 2-second hold must not stop the music), while the finger stays down; letting go shows the photo again. The clip fades in over a quarter second while the photo grows a little (3%), and fades out the same way on the lift, so the switch is never a cut. The grid marks these photos with the same icon, top right. A clip saved beside the photo as its own file (a Google Photos export) is hidden everywhere: the photo holds the same clip.</figcaption>
     </figure>
     <figure id="viewer-more">
       <div class="phone dark viewer" id="viewer-more-phone">
@@ -2448,8 +2472,9 @@ Photos: …/files/test</div>
       <div class="tile" data-photo><span class="sel"></span><span class="left">12 days</span></div>
       <div class="tile on" data-photo><span class="sel"><svg class="i"><use href="#i-check"/></svg></span><span class="dur">0:42<svg class="i"><use href="#i-play"/></svg></span><span class="left">12 days</span></div>
       <div class="tile" data-photo><span class="fav"><svg class="i"><use href="#i-heart"/></svg></span><span class="dur">2:31<svg class="i"><use href="#i-play"/></svg></span></div>
+      <div class="tile" data-photo id="tile-motion"><span class="dur"><svg class="i"><use href="#i-motion"/></svg></span></div>
     </div>
-    <p>Square, thumbnail cropped to fill. Top left the select circle, top right the length for videos, bottom left the days left, the heart dot when it is a favorite. Selecting adds the accent outline.</p>
+    <p>Square, thumbnail cropped to fill. Top left the select circle, top right the length for videos or the motion icon for a motion photo (a photo with a short clip inside), bottom left the days left, the heart dot when it is a favorite. Selecting adds the accent outline.</p>
   </article>
 
   <article class="part">
@@ -2624,8 +2649,8 @@ const photo = () => {
 const days = [
   { m: "October 2026" },
   { d: "Today", p: "Riverton", n: 3, v: [1], f: [0] },
-  { d: "Yesterday", n: 6, v: [4] },
-  { d: "Sat, 11 Oct", p: "Riverside Park", n: 9, f: [2, 6] },
+  { d: "Yesterday", n: 6, v: [4], mo: [1] },
+  { d: "Sat, 11 Oct", p: "Riverside Park", n: 9, f: [2, 6], mo: [4] },
   { m: "September 2026" },
   { d: "Sun, 28 Sep", p: "Northport", n: 7, v: [2] },
   { d: "Sat, 13 Sep", n: 12, v: [5, 9] },
@@ -2652,7 +2677,8 @@ for (const x of days) {
   } else sec.insertAdjacentHTML("beforeend", `<div class="day">${x.d}${x.p ? `<small>${x.p}</small>` : ""}</div><div class="grid">${
     Array.from({ length: x.n }, (_, i) => `<div class="tile" style="background:${photo()}">${
       x.f?.includes(i) ? `<span class="fav"><svg class="i"><use href="#i-heart"/></svg></span>` : ""}${
-      x.v?.includes(i) ? `<span class="dur">${durs[i % durs.length]}<svg class="i"><use href="#i-play"/></svg></span>` : ""
+      x.v?.includes(i) ? `<span class="dur">${durs[i % durs.length]}<svg class="i"><use href="#i-play"/></svg></span>` : ""}${
+      x.mo?.includes(i) ? `<span class="dur"><svg class="i"><use href="#i-motion"/></svg></span>` : ""
     }</div>`).join("")}</div>`);
 }
 // The first Photos figure is the very top; the scrolled one is filled below.

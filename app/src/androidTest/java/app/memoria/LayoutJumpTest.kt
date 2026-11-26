@@ -1273,6 +1273,27 @@ class LayoutJumpTest {
         assertSame("Share width", width, rule.onNodeWithContentDescription("Share").width())
     }
 
+    /** A motion photo adds its tag under the top bar: the title and the action row must not move. */
+    @Test fun viewer_motionTag_keepsTheBarsPut() {
+        var motion by mutableStateOf(false)
+        rule.setContent {
+            MemoriaTheme { Surface { Box(Modifier.fillMaxSize()) {
+                ViewerChrome(
+                    visible = true, title = "Sat, 11 Oct", subtitle = "14:32", favorite = false,
+                    onBack = {}, onShare = {}, onFavorite = {}, onInfo = {}, onDelete = {},
+                    motion = motion,
+                )
+            } } }
+        }
+
+        val share = rule.onNodeWithContentDescription("Share").top()
+        val title = rule.onNodeWithText("Sat, 11 Oct").top()
+        rule.runOnIdle { motion = true }
+        rule.onNodeWithText("Motion photo").assertExists()
+        assertSame("Share after the tag", share, rule.onNodeWithContentDescription("Share").top())
+        assertSame("title after the tag", title, rule.onNodeWithText("Sat, 11 Oct").top())
+    }
+
     /** Another app's file: the empty More slot and the blank time line keep Back, the title and the action row where they are. */
     @Test fun viewer_foreign_keepsTheBarsPut() {
         var foreign by mutableStateOf(false)

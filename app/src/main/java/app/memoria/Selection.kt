@@ -110,7 +110,7 @@ fun rememberPick(): Pick {
         },
         delete = { picked ->
             if (picked.isNotEmpty()) mediaConfirm(trashQuestion(picked)) {
-                confirm(MediaStore.createTrashRequest(context.contentResolver, picked.map { it.uri }, true)) { forgetTiles(picked.map { it.id }.toSet()) }
+                confirm(MediaStore.createTrashRequest(context.contentResolver, withClips(context, picked), true)) { forgetTiles(picked.map { it.id }.toSet()) }
             }
         },
         lock = { picked -> lockTiles(picked) },

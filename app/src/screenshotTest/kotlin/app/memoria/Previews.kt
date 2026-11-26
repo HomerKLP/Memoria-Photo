@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -981,6 +982,33 @@ fun ViewerMoreLandscape() = MemoriaTheme {
                     MenuItem(R.drawable.ic_video, "Compress video", dividerBefore = true, enabled = false) {},
                 ),
             )
+        }
+    }
+}
+
+/** Motion photo (mockup "Viewer, motion photo"): its tag under the top bar. Pairs with viewer_motionTag_keepsTheBarsPut. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 800)
+@Composable
+fun ViewerMotion() = MemoriaTheme {
+    Surface {
+        Box(Modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxSize().background(viewerPhoto))
+            ViewerChrome(true, "Sat, 11 Oct", "14:32", favorite = false, {}, {}, {}, {}, {}, motion = true)
+        }
+    }
+}
+
+/** Grid tiles (mockup "Tile"): a photo, a video with its length, a motion photo with its icon. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 120)
+@Composable
+fun TileBadges() = MemoriaTheme {
+    Surface {
+        Row {
+            Thumb(Tile(1, android.net.Uri.parse("content://media/external/images/media/1"), 0L, null), Modifier.size(120.dp))
+            Thumb(Tile(2, android.net.Uri.parse("content://media/external/video/media/2"), 0L, 42_000L), Modifier.size(120.dp))
+            Thumb(Tile(3, android.net.Uri.parse("content://media/external/images/media/3"), 0L, null, motion = true), Modifier.size(120.dp))
         }
     }
 }

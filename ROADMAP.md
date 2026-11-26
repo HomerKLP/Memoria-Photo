@@ -8,7 +8,7 @@ Released (0.13.0). This file lists open work only, most important first. What is
 
 ## Open, most important first
 
-1. **Motion photos:** a badge on grid tiles and the clip played in the viewer. Media3 ExoPlayer can play the video inside a JPEG. Check which format the test phone writes (Google XMP or Samsung trailer). Design first.
+1. **Motion photos: trash and restore on the phone.** Built and checked 2026-11-27 (`decisions.md`); only trash and restore are left. Claude may not trash on the phone, so the user tries it: a Takeout-pair photo goes to Trash with its clip, shows there once, and comes back with it.
 2. **Header font: redesign.** Replace Bricolage Grotesque for titles and headings. Design first: OFL candidates side by side in the mockup, the user picks. Then the font in `res/font`, `Theme.kt`, Licenses and new screenshot baselines.
 3. **Swipe between Photos and Library,** with a proper animation instead of today's 200 ms `Crossfade` (`MainActivity.kt`): the tab pill's highlight follows the finger. Settle the clashes with drag-select, the month slider, Android's edge back and pinch to resize. Design first: the pill mid-swipe.
 4. **Editor** (design first). v1: crop (free, original, 1:1, 4:3, 16:9), rotate 90°, flip, straighten ±45°, reset; keep date and GPS. An `ACTION_EDIT` filter, so other apps' Edit opens it. v2: brightness, contrast, warmth, saturation, auto-fix; video trim (Media3 Transformer, shared with compression); blur faces (the face boxes are there); markup (pen, text). Other edits open in another app (More > Edit in…). Skip: filters, AI erase.

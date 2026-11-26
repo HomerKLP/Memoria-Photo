@@ -41,10 +41,11 @@ fun libraryVideos(context: Context): List<MediaPhoto> {
     val skipped = IndexProgress.skipped(context)
     val videos = mutableListOf<MediaPhoto>()
     val cols = arrayOf(Media._ID, Media.RELATIVE_PATH, Media.DISPLAY_NAME, Media.MIME_TYPE, Media.WIDTH, Media.HEIGHT, Media.BUCKET_ID)
+    val clips = motion(context).clips // their photo holds the same clip, so its faces are already in
     context.contentResolver.query(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, cols, null, null, null)?.use { c ->
         while (c.moveToNext()) {
             val path = c.getString(1) + c.getString(2)
-            if (c.getLong(6) !in skipped) videos += MediaPhoto(c.getLong(0), path, c.getString(3), c.getInt(4), c.getInt(5), video = true)
+            if (c.getLong(6) !in skipped && c.getLong(0) !in clips) videos += MediaPhoto(c.getLong(0), path, c.getString(3), c.getInt(4), c.getInt(5), video = true)
         }
     }
     return videos
@@ -57,8 +58,10 @@ fun libraryVideos(context: Context): List<MediaPhoto> {
 fun libraryCount(context: Context): Int {
     val skipped = IndexProgress.skipped(context)
     val selection = if (skipped.isEmpty()) null else "${Media.BUCKET_ID} NOT IN (${skipped.joinToString(",")})"
-    return listOf(Media.EXTERNAL_CONTENT_URI, MediaStore.Video.Media.EXTERNAL_CONTENT_URI).sumOf { uri ->
-        runCatching { context.contentResolver.query(uri, arrayOf(Media._ID), selection, null, null)?.use { it.count } ?: 0 }.getOrDefault(0)
+    val clips = motion(context).clips.keys.takeIf { it.isNotEmpty() }?.let { "${Media._ID} NOT IN (${it.joinToString(",")})" }
+    val videos = listOfNotNull(selection, clips).joinToString(" AND ").ifEmpty { null }
+    return listOf(Media.EXTERNAL_CONTENT_URI to selection, MediaStore.Video.Media.EXTERNAL_CONTENT_URI to videos).sumOf { (uri, where) ->
+        runCatching { context.contentResolver.query(uri, arrayOf(Media._ID), where, null, null)?.use { it.count } ?: 0 }.getOrDefault(0)
     }
 }
 

@@ -8,6 +8,7 @@ import android.view.TextureView
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -75,6 +76,10 @@ import kotlinx.coroutines.withTimeoutOrNull
 private const val maxZoom = 6f
 // Double-tap zoom: short, eased, in the viewer only
 private const val zoomMillis = 250
+
+/** A motion photo's clip fades in over the photo, and out on the lift, while the page grows by [clipLift]. */
+internal const val clipFadeMillis = 250
+private const val clipLift = 0.03f
 
 /** How big the photo really is on screen with ContentScale.Fit, so panning stops at its edges. */
 internal fun fitSize(imageWidth: Int, imageHeight: Int, boxWidth: Int, boxHeight: Int): Size {
@@ -179,6 +184,9 @@ fun ViewerPage(
     aspect: Float = 0f, // the video's width / height as the player reports it, 0 until it knows
     pill: Int = 0, // +5 s / −5 s, shown on the half that was tapped
     holding: Boolean = false, // 2x while a finger is down
+    clip: Boolean = false, // a motion photo whose clip the player holds: its view waits over the photo
+    clipAspect: Float = 0f, // the clip's width / height, 0 until the player knows
+    clipPlaying: Boolean = false, // the clip shows while a finger is down
     onSkip: (Int) -> Unit = {},
     onHold: (Boolean) -> Unit = {},
 ) {
@@ -195,6 +203,8 @@ fun ViewerPage(
         if (full != null) value = full
     }
     val sharp = remember(tile.id) { Animatable(0f) }
+    // a cut from the photo to its clip looked harsh: the clip fades in while the page grows a little, and back
+    val clipIn = animateFloatAsState(if (clipPlaying) 1f else 0f, tween(clipFadeMillis, easing = FastOutSlowInEasing), label = "clip")
     LaunchedEffect(image) { if (image !== thumb) sharp.animateTo(1f, tween(150)) }
     // Zoom state lives here: a zoomed photo cannot be swiped away, so the page is never stale.
     val zoom = remember { mutableFloatStateOf(1f) }
@@ -320,9 +330,10 @@ fun ViewerPage(
                         },
                     )
                 }
-                // Hold: 2x while the finger stays down, back to 1x on the way up (mockup "Video, held")
-                .pointerInput(tile.id, isVideo) {
-                    if (!isVideo) return@pointerInput
+                // Hold: 2x while the finger stays down, back to 1x on the way up (mockup "Video, held").
+                // A motion photo plays its clip instead (mockup "Viewer, motion photo").
+                .pointerInput(tile.id, isVideo, tile.motion) {
+                    if (!isVideo && !tile.motion) return@pointerInput
                     awaitEachGesture {
                         awaitFirstDown(requireUnconsumed = false)
                         // null only when the time ran out: a swipe that took the finger early also ends the wait,
@@ -338,8 +349,8 @@ fun ViewerPage(
                 }
                 // Deferred read: pan and zoom touch the layer block only, no recomposition, so it stays smooth
                 .graphicsLayer {
-                    scaleX = zoom.floatValue
-                    scaleY = zoom.floatValue
+                    scaleX = zoom.floatValue * (1f + clipLift * clipIn.value)
+                    scaleY = scaleX
                     translationX = pan.value.x
                     translationY = pan.value.y
                 },
@@ -351,24 +362,33 @@ fun ViewerPage(
                     Image(it.asImageBitmap(), null, Modifier.fillMaxSize().graphicsLayer { alpha = sharp.value }, contentScale = ContentScale.Fit)
                 }
             }
-            if (!isVideo) poster() else VideoBox(boxAspect) {
-                poster()
-                // The video plays on the phone's decoder over the poster frame, on the one page whose file the
-                // player holds; a neighbour keeps its poster. Compose draws a TextureView inside its own layers,
-                // so the video grows, shrinks, slides and clips with the page like a photo (a SurfaceView would not).
-                if (current && player != null) AndroidView(
+            // The video plays on the phone's decoder over the poster frame, on the one page whose file the
+            // player holds; a neighbour keeps its poster. Compose draws a TextureView inside its own layers,
+            // so the video grows, shrinks, slides and clips with the page like a photo (a SurfaceView would not).
+            val texture = @Composable { modifier: Modifier ->
+                AndroidView(
                     factory = { TextureView(it) },
-                    modifier = Modifier.fillMaxSize().testTag("videoTexture"),
+                    modifier = modifier.fillMaxSize().testTag("videoTexture"),
                     // The page that stops being current is released too, and its clear could land after the
                     // next page attached its own view: the video then played with sound and no picture as you
                     // swiped (on the phone 2026-11-12). Only the owning page may clear the surface.
                     onRelease = {
                         if (ownsTexture(surface, tile.id)) {
-                            runCatching { player.clearVideoSurface() }
+                            runCatching { player?.clearVideoSurface() }
                             surface?.owner = null
                         }
                     },
-                ) { view -> surface?.owner = tile.id; player.setVideoTextureView(view) }
+                ) { view -> surface?.owner = tile.id; player?.setVideoTextureView(view) }
+            }
+            if (!isVideo) {
+                poster()
+                // The clip's view is there from the start, hidden, so a hold shows its first frame at once
+                if (clip && player != null) VideoBox(if (clipAspect > 0f) clipAspect else posterAspect ?: 0f) {
+                    texture(Modifier.graphicsLayer { alpha = clipIn.value })
+                }
+            } else VideoBox(boxAspect) {
+                poster()
+                if (current && player != null) texture(Modifier)
                 // The grid tile shows MediaStore's frame (from the middle of the clip), not the one playing, so
                 // the video landed on another picture and popped on close. The tile's own picture fades in over
                 // the second half of the way to it, and out over the first half of an open.

@@ -52,6 +52,7 @@ CLIPS = [
     Clip("video_av1.mp4", 320, 180, "libsvtav1", "mp4"),  # AV1: plays where the phone has a decoder
     Clip("video_hevc10.mp4", 320, 180, "libx265", "mp4", pix_fmt="yuv420p10le"),  # 10-bit HEVC, like an HDR recording
     Clip("video_3gp.3gp", 176, 144, "h263", "3gp", frames=15, rate=15, audio="aac"),  # an old phone's clip (AAC: no AMR encoder here)
+    Clip("video_motion.mp4", 320, 240, "libx265", "mp4", frames=16, audio="aac"),  # a motion photo's clip, 2 s: fixtures.py puts it inside jpg_o1_motion.jpg
 ]
 
 

@@ -145,7 +145,7 @@ fun NewAlbumScreen(name: String, onBack: () -> Unit, onCancel: () -> Unit, onMov
             if (foreign.isEmpty()) finish(list)
             else {
                 then = { scope.launch { withContext(Dispatchers.IO) { foreign.forEach { runCatching { movePhoto(context, it, path) } } }; finish(list) } }
-                val request = MediaStore.createWriteRequest(context.contentResolver, foreign.map { it.uri })
+                val request = MediaStore.createWriteRequest(context.contentResolver, withClips(context, foreign))
                 ask.launch(IntentSenderRequest.Builder(request.intentSender).build())
             }
         }

@@ -739,6 +739,22 @@ class BehaviorTest {
         assertEquals(listOf(true, false), held)
     }
 
+    /** A motion photo plays its clip while held, and stops on the lift (mockup "Viewer, motion photo"). A plain photo has no hold. */
+    @Test fun motionPhoto_hold_playsUntilRelease() {
+        val held = mutableListOf<Boolean>()
+        var motion by mutableStateOf(true)
+        rule.setContent {
+            MemoriaTheme { Surface { Box(Modifier.fillMaxSize().testTag("page")) {
+                ViewerPage(tile(1).copy(motion = motion), onZoomed = {}, player = null, onHold = { held += it })
+            } } }
+        }
+        rule.onNodeWithTag("page").performTouchInput { down(center); advanceEventTime(800); up() }
+        assertEquals(listOf(true, false), held)
+        rule.runOnIdle { motion = false }
+        rule.onNodeWithTag("page").performTouchInput { down(center); advanceEventTime(800); up() }
+        assertEquals("a plain photo", listOf(true, false), held)
+    }
+
     /** A swipe that takes the finger before the long press is a swipe, not a hold: the 2x pill flashed at the start of every drag. */
     @Test fun videoPage_swipe_isNoHold() {
         val held = mutableListOf<Boolean>()

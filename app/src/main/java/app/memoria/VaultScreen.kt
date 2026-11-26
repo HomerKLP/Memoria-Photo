@@ -125,7 +125,8 @@ fun rememberVaultLock(onLocked: (List<Tile>) -> Unit = {}): (List<Tile>) -> Unit
                 }
                 if (b != null) {
                     batch = b
-                    val request = MediaStore.createDeleteRequest(context.contentResolver, b.tiles.map { it.uri })
+                    // a motion photo's clip copy goes too: the locked JPEG holds the same clip
+                    val request = MediaStore.createDeleteRequest(context.contentResolver, withClips(context, b.tiles))
                     ask.launch(IntentSenderRequest.Builder(request.intentSender).build())
                 } else if (!vaultOpen) lockVault()
             } else {

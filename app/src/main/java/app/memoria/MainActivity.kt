@@ -250,7 +250,7 @@ fun App(dir: File, openSettings: Int = 0, atUpdates: Boolean = false, jump: Jump
         val picked = selectedTiles()
         if (picked.isNotEmpty()) mediaConfirm(trashQuestion(picked)) {
             pendingTrash = true
-            val ask = MediaStore.createTrashRequest(context.contentResolver, picked.map { it.uri }, true)
+            val ask = MediaStore.createTrashRequest(context.contentResolver, withClips(context, picked), true)
             selectAsk.launch(IntentSenderRequest.Builder(ask.intentSender).build())
         }
     }

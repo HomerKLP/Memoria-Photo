@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.WindowInsets as Insets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -87,6 +89,7 @@ fun ViewerChrome(
     vault: Boolean = false, // a locked file: no Share, Favorite or More; Move out sits before Delete
     onMoveOut: () -> Unit = {},
     foreign: Boolean = false, // another app's file: Share and Details only
+    motion: Boolean = false, // a motion photo: its tag under the top bar, which fades with the bar
 ) {
     var menu by remember { mutableStateOf(false) }
     LaunchedEffect(menu) { onMenu(menu) }
@@ -108,30 +111,36 @@ fun ViewerChrome(
     val top = animateFloatAsState(if (visible) 1f else 0f, tween(barsFadeMillis), label = "topBar")
     val low = animateFloatAsState(if (visible && bottom) 1f else 0f, tween(barsFadeMillis), label = "bottomBar")
     Box(Modifier.fillMaxSize()) {
-        Row(
+        Column(
             Modifier.align(Alignment.TopCenter)
                 .layout { m, c -> val p = m.measure(c); layout(p.width, p.height) { if (top.value > 0f) p.place(0, 0) } }
                 .graphicsLayer { alpha = top.value }
-                .fillMaxWidth()
-                .background(Brush.verticalGradient(listOf(viewerBg.copy(alpha = 0.62f), Color.Transparent)))
-                // The system bar height even while it is hidden: a tap hides the bars, and a bar that loses
-                // its padding first jumps 40 dp up under the fading icons. Sideways the system bars are gone,
-                // so the bar takes the mockup's own 8 dp top margin instead.
-                .windowInsetsPadding(topInset)
-                .padding(start = barStart, end = barEnd, top = if (land) 8.dp else 0.dp, bottom = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                .fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            IconButton(onBack) { Icon(painterResource(R.drawable.ic_back), "Back", tint = onViewer) }
-            // As the mockup: the date sits between the two buttons, so the camera's side margin shifts it a little
-            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(title, color = onViewer, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                Text(subtitle, color = onViewer.copy(alpha = 0.7f), fontSize = 12.sp)
+            Row(
+                Modifier.fillMaxWidth()
+                    .background(Brush.verticalGradient(listOf(viewerBg.copy(alpha = 0.62f), Color.Transparent)))
+                    // The system bar height even while it is hidden: a tap hides the bars, and a bar that loses
+                    // its padding first jumps 40 dp up under the fading icons. Sideways the system bars are gone,
+                    // so the bar takes the mockup's own 8 dp top margin instead.
+                    .windowInsetsPadding(topInset)
+                    .padding(start = barStart, end = barEnd, top = if (land) 8.dp else 0.dp, bottom = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onBack) { Icon(painterResource(R.drawable.ic_back), "Back", tint = onViewer) }
+                // As the mockup: the date sits between the two buttons, so the camera's side margin shifts it a little
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(title, color = onViewer, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    Text(subtitle, color = onViewer.copy(alpha = 0.7f), fontSize = 12.sp)
+                }
+                // a trashed, locked or other app's file has no More menu: its slot stays empty, so the date does not move
+                if (trashed || vault || foreign) Box(Modifier.size(48.dp))
+                else IconButton({ if (menuItems.isNotEmpty()) menu = true }) {
+                    Icon(painterResource(R.drawable.ic_more), "More", tint = onViewer)
+                }
             }
-            // a trashed, locked or other app's file has no More menu: its slot stays empty, so the date does not move
-            if (trashed || vault || foreign) Box(Modifier.size(48.dp))
-            else IconButton({ if (menuItems.isNotEmpty()) menu = true }) {
-                Icon(painterResource(R.drawable.ic_more), "More", tint = onViewer)
-            }
+            if (motion) MotionTag()
         }
         Column(
             Modifier.align(Alignment.BottomCenter)
@@ -177,6 +186,19 @@ fun ViewerChrome(
             menu, onDismiss = { menu = false }, top = viewerMenuTop(land),
             items = menuItems.map { i -> MenuItem(i.icon, i.label, i.dividerBefore, i.checked, i.enabled) { menu = false; i.onClick() } },
         )
+    }
+}
+
+/** A motion photo's small tag under the top bar (mockup "Viewer, motion photo"). */
+@Composable
+private fun MotionTag() {
+    Row(
+        Modifier.padding(top = 2.dp).background(viewerBg.copy(alpha = 0.45f), RoundedCornerShape(50)).padding(start = 7.dp, end = 10.dp, top = 3.dp, bottom = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(painterResource(R.drawable.ic_motion), null, Modifier.size(14.dp), tint = onViewer)
+        Spacer(Modifier.width(4.dp))
+        Text("Motion photo", color = onViewer, fontSize = 11.sp, fontWeight = FontWeight.Medium)
     }
 }
 
