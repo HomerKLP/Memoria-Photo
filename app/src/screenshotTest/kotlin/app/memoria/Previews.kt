@@ -913,6 +913,19 @@ fun ViewerLocked() = MemoriaTheme {
     }
 }
 
+/** Viewer, another app's file (mockup "Viewer, another app's file"): Share and Details only, no date in the file. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 800)
+@Composable
+fun ViewerForeign() = MemoriaTheme {
+    Surface {
+        Box(Modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxSize().background(viewerPhoto))
+            ViewerChrome(true, "No date", "", favorite = false, {}, {}, {}, {}, {}, foreign = true)
+        }
+    }
+}
+
 /** Viewer, tapped: the bars are gone, only the photo is left. */
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 800)

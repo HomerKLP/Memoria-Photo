@@ -111,9 +111,11 @@ internal fun viewerUp(width: Int, height: Int, overlap: Float): Float =
 @Composable
 fun Viewer(
     start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Boolean = true,
-    onShowInAlbum: (Tile) -> Unit = {}, trashed: Boolean = false, // a trashed item: read-only, with Restore
+    onShowInAlbum: ((Tile) -> Unit)? = null, // null: no album screen to open (another app opened the viewer)
+    trashed: Boolean = false, // a trashed item: read-only, with Restore
     vault: Boolean = false, // a locked item: read from the vault, read-only, with Move out
     onLock: (Tile) -> Unit = {}, // More > Lock
+    foreign: Boolean = false, // another app's file, not in the library: read-only, Share and Details only
 ) {
     val context = LocalContext.current
     // The folder locked (the app went to the background): a locked photo never stays on screen behind the unlock sheet
@@ -531,8 +533,9 @@ fun Viewer(
             ViewerChrome(
                 visible = (barsVisible || details) && still && !covered,
                 bottom = !details,
-                title = DateTimeFormatter.ofPattern(dayPattern).format(zone),
-                subtitle = DateTimeFormatter.ofPattern("HH:mm").format(zone),
+                // date 0: another app's file without a date of its own (a chat app strips it)
+                title = if (tile.date == 0L) "No date" else DateTimeFormatter.ofPattern(dayPattern).format(zone),
+                subtitle = if (tile.date == 0L) "" else DateTimeFormatter.ofPattern("HH:mm").format(zone),
                 favorite = favorite,
                 onBack = { close() },
                 onShare = {
@@ -564,19 +567,20 @@ fun Viewer(
                     else mediaConfirm(trashQuestion(listOf(tile))) { askLeave(tile.id, MediaStore.createTrashRequest(context.contentResolver, listOf(tile.uri), true)) }
                 },
                 trashed = trashed,
+                foreign = foreign,
                 onRestore = { mediaConfirm(restoreQuestion(listOf(tile))) { askLeave(tile.id, MediaStore.createTrashRequest(context.contentResolver, listOf(tile.uri), false)) } },
-                menuItems = if (trashed || vault) emptyList() else if (tile.duration != null) buildList {
+                menuItems = if (trashed || vault || foreign) emptyList() else if (tile.duration != null) buildList {
                     // a video: the photo menu minus Edit in… and Use as…, which need a still photo (mockup "Video, More")
                     add(MenuItem(R.drawable.ic_refresh, "Loop", checked = loop) { loop = !loop })
                     add(MenuItem(R.drawable.ic_play, "Open in the phone's player") { openInPlayer(context, tile) })
-                    if (showInAlbum) add(MenuItem(R.drawable.ic_folder, "Show in album") { onShowInAlbum(tile) })
+                    if (showInAlbum && onShowInAlbum != null) add(MenuItem(R.drawable.ic_folder, "Show in album") { onShowInAlbum(tile) })
                     add(MenuItem(R.drawable.ic_move, "Move to album", dividerBefore = true) { moving = true })
                     add(MenuItem(R.drawable.ic_lock, "Move to Locked folder") { onLock(tile) })
                     add(MenuItem(R.drawable.ic_video, "Compress video", dividerBefore = true, enabled = false) {}) // Phase 5
                 } else buildList {
                     add(MenuItem(R.drawable.ic_edit, "Edit in…") { editedIn = true; editIn(context, tile) })
                     add(MenuItem(R.drawable.ic_wallpaper, "Use as…") { useAs(context, tile) })
-                    if (showInAlbum) add(MenuItem(R.drawable.ic_folder, "Show in album") { onShowInAlbum(tile) })
+                    if (showInAlbum && onShowInAlbum != null) add(MenuItem(R.drawable.ic_folder, "Show in album") { onShowInAlbum(tile) })
                     add(MenuItem(R.drawable.ic_move, "Move to album", dividerBefore = true) { moving = true })
                     add(MenuItem(R.drawable.ic_lock, "Move to Locked folder") { onLock(tile) })
                 },

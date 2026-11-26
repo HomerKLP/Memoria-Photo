@@ -1273,6 +1273,29 @@ class LayoutJumpTest {
         assertSame("Share width", width, rule.onNodeWithContentDescription("Share").width())
     }
 
+    /** Another app's file: the empty More slot and the blank time line keep Back, the title and the action row where they are. */
+    @Test fun viewer_foreign_keepsTheBarsPut() {
+        var foreign by mutableStateOf(false)
+        rule.setContent {
+            MemoriaTheme { Surface { Box(Modifier.fillMaxSize()) {
+                ViewerChrome(
+                    visible = true, title = if (foreign) "No date" else "Sat, 11 Oct", subtitle = if (foreign) "" else "14:32", favorite = false,
+                    onBack = {}, onShare = {}, onFavorite = {}, onInfo = {}, onDelete = {}, foreign = foreign,
+                )
+            } } }
+        }
+
+        val back = rule.onNodeWithContentDescription("Back").top()
+        val title = rule.onNodeWithText("Sat, 11 Oct").getUnclippedBoundsInRoot()
+        val share = rule.onNodeWithContentDescription("Share").top()
+        rule.runOnIdle { foreign = true }
+        assertSame("Back", back, rule.onNodeWithContentDescription("Back").top())
+        val noDate = rule.onNodeWithText("No date").getUnclippedBoundsInRoot()
+        assertSame("title top", title.top, noDate.top)
+        assertEquals("title centre", ((title.left + title.right) / 2).value, ((noDate.left + noDate.right) / 2).value, 0.5f)
+        assertSame("action row", share, rule.onNodeWithContentDescription("Share").top())
+    }
+
     /** A video keeps its own shape on screen: letterboxed, never stretched (the 2026-11-12 bug). */
     @Test fun viewer_video_keepsItsShape() {
         var aspect by mutableStateOf(9f / 16f)

@@ -40,6 +40,23 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- Open with from other apps: one photo or video. An empty affinity keeps a NEW_TASK launch out of
+             the app's own task, so Back returns to the app that sent it, not to the grid. -->
+        <activity
+            android:name=".ViewActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
+            android:exported="true"
+            android:screenOrientation="portrait"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Material.NoActionBar">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" />
+                <data android:mimeType="image/*" />
+                <data android:mimeType="video/*" />
+            </intent-filter>
+        </activity>
         <!-- trace a release build from the shell (perfetto); debug is already profileable -->
         <profileable android:shell="true" tools:targetApi="q" />
         <receiver android:name=".UpdateInstallReceiver" android:exported="false" />

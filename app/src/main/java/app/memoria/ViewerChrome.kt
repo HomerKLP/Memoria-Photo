@@ -1,5 +1,6 @@
 package app.memoria
 
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
@@ -85,6 +86,7 @@ fun ViewerChrome(
     onRestore: () -> Unit = {},
     vault: Boolean = false, // a locked file: no Share, Favorite or More; Move out sits before Delete
     onMoveOut: () -> Unit = {},
+    foreign: Boolean = false, // another app's file: Share and Details only
 ) {
     var menu by remember { mutableStateOf(false) }
     LaunchedEffect(menu) { onMenu(menu) }
@@ -125,8 +127,8 @@ fun ViewerChrome(
                 Text(title, color = onViewer, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 Text(subtitle, color = onViewer.copy(alpha = 0.7f), fontSize = 12.sp)
             }
-            // a trashed or locked file has no More menu: its slot stays empty, so the date does not move
-            if (trashed || vault) Box(Modifier.size(48.dp))
+            // a trashed, locked or other app's file has no More menu: its slot stays empty, so the date does not move
+            if (trashed || vault || foreign) Box(Modifier.size(48.dp))
             else IconButton({ if (menuItems.isNotEmpty()) menu = true }) {
                 Icon(painterResource(R.drawable.ic_more), "More", tint = onViewer)
             }
@@ -152,6 +154,9 @@ fun ViewerChrome(
                 } else if (vault) {
                     IconButton(onInfo) { Icon(painterResource(R.drawable.ic_info), "Details", tint = onViewer) }
                     IconButton(onMoveOut) { Icon(painterResource(R.drawable.ic_upload), "Move out", tint = onViewer) }
+                } else if (foreign) {
+                    IconButton(onShare) { Icon(painterResource(R.drawable.ic_share), "Share", tint = onViewer) }
+                    IconButton(onInfo) { Icon(painterResource(R.drawable.ic_info), "Details", tint = onViewer) }
                 } else {
                     IconButton(onShare) { Icon(painterResource(R.drawable.ic_share), "Share", tint = onViewer) }
                     IconButton(onFavorite) {
@@ -163,7 +168,7 @@ fun ViewerChrome(
                     }
                     IconButton(onInfo) { Icon(painterResource(R.drawable.ic_info), "Details", tint = onViewer) }
                 }
-                IconButton(onDelete) { Icon(painterResource(R.drawable.ic_trash_line), "Delete", tint = onViewer) }
+                if (!foreign) IconButton(onDelete) { Icon(painterResource(R.drawable.ic_trash_line), "Delete", tint = onViewer) }
             }
         }
         // Sideways the bar is shorter (no status bar), so the menu drops from the button's own bottom
@@ -194,7 +199,10 @@ internal fun useAs(context: Context, tile: Tile) {
 internal fun openInPlayer(context: Context, tile: Tile) {
     val view = Intent(Intent.ACTION_VIEW).setDataAndType(tile.uri, context.contentResolver.getType(tile.uri))
         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    runCatching { context.startActivity(view) }
+    // a chooser without our own viewer: Memoria takes ACTION_VIEW too, and would open the file it just refused
+    val choose = Intent.createChooser(view, null)
+        .putExtra(Intent.EXTRA_EXCLUDE_COMPONENTS, arrayOf(ComponentName(context, ViewActivity::class.java)))
+    runCatching { context.startActivity(choose) }
 }
 
 /** m:ss like every player: "1:24 / 3:10" in the mockup "Video, playing". */

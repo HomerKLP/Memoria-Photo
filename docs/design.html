@@ -533,7 +533,7 @@ figure.land { width: calc(760px * var(--z)); }
 <header class="top">
   <h1>Memoria Photo</h1>
   <p class="lede">Light theme, Honey palette. Photos and faces are placeholders, names and places are made up.</p>
-  <p class="latest"><b>Latest, 24 Nov:</b> <a href="#locked-first">Lock</a> asks on every lock now, and <a href="#locked-movingout">Moving out</a> shows progress like Locking.</p>
+  <p class="latest"><b>Latest, 26 Nov:</b> the viewer opened from another app: <a href="#viewer-outside">a library file</a> and <a href="#viewer-foreign">another app's file</a>, read-only.</p>
 </header>
 
 <aside class="rail" aria-label="Contents">
@@ -748,6 +748,42 @@ figure.land { width: calc(760px * var(--z)); }
         </div>
       </div>
       <figcaption>Move to album: opens from the viewer's More. Same order as Albums, minus the photo's own album (named in the head). Only folders under DCIM and Pictures are listed: Android allows a move only there, so WhatsApp's folder is left out. Tap one to move; Android asks to confirm, or Memoria with Media management on. New album opens the New album sheet, its button reads Move. Opened from an album, the moved photo leaves it, so the viewer shows the next one. Album select uses it too</figcaption>
+    </figure>
+    <figure id="viewer-outside">
+      <div class="phone dark viewer">
+        <div class="viewer-full" data-shot></div>
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="vbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="when">Sat, 11 Oct<span>14:32</span></div>
+          <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
+        </div>
+        <div class="actions">
+          <button class="icon-btn" aria-label="Share"><svg class="i"><use href="#i-share"/></svg></button>
+          <button class="icon-btn" aria-label="Favorite"><svg class="i"><use href="#i-heart-line"/></svg></button>
+          <button class="icon-btn" aria-label="Info"><svg class="i"><use href="#i-info"/></svg></button>
+          <button class="icon-btn" aria-label="Delete"><svg class="i"><use href="#i-trash-line"/></svg></button>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Viewer, from another app: Open with in a file manager or a chat app sends a photo or video here. A file in the phone's library opens alone, with no grid behind and no swipe to the next one. The rest is the normal viewer, minus Show in album in More. Back, a pull down, or the file leaving (Delete, Move to Locked folder) returns to that app. Before Photos access is allowed, every file opens as another app's file (next)</figcaption>
+    </figure>
+    <figure id="viewer-foreign">
+      <div class="phone dark viewer">
+        <div class="viewer-full" data-shot></div>
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="vbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="when">No date<span>&nbsp;</span></div>
+          <button class="icon-btn" aria-hidden="true" tabindex="-1" style="visibility:hidden"><svg class="i"><use href="#i-more"/></svg></button>
+        </div>
+        <div class="actions">
+          <button class="icon-btn" aria-label="Share"><svg class="i"><use href="#i-share"/></svg></button>
+          <button class="icon-btn" aria-label="Details"><svg class="i"><use href="#i-info"/></svg></button>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Viewer, another app's file: a chat app's own copy or a mail attachment, not in the phone's library. Read-only: Share and Details. No Favorite, Delete or More; the More slot stays empty, so the title does not move. The date comes from the file (the camera's EXIF, a video's own date). A file without one, like a photo a chat app sent, reads No date, here and in Details. Details shows the file's name, size and camera, no folder and no people. A video the phone cannot play offers another player, never Memoria itself</figcaption>
     </figure>
     <figure id="viewer-tap">
       <div class="phone dark">
