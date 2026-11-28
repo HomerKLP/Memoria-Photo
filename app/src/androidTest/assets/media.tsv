@@ -22,6 +22,8 @@ fixtures/heic_o8.heic	upright	-	8	-	-	HEIC as a phone writes it, orientation 8 i
 fixtures/jpg_none.jpg	upright	-	-	-	-	JPEG with no EXIF	bench/fixtures.py
 fixtures/jpg_o0.jpg	upright	-	0	-	-	JPEG with a junk orientation (0): shows as stored	bench/fixtures.py
 fixtures/jpg_o1.jpg	upright	-	1	-	-	JPEG with EXIF orientation 1	bench/fixtures.py
+fixtures/jpg_o1_motion.jpg	upright	-	1	-	-	motion photo like the test phone's: the JPEG, a gain map, then video_motion.mp4, listed in Google's Motion Photo XMP	bench/fixtures.py
+fixtures/jpg_o1_motion_novideo.jpg	upright	-	1	-	-	JPEG whose XMP says motion photo but holds no clip, like an edit that dropped it	bench/fixtures.py
 fixtures/jpg_o1_prev.jpg	upright	-	1	-	-	JPEG with EXIF orientation 1 and a camera preview inside	bench/fixtures.py
 fixtures/jpg_o1_prevcut.jpg	upright	-	1	-	-	JPEG whose preview is a 3:4 cut of the 4:3 photo, like a zoomed shot	bench/fixtures.py
 fixtures/jpg_o2.jpg	upright	-	2	-	-	JPEG with EXIF orientation 2	bench/fixtures.py
@@ -50,6 +52,7 @@ videos/video_hevc.mp4	plays	16:9	-	HEVC	no	MP4, HEVC as a phone camera records i
 videos/video_hevc10.mp4	plays or card	16:9	-	HEVC	no	MP4, 10-bit HEVC like an HDR recording; the emulator's decoder may refuse it	bench/videofix.py
 videos/video_land.mp4	plays	16:9	-	H.264	yes	MP4, H.264 with AAC sound, landscape, 5 s	bench/videofix.py
 videos/video_mkv.mkv	plays	16:9	-	HEVC	no	MKV like a download, HEVC	bench/videofix.py
+videos/video_motion.mp4	plays	4:3	-	HEVC	yes	MP4, HEVC with AAC sound, 4:3, 2 s: the clip inside jpg_o1_motion.jpg, and its twin beside it as Google Photos exports it	bench/videofix.py
 videos/video_mov.mov	plays	16:9	-	H.264	yes	QuickTime .mov like an iPhone's, H.264 with AAC sound	bench/videofix.py
 videos/video_port.mp4	plays	9:16	-	H.264	no	MP4, H.264, portrait	bench/videofix.py
 videos/video_rot90.mp4	plays	9:16	-	H.264	no	MP4 stored landscape and turned 90° by the file, like a phone's portrait video	bench/videofix.py

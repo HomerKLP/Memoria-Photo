@@ -5,8 +5,11 @@ import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import androidx.test.ext.junit.runners.AndroidJUnit4
 
-/** Which photos a tag gets, its cover and the order. On a device: [Tile] needs a real Uri and `org.json` is a stub in unit tests. */
+/** Which photos a tag gets, its cover and the order. Robolectric: [Tile] needs a real Uri. */
+@RunWith(AndroidJUnit4::class)
 class CategoriesTest {
 
     private fun tile(id: Long, date: Long = 0L) = Tile(id, Uri.parse("content://media/external/images/media/$id"), date, null)

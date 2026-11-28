@@ -9,6 +9,7 @@ import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
 import android.provider.MediaStore
+import android.provider.OpenableColumns
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -102,6 +103,13 @@ fun loadInfo(context: Context, tile: Tile): PhotoInfo {
             height = c.getInt(4)
             mime = c.getString(5).orEmpty()
         }
+    }
+    // another app's file (ViewActivity) has no MediaStore row: that app gives the name and size
+    if (name.isEmpty()) runCatching {
+        context.contentResolver.query(tile.uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { c ->
+            if (c.moveToNext()) { name = c.getString(0).orEmpty(); size = c.getLong(1) }
+        }
+        mime = context.contentResolver.getType(tile.uri).orEmpty()
     }
     // MediaStore's latitude/longitude are always null since Android 10; GPS is only in the original file
     val original = runCatching { MediaStore.setRequireOriginal(tile.uri) }.getOrDefault(tile.uri)
@@ -401,11 +409,12 @@ fun DetailsContent(
                 .background(detailsMuted.copy(alpha = 0.4f), RoundedCornerShape(2.dp)),
         )
         Text(
-            DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy").format(time),
+            // date 0: another app's file without a date of its own
+            if (tile.date == 0L) "No date" else DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy").format(time),
             style = MaterialTheme.typography.titleLarge,
             modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp),
         )
-        Text(
+        if (tile.date != 0L) Text(
             "${DateTimeFormatter.ofPattern("HH:mm").format(time)} · ${zoneLabel(time.offset)}",
             color = detailsMuted, fontSize = 13.sp,
             modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 2.dp),

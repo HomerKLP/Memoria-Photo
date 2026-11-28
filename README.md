@@ -63,12 +63,14 @@ The models were picked on real family photos, not only on paper: 3 face finders 
 - **Photos:** timeline by day and month, month slider, select many with a drag.
 - **Viewer:** zoom, swipe, details (date, time zone, place, camera, people and pets; for a video its size, frame rate, HDR, codec and sound). The viewer turns with the phone — photos and videos fill a sideways screen — while the grids stay portrait.
 - **Video:** plays in the viewer, with a seek bar, double tap ±5 s, and hold for 2x speed. HDR clips play in an HDR window.
+- **Motion photos:** an icon on the tile, and a hold on the photo plays its short clip. Separate clip copies stay hidden.
+- **Open from other apps:** Share or Open with Memoria shows that photo or video in the viewer, read-only.
 - **Albums:** phone folders, new albums, move photos.
 - **Places:** photos by town, names found offline.
 - **Pets:** cats and dogs, found and grouped like people, with names.
 - **Favorites, Videos, Trash:** use the phone's own favorites and trash.
 - **Media management (optional):** one switch in Android's settings, and Memoria asks its own questions before a delete, restore or move instead of Android's.
-- **Locked folder:** photos and videos move into encrypted storage that only the phone's fingerprint or PIN opens. Clearing the app's data deletes them.
+- **Locked folder:** photos and videos move into encrypted storage that only the phone's fingerprint or PIN opens.
 - **Categories:** pets, documents, food, sunsets and 10 more, sorted on the phone.
 - **Search:** people, places, months, categories.
 - **Folders to skip:** keep some folders out of the index (faces, pets, search, places).
@@ -98,7 +100,7 @@ Known gap: sound in AC-3, E-AC-3 or DTS (some `.mkv` and camcorder files) plays 
 | Face recognition, per photo | ~70 ms | ~85 ms | ~520 ms |
 | Whole photo, opening it included | ~130 ms | ~145 ms | ~580 ms |
 
-A library of 10,000 photos takes about **22 minutes** on the NPU, or about **24 minutes** on the GPU.
+A library of 10,000 photos takes about **22 minutes** on the NPU, or about **24 minutes** on the GPU. This full scan runs once, after install. Later, only new photos are scanned, about 130 ms each.
 
 <sub>Measured on a Snapdragon 8 Elite. Your phone may be faster or slower, depending on its chip.</sub>
 
@@ -109,6 +111,8 @@ The NPU is used on Snapdragon 8 Gen 1 to 8 Elite Gen 5. Other phones use the GPU
 1. Download `memoria-<version>.apk` from [Releases](https://github.com/HomerKLP/Memoria-Photo/releases) and open it on your phone.
 2. Open the app on Wi-Fi. It downloads the models by itself (about 425 MB, once). On mobile data, tap **Download** in **Settings › Photo scan › Models**.
 3. Done. The photo scan starts on its own when the models are ready.
+
+> **Google Play Protect may call Memoria harmful** when you install or update it. The warning is Google's, not caused by the app. Google warns about every app from outside the Play Store whose developer is not registered with Google's developer verification. Memoria is not registered. The app has no SMS, accessibility or notification access, and all its code is in this repo. Tap **Install anyway**. To be sure the file is ours, check its certificate below.
 
 To check the APK is ours, its signing certificate SHA-256 must be:
 

@@ -111,9 +111,11 @@ internal fun viewerUp(width: Int, height: Int, overlap: Float): Float =
 @Composable
 fun Viewer(
     start: Long, tiles: List<Tile>, onBack: () -> Unit, showInAlbum: Boolean = true,
-    onShowInAlbum: (Tile) -> Unit = {}, trashed: Boolean = false, // a trashed item: read-only, with Restore
+    onShowInAlbum: ((Tile) -> Unit)? = null, // null: no album screen to open (another app opened the viewer)
+    trashed: Boolean = false, // a trashed item: read-only, with Restore
     vault: Boolean = false, // a locked item: read from the vault, read-only, with Move out
     onLock: (Tile) -> Unit = {}, // More > Lock
+    foreign: Boolean = false, // another app's file, not in the library: read-only, Share and Details only
 ) {
     val context = LocalContext.current
     // The folder locked (the app went to the background): a locked photo never stays on screen behind the unlock sheet
@@ -121,15 +123,14 @@ fun Viewer(
     // One player for the screen: the video on the page plays, a photo stops it. Media3 runs on the
     // phone's own hardware decoder, the same one the system player uses, so the usual codecs play fast.
     // Audio focus is asked for, so a call or another app's music owns the sound like in a real player.
+    val movieSound = remember { AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build() }
     val player = remember {
         // ExoPlayer changes the sound's speed itself (Sonic), not the system: letting the AudioTrack do it
         // (setEnableAudioTrackPlaybackParams) froze the clock after a pause and play on the test phone,
         // until media3 gave up with ERROR_CODE_TIMEOUT (bugs.md, 2026-11-17). A newer media3 does not
         // help: 1.12.0-beta01 moved the clock +63/+29/+27 ms per 0.5 s of play, the same freeze.
-        ExoPlayer.Builder(context, DefaultRenderersFactory(context)).setAudioAttributes(
-            AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(),
-            true,
-        ).setHandleAudioBecomingNoisy(true) // headphones out: pause, never go on through the speaker
+        ExoPlayer.Builder(context, DefaultRenderersFactory(context)).setAudioAttributes(movieSound, true)
+            .setHandleAudioBecomingNoisy(true) // headphones out: pause, never go on through the speaker
             .build()
     }
     val surface = remember { VideoSurface() } // which page's view the player draws to
@@ -139,6 +140,8 @@ fun Viewer(
     var videoLength by remember { mutableLongStateOf(0L) }
     var loop by remember { mutableStateOf(false) }
     var holding by remember { mutableStateOf(false) } // 2x while a finger is down
+    var motionClip by remember { mutableStateOf<Long?>(null) } // the motion photo whose clip the player holds, paused
+    var motionPlaying by remember { mutableStateOf(false) } // its clip plays while a finger is down
     var videoAspect by remember { mutableStateOf(0f) } // the held video's own width / height: a TextureView stretches without it
     var hdr by remember { mutableStateOf(false) } // the held video is HLG or PQ (Dolby Vision from a phone is HLG underneath)
     // The video the player holds: only its page draws the video, and a nudged page never restarts it
@@ -161,7 +164,7 @@ fun Viewer(
             }
             // a new clip's empty tracks are skipped, so two HDR clips in a row never dim in between
             override fun onTracksChanged(tracks: Tracks) {
-                if (!tracks.isEmpty) hdr = tracks.groups.any { g ->
+                if (!tracks.isEmpty && motionClip == null) hdr = tracks.groups.any { g ->
                     g.type == C.TRACK_TYPE_VIDEO && g.isSelected &&
                         g.getTrackFormat(0).colorInfo?.colorTransfer.let { it == C.COLOR_TRANSFER_HLG || it == C.COLOR_TRANSFER_ST2084 }
                 }
@@ -304,7 +307,22 @@ fun Viewer(
             player.clearMediaItems()
             prepared = null
             hdr = false
+            motionPlaying = false
+            motionClip = null
+            // A motion photo's clip waits paused, so a hold plays it at once. Muted and without audio focus:
+            // a 2 s hold must not stop the music. Media3 finds the clip inside the JPEG by its XMP.
+            if (tile.motion) {
+                videoAspect = 0f
+                player.setAudioAttributes(movieSound, false)
+                player.volume = 0f
+                player.setMediaItem(MediaItem.fromUri(tile.uri))
+                player.prepare()
+                motionClip = tile.id
+            }
         } else if (prepared != tile.id) {
+            motionClip = null
+            player.setAudioAttributes(movieSound, true)
+            player.volume = 1f
             videoAspect = 0f // the last video's shape must not size this one
             failed = null
             if (tile.vault) {
@@ -411,6 +429,7 @@ fun Viewer(
     var vaultAsking by remember { mutableStateOf(false) }
     var vaultMovingOut by remember { mutableStateOf(false) }
     var vaultMoving by remember { mutableStateOf<VaultJob?>(null) } // decrypting back to the gallery
+    val vaultShare = rememberVaultShare()
     fun vaultLeaving(id: Long) {
         list = list.filterNot { it.id == id }
         forgetTiles(setOf(id))
@@ -430,13 +449,13 @@ fun Viewer(
         val t = list.firstOrNull { it.id == id } ?: return
         runCatching { movePhoto(context, t, path) }.onSuccess { afterMove(id) }.onFailure {
             movePending = id to path
-            val ask = MediaStore.createWriteRequest(context.contentResolver, listOf(t.uri))
+            val ask = MediaStore.createWriteRequest(context.contentResolver, withClips(context, listOf(t)))
             moveAsk.launch(IntentSenderRequest.Builder(ask.intentSender).build())
         }
     }
     // Playing, the controls fade 2 s after the last touch; paused, or with a menu or the details open, they stay
     LaunchedEffect(barsVisible, playing, touched, details, menuOpen, moving) {
-        if (barsVisible && playing && !details && !menuOpen && !moving) { delay(2000); barsVisible = false }
+        if (barsVisible && playing && tile.duration != null && !details && !menuOpen && !moving) { delay(2000); barsVisible = false }
     }
     // Photo fills the whole screen, the bars float on it (transparent gradient, see ViewerChrome)
     val zone = Instant.ofEpochMilli(tile.date).atZone(ZoneId.systemDefault())
@@ -516,8 +535,20 @@ fun Viewer(
                     aspect = if (holds) videoAspect else 0f, // a neighbour keeps its own poster's shape
                     pill = if (inView) pill else 0,
                     holding = inView && holding,
+                    clip = list[i].id == motionClip,
+                    clipAspect = if (list[i].id == motionClip) videoAspect else 0f,
+                    clipPlaying = inView && motionPlaying,
                     onSkip = { skip(it) },
-                    onHold = { if (inView) holding = it },
+                    onHold = { on ->
+                        if (inView && list[i].duration != null) holding = on
+                        else if (inView && list[i].id == motionClip) {
+                            motionPlaying = on
+                            // the lift fades the clip out still playing, then it waits at its start for the next hold
+                            if (on) player.play()
+                            else scope.launch { delay(clipFadeMillis.toLong()); if (!motionPlaying) { player.pause(); player.seekTo(0) } }
+                            AppLog.i("player: motion ${if (on) "play" else "stop"}")
+                        }
+                    },
                 )
             }
             // the bars step aside while the photo moves
@@ -531,14 +562,19 @@ fun Viewer(
             ViewerChrome(
                 visible = (barsVisible || details) && still && !covered,
                 bottom = !details,
-                title = DateTimeFormatter.ofPattern(dayPattern).format(zone),
-                subtitle = DateTimeFormatter.ofPattern("HH:mm").format(zone),
+                // date 0: another app's file without a date of its own (a chat app strips it)
+                title = if (tile.date == 0L) "No date" else DateTimeFormatter.ofPattern(dayPattern).format(zone),
+                subtitle = if (tile.date == 0L) "" else DateTimeFormatter.ofPattern("HH:mm").format(zone),
                 favorite = favorite,
                 onBack = { close() },
                 onShare = {
-                    val send = Intent(Intent.ACTION_SEND).setType(context.contentResolver.getType(tile.uri))
-                        .putExtra(Intent.EXTRA_STREAM, tile.uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    context.startActivity(Intent.createChooser(send, null))
+                    // a locked file has no URI another app can read: Share makes a plain copy first
+                    if (vault) vaultShare(listOf(tile))
+                    else {
+                        val send = Intent(Intent.ACTION_SEND).setType(context.contentResolver.getType(tile.uri))
+                            .putExtra(Intent.EXTRA_STREAM, tile.uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        context.startActivity(Intent.createChooser(send, null))
+                    }
                 },
                 onFavorite = {
                     val next = !favorite
@@ -560,27 +596,29 @@ fun Viewer(
                 // in the trash the trash icon deletes for good; Restore puts the item back
                 onDelete = {
                     if (vault) vaultAsking = true
-                    else if (trashed) mediaConfirm(deleteQuestion(listOf(tile))) { askLeave(tile.id, MediaStore.createDeleteRequest(context.contentResolver, listOf(tile.uri))) }
-                    else mediaConfirm(trashQuestion(listOf(tile))) { askLeave(tile.id, MediaStore.createTrashRequest(context.contentResolver, listOf(tile.uri), true)) }
+                    else if (trashed) mediaConfirm(deleteQuestion(listOf(tile))) { askLeave(tile.id, MediaStore.createDeleteRequest(context.contentResolver, withClips(context, listOf(tile), trashed = true))) }
+                    else mediaConfirm(trashQuestion(listOf(tile))) { askLeave(tile.id, MediaStore.createTrashRequest(context.contentResolver, withClips(context, listOf(tile)), true)) }
                 },
                 trashed = trashed,
-                onRestore = { mediaConfirm(restoreQuestion(listOf(tile))) { askLeave(tile.id, MediaStore.createTrashRequest(context.contentResolver, listOf(tile.uri), false)) } },
-                menuItems = if (trashed || vault) emptyList() else if (tile.duration != null) buildList {
+                foreign = foreign,
+                onRestore = { mediaConfirm(restoreQuestion(listOf(tile))) { askLeave(tile.id, MediaStore.createTrashRequest(context.contentResolver, withClips(context, listOf(tile), trashed = true), false)) } },
+                menuItems = if (trashed || vault || foreign) emptyList() else if (tile.duration != null) buildList {
                     // a video: the photo menu minus Edit in… and Use as…, which need a still photo (mockup "Video, More")
                     add(MenuItem(R.drawable.ic_refresh, "Loop", checked = loop) { loop = !loop })
                     add(MenuItem(R.drawable.ic_play, "Open in the phone's player") { openInPlayer(context, tile) })
-                    if (showInAlbum) add(MenuItem(R.drawable.ic_folder, "Show in album") { onShowInAlbum(tile) })
+                    if (showInAlbum && onShowInAlbum != null) add(MenuItem(R.drawable.ic_folder, "Show in album") { onShowInAlbum(tile) })
                     add(MenuItem(R.drawable.ic_move, "Move to album", dividerBefore = true) { moving = true })
                     add(MenuItem(R.drawable.ic_lock, "Move to Locked folder") { onLock(tile) })
                     add(MenuItem(R.drawable.ic_video, "Compress video", dividerBefore = true, enabled = false) {}) // Phase 5
                 } else buildList {
                     add(MenuItem(R.drawable.ic_edit, "Edit in…") { editedIn = true; editIn(context, tile) })
                     add(MenuItem(R.drawable.ic_wallpaper, "Use as…") { useAs(context, tile) })
-                    if (showInAlbum) add(MenuItem(R.drawable.ic_folder, "Show in album") { onShowInAlbum(tile) })
+                    if (showInAlbum && onShowInAlbum != null) add(MenuItem(R.drawable.ic_folder, "Show in album") { onShowInAlbum(tile) })
                     add(MenuItem(R.drawable.ic_move, "Move to album", dividerBefore = true) { moving = true })
                     add(MenuItem(R.drawable.ic_lock, "Move to Locked folder") { onLock(tile) })
                 },
                 onMenu = { menuOpen = it },
+                motion = tile.motion,
                 playerBar = if (video) ({
                     PlayerBar(
                         playing = playing,

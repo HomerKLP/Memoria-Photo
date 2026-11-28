@@ -62,7 +62,7 @@ fun TrashScreen(onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit = { _, _ 
         if (picked.isEmpty()) return
         val tiles = picked.map { it.tile }
         mediaConfirm(if (restore) restoreQuestion(tiles) else deleteQuestion(tiles, all)) {
-            val uris = tiles.map { it.uri }
+            val uris = withClips(context, tiles, trashed = true)
             val request = if (restore) MediaStore.createTrashRequest(context.contentResolver, uris, false)
             else MediaStore.createDeleteRequest(context.contentResolver, uris)
             launcher.launch(IntentSenderRequest.Builder(request.intentSender).build())

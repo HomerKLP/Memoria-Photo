@@ -212,6 +212,15 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .pill { width: 100%; height: 40px; padding: 0 16px; border-radius: 20px; display: flex; align-items: center; justify-content: center; gap: 8px; box-sizing: border-box; }
 .tab.on { color: var(--fg); font-weight: 700; }
 .tab.on .pill { background: var(--accent-soft); }
+/* Photos and Library mid-swipe (#tabs-swipe): the two tabs side by side, moved by --p (0 = Photos, 1 = Library) */
+.pages { flex: 1; min-height: 0; width: 200%; display: flex; transform: translateX(calc(var(--p) * -50%)); }
+.pages > div { width: 50%; display: flex; flex-direction: column; min-height: 0; }
+nav.sliding { position: relative; }
+nav.sliding .thumb { position: absolute; left: 4px; top: 4px; width: 96px; height: 40px; border-radius: 20px; background: var(--accent-soft); transform: translateX(calc(var(--p) * 96px)); }
+nav.sliding .tab { position: relative; }
+nav.sliding .tab .pill { background: none; }
+nav.sliding .tab:nth-of-type(1) { color: color-mix(in srgb, var(--fg) calc(100% - var(--p) * 100%), var(--muted)); }
+nav.sliding .tab:nth-of-type(2) { color: color-mix(in srgb, var(--fg) calc(var(--p) * 100%), var(--muted)); }
 .handle { width: 108px; height: 4px; margin: 6px auto 0; border-radius: 2px; background: var(--fg); opacity: .75; }
 .gesture { padding: 4px 0 6px; }
 .gesture .handle { margin: 0 auto; }
@@ -267,6 +276,9 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .phone.viewer > .pbadge.right { left: 74%; }
 .phone.viewer > .pbadge.left { left: 26%; }
 .phone.viewer > .pbadge.speed { top: 66px; }
+/* Viewer, motion photo: a small tag under the top bar, part of it, so it hides with the bars */
+.phone.viewer > .mtag { align-self: center; display: flex; align-items: center; gap: 4px; margin-top: 14px; padding: 3px 10px 3px 7px; border-radius: 999px; background: rgba(18, 14, 10, .45); font-size: 11px; font-weight: 500; }
+.mtag svg.i { width: 14px; height: 14px; }
 /* The failed video: the frame stays behind a scrim, so the card reads on any photo */
 .phone.viewer > .viewer-dim { position: absolute; inset: 0; z-index: 1; background: rgba(18, 14, 10, .55); }
 /* Viewer, sideways: the viewer turns with the phone, the grids and every other screen stay portrait.
@@ -490,6 +502,7 @@ figure.land { width: calc(760px * var(--z)); }
   <symbol id="i-photo" viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></symbol>
   <symbol id="i-library" viewBox="0 0 24 24"><path d="M22 16V4c0-1.1-.9-2-2-2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2zm-11-4 2.03 2.71L16 11l4 5H8l3-4zM2 6v14c0 1.1.9 2 2 2h14v-2H4V6H2z"/></symbol>
   <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></symbol>
+  <symbol id="i-motion" viewBox="0 0 24 24"><path d="M20.92 13.17A9 9 0 0 1 19.14 17.48M17.48 19.14A9 9 0 0 1 13.17 20.92M10.83 20.92A9 9 0 0 1 6.52 19.14M4.86 17.48A9 9 0 0 1 3.08 13.17M3.08 10.83A9 9 0 0 1 4.86 6.52M6.52 4.86A9 9 0 0 1 10.83 3.08M13.17 3.08A9 9 0 0 1 17.48 4.86M19.14 6.52A9 9 0 0 1 20.92 10.83" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M10 8.5v7l5.5-3.5z"/></symbol>
   <symbol id="i-pause" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></symbol>
   <symbol id="i-chevron" viewBox="0 0 24 24"><path d="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></symbol>
   <symbol id="i-person" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></symbol>
@@ -533,7 +546,7 @@ figure.land { width: calc(760px * var(--z)); }
 <header class="top">
   <h1>Memoria Photo</h1>
   <p class="lede">Light theme, Honey palette. Photos and faces are placeholders, names and places are made up.</p>
-  <p class="latest"><b>Latest, 24 Nov:</b> <a href="#locked-first">Lock</a> asks on every lock now, and <a href="#locked-movingout">Moving out</a> shows progress like Locking.</p>
+  <p class="latest"><b>Latest, 28 Nov:</b> <a href="#locked-sharing">Share in the Locked folder</a>: in the <a href="#locked-select">select bar</a> and the <a href="#locked-viewer">locked viewer</a>, with a progress bar while it decrypts.</p>
 </header>
 
 <aside class="rail" aria-label="Contents">
@@ -596,6 +609,21 @@ figure.land { width: calc(760px * var(--z)); }
         </div>
       </div>
       <figcaption>Photos tab, at the very top: the top bar shows here and only here. The wordmark, the month heading and the day headings start on one left edge (16 px). The month slider is hidden at the top; see the next figure for scrolling. Photos and Library float as one pill at the bottom center (see Tabs), with photos on both sides</figcaption>
+    </figure>
+    <figure id="tabs-swipe">
+      <div class="phone" style="--p:.4">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="pages"><div id="swipe-photos"></div><div id="swipe-library"></div></div>
+        <div class="bottom">
+          <nav class="sliding">
+            <span class="thumb"></span>
+            <button class="tab on"><span class="pill">Photos</span></button>
+            <button class="tab"><span class="pill">Library</span></button>
+          </nav>
+          <div class="handle"></div>
+        </div>
+      </div>
+      <figcaption>Photos to Library, mid-swipe (40% of the way). Swipe left or right anywhere on either tab. Both tabs slide side by side with the finger; the status bar stays. The pill's highlight slides under the labels at the same pace. Each label's colour fades with it, and bold moves to the other tab at halfway. Let go past halfway or with a flick, and it finishes; else it slides back. A tap on a tab slides the same way. These keep their own drag: the month slider's strip, a long press (drag-select), the People &amp; pets row, and Android's Back from the screen edges. No swipe while selecting</figcaption>
     </figure>
     <figure id="photos-hidden-bar">
       <div class="phone float has-slider">
@@ -722,6 +750,26 @@ figure.land { width: calc(760px * var(--z)); }
       </div>
       <figcaption>Viewer: the photo fills the phone; the top and bottom bars float on it, transparent (a soft gradient keeps the icons readable), so they never hide the photo. Swipe sideways for next photo, swipe up for details, tap to hide the bars</figcaption>
     </figure>
+    <figure id="viewer-motion">
+      <div class="phone dark viewer">
+        <div class="viewer-full" data-shot></div>
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="vbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="when">Sat, 11 Oct<span>14:32</span></div>
+          <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
+        </div>
+        <div class="mtag"><svg class="i"><use href="#i-motion"/></svg>Motion photo</div>
+        <div class="actions">
+          <button class="icon-btn" aria-label="Share"><svg class="i"><use href="#i-share"/></svg></button>
+          <button class="icon-btn" aria-label="Favorite"><svg class="i"><use href="#i-heart-line"/></svg></button>
+          <button class="icon-btn" aria-label="Info"><svg class="i"><use href="#i-info"/></svg></button>
+          <button class="icon-btn" aria-label="Delete"><svg class="i"><use href="#i-trash-line"/></svg></button>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Viewer, motion photo: a photo with a short clip inside, as phone cameras take them (Live or Motion photo). A small tag under the top bar says so: the motion icon and "Motion photo", no more. It belongs to the top bar, so a tap hides it with the bars, and the date never moves for it. Hold the photo: the clip plays over it from the start, muted (a 2-second hold must not stop the music), while the finger stays down; letting go shows the photo again. The clip fades in over a quarter second, and fades out the same way on the lift, so the switch is never a cut. The grid marks these photos with the same icon, top right. A clip saved beside the photo as its own file (a Google Photos export) is hidden everywhere: the photo holds the same clip.</figcaption>
+    </figure>
     <figure id="viewer-more">
       <div class="phone dark viewer" id="viewer-more-phone">
         <div class="menu" role="menu">
@@ -748,6 +796,42 @@ figure.land { width: calc(760px * var(--z)); }
         </div>
       </div>
       <figcaption>Move to album: opens from the viewer's More. Same order as Albums, minus the photo's own album (named in the head). Only folders under DCIM and Pictures are listed: Android allows a move only there, so WhatsApp's folder is left out. Tap one to move; Android asks to confirm, or Memoria with Media management on. New album opens the New album sheet, its button reads Move. Opened from an album, the moved photo leaves it, so the viewer shows the next one. Album select uses it too</figcaption>
+    </figure>
+    <figure id="viewer-outside">
+      <div class="phone dark viewer">
+        <div class="viewer-full" data-shot></div>
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="vbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="when">Sat, 11 Oct<span>14:32</span></div>
+          <button class="icon-btn" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
+        </div>
+        <div class="actions">
+          <button class="icon-btn" aria-label="Share"><svg class="i"><use href="#i-share"/></svg></button>
+          <button class="icon-btn" aria-label="Favorite"><svg class="i"><use href="#i-heart-line"/></svg></button>
+          <button class="icon-btn" aria-label="Info"><svg class="i"><use href="#i-info"/></svg></button>
+          <button class="icon-btn" aria-label="Delete"><svg class="i"><use href="#i-trash-line"/></svg></button>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Viewer, from another app: Open with in a file manager or a chat app sends a photo or video here. A file in the phone's library opens alone, with no grid behind and no swipe to the next one. The rest is the normal viewer, minus Show in album in More. Back, a pull down, or the file leaving (Delete, Move to Locked folder) returns to that app. Before Photos access is allowed, every file opens as another app's file (next)</figcaption>
+    </figure>
+    <figure id="viewer-foreign">
+      <div class="phone dark viewer">
+        <div class="viewer-full" data-shot></div>
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="vbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="when">No date<span>&nbsp;</span></div>
+          <button class="icon-btn" aria-hidden="true" tabindex="-1" style="visibility:hidden"><svg class="i"><use href="#i-more"/></svg></button>
+        </div>
+        <div class="actions">
+          <button class="icon-btn" aria-label="Share"><svg class="i"><use href="#i-share"/></svg></button>
+          <button class="icon-btn" aria-label="Details"><svg class="i"><use href="#i-info"/></svg></button>
+        </div>
+        <div class="gesture"><div class="handle"></div></div>
+      </div>
+      <figcaption>Viewer, another app's file: a chat app's own copy or a mail attachment, not in the phone's library. Read-only: Share and Details. No Favorite, Delete or More; the More slot stays empty, so the title does not move. The date comes from the file (the camera's EXIF, a video's own date). A file without one, like a photo a chat app sent, reads No date, here and in Details. Details shows the file's name, size and camera, no folder and no people. A video the phone cannot play offers another player, never Memoria itself</figcaption>
     </figure>
     <figure id="viewer-tap">
       <div class="phone dark">
@@ -1233,13 +1317,35 @@ figure.land { width: calc(760px * var(--z)); }
         <div class="scroll">
           <div class="grid big" id="locked-picked"></div>
         </div>
-        <div class="answers selbar">
-          <button class="no danger"><svg class="i"><use href="#i-trash-line"/></svg>Delete</button>
-          <button class="yes"><svg class="i"><use href="#i-upload"/></svg>Move out</button>
+        <div class="bottom picking">
+          <nav>
+            <button class="tab"><span class="pill"><svg class="i"><use href="#i-share"/></svg>Share</span></button>
+            <button class="tab"><span class="pill"><svg class="i"><use href="#i-upload"/></svg>Move out</span></button>
+            <button class="tab danger"><span class="pill"><svg class="i"><use href="#i-trash-line"/></svg>Delete</span></button>
+          </nav>
+          <div class="handle"></div>
+        </div>
+      </div>
+      <figcaption>Locked folder, selecting: the header swaps in place and the Select bar floats in over the grid, so nothing jumps. Share, Move out, Delete: the order of every other select bar, Delete last in red. Share asks nothing and goes through Preparing to share. Move out asks first (see Move out, every time), then puts each file back in the folder it came from, with its name, date and place, and the grid and index take it again. Delete asks once in the app and removes the file completely: a locked file is not in the phone's trash, and Android cannot delete it for us. No Favorite (MediaStore keeps favorites, and these are not in it), no Move (that is Move out)</figcaption>
+    </figure>
+    <figure id="locked-viewer">
+      <div class="phone dark viewer">
+        <div class="viewer-full" data-shot></div>
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="vbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="when">Sat, 11 Oct<span>14:32</span></div>
+          <button class="icon-btn" aria-hidden="true" tabindex="-1" style="visibility:hidden"><svg class="i"><use href="#i-more"/></svg></button>
+        </div>
+        <div class="actions">
+          <button class="icon-btn" aria-label="Share"><svg class="i"><use href="#i-share"/></svg></button>
+          <button class="icon-btn" aria-label="Details"><svg class="i"><use href="#i-info"/></svg></button>
+          <button class="icon-btn" aria-label="Move out"><svg class="i"><use href="#i-upload"/></svg></button>
+          <button class="icon-btn" aria-label="Delete"><svg class="i"><use href="#i-trash-line"/></svg></button>
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Locked folder, selecting: the header swaps in place and only the bar appears, so nothing jumps. Move out asks first (see Move out, every time), then puts each file back in the folder it came from, with its name, date and place, and the grid and index take it again. Delete asks once in the app and removes the file completely: a locked file is not in the phone's trash, and Android cannot delete it for us. Nothing else is here: no Share (a locked photo never leaves the app), no Favorite (MediaStore keeps favorites, and these are not in it), no Move (that is Move out)</figcaption>
+      <figcaption>Locked folder, viewer: a tap on a locked item opens it like any other photo or video, with no screenshot and no Recents card. The row is Share, Details, Move out, Delete: four, like the gallery viewer, Share first. No Favorite and no More: the More slot stays empty, so the date does not move. Share goes through Preparing to share; Move out asks first and the item leaves the viewer</figcaption>
     </figure>
     <figure id="locked-empty">
       <div class="phone">
@@ -1351,6 +1457,20 @@ figure.land { width: calc(760px * var(--z)); }
         </div>
       </div>
       <figcaption>Moving out: after Move out's question, the files are decrypted back to the gallery, and big videos take a while. Like Locking: it shows only if that takes over 300 ms, the bar fills by bytes, a tap outside does nothing. Cancel and Back stop at the file in progress and delete its half-written gallery copy. Files already moved out stay out, the rest stay locked, so nothing is lost or in two places. Same from the select bar and the locked viewer</figcaption>
+    </figure>
+    <figure id="locked-sharing">
+      <div class="phone modal" id="locked-sharing-phone">
+        <div class="scrim">
+          <div class="dialog" role="dialog" aria-labelledby="sharing-title">
+            <svg class="i calm"><use href="#i-share"/></svg>
+            <b id="sharing-title">Preparing 2 items to share</b>
+            <div class="track"><div style="width:62%"></div></div>
+            <p style="font-variant-numeric: tabular-nums">1.3 of 2.1 GB</p>
+            <div class="dialog-btns"><button class="text-btn">Cancel</button></div>
+          </div>
+        </div>
+      </div>
+      <figcaption>Preparing to share: Share in the select bar or the locked viewer asks nothing. It decrypts a copy of each file into the app's own cache, then Android's share sheet opens. Like Moving out: it shows only if that takes over 300 ms, the bar fills by bytes, a tap outside does nothing, Cancel and Back delete the copies made so far. The copies keep the file's name and everything in it, GPS too. No other app, file manager or gallery can see them; only the app picked in the sheet may read them. They are deleted as soon as Memoria is back on screen (sent or not) and at every app start. An app that keeps reading after that, like a big upload running in the background, may fail. Leaving for the picked app closes the folder as usual, so coming back asks for the phone's sheet again</figcaption>
     </figure>
     <figure id="locked-keylost">
       <div class="phone modal" id="locked-keylost-phone">
@@ -2377,8 +2497,15 @@ Photos: …/files/test</div>
           <button class="tab"><span class="pill">Library</span></button>
         </nav>
       </div>
+      <div class="bottom" style="margin-top:12px">
+        <nav class="sliding" style="--p:.4">
+          <span class="thumb"></span>
+          <button class="tab on"><span class="pill">Photos</span></button>
+          <button class="tab"><span class="pill">Library</span></button>
+        </nav>
+      </div>
     </div>
-    <p>Photos and Library as one pill floating at the bottom center, text only. No bar behind it: photos show on both sides and under the gesture bar. Each tab has a fixed width, so the bold one never moves the pill. Lists end with room, so their last row clears it.</p>
+    <p>Photos and Library as one pill floating at the bottom center, text only. No bar behind it: photos show on both sides and under the gesture bar. Each tab has a fixed width, so the bold one never moves the pill. Lists end with room, so their last row clears it. Second pill: mid-swipe from Photos to Library (see <a href="#tabs-swipe">the swipe</a>). The highlight sits between the tabs, and the label colours are part way.</p>
   </article>
 
   <article class="part">
@@ -2393,7 +2520,7 @@ Photos: …/files/test</div>
         </nav>
       </div>
     </div>
-    <p>A floating pill like the tabs, with icons, and a fixed width per action so Favorite / Unfavorite never moves it. Takes the tabs' spot while selecting on a tab screen. On a screen without tabs (Album, Favorites, Place, Person, Videos) it floats in at the bottom over the grid, so nothing moves. Move only in an album, the one screen that says where its photos are. Four is the most that fits at 360 dp: with four, the label goes under the icon. Delete goes last, in red. An album already has Move as its fourth, so it locks one photo at a time from the viewer's More. Trash and the Locked folder have two actions and use the Action bar.</p>
+    <p>A floating pill like the tabs, with icons, and a fixed width per action so Favorite / Unfavorite never moves it. Takes the tabs' spot while selecting on a tab screen. On a screen without tabs (Album, Favorites, Place, Person, Videos) it floats in at the bottom over the grid, so nothing moves. Move only in an album, the one screen that says where its photos are. Four is the most that fits at 360 dp: with four, the label goes under the icon. Delete goes last, in red. An album already has Move as its fourth, so it locks one photo at a time from the viewer's More. The Locked folder has three: Share, Move out, Delete. Trash has two actions and uses the Action bar.</p>
   </article>
 
   <article class="part">
@@ -2412,8 +2539,9 @@ Photos: …/files/test</div>
       <div class="tile" data-photo><span class="sel"></span><span class="left">12 days</span></div>
       <div class="tile on" data-photo><span class="sel"><svg class="i"><use href="#i-check"/></svg></span><span class="dur">0:42<svg class="i"><use href="#i-play"/></svg></span><span class="left">12 days</span></div>
       <div class="tile" data-photo><span class="fav"><svg class="i"><use href="#i-heart"/></svg></span><span class="dur">2:31<svg class="i"><use href="#i-play"/></svg></span></div>
+      <div class="tile" data-photo id="tile-motion"><span class="dur"><svg class="i"><use href="#i-motion"/></svg></span></div>
     </div>
-    <p>Square, thumbnail cropped to fill. Top left the select circle, top right the length for videos, bottom left the days left, the heart dot when it is a favorite. Selecting adds the accent outline.</p>
+    <p>Square, thumbnail cropped to fill. Top left the select circle, top right the length for videos or the motion icon for a motion photo (a photo with a short clip inside), bottom left the days left, the heart dot when it is a favorite. Selecting adds the accent outline.</p>
   </article>
 
   <article class="part">
@@ -2588,8 +2716,8 @@ const photo = () => {
 const days = [
   { m: "October 2026" },
   { d: "Today", p: "Riverton", n: 3, v: [1], f: [0] },
-  { d: "Yesterday", n: 6, v: [4] },
-  { d: "Sat, 11 Oct", p: "Riverside Park", n: 9, f: [2, 6] },
+  { d: "Yesterday", n: 6, v: [4], mo: [1] },
+  { d: "Sat, 11 Oct", p: "Riverside Park", n: 9, f: [2, 6], mo: [4] },
   { m: "September 2026" },
   { d: "Sun, 28 Sep", p: "Northport", n: 7, v: [2] },
   { d: "Sat, 13 Sep", n: 12, v: [5, 9] },
@@ -2616,7 +2744,8 @@ for (const x of days) {
   } else sec.insertAdjacentHTML("beforeend", `<div class="day">${x.d}${x.p ? `<small>${x.p}</small>` : ""}</div><div class="grid">${
     Array.from({ length: x.n }, (_, i) => `<div class="tile" style="background:${photo()}">${
       x.f?.includes(i) ? `<span class="fav"><svg class="i"><use href="#i-heart"/></svg></span>` : ""}${
-      x.v?.includes(i) ? `<span class="dur">${durs[i % durs.length]}<svg class="i"><use href="#i-play"/></svg></span>` : ""
+      x.v?.includes(i) ? `<span class="dur">${durs[i % durs.length]}<svg class="i"><use href="#i-play"/></svg></span>` : ""}${
+      x.mo?.includes(i) ? `<span class="dur"><svg class="i"><use href="#i-motion"/></svg></span>` : ""
     }</div>`).join("")}</div>`);
 }
 // The first Photos figure is the very top; the scrolled one is filled below.
@@ -2877,6 +3006,17 @@ behind("#trash-select .phone", "ask-restore-phone");
 behind("#move-album .phone", "ask-move-phone");
 behind("#photos-select .phone", "locking-phone");
 behind("#locked-select .phone", "locked-movingout-phone");
+behind("#locked-select .phone", "locked-sharing-phone");
+// Photos to Library mid-swipe: the Photos top figure and the Library figure side by side, with people in the row
+const swipePage = (from, to) => document.getElementById(to).append(...[...document.querySelector(from).children]
+  .filter(n => !n.matches(".status, .bottom")).map(n => {
+    const c = n.cloneNode(true);
+    [c, ...c.querySelectorAll("[id]")].forEach(e => e.removeAttribute("id")); // ids stay unique
+    return c;
+  }));
+swipePage("#page-photos figure .phone", "swipe-photos");
+swipePage("#page-library figure .phone", "swipe-library");
+document.querySelector("#swipe-library .row").innerHTML = document.getElementById("search-people").innerHTML;
 </script>
 
 <script>

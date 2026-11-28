@@ -2,6 +2,7 @@ package app.memoria
 
 import android.content.Context
 import android.os.BatteryManager
+import android.os.SystemClock
 import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
@@ -13,6 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 object IndexProgress {
     private fun prefs(context: Context) = context.getSharedPreferences("index", Context.MODE_PRIVATE)
     fun start(context: Context, total: Int, base: Int) {
+        IndexSpeed.clear()
         prefs(context).edit().putInt("total", total).putInt("base", base).putLong("started", System.currentTimeMillis()).putBoolean("paused", false).apply()
     }
     fun total(context: Context) = prefs(context).getInt("total", 0)
@@ -31,7 +33,10 @@ object IndexProgress {
         prefs(context).edit().putStringSet("skipped", if (on) ids + "$bucket" else ids - "$bucket").apply()
     }
     /** Done: clears the run's total, base and start time, keeps the paused and scope flags. */
-    fun finish(context: Context) = prefs(context).edit().remove("total").remove("base").remove("started").apply()
+    fun finish(context: Context) {
+        IndexSpeed.clear()
+        prefs(context).edit().remove("total").remove("base").remove("started").apply()
+    }
 }
 
 /** A queued run that only waits for the charger, so the progress row says so instead of hiding. */
@@ -61,10 +66,36 @@ object IndexControl {
 /** Goes up after each savePeople and each fix in the viewer, so Library and People reload. */
 val peopleSaved = MutableStateFlow(0)
 
-/** Rough time left: elapsed per photo times the photos left. Null until at least one photo is done. */
+/** The last two minutes of a run: "time left" follows them, so a locked phone or one slow photo does not inflate it. */
+internal object IndexSpeed {
+    private const val WINDOW = 120_000L
+    private val samples = ArrayDeque<Pair<Long, Int>>() // monotonic ms, photos done
+
+    @Synchronized fun clear() = samples.clear()
+
+    /** A photo finished. [now] is a parameter so a test can move the clock. */
+    @Synchronized fun add(done: Int, now: Long = SystemClock.elapsedRealtime()) {
+        // a stalled run (locked phone, doze) has no recent speed: its old samples would read as slow work
+        if (samples.lastOrNull()?.let { now - it.first > WINDOW } == true) samples.clear()
+        samples.addLast(now to done)
+        while (samples.size > 2 && now - samples.first().first > WINDOW) samples.removeFirst()
+    }
+
+    /** Ms per photo over the window, or null when it holds too little progress. */
+    @Synchronized fun msPerPhoto(): Double? {
+        val first = samples.firstOrNull() ?: return null
+        val last = samples.last()
+        val photos = last.second - first.second
+        val ms = last.first - first.first
+        return if (photos <= 0 || ms <= 0) null else ms.toDouble() / photos
+    }
+}
+
+/** Rough time left: photos left times the recent ms per photo, or the run's average until the window has two samples. */
 fun etaMillis(started: Long, done: Int, total: Int): Long? {
     if (started <= 0L || done <= 0 || total <= done) return null
-    return (System.currentTimeMillis() - started) / done * (total - done)
+    val per = IndexSpeed.msPerPhoto() ?: (System.currentTimeMillis() - started).toDouble() / done
+    return (per * (total - done)).toLong()
 }
 
 fun formatEta(ms: Long): String {

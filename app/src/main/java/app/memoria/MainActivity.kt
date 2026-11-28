@@ -30,6 +30,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -42,6 +43,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.layout.LazyLayoutCacheWindow
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -66,6 +69,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
@@ -75,6 +79,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import androidx.work.WorkManager
@@ -145,7 +150,8 @@ class MainActivity : FragmentActivity() {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun App(dir: File, openSettings: Int = 0, atUpdates: Boolean = false, jump: Jump? = null) {
-    var tab by rememberSaveable { mutableStateOf("photos") } // the tab under the opened screens
+    // the tab under the opened screens: page 0 Photos, 1 Library; a swipe or a tab tap slides between them
+    val tabPager = rememberPagerState { 2 }
     // the screens opened over the tab, oldest first; Back closes the last one
     var stack by rememberSaveable { mutableStateOf(emptyList<Screen>()) }
     val tabs = rememberSaveableStateHolder() // keeps each tab's scroll while the other one is open, and each open screen's
@@ -188,6 +194,11 @@ fun App(dir: File, openSettings: Int = 0, atUpdates: Boolean = false, jump: Jump
     // tiles a screen below are built early, so their thumbnails load before they scroll in
     val photosGrid = rememberLazyGridState(cacheWindow = LazyLayoutCacheWindow(aheadFraction = 1f))
     val scope = rememberCoroutineScope()
+    // Share's plain copies of locked files go once the app is on screen again, sent or not, and at its start
+    LifecycleResumeEffect(Unit) {
+        scope.launch(Dispatchers.IO) { VaultStore.dropShared(context) }
+        onPauseOrDispose {}
+    }
     var photosScrollTop by remember { mutableIntStateOf(0) } // bumped by a tab tap; the Photos tab reacts by scrolling to the top
     var viewing by rememberSaveable { mutableStateOf<Long?>(null) }
     // the index or update notification: Settings over Library, whatever was open
@@ -195,16 +206,17 @@ fun App(dir: File, openSettings: Int = 0, atUpdates: Boolean = false, jump: Jump
         if (openSettings == 0) return@LaunchedEffect
         viewing = null
         repeat(stack.size) { back() }
-        tab = "library"
         push(Screen.Settings(atUpdates))
+        tabPager.scrollToPage(1)
     }
     // the debug shortcut (MainActivity, `make jump`): straight to a screen, no tapping through the app
     LaunchedEffect(jump) {
         if (jump == null) return@LaunchedEffect
         val screen = screenNamed(jump.screen)
         // a screen sits over a tab: Library, unless the jump asked for Photos (same as the Settings one above)
-        tab = if (jump.tab == "photos" || jump.tab == "library") jump.tab else if (screen != null) "library" else tab
+        val page = if (jump.tab == "photos") 0 else if (jump.tab == "library" || screen != null) 1 else null
         if (screen != null) { viewing = null; repeat(stack.size) { back() }; push(screen) }
+        page?.let { tabPager.scrollToPage(it) }
     }
     // Photos tab select mode (mockup "Photos, selecting"): the picked tiles, shared so the bottom bar swaps
     val selection = remember { PhotoSelection() }
@@ -250,7 +262,7 @@ fun App(dir: File, openSettings: Int = 0, atUpdates: Boolean = false, jump: Jump
         val picked = selectedTiles()
         if (picked.isNotEmpty()) mediaConfirm(trashQuestion(picked)) {
             pendingTrash = true
-            val ask = MediaStore.createTrashRequest(context.contentResolver, picked.map { it.uri }, true)
+            val ask = MediaStore.createTrashRequest(context.contentResolver, withClips(context, picked), true)
             selectAsk.launch(IntentSenderRequest.Builder(ask.intentSender).build())
         }
     }
@@ -273,38 +285,49 @@ fun App(dir: File, openSettings: Int = 0, atUpdates: Boolean = false, jump: Jump
                     .then(if (opened.targetState != null) Modifier.clearAndSetSemantics {} else Modifier),
             ) {
                 Box(Modifier.fillMaxSize()) {
-                    // tabs are side by side, so they fade; a push would read as going deeper. Each tab keeps
-                    // clear of the system bars itself: Photos runs its grid under both, behind the floating tabs.
-                    Crossfade(tab, animationSpec = tween(200), label = "tab") { t ->
-                        tabs.SaveableStateProvider(t) {
-                            if (t == "photos") PhotosScreen(
-                                onOpen = open, grid = photosGrid, selection = selection, reload = photosReload,
-                                onSearch = { push(Screen.Search) },
-                                scrollToTop = photosScrollTop,
-                                onTop = { stack.isEmpty() }, // a viewer opened from a screen on top moves only that screen's grid
-                            )
-                            else LibraryScreen(
-                                onOpenSearch = { push(Screen.Search) },
-                                onOpenPeople = { push(Screen.People()) },
-                                onOpenPerson = { push(Screen.People(it, direct = true)) },
-                                onOpenAlbums = { push(Screen.Albums()) },
-                                onOpenAlbum = { push(Screen.Album(it)) },
-                                onOpenPlaces = { push(Screen.Places) },
-                                onOpenPlace = { push(Screen.Place(it)) },
-                                onOpenCategories = { push(Screen.Categories) },
-                                onOpenCategory = { push(Screen.Category(it)) },
-                                onOpenFavorites = { push(Screen.Favorites) },
-                                onOpenVideos = { push(Screen.Videos) },
-                                onOpenTrash = { push(Screen.Trash) },
-                                onOpenLocked = { push(Screen.Locked) },
-                                onHelpRecognize = { push(Screen.Recognize()) },
-                                onOpenSettings = { push(Screen.Settings()) },
-                                reload = returns,
-                            )
+                    // tabs are side by side, so they slide side by side with the finger (mockup "Tabs" swipe); a push
+                    // would read as going deeper. Both stay built, so a swipe never builds Library mid-slide. Each tab
+                    // keeps clear of the system bars itself: Photos runs its grid under both, behind the floating tabs.
+                    HorizontalPager(tabPager, Modifier.fillMaxSize(), beyondViewportPageCount = 1, userScrollEnabled = !selection.active) { page ->
+                        val t = if (page == 0) "photos" else "library"
+                        // The tab out of view stays out of TalkBack and focus, as when only one tab was built. Focus
+                        // landing there makes the pager slide to it (closing Search on Library went back to Photos).
+                        Box(
+                            Modifier.fillMaxSize()
+                                .then(if (page != tabPager.settledPage) Modifier.clearAndSetSemantics {} else Modifier)
+                                .focusProperties { onEnter = { if (page != tabPager.settledPage) cancelFocusChange() } }
+                                .focusGroup(),
+                        ) {
+                            tabs.SaveableStateProvider(t) {
+                                if (t == "photos") PhotosScreen(
+                                    onOpen = open, grid = photosGrid, selection = selection, reload = photosReload,
+                                    onSearch = { push(Screen.Search) },
+                                    scrollToTop = photosScrollTop,
+                                    onTop = { stack.isEmpty() }, // a viewer opened from a screen on top moves only that screen's grid
+                                )
+                                else LibraryScreen(
+                                    onOpenSearch = { push(Screen.Search) },
+                                    onOpenPeople = { push(Screen.People()) },
+                                    onOpenPerson = { push(Screen.People(it, direct = true)) },
+                                    onOpenAlbums = { push(Screen.Albums()) },
+                                    onOpenAlbum = { push(Screen.Album(it)) },
+                                    onOpenPlaces = { push(Screen.Places) },
+                                    onOpenPlace = { push(Screen.Place(it)) },
+                                    onOpenCategories = { push(Screen.Categories) },
+                                    onOpenCategory = { push(Screen.Category(it)) },
+                                    onOpenFavorites = { push(Screen.Favorites) },
+                                    onOpenVideos = { push(Screen.Videos) },
+                                    onOpenTrash = { push(Screen.Trash) },
+                                    onOpenLocked = { push(Screen.Locked) },
+                                    onHelpRecognize = { push(Screen.Recognize()) },
+                                    onOpenSettings = { push(Screen.Settings()) },
+                                    reload = returns,
+                                )
+                            }
                         }
                     }
                     // The tabs and the Select bar float over the tab, so swapping them never moves the grid
-                    Crossfade(tab == "photos" && selection.active, Modifier.align(Alignment.BottomCenter).fillMaxWidth(), label = "bottomBar") { selecting ->
+                    Crossfade(selection.active && tabPager.currentPage == 0, Modifier.align(Alignment.BottomCenter).fillMaxWidth(), label = "bottomBar") { selecting ->
                         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                             if (selecting) SelectBar(
                                 favorite = selection.allFavorite,
@@ -313,7 +336,11 @@ fun App(dir: File, openSettings: Int = 0, atUpdates: Boolean = false, jump: Jump
                                 onDelete = deleteSelected,
                                 onLock = { lockSelected(selectedTiles()) },
                             )
-                            else Tabs(tab, onPhotos = { if (tab == "photos") photosScrollTop++ else tab = "photos" }, onLibrary = { tab = "library" })
+                            else Tabs(
+                                position = { tabPager.currentPage + tabPager.currentPageOffsetFraction },
+                                onPhotos = { if (tabPager.currentPage == 0) photosScrollTop++ else scope.launch { tabPager.animateScrollToPage(0) } },
+                                onLibrary = { scope.launch { tabPager.animateScrollToPage(1) } },
+                            )
                         }
                     }
                 }
@@ -402,7 +429,7 @@ fun App(dir: File, openSettings: Int = 0, atUpdates: Boolean = false, jump: Jump
                                         HitKind.videos -> push(Screen.Videos)
                                         HitKind.favorites -> push(Screen.Favorites)
                                         HitKind.year, HitKind.month -> { // the Photos tab, scrolled to that month's header
-                                            back(); tab = "photos"
+                                            back(); scope.launch { tabPager.scrollToPage(0) }
                                             val at = lastTimeline?.indexOfFirst { it is Header && it.key == h.key } ?: -1
                                             if (at >= 0) scope.launch { photosGrid.scrollToItem(at) }
                                         }

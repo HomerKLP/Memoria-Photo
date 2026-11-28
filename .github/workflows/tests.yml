@@ -26,6 +26,12 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: gradle/actions/setup-gradle@v5
+      # Robolectric downloads Android's framework (~225 MB) on its first test; keep it between runs
+      - uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/org/robolectric
+          key: robolectric-${{ hashFiles('app/build.gradle.kts') }}
+          restore-keys: robolectric-
 
       # make check, plus the unit coverage report
       - name: Unit and screenshot tests

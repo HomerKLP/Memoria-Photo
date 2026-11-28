@@ -15,8 +15,13 @@ import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.annotation.GraphicsMode
+import androidx.test.ext.junit.runners.AndroidJUnit4
 
 /** [Thumb] that gets another tile in the same slot, as Library rows do when a scan reorders them. */
+@RunWith(AndroidJUnit4::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE) // real drawing, so captureToImage reads pixels
 class ThumbTest {
 
     @get:Rule val rule = createComposeRule()

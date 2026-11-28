@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -913,6 +914,19 @@ fun ViewerLocked() = MemoriaTheme {
     }
 }
 
+/** Viewer, another app's file (mockup "Viewer, another app's file"): Share and Details only, no date in the file. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 800)
+@Composable
+fun ViewerForeign() = MemoriaTheme {
+    Surface {
+        Box(Modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxSize().background(viewerPhoto))
+            ViewerChrome(true, "No date", "", favorite = false, {}, {}, {}, {}, {}, foreign = true)
+        }
+    }
+}
+
 /** Viewer, tapped: the bars are gone, only the photo is left. */
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 800)
@@ -968,6 +982,33 @@ fun ViewerMoreLandscape() = MemoriaTheme {
                     MenuItem(R.drawable.ic_video, "Compress video", dividerBefore = true, enabled = false) {},
                 ),
             )
+        }
+    }
+}
+
+/** Motion photo (mockup "Viewer, motion photo"): its tag under the top bar. Pairs with viewer_motionTag_keepsTheBarsPut. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 800)
+@Composable
+fun ViewerMotion() = MemoriaTheme {
+    Surface {
+        Box(Modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxSize().background(viewerPhoto))
+            ViewerChrome(true, "Sat, 11 Oct", "14:32", favorite = false, {}, {}, {}, {}, {}, motion = true)
+        }
+    }
+}
+
+/** Grid tiles (mockup "Tile"): a photo, a video with its length, a motion photo with its icon. */
+@PreviewTest
+@Preview(widthDp = 360, heightDp = 120)
+@Composable
+fun TileBadges() = MemoriaTheme {
+    Surface {
+        Row {
+            Thumb(Tile(1, android.net.Uri.parse("content://media/external/images/media/1"), 0L, null), Modifier.size(120.dp))
+            Thumb(Tile(2, android.net.Uri.parse("content://media/external/video/media/2"), 0L, 42_000L), Modifier.size(120.dp))
+            Thumb(Tile(3, android.net.Uri.parse("content://media/external/images/media/3"), 0L, null, motion = true), Modifier.size(120.dp))
         }
     }
 }
@@ -1103,14 +1144,15 @@ fun PhotosMonthPinned() = MemoriaTheme {
     Surface { PhotosContent(items, grid = rememberLazyGridState(20)) }
 }
 
-/** Tabs and the Select bar (mockup "Tabs", "Select bar"): floating pills over the photos. Pairs with tabs_switching_keepsThemPut and selectBar_unfavorite_keepsActionsPut. */
+/** Tabs, mid-swipe tabs and the Select bar (mockup "Tabs", "Select bar"): floating pills over the photos. Pairs with tabs_switching_keepsThemPut and selectBar_unfavorite_keepsActionsPut. */
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 360)
 @Composable
 fun FloatingBars() = MemoriaTheme {
     Surface {
         Column(Modifier.fillMaxSize().background(Color(0xFF9CC3E6)), verticalArrangement = Arrangement.SpaceEvenly, horizontalAlignment = Alignment.CenterHorizontally) {
-            Tabs("photos", {}, {})
+            Tabs({ 0f }, {}, {})
+            Tabs({ 0.4f }, {}, {})
             SelectBar(true, {}, {}, {})
             SelectBar(false, {}, {}, {}, onMove = {})
         }

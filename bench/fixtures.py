@@ -76,6 +76,42 @@ def save_heic(name, img, orientation):
     (OUT / name).write_bytes(bytes(out))
 
 
+# Google's Motion Photo v1 as the test phone writes it: GCamera names, one Container item per part
+MOTION_XMP = """<x:xmpmeta xmlns:x="adobe:ns:meta/">
+  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+    <rdf:Description rdf:about=""
+        xmlns:GCamera="http://ns.google.com/photos/1.0/camera/"
+        xmlns:Container="http://ns.google.com/photos/1.0/container/"
+        xmlns:Item="http://ns.google.com/photos/1.0/container/item/"
+      GCamera:MotionPhoto="1"
+      GCamera:MotionPhotoVersion="1"
+      GCamera:MotionPhotoPresentationTimestampUs="1000000">
+      <Container:Directory>
+        <rdf:Seq>
+          <rdf:li rdf:parseType="Resource"><Container:Item Item:Mime="image/jpeg" Item:Semantic="Primary" Item:Length="0" Item:Padding="0"/></rdf:li>
+          <rdf:li rdf:parseType="Resource"><Container:Item Item:Mime="image/jpeg" Item:Semantic="GainMap" Item:Length="{gain}" Item:Padding="0"/></rdf:li>
+          <rdf:li rdf:parseType="Resource"><Container:Item Item:Mime="video/mp4" Item:Semantic="MotionPhoto" Item:Length="{clip}"/></rdf:li>
+        </rdf:Seq>
+      </Container:Directory>
+    </rdf:Description>
+  </rdf:RDF>
+</x:xmpmeta>"""
+
+
+def save_motion(name, img, clip):
+    """A motion photo: the JPEG, a gain map, then the clip; the XMP gives each part's length, counted from the file end.
+    The gain map is a plain grey JPEG without MPF, so not a real Ultra HDR: it only puts a part between photo and clip.
+    An empty clip makes a JPEG whose XMP still claims one, like an edit that dropped it."""
+    save_jpeg(name, img, 1)
+    data = (OUT / name).read_bytes()
+    gain = jpeg_bytes(Image.new("L", (W // 4, H // 4), 128), quality=80) if clip else b""
+    xmp = b"http://ns.adobe.com/xap/1.0/\0" + MOTION_XMP.format(gain=len(gain) or 1000, clip=len(clip) or 2000).encode()
+    at = 2
+    while data[at + 1] in range(0xE0, 0xF0):  # past the APPn segments, so the XMP sits beside the EXIF
+        at += 2 + int.from_bytes(data[at + 2 : at + 4], "big")
+    (OUT / name).write_bytes(data[:at] + b"\xff\xe1" + (2 + len(xmp)).to_bytes(2, "big") + xmp + data[at:] + gain + clip)
+
+
 def macos_upright(path):
     """The picture as macOS ImageIO shows it: it turns by EXIF, `irot` and `imir`."""
     src = Q.CGImageSourceCreateWithURL(NSURL.fileURLWithPath_(str(path)), None)
@@ -161,6 +197,10 @@ def make():
     save_jpeg("jpg_o6_big.jpg", base(4000, 3000), 6)  # big enough that the viewer decodes by halving
     pic.save(OUT / "png_o1.png", optimize=True)
     pic.save(OUT / "webp_o1.webp", quality=90)
+    clip = OUT.parent / "videos/video_motion.mp4"
+    assert clip.exists(), "run `uv run bench/videofix.py` first: the motion photo holds its clip"
+    save_motion("jpg_o1_motion.jpg", pic, clip.read_bytes())
+    save_motion("jpg_o1_motion_novideo.jpg", pic, b"")
 
     for p in sorted(f for f in OUT.iterdir() if f.is_file()):
         tag = p.stem.split("_")[1][1:]  # "o6" -> "6", "o6_big" -> "6", "none" -> ""

@@ -2,6 +2,16 @@
 
 Style: one-line description, steps to reproduce, fix ideas. Code paths only when they help. Open bugs in full; a fixed bug becomes one line under Fixed at the bottom (the full write-up stays in git history).
 
+## Some People covers still look soft at 96 dp
+
+Pictures saved before 2026-11-28 have a 288 px long side, so their short side is ~224 px and the circle stretches it 1.1-1.3x (44 of 47 covers on the test phone). `recutNarrowThumbs` cuts them again once, at the first index run of 0.14.0 (delete it in 0.16.0); on the debug app it fixed 2185 faces in 213 s. Pet pictures are cut from the 640 decode (`petFace`), so a pet cover can be 165 px wide (1.7x); left as is, the user's call. A person whose best face is 57 px in the photo gets 3.1x; the photo has no more detail. WebP quality 80 may add some blockiness (not checked).
+
+Steps:
+1. Open Library > People & pets > See all.
+2. Compare a cover with the same face in Library (72 dp, sharp).
+
+Fix idea: cut pet pictures from the full decode (one more decode per pet photo).
+
 ## VideoPlayTest flakes on the 10-bit HEVC clip
 
 `make layout` on the API 37 emulator once failed `plays_asItsRowSays[videos/video_hevc10.mp4]` with `ERROR_CODE_FAILED_RUNTIME_CHECK` (1004); the rerun of `VideoPlayTest` was 11/11 green. The row (`plays or card`) allows only 4000-4999 as "the decoder refused it", and the emulator's 10-bit HEVC path sometimes reports 1004 instead.
@@ -107,6 +117,14 @@ Still open:
 - Why: without `setEnableAudioTrackPlaybackParams` ExoPlayer drains the buffered sound through Sonic before the new speed applies. The flag skipped the drain but froze the clock after a pause (Fixed, 2026-11-17).
 - Fix idea: wait for the SurfaceView swap (HDR step 2) and see if the drain still matters; or set the speed on the AudioTrack only while a finger is down, if media3 ever offers it per speed.
 - Tried 2026-11-17: `1.12.0-beta01` (the newest, one step past the stable 1.11.1) still freezes with `setEnableAudioTrackPlaybackParams(true)` (+63, +29, +27 ms per 0.5 s of play after the second pause). So a media3 bump is not the way; the comment in `Viewer.kt` says so.
+
+## Cold start is ~30 ms slower than on 2026-11-04
+
+`make perf` on the release build, 2026-11-26, with the tab swipe (median of 3 runs): first frame 184 ms, timeline 230 ms. On 2026-11-04 it read 151 / 201. The tab pager now builds Library in the first frame, which may be part of it; 3 weeks of other changes may be the rest.
+
+Rest of that run: every screen 0-1.04% janky (Library 1.04, the only one over 1%), p99 at most 16 ms, 0% blank tiles, native heap 173 MB, Library covers 158 / 148 ms (load 150 ms). The tab swipe itself (10 swipes, `gfxinfo`): 0.32% janky, p99 8 ms.
+
+Fix idea: build Library one frame after the first (`beyondViewportPageCount` 0, then 1), then `make perf` again. If the cold start drops back, the pager was the cause.
 
 # Known issues and bad patterns
 
@@ -228,6 +246,7 @@ Found while reading the code, not seen on the phone yet. No steps, just the risk
 - 2026-11-18 Library's snapshot loaded twice at once: at start (the warm-up and the tab) and on every Back from Search, Places or Categories (the leaving screen and Library asked together). `sharedValue` now keeps one load per stamp in an app scope (`SharedCacheTest`); emulator: Back went from 2 `library load` lines to 1. Also from the 2026-11-18 review: Places stayed stale after a delete in a town while indexing was paused (select-mode edits now bump the global `viewerEdits`, which is in the stamp); Videos went back to its own `albums()` scan, since an edit there rebuilt the whole snapshot; Help recognize and Merge with read only people's faces (`personFaceVecs`); the Place screen reads only its town's tags (`tagsInTown`).
 - 2026-11-22 Trash was sorted by whole days left, so items deleted on the same day tied and kept MediaStore's order. It sorts by `DATE_EXPIRES` now: the newest delete first. Checked on the phone: 28, 27, 27, 27, 25, 25, 24 days top down.
 - 2026-11-24 Updates could stay on an old version (the user's report): after installing the found release, the row said "Up to date" until the next daily check (up to a day, longer under Doze), and Update / Retry downloaded the version saved at the last check. Settings now checks silently when the row is up to date and the last check is over an hour old (`Updates.stale`), and `Updates.download` checks again before it enqueues (`UpdatesCheckTest`).
-- 2026-11-24 Locking big files looked frozen: Lock encrypted every file before Android's question, with nothing on screen. Now a "Locking" dialog shows after 300 ms with a bar by bytes; Cancel and Back stop it and take the copies back out (`BehaviorTest#lock_cancelWhileLocking_leavesTheGalleryAsIs`, `#lock_slow_showsBytesThenAndroidAsks`, red first). Move out got the same dialog ("Moving out"). Checked on the phone by the user: Lock and Move out both show the progress.
+- 2026-11-24 Locking big files looked frozen: Lock encrypted every file before Android's question, with nothing on screen. Now a "Locking" dialog shows after 300 ms with a bar by bytes; Cancel and Back stop it and take the copies back out (`BehaviorDeviceTest#lock_cancelWhileLocking_leavesTheGalleryAsIs`, `#lock_slow_showsBytesThenAndroidAsks`, red first). Move out got the same dialog ("Moving out"). Checked on the phone by the user: Lock and Move out both show the progress.
 - 2026-11-25 A model file that would not load started an empty run on each app open: its photos stayed in the catch-up plan. The worker now marks that copy of the file, and auto-start counts no catch-up work for it until it loads again or a new download replaces it (`modelsUsable`, `IndexLogicTest`).
 - 2026-11-26 A WhatsApp photo showed 00:00: its name has a date only, and `fallbackDate` filled the time with `000000`. Now the day comes from the name and the time from the file (`PhotosDateTest#dateFromNameWithoutTime`, red first). Checked on the phone: Details shows 23:21, the file time. On the test phone about a third of the files have no `date_taken`; most are Takeout imports whose file time is the import day, so names stay a date source.
+- 2026-11-28 People: covers looked soft at 96 dp. `faceThumb` capped the long side at 288 px, but the circle fills by the short side (224 px, stretched 1.29x). Now the short side is 288 px, new faces only (`FaceThumbTest`).

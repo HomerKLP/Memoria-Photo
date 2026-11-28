@@ -351,9 +351,12 @@ class LayoutJumpTest {
 
         val barBefore = rule.onNodeWithTag("topBar").height()
         val firstBefore = rule.onNodeWithTag("vault-1").top()
+        val gridBefore = rule.onNodeWithTag("lockedGrid").height()
         rule.runOnIdle { selected = setOf(-1L) }
         assertSame("top bar height", barBefore, rule.onNodeWithTag("topBar").height())
         assertSame("first tile top", firstBefore, rule.onNodeWithTag("vault-1").top())
+        // the Select bar floats over the grid (mockup "Locked folder, selecting"), so the grid keeps its height
+        assertSame("grid height", gridBefore, rule.onNodeWithTag("lockedGrid").height())
     }
 
     // Back from Settings with a lock set, the no-lock screen gives way to the phone's sheet: the bar stays put
@@ -721,13 +724,15 @@ class LayoutJumpTest {
         rule.onNodeWithTag("tile-100").assertIsDisplayed()
     }
 
-    /** Tabs: each has a fixed width, so the bold one never moves the other. */
+    /** Tabs: each has a fixed width, so neither the bold one nor a swipe half way moves the other. */
     @Test fun tabs_switching_keepsThemPut() {
-        var tab by mutableStateOf("photos")
-        rule.setContent { MemoriaTheme { Surface { Tabs(tab, {}, {}) } } }
+        var tab by mutableStateOf(0f)
+        rule.setContent { MemoriaTheme { Surface { Tabs({ tab }, {}, {}) } } }
 
         val before = rule.onNodeWithText("Library").getUnclippedBoundsInRoot().left
-        rule.runOnIdle { tab = "library" }
+        rule.runOnIdle { tab = 0.5f }
+        assertSame("Library tab mid-swipe", before, rule.onNodeWithText("Library").getUnclippedBoundsInRoot().left)
+        rule.runOnIdle { tab = 1f }
         assertSame("Library tab", before, rule.onNodeWithText("Library").getUnclippedBoundsInRoot().left)
     }
 
@@ -1271,6 +1276,50 @@ class LayoutJumpTest {
         rule.runOnIdle { video = true }
         assertSame("Share after the player line", top, rule.onNodeWithContentDescription("Share").top())
         assertSame("Share width", width, rule.onNodeWithContentDescription("Share").width())
+    }
+
+    /** A motion photo adds its tag under the top bar: the title and the action row must not move. */
+    @Test fun viewer_motionTag_keepsTheBarsPut() {
+        var motion by mutableStateOf(false)
+        rule.setContent {
+            MemoriaTheme { Surface { Box(Modifier.fillMaxSize()) {
+                ViewerChrome(
+                    visible = true, title = "Sat, 11 Oct", subtitle = "14:32", favorite = false,
+                    onBack = {}, onShare = {}, onFavorite = {}, onInfo = {}, onDelete = {},
+                    motion = motion,
+                )
+            } } }
+        }
+
+        val share = rule.onNodeWithContentDescription("Share").top()
+        val title = rule.onNodeWithText("Sat, 11 Oct").top()
+        rule.runOnIdle { motion = true }
+        rule.onNodeWithText("Motion photo").assertExists()
+        assertSame("Share after the tag", share, rule.onNodeWithContentDescription("Share").top())
+        assertSame("title after the tag", title, rule.onNodeWithText("Sat, 11 Oct").top())
+    }
+
+    /** Another app's file: the empty More slot and the blank time line keep Back, the title and the action row where they are. */
+    @Test fun viewer_foreign_keepsTheBarsPut() {
+        var foreign by mutableStateOf(false)
+        rule.setContent {
+            MemoriaTheme { Surface { Box(Modifier.fillMaxSize()) {
+                ViewerChrome(
+                    visible = true, title = if (foreign) "No date" else "Sat, 11 Oct", subtitle = if (foreign) "" else "14:32", favorite = false,
+                    onBack = {}, onShare = {}, onFavorite = {}, onInfo = {}, onDelete = {}, foreign = foreign,
+                )
+            } } }
+        }
+
+        val back = rule.onNodeWithContentDescription("Back").top()
+        val title = rule.onNodeWithText("Sat, 11 Oct").getUnclippedBoundsInRoot()
+        val share = rule.onNodeWithContentDescription("Share").top()
+        rule.runOnIdle { foreign = true }
+        assertSame("Back", back, rule.onNodeWithContentDescription("Back").top())
+        val noDate = rule.onNodeWithText("No date").getUnclippedBoundsInRoot()
+        assertSame("title top", title.top, noDate.top)
+        assertEquals("title centre", ((title.left + title.right) / 2).value, ((noDate.left + noDate.right) / 2).value, 0.5f)
+        assertSame("action row", share, rule.onNodeWithContentDescription("Share").top())
     }
 
     /** A video keeps its own shape on screen: letterboxed, never stretched (the 2026-11-12 bug). */

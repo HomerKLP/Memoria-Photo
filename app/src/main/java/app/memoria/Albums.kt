@@ -73,12 +73,14 @@ fun albums(context: Context, bucket: Long? = null): List<Album> {
     var where = "${FileColumns.MEDIA_TYPE} IN (${FileColumns.MEDIA_TYPE_IMAGE}, ${FileColumns.MEDIA_TYPE_VIDEO})"
     if (bucket != null) where += " AND ${FileColumns.BUCKET_ID} = $bucket"
     val args = Bundle().apply { putString(ContentResolver.QUERY_ARG_SQL_SELECTION, where) }
+    val motion = motion(context)
     context.contentResolver.query(MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL), cols, args, null)?.use { c ->
         while (c.moveToNext()) {
+            if (c.getLong(0) in motion.clips) continue
             val video = c.getInt(1) == FileColumns.MEDIA_TYPE_VIDEO
             val base = if (video) MediaStore.Video.Media.EXTERNAL_CONTENT_URI else MediaStore.Images.Media.EXTERNAL_CONTENT_URI
             val date = if (c.isNull(2)) fallbackDate(c.getString(6), c.getLong(3), c.getLong(5), zone) else c.getLong(2)
-            val tile = Tile(c.getLong(0), ContentUris.withAppendedId(base, c.getLong(0)), date, if (video) c.getLong(4) else null, c.getInt(7) != 0, shownRatio(c.getInt(10), c.getInt(11), c.getInt(12)))
+            val tile = Tile(c.getLong(0), ContentUris.withAppendedId(base, c.getLong(0)), date, if (video) c.getLong(4) else null, c.getInt(7) != 0, shownRatio(c.getInt(10), c.getInt(11), c.getInt(12)), motion = c.getLong(0) in motion.photos)
             rows += Triple(c.getLong(8), c.getString(9) ?: "Other", tile)
         }
     }
@@ -119,8 +121,10 @@ fun moveTargets(context: Context, except: Long): List<MoveTarget> {
         " AND (${FileColumns.RELATIVE_PATH} LIKE 'DCIM/%' OR ${FileColumns.RELATIVE_PATH} LIKE 'Pictures/%')"
     val args = Bundle().apply { putString(ContentResolver.QUERY_ARG_SQL_SELECTION, where) }
     val rows = mutableListOf<Triple<Long, Pair<String, String>, Tile>>()
+    val clips = motion(context).clips
     context.contentResolver.query(MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL), cols, args, null)?.use { c ->
         while (c.moveToNext()) {
+            if (c.getLong(0) in clips) continue
             val video = c.getInt(1) == FileColumns.MEDIA_TYPE_VIDEO
             val base = if (video) MediaStore.Video.Media.EXTERNAL_CONTENT_URI else MediaStore.Images.Media.EXTERNAL_CONTENT_URI
             val date = if (c.isNull(2)) fallbackDate(c.getString(10) ?: "", c.getLong(3), c.getLong(5), zone) else c.getLong(2)
@@ -137,6 +141,8 @@ fun moveTargets(context: Context, except: Long): List<MoveTarget> {
 fun movePhoto(context: Context, tile: Tile, path: String) {
     val values = ContentValues().apply { put(MediaStore.MediaColumns.RELATIVE_PATH, path) }
     context.contentResolver.update(tile.uri, values, null, null)
+    // a motion photo's clip goes along; one the app may not write stays where it is, hidden all the same
+    withClips(context, listOf(tile)).drop(1).forEach { runCatching { context.contentResolver.update(it, values, null, null) } }
 }
 
 /** The display names of the device's folders (buckets), for the New album "this name is taken" check. */
@@ -346,7 +352,7 @@ fun AlbumScreen(id: Long, onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit
         scope.launch {
             val foreign = withContext(Dispatchers.IO) { picked.filter { runCatching { movePhoto(context, it, path) }.isFailure } }
             if (foreign.isEmpty()) pick.done()
-            else pick.confirm(MediaStore.createWriteRequest(context.contentResolver, foreign.map { it.uri })) {
+            else pick.confirm(MediaStore.createWriteRequest(context.contentResolver, withClips(context, foreign))) {
                 withContext(Dispatchers.IO) { foreign.forEach { runCatching { movePhoto(context, it, path) } } }
             }
         }
@@ -421,8 +427,9 @@ fun VideosScreen(onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit) {
         withContext(Dispatchers.IO) {
             val all = albums(context).flatMap { it.tiles }.filter { it.duration != null }.sortedByDescending { it.date }
             var bytes = 0L
-            context.contentResolver.query(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, arrayOf(MediaStore.Video.Media.SIZE), null, null, null)?.use { c ->
-                while (c.moveToNext()) bytes += c.getLong(0)
+            val clips = motion(context).clips
+            context.contentResolver.query(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, arrayOf(MediaStore.Video.Media._ID, MediaStore.Video.Media.SIZE), null, null, null)?.use { c ->
+                while (c.moveToNext()) if (c.getLong(0) !in clips) bytes += c.getLong(1)
             }
             val month = DateTimeFormatter.ofPattern("LLLL yyyy")
             val zone = ZoneId.systemDefault()

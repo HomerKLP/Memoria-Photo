@@ -96,7 +96,7 @@ internal fun sameShape(width: Int, height: Int, ratio: Float): Boolean = ratio <
 // At most 4 thumbnail loads at once, so a fling can't bury the tiles on screen.
 private val thumbLoads = Dispatchers.IO.limitedParallelism(4)
 
-/** Thumbnail picture with the video length badge. Callers stack their own overlay on top. */
+/** Thumbnail picture with the video length badge, or the motion icon. Callers stack their own overlay on top. */
 @Composable
 fun Thumb(tile: Tile, modifier: Modifier) {
     val context = LocalContext.current
@@ -149,6 +149,7 @@ fun Thumb(tile: Tile, modifier: Modifier) {
                 Icon(painterResource(R.drawable.ic_play), null, Modifier.size(14.dp), tint = Color.White)
             }
         }
+        if (tile.motion) Icon(painterResource(R.drawable.ic_motion), "Motion photo", Modifier.align(Alignment.TopEnd).padding(top = 4.dp, end = 4.dp).size(14.dp), tint = Color.White)
     }
 }
 

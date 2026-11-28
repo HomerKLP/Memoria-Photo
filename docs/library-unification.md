@@ -38,6 +38,9 @@ correct dates, no duplicates, nothing lost.
 - **Motion photos**: Pixel `.MP` video clips are ignored by MediaStore (the
   extension is not a known media type), so no gallery shows them; the motion is
   already embedded in the matching `.MP.jpg`. Removing the `.MP` files is safe.
+  The test phone's Live Photos come out of Takeout as `IMG_x.jpg` + `IMG_x.mp4`; the
+  `.mp4` is byte-for-byte the clip inside the JPEG. The app hides such a clip
+  (4 s or less, same name as a motion photo, any folder), so an import may skip them.
 - **Stale tiles after a delete**: galleries can keep black "0 B" tiles for files
   that were just deleted until the media store rescans or the phone restarts.
   They are not corrupt files.
