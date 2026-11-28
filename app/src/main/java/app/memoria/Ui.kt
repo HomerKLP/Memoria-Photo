@@ -276,7 +276,7 @@ fun ActionBar(
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun FloatingBar(modifier: Modifier, content: @Composable RowScope.() -> Unit) {
+internal fun FloatingBar(modifier: Modifier, content: @Composable RowScope.() -> Unit) {
     Row(
         // The bar height even while the system bars are hidden: the viewer hides them on a tap, and the pill
         // must not slide down for it (it shows in the grid behind a closing viewer)
@@ -353,7 +353,7 @@ fun SelectBar(
 }
 
 @Composable
-private fun SelectAction(icon: Int, label: String, four: Boolean, onClick: () -> Unit, danger: Boolean = false) {
+internal fun SelectAction(icon: Int, label: String, four: Boolean, onClick: () -> Unit, danger: Boolean = false) {
     val color = if (danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
     val button = Modifier.width(if (four) 76.dp else 104.dp).height(if (four) 52.dp else 40.dp).clip(CircleShape).clickable(onClick = onClick)
     // lineHeight set: the default 24 sp line pushes the icon and label up in the 52 dp button (mockup: gap 2px)

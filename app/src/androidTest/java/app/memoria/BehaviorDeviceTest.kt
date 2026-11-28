@@ -241,6 +241,60 @@ class BehaviorDeviceTest {
         }
     }
 
+    // Share in the folder: no question, then both files go to Android's share sheet as plain copies (mockup "Preparing to share")
+    @Test fun share_twoItems_handsBothToTheSheet() {
+        val instrumentation = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        val resolver = context.contentResolver
+        VaultStore.dir(context).run { deleteRecursively(); mkdirs() }
+        vaultKeys = VaultKeys(VaultKeys.random())
+        val files = listOf("behaviortest-a-${System.nanoTime()}.jpg", "behaviortest-b-${System.nanoTime()}.jpg")
+            .associateWith { n -> ByteArray(100_000) { (it * 7 + n.length).toByte() }.toList() }
+        val uris = files.map { (name, bytes) ->
+            val values = android.content.ContentValues().apply {
+                put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, name)
+                put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+                put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, "Pictures/BehaviorTest")
+            }
+            resolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)!!
+                .also { u -> resolver.openOutputStream(u)!!.use { it.write(bytes.toByteArray()) } }
+        }
+        // Android's share sheet is caught, not opened
+        var sheet: android.content.Intent? = null
+        val monitor = object : android.app.Instrumentation.ActivityMonitor() {
+            override fun onStartActivity(intent: android.content.Intent): android.app.Instrumentation.ActivityResult? {
+                if (intent.action != android.content.Intent.ACTION_CHOOSER) return null
+                sheet = intent
+                return android.app.Instrumentation.ActivityResult(android.app.Activity.RESULT_CANCELED, null)
+            }
+        }
+        instrumentation.addMonitor(monitor)
+        try {
+            kotlinx.coroutines.runBlocking { VaultStore.lock(context, uris.map { Tile(android.content.ContentUris.parseId(it), it, 0L, null) }) }
+            uris.forEach { resolver.delete(it, null, null) }
+            rule.setContent { MemoriaTheme { LockedScreen(onBack = {}) } }
+            rule.waitUntil(5_000) { rule.onAllNodesWithTag("vault-2").fetchSemanticsNodes().isNotEmpty() }
+            rule.onNodeWithTag("vault-1").performTouchInput { longClick() }
+            rule.onNodeWithTag("vault-2").performClick()
+            rule.onNodeWithText("Share").performClick()
+            rule.waitUntil(5_000) { sheet != null }
+
+            val send = sheet!!.getParcelableExtra(android.content.Intent.EXTRA_INTENT, android.content.Intent::class.java)!!
+            assertEquals(android.content.Intent.ACTION_SEND_MULTIPLE, send.action)
+            assertTrue(send.flags and android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION != 0)
+            val got = send.getParcelableArrayListExtra(android.content.Intent.EXTRA_STREAM, Uri::class.java)!!.associate { u ->
+                val name = resolver.query(u, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)!!.use { it.moveToFirst(); it.getString(0) }
+                name to resolver.openInputStream(u)!!.use { it.readBytes() }.toList()
+            }
+            assertEquals(files, got)
+        } finally {
+            instrumentation.removeMonitor(monitor)
+            VaultStore.dir(context).deleteRecursively()
+            VaultStore.shareDir(context).deleteRecursively()
+            vaultKeys = null
+        }
+    }
+
     @Test fun closeWhenEmpty_firesOnlyAfterALoadFindsNothing() {
         var value by mutableStateOf<Any?>(null)
         var closes = 0

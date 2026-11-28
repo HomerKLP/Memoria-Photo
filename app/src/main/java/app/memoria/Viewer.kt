@@ -429,6 +429,7 @@ fun Viewer(
     var vaultAsking by remember { mutableStateOf(false) }
     var vaultMovingOut by remember { mutableStateOf(false) }
     var vaultMoving by remember { mutableStateOf<VaultJob?>(null) } // decrypting back to the gallery
+    val vaultShare = rememberVaultShare()
     fun vaultLeaving(id: Long) {
         list = list.filterNot { it.id == id }
         forgetTiles(setOf(id))
@@ -567,9 +568,13 @@ fun Viewer(
                 favorite = favorite,
                 onBack = { close() },
                 onShare = {
-                    val send = Intent(Intent.ACTION_SEND).setType(context.contentResolver.getType(tile.uri))
-                        .putExtra(Intent.EXTRA_STREAM, tile.uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    context.startActivity(Intent.createChooser(send, null))
+                    // a locked file has no URI another app can read: Share makes a plain copy first
+                    if (vault) vaultShare(listOf(tile))
+                    else {
+                        val send = Intent(Intent.ACTION_SEND).setType(context.contentResolver.getType(tile.uri))
+                            .putExtra(Intent.EXTRA_STREAM, tile.uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        context.startActivity(Intent.createChooser(send, null))
+                    }
                 },
                 onFavorite = {
                     val next = !favorite

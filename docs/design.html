@@ -546,7 +546,7 @@ figure.land { width: calc(760px * var(--z)); }
 <header class="top">
   <h1>Memoria Photo</h1>
   <p class="lede">Light theme, Honey palette. Photos and faces are placeholders, names and places are made up.</p>
-  <p class="latest"><b>Latest, 28 Nov:</b> <a href="#tabs-swipe">tab swipe</a>: Photos and Library slide side by side with the finger, and the pill's highlight follows it.</p>
+  <p class="latest"><b>Latest, 28 Nov:</b> <a href="#locked-sharing">Share in the Locked folder</a>: in the <a href="#locked-select">select bar</a> and the <a href="#locked-viewer">locked viewer</a>, with a progress bar while it decrypts.</p>
 </header>
 
 <aside class="rail" aria-label="Contents">
@@ -1317,13 +1317,35 @@ figure.land { width: calc(760px * var(--z)); }
         <div class="scroll">
           <div class="grid big" id="locked-picked"></div>
         </div>
-        <div class="answers selbar">
-          <button class="no danger"><svg class="i"><use href="#i-trash-line"/></svg>Delete</button>
-          <button class="yes"><svg class="i"><use href="#i-upload"/></svg>Move out</button>
+        <div class="bottom picking">
+          <nav>
+            <button class="tab"><span class="pill"><svg class="i"><use href="#i-share"/></svg>Share</span></button>
+            <button class="tab"><span class="pill"><svg class="i"><use href="#i-upload"/></svg>Move out</span></button>
+            <button class="tab danger"><span class="pill"><svg class="i"><use href="#i-trash-line"/></svg>Delete</span></button>
+          </nav>
+          <div class="handle"></div>
+        </div>
+      </div>
+      <figcaption>Locked folder, selecting: the header swaps in place and the Select bar floats in over the grid, so nothing jumps. Share, Move out, Delete: the order of every other select bar, Delete last in red. Share asks nothing and goes through Preparing to share. Move out asks first (see Move out, every time), then puts each file back in the folder it came from, with its name, date and place, and the grid and index take it again. Delete asks once in the app and removes the file completely: a locked file is not in the phone's trash, and Android cannot delete it for us. No Favorite (MediaStore keeps favorites, and these are not in it), no Move (that is Move out)</figcaption>
+    </figure>
+    <figure id="locked-viewer">
+      <div class="phone dark viewer">
+        <div class="viewer-full" data-shot></div>
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="vbar">
+          <button class="icon-btn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="when">Sat, 11 Oct<span>14:32</span></div>
+          <button class="icon-btn" aria-hidden="true" tabindex="-1" style="visibility:hidden"><svg class="i"><use href="#i-more"/></svg></button>
+        </div>
+        <div class="actions">
+          <button class="icon-btn" aria-label="Share"><svg class="i"><use href="#i-share"/></svg></button>
+          <button class="icon-btn" aria-label="Details"><svg class="i"><use href="#i-info"/></svg></button>
+          <button class="icon-btn" aria-label="Move out"><svg class="i"><use href="#i-upload"/></svg></button>
+          <button class="icon-btn" aria-label="Delete"><svg class="i"><use href="#i-trash-line"/></svg></button>
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Locked folder, selecting: the header swaps in place and only the bar appears, so nothing jumps. Move out asks first (see Move out, every time), then puts each file back in the folder it came from, with its name, date and place, and the grid and index take it again. Delete asks once in the app and removes the file completely: a locked file is not in the phone's trash, and Android cannot delete it for us. Nothing else is here: no Share (a locked photo never leaves the app), no Favorite (MediaStore keeps favorites, and these are not in it), no Move (that is Move out)</figcaption>
+      <figcaption>Locked folder, viewer: a tap on a locked item opens it like any other photo or video, with no screenshot and no Recents card. The row is Share, Details, Move out, Delete: four, like the gallery viewer, Share first. No Favorite and no More: the More slot stays empty, so the date does not move. Share goes through Preparing to share; Move out asks first and the item leaves the viewer</figcaption>
     </figure>
     <figure id="locked-empty">
       <div class="phone">
@@ -1435,6 +1457,20 @@ figure.land { width: calc(760px * var(--z)); }
         </div>
       </div>
       <figcaption>Moving out: after Move out's question, the files are decrypted back to the gallery, and big videos take a while. Like Locking: it shows only if that takes over 300 ms, the bar fills by bytes, a tap outside does nothing. Cancel and Back stop at the file in progress and delete its half-written gallery copy. Files already moved out stay out, the rest stay locked, so nothing is lost or in two places. Same from the select bar and the locked viewer</figcaption>
+    </figure>
+    <figure id="locked-sharing">
+      <div class="phone modal" id="locked-sharing-phone">
+        <div class="scrim">
+          <div class="dialog" role="dialog" aria-labelledby="sharing-title">
+            <svg class="i calm"><use href="#i-share"/></svg>
+            <b id="sharing-title">Preparing 2 items to share</b>
+            <div class="track"><div style="width:62%"></div></div>
+            <p style="font-variant-numeric: tabular-nums">1.3 of 2.1 GB</p>
+            <div class="dialog-btns"><button class="text-btn">Cancel</button></div>
+          </div>
+        </div>
+      </div>
+      <figcaption>Preparing to share: Share in the select bar or the locked viewer asks nothing. It decrypts a copy of each file into the app's own cache, then Android's share sheet opens. Like Moving out: it shows only if that takes over 300 ms, the bar fills by bytes, a tap outside does nothing, Cancel and Back delete the copies made so far. The copies keep the file's name and everything in it, GPS too. No other app, file manager or gallery can see them; only the app picked in the sheet may read them. They are deleted as soon as Memoria is back on screen (sent or not) and at every app start. An app that keeps reading after that, like a big upload running in the background, may fail. Leaving for the picked app closes the folder as usual, so coming back asks for the phone's sheet again</figcaption>
     </figure>
     <figure id="locked-keylost">
       <div class="phone modal" id="locked-keylost-phone">
@@ -2484,7 +2520,7 @@ Photos: …/files/test</div>
         </nav>
       </div>
     </div>
-    <p>A floating pill like the tabs, with icons, and a fixed width per action so Favorite / Unfavorite never moves it. Takes the tabs' spot while selecting on a tab screen. On a screen without tabs (Album, Favorites, Place, Person, Videos) it floats in at the bottom over the grid, so nothing moves. Move only in an album, the one screen that says where its photos are. Four is the most that fits at 360 dp: with four, the label goes under the icon. Delete goes last, in red. An album already has Move as its fourth, so it locks one photo at a time from the viewer's More. Trash and the Locked folder have two actions and use the Action bar.</p>
+    <p>A floating pill like the tabs, with icons, and a fixed width per action so Favorite / Unfavorite never moves it. Takes the tabs' spot while selecting on a tab screen. On a screen without tabs (Album, Favorites, Place, Person, Videos) it floats in at the bottom over the grid, so nothing moves. Move only in an album, the one screen that says where its photos are. Four is the most that fits at 360 dp: with four, the label goes under the icon. Delete goes last, in red. An album already has Move as its fourth, so it locks one photo at a time from the viewer's More. The Locked folder has three: Share, Move out, Delete. Trash has two actions and uses the Action bar.</p>
   </article>
 
   <article class="part">
@@ -2970,6 +3006,7 @@ behind("#trash-select .phone", "ask-restore-phone");
 behind("#move-album .phone", "ask-move-phone");
 behind("#photos-select .phone", "locking-phone");
 behind("#locked-select .phone", "locked-movingout-phone");
+behind("#locked-select .phone", "locked-sharing-phone");
 // Photos to Library mid-swipe: the Photos top figure and the Library figure side by side, with people in the row
 const swipePage = (from, to) => document.getElementById(to).append(...[...document.querySelector(from).children]
   .filter(n => !n.matches(".status, .bottom")).map(n => {

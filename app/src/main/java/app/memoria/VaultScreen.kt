@@ -16,6 +16,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -42,6 +43,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
@@ -187,6 +189,37 @@ fun VaultJobDialog(job: VaultJob?, onCancel: () -> Unit) {
     )
 }
 
+/**
+ * Share from the locked folder or its viewer (mockup "Preparing to share"): plain copies in the app's cache behind
+ * the Preparing bar, then Android's share sheet. The app deletes the copies once it is back on screen (`App`).
+ */
+@Composable
+fun rememberVaultShare(): (List<Tile>) -> Unit {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var job by remember { mutableStateOf<VaultJob?>(null) }
+    VaultJobDialog(job) { job?.cancelled = true; job = null }
+    return { tiles ->
+        val j = VaultJob("Preparing ${countWord(tiles.size, tiles.count { it.duration != null })} to share", R.drawable.ic_share)
+        job = j
+        scope.launch {
+            val ids = tiles.map { it.id }.toSet()
+            val picked = runCatching { VaultStore.items(context).filter { it.id in ids } }.getOrDefault(emptyList())
+            val uris = runCatching { VaultStore.share(context, picked, progress = { d, t -> j.done = d; j.total = t }, cancelled = { j.cancelled }) }
+                .onFailure { AppLog.i(if (j.cancelled) "vault: share cancelled" else "vault: share failed: $it") }
+                .getOrNull()
+            if (job === j) job = null
+            if (uris.isNullOrEmpty()) return@launch
+            // Cancel came after the last chunk: the copies are made, but nothing goes out
+            if (j.cancelled) { withContext(Dispatchers.IO) { VaultStore.dropShared(context) }; return@launch }
+            val send = if (uris.size == 1) Intent(Intent.ACTION_SEND).setType(picked.single().type).putExtra(Intent.EXTRA_STREAM, uris.single())
+            else Intent(Intent.ACTION_SEND_MULTIPLE).setType("*/*").putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
+            context.startActivity(Intent.createChooser(send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION), null))
+            AppLog.i("vault: shared ${uris.size} items")
+        }
+    }
+}
+
 /** Android's own screen lock settings: "Choose a screen lock" where the phone has it, else Security. */
 private fun openLockSettings(context: Context) {
     runCatching { context.startActivity(Intent(DevicePolicyManager.ACTION_SET_NEW_PASSWORD)) }
@@ -259,6 +292,7 @@ fun LockedScreen(onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit = { _, _
     var reload by remember { mutableIntStateOf(0) }
     var loaded by remember { mutableStateOf(false) } // the first read is done: the fade starts with the photos in hand
     var moving by remember { mutableStateOf<VaultJob?>(null) } // decrypting back to the gallery
+    val share = rememberVaultShare()
     val ready = vaultKeys != null && loaded
     var noLock by remember { mutableStateOf(false) }
     var keyLost by remember { mutableStateOf(false) }
@@ -311,6 +345,7 @@ fun LockedScreen(onBack: () -> Unit, onOpen: (List<Tile>, Tile) -> Unit = { _, _
         onToggle = { id -> selected = if (id in selected) selected - id else selected + id },
         onCancelSelect = { selected = emptySet() },
         onSelectAll = { selected = items.map { it.id }.toSet() },
+        onShare = { share(items.filter { it.id in selected }.map { it.tile }) },
         onMoveOut = {
             val picked = items.filter { it.id in selected }
             selected = emptySet()
@@ -348,6 +383,7 @@ fun LockedContent(
     onToggle: (Long) -> Unit = {},
     onCancelSelect: () -> Unit = {},
     onSelectAll: () -> Unit = {},
+    onShare: () -> Unit = {},
     onMoveOut: () -> Unit = {},
     onDelete: () -> Unit = {},
     onOpen: (VaultItem) -> Unit = {},
@@ -391,28 +427,34 @@ fun LockedContent(
                 R.drawable.ic_lock, "Nothing locked yet",
                 "Pick photos or videos and tap Lock, or lock one from the viewer's More. They leave your gallery and only open here",
             )
-            else -> LazyVerticalGrid(
-                GridCells.Fixed(3), Modifier.weight(1f).graphicsLayer {
-                    alpha = show
-                    scaleX = 0.96f + 0.04f * show
-                    scaleY = 0.96f + 0.04f * show
-                }.testTag("lockedGrid"), state = grid,
-                horizontalArrangement = Arrangement.spacedBy(1.dp), verticalArrangement = Arrangement.spacedBy(1.dp),
-            ) {
-                items(items, key = { it.id }) { item ->
-                    Box(
-                        Modifier.aspectRatio(1f).testTag("vault-${item.n}").combinedClickable(
-                            onClick = { if (selecting) onToggle(item.id) else onOpen(item) },
-                            onLongClick = { onToggle(item.id) },
-                        ),
-                    ) { TileImage(item.tile, Modifier.fillMaxSize(), selecting = selecting, selected = item.id in selected, heart = false) }
+            // the Select bar floats over the grid, so nothing moves when it comes in
+            else -> Box(Modifier.weight(1f)) {
+                LazyVerticalGrid(
+                    GridCells.Fixed(3), Modifier.fillMaxSize().graphicsLayer {
+                        alpha = show
+                        scaleX = 0.96f + 0.04f * show
+                        scaleY = 0.96f + 0.04f * show
+                    }.testTag("lockedGrid"), state = grid,
+                    contentPadding = PaddingValues(bottom = if (selecting) 72.dp else 0.dp),
+                    horizontalArrangement = Arrangement.spacedBy(1.dp), verticalArrangement = Arrangement.spacedBy(1.dp),
+                ) {
+                    items(items, key = { it.id }) { item ->
+                        Box(
+                            Modifier.aspectRatio(1f).testTag("vault-${item.n}").combinedClickable(
+                                onClick = { if (selecting) onToggle(item.id) else onOpen(item) },
+                                onLongClick = { onToggle(item.id) },
+                            ),
+                        ) { TileImage(item.tile, Modifier.fillMaxSize(), selecting = selecting, selected = item.id in selected, heart = false) }
+                    }
+                }
+                // Share first, Delete last, as every other Select bar
+                if (selecting) FloatingBar(Modifier.align(Alignment.BottomCenter)) {
+                    SelectAction(R.drawable.ic_share, "Share", false, onShare)
+                    SelectAction(R.drawable.ic_upload, "Move out", false, { movingOut = true })
+                    SelectAction(R.drawable.ic_trash_line, "Delete", false, { asking = true }, danger = true)
                 }
             }
         }
-        if (selecting) ActionBar(
-            "Delete", R.drawable.ic_trash_line, { asking = true },
-            "Move out", R.drawable.ic_upload, { movingOut = true },
-        )
     }
     if (info) AlertDialog(
         onDismissRequest = { info = false },

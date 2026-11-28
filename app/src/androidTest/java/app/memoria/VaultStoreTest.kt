@@ -5,10 +5,14 @@ import android.content.ContentValues
 import android.graphics.Bitmap
 import android.net.Uri
 import android.provider.MediaStore
+import android.provider.OpenableColumns
 import androidx.test.platform.app.InstrumentationRegistry
+import java.io.IOException
 import kotlinx.coroutines.runBlocking
 import org.junit.After
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -30,7 +34,46 @@ class VaultStoreTest {
     @After fun clean() {
         added.forEach { runCatching { resolver.delete(it, null, null) } }
         VaultStore.dir(context).deleteRecursively()
+        VaultStore.shareDir(context).deleteRecursively()
         vaultKeys = null
+    }
+
+    /** A locked photo holding [bytes], locked from the gallery as the app does it. */
+    private fun lockedPhoto(name: String, bytes: ByteArray): VaultItem = runBlocking {
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+            put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+            put(MediaStore.MediaColumns.RELATIVE_PATH, "Pictures/VaultStoreTest/")
+        }
+        val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)!!.also { added += it }
+        resolver.openOutputStream(uri)!!.use { it.write(bytes) }
+        VaultStore.lock(context, listOf(Tile(ContentUris.parseId(uri), uri, 0L, null))).items.single()
+    }
+
+    // Share hands out a plain copy of each locked file (mockup "Preparing to share"): its own name, type and bytes
+    @Test fun share_givesEachFileWithItsNameAndBytes() = runBlocking {
+        val files = listOf("vaultstore-a-${System.nanoTime()}.jpg", "vaultstore-b-${System.nanoTime()}.jpg")
+            .associateWith { n -> ByteArray(200_000) { (it * 31 + n.length).toByte() } }
+        val items = files.map { (name, bytes) -> lockedPhoto(name, bytes) }
+
+        val uris = VaultStore.share(context, items)
+        val got = uris.associate { uri ->
+            assertEquals("image/jpeg", resolver.getType(uri))
+            val name = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)!!.use { it.moveToFirst(); it.getString(0) }
+            name to resolver.openInputStream(uri)!!.use { it.readBytes() }
+        }
+        assertEquals(files.keys, got.keys)
+        files.forEach { (name, bytes) -> assertArrayEquals(name, bytes, got[name]) }
+    }
+
+    // Cancel while preparing: the copies made so far are deleted, none is left in the cache
+    @Test fun share_cancelled_leavesNoCopy() = runBlocking {
+        val item = lockedPhoto("vaultstore-${System.nanoTime()}.jpg", ByteArray(1 shl 20) { it.toByte() })
+        var reports = 0
+
+        val result = runCatching { VaultStore.share(context, listOf(item), progress = { _, _ -> reports++ }, cancelled = { reports > 3 }) }
+        assertTrue(result.exceptionOrNull() is IOException)
+        assertTrue(VaultStore.shareDir(context).walk().none { it.isFile })
     }
 
     // A browser download sits in Download/, a folder the gallery's photo table refuses for a new file

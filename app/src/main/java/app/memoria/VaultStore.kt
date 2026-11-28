@@ -13,6 +13,7 @@ import android.util.Size
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.core.content.FileProvider
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
@@ -168,6 +169,54 @@ object VaultStore {
         }
         moved
     } }
+
+    /** Share's plain copies, in the app's cache: no other app sees them unless the share sheet grants one. */
+    fun shareDir(context: Context) = File(context.cacheDir, "share")
+
+    /**
+     * Plain copies for Android's share sheet (mockup "Preparing to share"): `cache/share/<n>/<name>`, as FileProvider URIs.
+     * [progress] gets the bytes done and the total; on [cancelled] (checked per chunk) or a failure, the copies are deleted.
+     */
+    suspend fun share(
+        context: Context, items: List<VaultItem>,
+        progress: (Long, Long) -> Unit = { _, _ -> }, cancelled: () -> Boolean = { false },
+    ): List<Uri> = withContext(Dispatchers.IO) { busy.withLock {
+        val keys = vaultKeys ?: throw VaultLocked()
+        try {
+            val total = items.sumOf { runCatching { Vault.open(file(context, it.n), keys).use { v -> v.size } }.getOrDefault(0L) }
+            var done = 0L
+            progress(0, total)
+            items.map { item ->
+                val copy = File(shareDir(context), "${item.n}/${item.name}")
+                copy.parentFile?.mkdirs()
+                copy.outputStream().use { out ->
+                    Vault.open(file(context, item.n), keys).use { vin ->
+                        val buf = ByteArray(64 * 1024)
+                        var at = 0L
+                        while (true) {
+                            if (cancelled()) throw IOException("share cancelled")
+                            val n = vin.read(at, buf, 0, buf.size)
+                            if (n <= 0) break
+                            out.write(buf, 0, n)
+                            at += n
+                            done += n
+                            progress(done, total)
+                        }
+                    }
+                }
+                FileProvider.getUriForFile(context, "${context.packageName}.share", copy)
+            }
+        } catch (e: Throwable) {
+            shareDir(context).deleteRecursively()
+            throw e
+        }
+    } }
+
+    /** Deletes Share's copies once the app is back on screen. Skipped while a vault job runs: the next resume gets them. */
+    fun dropShared(context: Context) {
+        if (!busy.tryLock()) return
+        try { shareDir(context).deleteRecursively() } finally { busy.unlock() }
+    }
 
     /** Deletes crash leftovers and files the manifest does not list: the first thing after an unlock. */
     suspend fun sweep(context: Context) = withContext(Dispatchers.IO) { busy.withLock {

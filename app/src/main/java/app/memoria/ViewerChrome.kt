@@ -86,7 +86,7 @@ fun ViewerChrome(
     onMenu: (Boolean) -> Unit = {}, // the menu opened or closed: a video's controls stay while it is open
     trashed: Boolean = false, // a trashed file: no Share, Favorite or More; Restore sits before Delete
     onRestore: () -> Unit = {},
-    vault: Boolean = false, // a locked file: no Share, Favorite or More; Move out sits before Delete
+    vault: Boolean = false, // a locked file: no Favorite or More; Move out sits before Delete
     onMoveOut: () -> Unit = {},
     foreign: Boolean = false, // another app's file: Share and Details only
     motion: Boolean = false, // a motion photo: its tag under the top bar, which fades with the bar
@@ -161,6 +161,7 @@ fun ViewerChrome(
                     IconButton(onInfo) { Icon(painterResource(R.drawable.ic_info), "Details", tint = onViewer) }
                     IconButton(onRestore) { Icon(painterResource(R.drawable.ic_restore), "Restore", tint = onViewer) }
                 } else if (vault) {
+                    IconButton(onShare) { Icon(painterResource(R.drawable.ic_share), "Share", tint = onViewer) }
                     IconButton(onInfo) { Icon(painterResource(R.drawable.ic_info), "Details", tint = onViewer) }
                     IconButton(onMoveOut) { Icon(painterResource(R.drawable.ic_upload), "Move out", tint = onViewer) }
                 } else if (foreign) {

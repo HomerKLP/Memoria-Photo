@@ -224,6 +224,54 @@ class ViewerTest {
         }
     }
 
+    // Share in the locked viewer: a plain copy goes to Android's share sheet, type, name and bytes kept (mockup "Locked folder, viewer")
+    @Test fun vault_share_handsTheFileToTheSheet() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        VaultStore.dir(context).run { deleteRecursively(); mkdirs() }
+        vaultKeys = VaultKeys(VaultKeys.random())
+        val name = "viewertest-${System.nanoTime()}.jpg"
+        val bytes = ByteArray(100_000) { (it * 13).toByte() }
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+            put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+            put(MediaStore.MediaColumns.RELATIVE_PATH, "Pictures/ViewerTest")
+        }
+        val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)!!
+        resolver.openOutputStream(uri)!!.use { it.write(bytes) }
+        // Android's share sheet is caught, not opened
+        var sheet: android.content.Intent? = null
+        val monitor = object : android.app.Instrumentation.ActivityMonitor() {
+            override fun onStartActivity(intent: android.content.Intent): android.app.Instrumentation.ActivityResult? {
+                if (intent.action != android.content.Intent.ACTION_CHOOSER) return null
+                sheet = intent
+                return android.app.Instrumentation.ActivityResult(android.app.Activity.RESULT_CANCELED, null)
+            }
+        }
+        instrumentation.addMonitor(monitor)
+        try {
+            kotlinx.coroutines.runBlocking { VaultStore.lock(context, listOf(Tile(ContentUris.parseId(uri), uri, 0L, null))) }
+            resolver.delete(uri, null, null)
+            val locked = kotlinx.coroutines.runBlocking { VaultStore.items(context) }.single().tile
+            rule.setContent { MemoriaTheme { Viewer(locked.id, listOf(locked), onBack = {}, vault = true) } }
+            rule.onNodeWithContentDescription("Share").performClick()
+            rule.waitUntil(5_000) { sheet != null }
+
+            val send = sheet!!.getParcelableExtra(android.content.Intent.EXTRA_INTENT, android.content.Intent::class.java)!!
+            assertEquals(android.content.Intent.ACTION_SEND, send.action)
+            assertEquals("image/jpeg", send.type)
+            assertTrue(send.flags and android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION != 0)
+            val stream = send.getParcelableExtra(android.content.Intent.EXTRA_STREAM, Uri::class.java)!!
+            assertEquals(name, resolver.query(stream, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)!!.use { it.moveToFirst(); it.getString(0) })
+            assertTrue(bytes.contentEquals(resolver.openInputStream(stream)!!.use { it.readBytes() }))
+        } finally {
+            instrumentation.removeMonitor(monitor)
+            VaultStore.dir(context).deleteRecursively()
+            VaultStore.shareDir(context).deleteRecursively()
+            vaultKeys = null
+        }
+    }
+
     // The folder locks when the app goes to the background: a locked photo must not stay on screen after
     @Test fun vault_locks_closesTheViewer() {
         val locked = VaultItem(1, "a.jpg", "image/jpeg", 0, 0, 1, 8, 8, null, "Pictures/").tile

@@ -361,6 +361,15 @@ class BehaviorTest {
         assertTrue(moved)
     }
 
+    // Share asks nothing: the share sheet is the next step (mockup "Locked folder, selecting")
+    @Test fun locked_share_asksNothing() {
+        var shared = false
+        rule.setContent { MemoriaTheme { Surface { LockedContent(vaultItems, selected = setOf(-1L), onShare = { shared = true }) } } }
+
+        rule.onNodeWithText("Share").performClick()
+        assertTrue(shared)
+    }
+
     // No screen lock: the phone's sheet cannot show, so the folder says why (mockup "Locked folder, no screen lock")
     @Test fun locked_noLock_opensSettings() {
         var settings = false

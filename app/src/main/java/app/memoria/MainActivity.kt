@@ -79,6 +79,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import androidx.work.WorkManager
@@ -193,6 +194,11 @@ fun App(dir: File, openSettings: Int = 0, atUpdates: Boolean = false, jump: Jump
     // tiles a screen below are built early, so their thumbnails load before they scroll in
     val photosGrid = rememberLazyGridState(cacheWindow = LazyLayoutCacheWindow(aheadFraction = 1f))
     val scope = rememberCoroutineScope()
+    // Share's plain copies of locked files go once the app is on screen again, sent or not, and at its start
+    LifecycleResumeEffect(Unit) {
+        scope.launch(Dispatchers.IO) { VaultStore.dropShared(context) }
+        onPauseOrDispose {}
+    }
     var photosScrollTop by remember { mutableIntStateOf(0) } // bumped by a tab tap; the Photos tab reacts by scrolling to the top
     var viewing by rememberSaveable { mutableStateOf<Long?>(null) }
     // the index or update notification: Settings over Library, whatever was open

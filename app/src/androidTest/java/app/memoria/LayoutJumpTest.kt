@@ -351,9 +351,12 @@ class LayoutJumpTest {
 
         val barBefore = rule.onNodeWithTag("topBar").height()
         val firstBefore = rule.onNodeWithTag("vault-1").top()
+        val gridBefore = rule.onNodeWithTag("lockedGrid").height()
         rule.runOnIdle { selected = setOf(-1L) }
         assertSame("top bar height", barBefore, rule.onNodeWithTag("topBar").height())
         assertSame("first tile top", firstBefore, rule.onNodeWithTag("vault-1").top())
+        // the Select bar floats over the grid (mockup "Locked folder, selecting"), so the grid keeps its height
+        assertSame("grid height", gridBefore, rule.onNodeWithTag("lockedGrid").height())
     }
 
     // Back from Settings with a lock set, the no-lock screen gives way to the phone's sheet: the bar stays put
