@@ -63,6 +63,8 @@ The models were picked on real family photos, not only on paper: 3 face finders 
 - **Photos:** timeline by day and month, month slider, select many with a drag.
 - **Viewer:** zoom, swipe, details (date, time zone, place, camera, people and pets; for a video its size, frame rate, HDR, codec and sound). The viewer turns with the phone — photos and videos fill a sideways screen — while the grids stay portrait.
 - **Video:** plays in the viewer, with a seek bar, double tap ±5 s, and hold for 2x speed. HDR clips play in an HDR window.
+- **Motion photos:** an icon on the tile, and a hold on the photo plays its short clip. Separate clip copies stay hidden.
+- **Open from other apps:** Share or Open with Memoria shows that photo or video in the viewer, read-only.
 - **Albums:** phone folders, new albums, move photos.
 - **Places:** photos by town, names found offline.
 - **Pets:** cats and dogs, found and grouped like people, with names.

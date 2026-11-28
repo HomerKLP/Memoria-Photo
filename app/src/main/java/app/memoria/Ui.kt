@@ -83,6 +83,8 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.graphics.lerp
 
 /**
  * Shared screen parts, one implementation each. The mockup has the same list under
@@ -289,26 +291,37 @@ private fun FloatingBar(modifier: Modifier, content: @Composable RowScope.() -> 
     )
 }
 
-/** Photos and Library (mockup "Tabs"): text only, a fixed width each, so the bold tab never moves the pill. */
+/**
+ * Photos and Library (mockup "Tabs"): text only, a fixed width each, so the bold tab never moves the pill.
+ * [position] is the tab pager's: 0 Photos, 1 Library, in between mid-swipe. The highlight and the label
+ * colours follow it, and bold moves over at halfway. A lambda, so only the pill redraws per frame.
+ */
 @Composable
-fun Tabs(tab: String, onPhotos: () -> Unit, onLibrary: () -> Unit, modifier: Modifier = Modifier) {
+fun Tabs(position: () -> Float, onPhotos: () -> Unit, onLibrary: () -> Unit, modifier: Modifier = Modifier) {
+    val p = position().coerceIn(0f, 1f)
     FloatingBar(modifier) {
-        TabButton("Photos", tab == "photos", onPhotos)
-        TabButton("Library", tab == "library", onLibrary)
+        Box {
+            Box(
+                Modifier.offset { IntOffset((p * 96.dp.toPx()).roundToInt(), 0) }.size(96.dp, 40.dp)
+                    .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape),
+            )
+            Row {
+                TabButton("Photos", 1 - p, p < 0.5f, onPhotos)
+                TabButton("Library", p, p >= 0.5f, onLibrary)
+            }
+        }
     }
 }
 
 @Composable
-private fun TabButton(label: String, on: Boolean, onClick: () -> Unit) {
+private fun TabButton(label: String, on: Float, selected: Boolean, onClick: () -> Unit) {
     Box(
-        Modifier.width(96.dp).height(40.dp).clip(CircleShape)
-            .then(if (on) Modifier.background(MaterialTheme.colorScheme.secondaryContainer) else Modifier)
-            .selectable(on, role = Role.Tab, onClick = onClick),
+        Modifier.width(96.dp).height(40.dp).clip(CircleShape).selectable(selected, role = Role.Tab, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            label, fontSize = 14.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.Medium,
-            color = if (on) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+            label, fontSize = 14.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            color = lerp(MaterialTheme.colorScheme.onSurfaceVariant, MaterialTheme.colorScheme.onSurface, on),
         )
     }
 }

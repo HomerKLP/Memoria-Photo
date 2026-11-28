@@ -47,6 +47,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
@@ -275,6 +279,12 @@ fun PillButton(text: String, onClick: () -> Unit, enabled: Boolean = true, modif
     )
 }
 
+/** Takes what the row leaves over at its ends, so a drag on it never slides to the other tab (mockup "Tabs" swipe). */
+private val keepDrag = object : NestedScrollConnection {
+    override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource) = available.copy(y = 0f)
+    override suspend fun onPostFling(consumed: Velocity, available: Velocity) = available.copy(y = 0f)
+}
+
 /** Horizontal row of up to 12 people, 72 dp faces, then a See all tile. Tap opens the person; naming happens on the person screen. */
 @Composable
 fun PeopleRow(faces: List<Person>?, onOpen: (Long) -> Unit, onSeeAll: () -> Unit, finding: Boolean = false) {
@@ -288,7 +298,7 @@ fun PeopleRow(faces: List<Person>?, onOpen: (Long) -> Unit, onSeeAll: () -> Unit
         Snapshot.withoutReadObservation { if (state.firstVisibleItemIndex == 0 && state.firstVisibleItemScrollOffset == 0) state.requestScrollToItem(0) }
     }
     LazyRow(
-        Modifier.testTag("peopleRow").fillMaxWidth().padding(bottom = 2.dp),
+        Modifier.testTag("peopleRow").nestedScroll(keepDrag).fillMaxWidth().padding(bottom = 2.dp),
         state = state,
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp),

@@ -721,13 +721,15 @@ class LayoutJumpTest {
         rule.onNodeWithTag("tile-100").assertIsDisplayed()
     }
 
-    /** Tabs: each has a fixed width, so the bold one never moves the other. */
+    /** Tabs: each has a fixed width, so neither the bold one nor a swipe half way moves the other. */
     @Test fun tabs_switching_keepsThemPut() {
-        var tab by mutableStateOf("photos")
-        rule.setContent { MemoriaTheme { Surface { Tabs(tab, {}, {}) } } }
+        var tab by mutableStateOf(0f)
+        rule.setContent { MemoriaTheme { Surface { Tabs({ tab }, {}, {}) } } }
 
         val before = rule.onNodeWithText("Library").getUnclippedBoundsInRoot().left
-        rule.runOnIdle { tab = "library" }
+        rule.runOnIdle { tab = 0.5f }
+        assertSame("Library tab mid-swipe", before, rule.onNodeWithText("Library").getUnclippedBoundsInRoot().left)
+        rule.runOnIdle { tab = 1f }
         assertSame("Library tab", before, rule.onNodeWithText("Library").getUnclippedBoundsInRoot().left)
     }
 

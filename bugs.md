@@ -108,6 +108,14 @@ Still open:
 - Fix idea: wait for the SurfaceView swap (HDR step 2) and see if the drain still matters; or set the speed on the AudioTrack only while a finger is down, if media3 ever offers it per speed.
 - Tried 2026-11-17: `1.12.0-beta01` (the newest, one step past the stable 1.11.1) still freezes with `setEnableAudioTrackPlaybackParams(true)` (+63, +29, +27 ms per 0.5 s of play after the second pause). So a media3 bump is not the way; the comment in `Viewer.kt` says so.
 
+## Cold start is ~30 ms slower than on 2026-11-04
+
+`make perf` on the release build, 2026-11-26, with the tab swipe (median of 3 runs): first frame 184 ms, timeline 230 ms. On 2026-11-04 it read 151 / 201. The tab pager now builds Library in the first frame, which may be part of it; 3 weeks of other changes may be the rest.
+
+Rest of that run: every screen 0-1.04% janky (Library 1.04, the only one over 1%), p99 at most 16 ms, 0% blank tiles, native heap 173 MB, Library covers 158 / 148 ms (load 150 ms). The tab swipe itself (10 swipes, `gfxinfo`): 0.32% janky, p99 8 ms.
+
+Fix idea: build Library one frame after the first (`beyondViewportPageCount` 0, then 1), then `make perf` again. If the cold start drops back, the pager was the cause.
+
 # Known issues and bad patterns
 
 Found while reading the code, not seen on the phone yet. No steps, just the risk.

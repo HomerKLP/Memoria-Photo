@@ -212,6 +212,15 @@ figcaption { color: var(--muted); font-size: 12px; text-align: center; text-wrap
 .pill { width: 100%; height: 40px; padding: 0 16px; border-radius: 20px; display: flex; align-items: center; justify-content: center; gap: 8px; box-sizing: border-box; }
 .tab.on { color: var(--fg); font-weight: 700; }
 .tab.on .pill { background: var(--accent-soft); }
+/* Photos and Library mid-swipe (#tabs-swipe): the two tabs side by side, moved by --p (0 = Photos, 1 = Library) */
+.pages { flex: 1; min-height: 0; width: 200%; display: flex; transform: translateX(calc(var(--p) * -50%)); }
+.pages > div { width: 50%; display: flex; flex-direction: column; min-height: 0; }
+nav.sliding { position: relative; }
+nav.sliding .thumb { position: absolute; left: 4px; top: 4px; width: 96px; height: 40px; border-radius: 20px; background: var(--accent-soft); transform: translateX(calc(var(--p) * 96px)); }
+nav.sliding .tab { position: relative; }
+nav.sliding .tab .pill { background: none; }
+nav.sliding .tab:nth-of-type(1) { color: color-mix(in srgb, var(--fg) calc(100% - var(--p) * 100%), var(--muted)); }
+nav.sliding .tab:nth-of-type(2) { color: color-mix(in srgb, var(--fg) calc(var(--p) * 100%), var(--muted)); }
 .handle { width: 108px; height: 4px; margin: 6px auto 0; border-radius: 2px; background: var(--fg); opacity: .75; }
 .gesture { padding: 4px 0 6px; }
 .gesture .handle { margin: 0 auto; }
@@ -537,7 +546,7 @@ figure.land { width: calc(760px * var(--z)); }
 <header class="top">
   <h1>Memoria Photo</h1>
   <p class="lede">Light theme, Honey palette. Photos and faces are placeholders, names and places are made up.</p>
-  <p class="latest"><b>Latest, 27 Nov:</b> <a href="#viewer-motion">motion photo</a> tag: small, under the top bar, just the icon and "Motion photo" (was a long pill over the actions).</p>
+  <p class="latest"><b>Latest, 28 Nov:</b> <a href="#tabs-swipe">tab swipe</a>: Photos and Library slide side by side with the finger, and the pill's highlight follows it.</p>
 </header>
 
 <aside class="rail" aria-label="Contents">
@@ -600,6 +609,21 @@ figure.land { width: calc(760px * var(--z)); }
         </div>
       </div>
       <figcaption>Photos tab, at the very top: the top bar shows here and only here. The wordmark, the month heading and the day headings start on one left edge (16 px). The month slider is hidden at the top; see the next figure for scrolling. Photos and Library float as one pill at the bottom center (see Tabs), with photos on both sides</figcaption>
+    </figure>
+    <figure id="tabs-swipe">
+      <div class="phone" style="--p:.4">
+        <div class="status"><span>9:41</span><span><svg class="i"><use href="#i-wifi"/></svg><svg class="i"><use href="#i-battery"/></svg></span></div>
+        <div class="pages"><div id="swipe-photos"></div><div id="swipe-library"></div></div>
+        <div class="bottom">
+          <nav class="sliding">
+            <span class="thumb"></span>
+            <button class="tab on"><span class="pill">Photos</span></button>
+            <button class="tab"><span class="pill">Library</span></button>
+          </nav>
+          <div class="handle"></div>
+        </div>
+      </div>
+      <figcaption>Photos to Library, mid-swipe (40% of the way). Swipe left or right anywhere on either tab. Both tabs slide side by side with the finger; the status bar stays. The pill's highlight slides under the labels at the same pace. Each label's colour fades with it, and bold moves to the other tab at halfway. Let go past halfway or with a flick, and it finishes; else it slides back. A tap on a tab slides the same way. These keep their own drag: the month slider's strip, a long press (drag-select), the People &amp; pets row, and Android's Back from the screen edges. No swipe while selecting</figcaption>
     </figure>
     <figure id="photos-hidden-bar">
       <div class="phone float has-slider">
@@ -744,7 +768,7 @@ figure.land { width: calc(760px * var(--z)); }
         </div>
         <div class="gesture"><div class="handle"></div></div>
       </div>
-      <figcaption>Viewer, motion photo: a photo with a short clip inside, as phone cameras take them (Live or Motion photo). A small tag under the top bar says so: the motion icon and "Motion photo", no more. It belongs to the top bar, so a tap hides it with the bars, and the date never moves for it. Hold the photo: the clip plays over it from the start, muted (a 2-second hold must not stop the music), while the finger stays down; letting go shows the photo again. The clip fades in over a quarter second while the photo grows a little (3%), and fades out the same way on the lift, so the switch is never a cut. The grid marks these photos with the same icon, top right. A clip saved beside the photo as its own file (a Google Photos export) is hidden everywhere: the photo holds the same clip.</figcaption>
+      <figcaption>Viewer, motion photo: a photo with a short clip inside, as phone cameras take them (Live or Motion photo). A small tag under the top bar says so: the motion icon and "Motion photo", no more. It belongs to the top bar, so a tap hides it with the bars, and the date never moves for it. Hold the photo: the clip plays over it from the start, muted (a 2-second hold must not stop the music), while the finger stays down; letting go shows the photo again. The clip fades in over a quarter second, and fades out the same way on the lift, so the switch is never a cut. The grid marks these photos with the same icon, top right. A clip saved beside the photo as its own file (a Google Photos export) is hidden everywhere: the photo holds the same clip.</figcaption>
     </figure>
     <figure id="viewer-more">
       <div class="phone dark viewer" id="viewer-more-phone">
@@ -2437,8 +2461,15 @@ Photos: …/files/test</div>
           <button class="tab"><span class="pill">Library</span></button>
         </nav>
       </div>
+      <div class="bottom" style="margin-top:12px">
+        <nav class="sliding" style="--p:.4">
+          <span class="thumb"></span>
+          <button class="tab on"><span class="pill">Photos</span></button>
+          <button class="tab"><span class="pill">Library</span></button>
+        </nav>
+      </div>
     </div>
-    <p>Photos and Library as one pill floating at the bottom center, text only. No bar behind it: photos show on both sides and under the gesture bar. Each tab has a fixed width, so the bold one never moves the pill. Lists end with room, so their last row clears it.</p>
+    <p>Photos and Library as one pill floating at the bottom center, text only. No bar behind it: photos show on both sides and under the gesture bar. Each tab has a fixed width, so the bold one never moves the pill. Lists end with room, so their last row clears it. Second pill: mid-swipe from Photos to Library (see <a href="#tabs-swipe">the swipe</a>). The highlight sits between the tabs, and the label colours are part way.</p>
   </article>
 
   <article class="part">
@@ -2939,6 +2970,16 @@ behind("#trash-select .phone", "ask-restore-phone");
 behind("#move-album .phone", "ask-move-phone");
 behind("#photos-select .phone", "locking-phone");
 behind("#locked-select .phone", "locked-movingout-phone");
+// Photos to Library mid-swipe: the Photos top figure and the Library figure side by side, with people in the row
+const swipePage = (from, to) => document.getElementById(to).append(...[...document.querySelector(from).children]
+  .filter(n => !n.matches(".status, .bottom")).map(n => {
+    const c = n.cloneNode(true);
+    [c, ...c.querySelectorAll("[id]")].forEach(e => e.removeAttribute("id")); // ids stay unique
+    return c;
+  }));
+swipePage("#page-photos figure .phone", "swipe-photos");
+swipePage("#page-library figure .phone", "swipe-library");
+document.querySelector("#swipe-library .row").innerHTML = document.getElementById("search-people").innerHTML;
 </script>
 
 <script>

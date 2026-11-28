@@ -77,9 +77,8 @@ private const val maxZoom = 6f
 // Double-tap zoom: short, eased, in the viewer only
 private const val zoomMillis = 250
 
-/** A motion photo's clip fades in over the photo, and out on the lift, while the page grows by [clipLift]. */
+/** A motion photo's clip fades in over the photo, and out on the lift. */
 internal const val clipFadeMillis = 250
-private const val clipLift = 0.03f
 
 /** How big the photo really is on screen with ContentScale.Fit, so panning stops at its edges. */
 internal fun fitSize(imageWidth: Int, imageHeight: Int, boxWidth: Int, boxHeight: Int): Size {
@@ -203,7 +202,7 @@ fun ViewerPage(
         if (full != null) value = full
     }
     val sharp = remember(tile.id) { Animatable(0f) }
-    // a cut from the photo to its clip looked harsh: the clip fades in while the page grows a little, and back
+    // a cut from the photo to its clip looked harsh: the clip fades in, and out on the lift
     val clipIn = animateFloatAsState(if (clipPlaying) 1f else 0f, tween(clipFadeMillis, easing = FastOutSlowInEasing), label = "clip")
     LaunchedEffect(image) { if (image !== thumb) sharp.animateTo(1f, tween(150)) }
     // Zoom state lives here: a zoomed photo cannot be swiped away, so the page is never stale.
@@ -349,8 +348,8 @@ fun ViewerPage(
                 }
                 // Deferred read: pan and zoom touch the layer block only, no recomposition, so it stays smooth
                 .graphicsLayer {
-                    scaleX = zoom.floatValue * (1f + clipLift * clipIn.value)
-                    scaleY = scaleX
+                    scaleX = zoom.floatValue
+                    scaleY = zoom.floatValue
                     translationX = pan.value.x
                     translationY = pan.value.y
                 },

@@ -1144,14 +1144,15 @@ fun PhotosMonthPinned() = MemoriaTheme {
     Surface { PhotosContent(items, grid = rememberLazyGridState(20)) }
 }
 
-/** Tabs and the Select bar (mockup "Tabs", "Select bar"): floating pills over the photos. Pairs with tabs_switching_keepsThemPut and selectBar_unfavorite_keepsActionsPut. */
+/** Tabs, mid-swipe tabs and the Select bar (mockup "Tabs", "Select bar"): floating pills over the photos. Pairs with tabs_switching_keepsThemPut and selectBar_unfavorite_keepsActionsPut. */
 @PreviewTest
 @Preview(widthDp = 360, heightDp = 360)
 @Composable
 fun FloatingBars() = MemoriaTheme {
     Surface {
         Column(Modifier.fillMaxSize().background(Color(0xFF9CC3E6)), verticalArrangement = Arrangement.SpaceEvenly, horizontalAlignment = Alignment.CenterHorizontally) {
-            Tabs("photos", {}, {})
+            Tabs({ 0f }, {}, {})
+            Tabs({ 0.4f }, {}, {})
             SelectBar(true, {}, {}, {})
             SelectBar(false, {}, {}, {}, onMove = {})
         }

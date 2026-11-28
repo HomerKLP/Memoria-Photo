@@ -18,12 +18,15 @@ import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.longClick
+import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.test.swipeRight
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.File
 import kotlin.math.abs
@@ -106,6 +109,12 @@ class NavigationTest {
         val y = rule.onNodeWithText(section).fetchSemanticsNode().boundsInRoot.center.y
         val links = rule.onAllNodesWithText("See all")
         links[links.fetchSemanticsNodes().indexOfFirst { abs(it.boundsInRoot.center.y - y) < 20f }].performScrollTo().performClick()
+    }
+
+    // a sideways swipe from inside the screen, clear of the month slider's strip on the right edge
+    private fun swipe(left: Boolean) {
+        rule.onRoot().performTouchInput { if (left) swipeLeft(width * 0.8f, width * 0.2f) else swipeRight(width * 0.2f, width * 0.8f) }
+        rule.waitForIdle()
     }
 
     // the Library tab is the only one with a Settings button
@@ -241,6 +250,36 @@ class NavigationTest {
         rule.onNodeWithText("Navtest").performClick()
         rule.onNodeWithText("1 face matches Navtest").assertIsDisplayed()
         back()
+        assertOnLibrary()
+    }
+
+    // Photos and Library slide side by side (mockup "Tabs" swipe): left opens Library, right goes back to Photos
+    @Test fun swipe_movesBetweenTabs() {
+        start()
+        assertOnPhotos()
+        swipe(left = true)
+        assertOnLibrary()
+        swipe(left = false)
+        assertOnPhotos()
+    }
+
+    // No swipe while selecting: the Select bar stays and Library stays out of view
+    @Test fun swipe_whileSelecting_staysOnPhotos() {
+        start()
+        rule.waitUntil(5_000) { rule.onAllNodesWithTag("tile-$photo").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("tile-$photo").performTouchInput { longClick() }
+        swipe(left = true)
+        rule.onNodeWithText("Delete").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Settings").assertDoesNotExist()
+    }
+
+    // The People row keeps its drag at its ends, so a drag on it never slides to Photos
+    @Test fun swipe_onPeopleRow_staysOnLibrary() {
+        start()
+        openLibrary()
+        waitFor("Navtest")
+        rule.onNodeWithTag("peopleRow").performTouchInput { swipeRight() }
+        rule.waitForIdle()
         assertOnLibrary()
     }
 
