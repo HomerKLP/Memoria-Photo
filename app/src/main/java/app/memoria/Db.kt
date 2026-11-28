@@ -146,6 +146,8 @@ interface IndexDao {
     @Insert suspend fun insertPerson(person: PersonRow)
     @Query("UPDATE face SET personId = :person WHERE id IN (:faces)") suspend fun setPerson(faces: List<Long>, person: Long)
     @Query("SELECT thumb FROM face WHERE id = :id") suspend fun thumb(id: Long): ByteArray?
+    // TODO(0.16.0): delete with recutNarrowThumbs
+    @Query("UPDATE face SET thumb = :thumb WHERE id = :id") suspend fun setThumb(id: Long, thumb: ByteArray)
     @Query("SELECT * FROM answer") suspend fun answers(): List<AnswerRow>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun answer(answer: AnswerRow)
     @Query("DELETE FROM answer WHERE faceId = :face AND yes") suspend fun dropYes(face: Long)

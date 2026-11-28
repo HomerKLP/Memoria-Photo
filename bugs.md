@@ -2,6 +2,16 @@
 
 Style: one-line description, steps to reproduce, fix ideas. Code paths only when they help. Open bugs in full; a fixed bug becomes one line under Fixed at the bottom (the full write-up stays in git history).
 
+## Some People covers still look soft at 96 dp
+
+Pictures saved before 2026-11-28 have a 288 px long side, so their short side is ~224 px and the circle stretches it 1.1-1.3x (44 of 47 covers on the test phone). `recutNarrowThumbs` cuts them again once, at the first index run of 0.14.0 (delete it in 0.16.0); on the debug app it fixed 2185 faces in 213 s. Pet pictures are cut from the 640 decode (`petFace`), so a pet cover can be 165 px wide (1.7x); left as is, the user's call. A person whose best face is 57 px in the photo gets 3.1x; the photo has no more detail. WebP quality 80 may add some blockiness (not checked).
+
+Steps:
+1. Open Library > People & pets > See all.
+2. Compare a cover with the same face in Library (72 dp, sharp).
+
+Fix idea: cut pet pictures from the full decode (one more decode per pet photo).
+
 ## VideoPlayTest flakes on the 10-bit HEVC clip
 
 `make layout` on the API 37 emulator once failed `plays_asItsRowSays[videos/video_hevc10.mp4]` with `ERROR_CODE_FAILED_RUNTIME_CHECK` (1004); the rerun of `VideoPlayTest` was 11/11 green. The row (`plays or card`) allows only 4000-4999 as "the decoder refused it", and the emulator's 10-bit HEVC path sometimes reports 1004 instead.
@@ -239,3 +249,4 @@ Found while reading the code, not seen on the phone yet. No steps, just the risk
 - 2026-11-24 Locking big files looked frozen: Lock encrypted every file before Android's question, with nothing on screen. Now a "Locking" dialog shows after 300 ms with a bar by bytes; Cancel and Back stop it and take the copies back out (`BehaviorDeviceTest#lock_cancelWhileLocking_leavesTheGalleryAsIs`, `#lock_slow_showsBytesThenAndroidAsks`, red first). Move out got the same dialog ("Moving out"). Checked on the phone by the user: Lock and Move out both show the progress.
 - 2026-11-25 A model file that would not load started an empty run on each app open: its photos stayed in the catch-up plan. The worker now marks that copy of the file, and auto-start counts no catch-up work for it until it loads again or a new download replaces it (`modelsUsable`, `IndexLogicTest`).
 - 2026-11-26 A WhatsApp photo showed 00:00: its name has a date only, and `fallbackDate` filled the time with `000000`. Now the day comes from the name and the time from the file (`PhotosDateTest#dateFromNameWithoutTime`, red first). Checked on the phone: Details shows 23:21, the file time. On the test phone about a third of the files have no `date_taken`; most are Takeout imports whose file time is the import day, so names stay a date source.
+- 2026-11-28 People: covers looked soft at 96 dp. `faceThumb` capped the long side at 288 px, but the circle fills by the short side (224 px, stretched 1.29x). Now the short side is 288 px, new faces only (`FaceThumbTest`).

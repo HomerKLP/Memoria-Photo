@@ -7,8 +7,10 @@ import android.app.PendingIntent
 import android.content.ContentUris
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.provider.MediaStore
@@ -67,6 +69,39 @@ private fun averageVector(vs: List<FloatArray>): FloatArray {
     return if (len == 0f) s else FloatArray(s.size) { s[it] / len }
 }
 
+/**
+ * TODO(0.16.0): delete this, its call in [IndexWorker.doWork], [IndexDao.setThumb] and `RecutTest`. A one-time fix shipped in 0.14.0;
+ * 0.16.0 leaves one version for users who skip one.
+ * Face pictures saved before 2026-11-28 have a 288 px long side, so the 96 dp circle stretches them. This cuts them again from
+ * [load]'s photo; ids, people and answers stay. Pets and video faces keep theirs. Resumes by photo id after a stop.
+ */
+internal suspend fun recutNarrowThumbs(dao: IndexDao, prefs: SharedPreferences, stopped: () -> Boolean, load: (Long) -> Bitmap) {
+    val after = prefs.getLong("recutShortSide", 0)
+    if (after == Long.MAX_VALUE) return
+    val start = System.nanoTime()
+    var count = 0
+    val photos = dao.faceVecs().filter { !it.pet && it.kind != PhotoKind.video && it.photoId > after }.groupBy { it.photoId }.toSortedMap()
+    for ((id, faces) in photos) {
+        if (stopped()) return
+        val narrow = faces.filter { f ->
+            val bytes = dao.thumb(f.id) ?: return@filter false
+            val o = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, o)
+            max(o.outWidth, o.outHeight) == 288 && min(o.outWidth, o.outHeight) < 288
+        }
+        if (narrow.isNotEmpty()) try {
+            val image = load(id)
+            narrow.forEach { dao.setThumb(it.id, faceThumb(image, it.box)); faceBitmaps.remove(it.id) }
+            count += narrow.size
+        } catch (e: Exception) {
+            AppLog.w("recut $id", e)
+        }
+        prefs.edit().putLong("recutShortSide", id).apply()
+    }
+    prefs.edit().putLong("recutShortSide", Long.MAX_VALUE).apply()
+    AppLog.i("recut $count faces from ${photos.size} photos in ${(System.nanoTime() - start) / 1_000_000_000} s")
+}
+
 /** Finds faces in new photos and saves them. Photos already in the DB are skipped, so it can stop and resume. */
 class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
@@ -83,6 +118,10 @@ class IndexWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         val plan = indexPlan(all, done, tagged, boxed, tagging, boxing)
         // photos deleted from the phone: forget them, their faces, vectors and boxes, so counts and people match the phone
         if (!testOnly) plan.gone.chunked(500).forEach { dao.deleteFaces(it); dao.deletePhotos(it); dao.deleteVectors(it); dao.deleteTags(it); dao.deleteBoxes(it) }
+        // TODO(0.16.0): delete with recutNarrowThumbs
+        recutNarrowThumbs(dao, applicationContext.getSharedPreferences("index", Context.MODE_PRIVATE), { isStopped }) { id ->
+            loadPhoto(applicationContext.contentResolver, ContentUris.withAppendedId(Media.EXTERNAL_CONTENT_URI, id))
+        }
         if (isStopped) return Result.success()
         val todo = plan.todo
         val newPhotos = todo.filter { !it.video }

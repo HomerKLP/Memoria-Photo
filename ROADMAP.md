@@ -30,6 +30,7 @@ Released (0.13.0). This file lists open work only, most important first. What is
 
 ## Later
 
+- In 0.16.0: delete the one-time face recut (`grep -rn 'TODO(0.16.0)' app/`).
 - Google Takeout import: copy photos not already on the phone, dates from the JSON, skip duplicates. Plan: `docs/library-unification.md`.
 - Names from Takeout: match Google's people tags to our people (photos with one tag and one face, then a majority vote per person, like `bench.py eval`).
 - Setting: photos needed to make a person (today 6, hardcoded in `groupFaces` and `groupPets`). Easy: a `minPhotos` parameter, a change runs one full regroup, no re-index. Open: does a named person under a raised number keep its name; one number for people and pets, or two. Mockup first.

@@ -191,14 +191,14 @@ fun groupPets(all: List<FaceVec>, answers: List<AnswerRow> = emptyList(), merges
 /** A person and a pet never merge (docs/design.html, Merge with). */
 fun canMerge(a: Person, b: Person) = a.pet == b.pet
 
-/** Face plus 30% margin as a small WebP, longest side up to 288 px (the 96 dp People face at 3x). Saved while indexing, so the People screen never decodes photos. */
+/** Face plus 30% margin as a small WebP, short side up to 288 px: the round crop fills the 96 dp People face at 3x by it. Saved while indexing, so the People screen never decodes photos. */
 fun faceThumb(image: Bitmap, box: FloatArray): ByteArray {
     val m = max(box[2] - box[0], box[3] - box[1]) * 0.3f
     val l = (box[0] - m).toInt().coerceIn(0, image.width - 1)
     val t = (box[1] - m).toInt().coerceIn(0, image.height - 1)
     val w = ((box[2] + m).toInt().coerceAtMost(image.width) - l).coerceAtLeast(1)
     val h = ((box[3] + m).toInt().coerceAtMost(image.height) - t).coerceAtLeast(1)
-    val s = min(1f, 288f / max(w, h))
+    val s = min(1f, 288f / min(w, h))
     val thumb = Bitmap.createScaledBitmap(Bitmap.createBitmap(image, l, t, w, h), max(1, (w * s).roundToInt()), max(1, (h * s).roundToInt()), true)
     return ByteArrayOutputStream().also { thumb.compress(Bitmap.CompressFormat.WEBP_LOSSY, 80, it) }.toByteArray()
 }
