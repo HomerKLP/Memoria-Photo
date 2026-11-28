@@ -70,7 +70,7 @@ The models were picked on real family photos, not only on paper: 3 face finders 
 - **Pets:** cats and dogs, found and grouped like people, with names.
 - **Favorites, Videos, Trash:** use the phone's own favorites and trash.
 - **Media management (optional):** one switch in Android's settings, and Memoria asks its own questions before a delete, restore or move instead of Android's.
-- **Locked folder:** photos and videos move into encrypted storage that only the phone's fingerprint or PIN opens. Clearing the app's data deletes them.
+- **Locked folder:** photos and videos move into encrypted storage that only the phone's fingerprint or PIN opens.
 - **Categories:** pets, documents, food, sunsets and 10 more, sorted on the phone.
 - **Search:** people, places, months, categories.
 - **Folders to skip:** keep some folders out of the index (faces, pets, search, places).
@@ -100,7 +100,7 @@ Known gap: sound in AC-3, E-AC-3 or DTS (some `.mkv` and camcorder files) plays 
 | Face recognition, per photo | ~70 ms | ~85 ms | ~520 ms |
 | Whole photo, opening it included | ~130 ms | ~145 ms | ~580 ms |
 
-A library of 10,000 photos takes about **22 minutes** on the NPU, or about **24 minutes** on the GPU.
+A library of 10,000 photos takes about **22 minutes** on the NPU, or about **24 minutes** on the GPU. This full scan runs once, after install. Later, only new photos are scanned, about 130 ms each.
 
 <sub>Measured on a Snapdragon 8 Elite. Your phone may be faster or slower, depending on its chip.</sub>
 
